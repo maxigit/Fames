@@ -29,8 +29,8 @@ import Lens.Micro.Extras (preview)
 import Data.These.Lens
 import Text.Printf(printf) 
 import Data.Time (diffDays)
--- * Types
--- ** Items
+-- * Types 
+-- ** Items 
 data StockMasterRuleInfo = StockMasterRuleInfo
   { smStockId :: !(Key FA.StockMaster)
   , smDescription :: !String
@@ -70,14 +70,14 @@ instance RawSql StockMasterRuleInfo where
   rawSqlProcessRow = stockMasterRuleInfoFromTuple [] <$$> rawSqlProcessRow
   
 
--- ** Customers
+-- ** Customers 
 type DebtorsMasterRuleInfo = (Key DebtorsMaster
                            , (Single String, Single String, Single String, Single String) -- debtor infos
                            , (Single (Maybe String), Single (Maybe String)) -- dimensions
                            , (Single (Maybe Day), Single (Maybe String)) -- first order
                            , (Single (Maybe Day), Single (Maybe String)) -- last order
                            )
--- * Items
+-- * Items 
 -- | Return a function finding the category given a style
 -- The current implementation is based on TDFA regex
 -- which are pretty slow so we cache it into a big map
@@ -119,7 +119,7 @@ categoryFinderCached category =  cache0 False cacheForEver (categoryCacheKey cat
 
 categoryCacheKey :: Text -> (String, Text)
 categoryCacheKey = ("category-finder",)
--- ** Category computation
+-- ** Category computation 
 refreshCategoryFor :: (Maybe Text) -> Maybe FilterExpression -> Handler ()
 refreshCategoryFor textm stockFilterM = do
   stockFilter <- case stockFilterM of
@@ -188,8 +188,8 @@ refreshCategoryCache force textm = do
     count criteria
   when (c == 0 ) (refreshCategoryFor textm Nothing)
   
--- ** DB
--- *** Standard rules
+-- ** DB 
+-- *** Standard rules 
 loadStockMasterRuleInfos :: FilterExpression -> Handler [StockMasterRuleInfo]
 loadStockMasterRuleInfos stockFilter = do
   base <- basePriceList
@@ -233,8 +233,8 @@ loadStockMasterRuleInfos stockFilter = do
 --      -> StockMasterRuleInfo
 --      -> (Key StockMaster, Map String String)
 applyCategoryRules :: [(String, String)]
-                   -> [Map Text DeliveryCategoryRule] -- ^ Delivery rules
-                   -> [(String, ItemCategoryRule)] -- ^ Categories rules
+                   -> [Map Text DeliveryCategoryRule] --  ^ Delivery rules
+                   -> [(String, ItemCategoryRule)] --  ^ Categories rules
                    -> StockMasterRuleInfo
                    -> (Key StockMaster, Map String String)
 applyCategoryRules extraInputs deliveryRules rules =
@@ -291,7 +291,7 @@ categoriesFor deliveryRules rules = let
 
 
 
--- ***  Track delivery
+-- ***  Track delivery 
 -- Try to guess the provenance of each item in stock
 -- by comparing the quantity on hand in each container
 -- and what's been delivered.
@@ -371,7 +371,7 @@ partitionDeliveriesFIFO (These moves' qoh) = let
     r ->  r
   in
      -- traceShow ("QS", quantities, "Running", map fst running) 
-     -- $ traceShow ("SPLIT", map (FA.stockMoveQty . snd) used', map (FA.stockMoveQty . snd) leftover')  $
+     --   $ traceShow ("SPLIT", map (FA.stockMoveQty . snd) used', map (FA.stockMoveQty . snd) leftover')  $
     ( map snd used', map snd leftover')
                                             
                                        
@@ -431,7 +431,7 @@ extractMainDeliveryRule maps = do -- Maybe
 
    
 
--- * Customers
+-- * Customers 
 -- | Return a function finding the customerCategory given a style
 -- The current implementation is based on TDFA regex
 -- which are pretty so we cache it into a big map
@@ -447,7 +447,7 @@ customerCategoryFinderCached = cache0 False cacheForEver "customerCategory-finde
 
   debtor'catMap `seq` return finder
 
--- ** Computations
+-- ** Computations 
 refreshCustomerCategoryFor :: Handler ()
 refreshCustomerCategoryFor = do
   rulesMaps <- appCustomerCategoryRules <$> getsYesod appSettings
@@ -557,7 +557,7 @@ customerCategoriesFor rules = let
         ]
 
 
--- * Order Category caches
+-- * Order Category caches 
 -- | Clears all order categories and computes the n first if given
 refreshOrderCategoryCache :: Maybe Int -> Handler ()
 refreshOrderCategoryCache nM = do

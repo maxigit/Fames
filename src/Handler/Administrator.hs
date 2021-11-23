@@ -142,7 +142,7 @@ getACacheR = do
   <button.btn.btn-danger type="submit">Clear 
                           |]
 
--- * Clear the cache
+-- * Clear the cache 
 {-# NOINLINE postACacheR #-}
 postACacheR :: Handler Html
 postACacheR = do
@@ -160,7 +160,7 @@ postACachePurgeKeyR key = do
 -- but returns something
 getACachePurgeKeyR :: Text -> Handler Html
 getACachePurgeKeyR _ = getACacheR
--- ** Item Categories
+-- ** Item Categories 
 {-# NOINLINE getAResetCategoryCacheR #-}
 getAResetCategoryCacheR :: Handler Html
 getAResetCategoryCacheR = do
@@ -178,7 +178,7 @@ getAResetCategoryCacheR = do
       purgeCacheKey $ Cache.categoryCacheKey cat
       getItemsCategoryTermsR cat
 
--- ** Customer Categories
+-- ** Customer Categories 
 {-# NOINLINE getAResetCustomerCategoryCacheR #-}
 getAResetCustomerCategoryCacheR :: Handler Html
 getAResetCustomerCategoryCacheR = do
@@ -230,7 +230,7 @@ getACustomerCategoryR = do
           <td>#{fromMaybe "" $ finder cat key}
     |]
 
--- ** Order Categories
+-- ** Order Categories 
 -- | Recomputes the categories for ALL orders
 -- usefull when a new category is created
 {-# NOINLINE getAResetOrderCategoryCacheR #-}
@@ -312,7 +312,7 @@ displayPendingOrderCategory = runDB $ do
 
   
 
--- * Masquerade
+-- * Masquerade 
 masquerade :: Text
 masquerade = "masquerade-user"
 {-# NOINLINE getAMasqueradeR #-}
@@ -340,7 +340,7 @@ postAMasqueradeR = do
   getAMasqueradeR
 
 
--- * Tax report
+-- * Tax report 
 -- List all report which needs check fraud previons
 taxReportChecks :: AppSettings -> Widget
 taxReportChecks settings = let

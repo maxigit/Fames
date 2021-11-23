@@ -15,7 +15,7 @@ import Data.Proxy
 import Data.ISO3166_CountryCodes
 import FATransType
 
--- * Warehouse
+-- * Warehouse 
 -- | Where as a transaction has been processed or not.
 data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, Ord)
 
@@ -32,31 +32,31 @@ instance PersistField MatchScore where
 instance PersistFieldSql MatchScore where
   sqlType _ = SqlReal
 
--- * Payroll
+-- * Payroll 
 -- | Wether a payroll cost is a added to the employer bill (cost) or paid by the employee (deduction)
 data CostOrDeduction = Cost | Deduction deriving(Eq, Read, Show, Enum, Bounded, Ord)
 derivePersistField "CostOrDeduction"
 
 derivePersistField "PayrollFrequency"
 
--- * Miscelaneous
+-- * Miscelaneous 
 -- Trick to use in Persistent model declaration
 -- as using normal tuples doesn't seem to work
 type Pair a b = (a,b)
 type Pairs a b = [(a,b)]
 
 
--- * FrontAccounting
+-- * FrontAccounting 
 -- | Type of Fames "event" To be used in TransactionMap
 data EventType = StockAdjustmentE
                | PayrollShiftE
                | PayrollItemE
                | TimesheetE
-               | PackingListShippingE -- ^ Shipping invoice for a delivery
-               | PackingListDutyE -- ^ duty invoice for a delivery
-               | PackingListInvoiceE -- ^ supplier invoice for a delivery
+               | PackingListShippingE --  ^ Shipping invoice for a delivery
+               | PackingListDutyE --  ^ duty invoice for a delivery
+               | PackingListInvoiceE --  ^ supplier invoice for a delivery
                | GLReceiptE
-               | ItemCostValidationE -- ^ fixing of gl or cost price 
+               | ItemCostValidationE --  ^ fixing of gl or cost price 
   deriving (Eq, Show, Ord, Enum, Bounded)
 
 -- | derivePersistField uses String instead of an INt
@@ -113,15 +113,15 @@ glViewUrlForFA base type_ no = base <> "/" <> pack url where
   tp = fromEnum type_
   url = printf "gl/view/gl_trans_view.php?type_id=%d&trans_no=%d" tp no
 
--- * PersistField Instance
--- ** Value
+-- * PersistField Instance 
+-- ** Value 
 instance PersistField Value where
   toPersistValue = toPersistValueJSON
   fromPersistValue = fromPersistValueJSON
 
 instance PersistFieldSql Value where
   sqlType _ = SqlBlob -- sqlType (Proxy :: Proxy Text)
--- ** Decimal
+-- ** Decimal 
 instance PersistField Decimal where
   toPersistValue = toPersistValue . tshow
   fromPersistValue = fromPersistValue >=> f where

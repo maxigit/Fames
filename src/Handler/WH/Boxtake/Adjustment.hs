@@ -12,7 +12,7 @@ import Data.These.Lens
 
 type BoxtakePlus = (Entity Boxtake , [Entity Stocktake])
 type StocktakePlus = (Entity Stocktake, Key Boxtake)
--- * types
+-- * types 
 -- | All information regarging a style, QOH, boxtakes stocktakes etc.
 data StyleInfo = StyleInfo
    { siQoh :: Map Text Double
@@ -45,12 +45,12 @@ data StyleInfoSummary = StyleInfoSummary
    } deriving Show
 -- | What should happend to a box
 data BoxStatus
-  = BoxUsed -- ^ Active and used. nothing to do
-  | BoxToActivate -- ^ used but inactive. Needs activation
-  | BoxToDeactivate -- ^ unused but active. Need deactivation.
-  | BoxInactive -- ^ don't display
+  = BoxUsed --  ^ Active and used. nothing to do
+  | BoxToActivate --  ^ used but inactive. Needs activation
+  | BoxToDeactivate --  ^ unused but active. Need deactivation.
+  | BoxInactive --  ^ don't display
   deriving (Eq, Ord, Show)
--- * 
+-- *  
 
 -- | Compute the box status of each boxes
 computeInfoSummary :: StyleInfo -> [StyleInfoSummary]
@@ -96,7 +96,7 @@ type StocktakePrioriry = (Down Bool, Down Day, Down Int, Down (Text, Text))
 computeStocktakePriority :: BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
 computeStocktakePriority (Entity bId Boxtake{..}, stocktakes) = do
   s@(Entity _ Stocktake{..}) <- stocktakes
-  let priority = ( Down $ boxtakeActive -- || stocktakeActive
+  let priority = ( Down $ boxtakeActive --    || stocktakeActive
                  , Down boxtakeDate -- older more likely to be picked
                  , Down stocktakeQuantity -- The more, the less we pick from it
                  , Down $ locationPriority boxtakeLocation
@@ -169,8 +169,8 @@ defaultAdjustmentParamH :: Handler AdjustmentParam
 defaultAdjustmentParamH = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
   return $ AdjustmentParam Nothing defaultLocation True False True Nothing
--- * Render
--- * DB
+-- * Render 
+-- * DB 
 -- | Load all boxes needed to display and compute adjustment
 --  style filter filter a style (not a particular variation)
 -- because boxes can be boxtaken without specifying the variation
@@ -364,7 +364,7 @@ classForBox b = case boxStatus b of
   BoxInactive -> Nothing
   status -> Just (tshow status)
 
--- * Adjustment
+-- * Adjustment 
 -- | Inactivate and reactivate the given boxes
   
 processBoxtakeAdjustment :: Handler ()
@@ -386,7 +386,7 @@ extractBoxIdFromParam :: Text -> [(Text, Text)] -> [Key Boxtake]
 extractBoxIdFromParam prefix pp =
   let bids = [ bId | (p, checked) <- pp, checked=="on", Just bId <- [readMay =<< stripPrefix prefix p] ] :: [Int64]
   in map (BoxtakeKey . SqlBackendKey) bids
--- * Css
+-- * Css 
 adjustmentCSS :: Widget
 adjustmentCSS =toWidget [cassius|
 .multi td.boxDescription

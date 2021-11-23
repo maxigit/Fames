@@ -15,7 +15,7 @@ import Database.Persist.Types
 import qualified Data.Map.Lazy as LMap
 import Import.NoFoundation
 
--- * General
+-- * General 
 -- | Holder for miscellaneous information relative to an item.
 -- Allows mainly to call operation which need to group by style and or variations.
 data ItemInfo a = ItemInfo
@@ -40,14 +40,14 @@ instance Applicative MinMax where
 instance (Ord a, Num a, Fractional a) => Monoid (MinMax a) where
   mempty = MinMax (1/0) 0
 
--- * Index
+-- * Index 
 -- | Status of a variation within a group
 -- Given a group of items and a list of variations
 -- tells if the current items belongs , is missing or is extra
 data VariationStatus= VarOk | VarMissing | VarExtra deriving (Eq, Show, Read, Ord)
 
 type FieldWithClasses a = ([Text], a)
--- ** Functor parametrize data types
+-- ** Functor parametrize data types 
 -- | Functor parameterized version of StockMaster
 $(metamorphosis
  ( (return)
@@ -122,7 +122,7 @@ data ItemMasterAndPrices f = ItemMasterAndPrices
   , impWebPrices :: Maybe (ItemPriceF f)
   } 
 
--- ** Instances
+-- ** Instances 
 deriving instance Show (StockMasterF Identity)
 deriving instance Show (PriceF Identity)
 deriving instance Show (PurchDataF Identity)
@@ -160,31 +160,31 @@ instance Monoid (ItemMasterAndPrices f) where
   mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Whereas an item is running or not.
-data FARunningStatus = FARunning -- ^ can and need to be sold
-                    | FAAsleep -- ^ Not used but still present in cancelled or expired order/location. Probably needs cleaning up before set to inactive.
+data FARunningStatus = FARunning --  ^ can and need to be sold
+                    | FAAsleep --  ^ Not used but still present in cancelled or expired order/location. Probably needs cleaning up before set to inactive.
 
-                    | FADead -- ^ Not used anymore but can't be deleted because of exists in previous trans.
-                    | FAGhost -- ^ In the system but can be deleted.
+                    | FADead --  ^ Not used anymore but can't be deleted because of exists in previous trans.
+                    | FAGhost --  ^ In the system but can be deleted.
                     deriving (Show, Read, Eq, Enum, Bounded)
 
-data WebDisplayStatus = WebOk -- ^ is active and has a product display : shows on the website
-                      | WebHidden -- ^ has a product display but inactive: is hidden
-                      | WebMissing -- ^  the variation doesn't exist.
-                      | WebUnlinked -- ^  orphan variation without a product display
+data WebDisplayStatus = WebOk --  ^ is active and has a product display : shows on the website
+                      | WebHidden --  ^ has a product display but inactive: is hidden
+                      | WebMissing --  ^  the variation doesn't exist.
+                      | WebUnlinked --  ^  orphan variation without a product display
                       deriving (Show, Read, Eq, Enum, Bounded)
 
-data PriceStatus =  PriceOk -- ^ All prices are the same within a group for all (selected) price lists
+data PriceStatus =  PriceOk --  ^ All prices are the same within a group for all (selected) price lists
                  | PriceMissing
                  | PriceDiffers
                  deriving (Show, Read, Eq, Enum, Bounded)
 
-data GLStatus = GLOk -- ^ Everything is the same within  a group
-              | GLDescriptionDiffers -- ^ Only the description differs
-              | GLDiffers -- ^ 
+data GLStatus = GLOk --  ^ Everything is the same within  a group
+              | GLDescriptionDiffers --  ^ Only the description differs
+              | GLDiffers --  ^ 
               deriving (Show, Read, Eq, Enum, Bounded)
 
 
--- * Reporting
+-- * Reporting 
 type Quantity = Double
 type Amount = Double
 -- | Quantity and Price
@@ -340,7 +340,7 @@ data ItemInitialInfo = ItemInitialInfo
 data Axis = PriceAxis | AmountAxis | CumulAmountAxis | QuantityAxis | CumulQuantityAxis
     deriving (Show, Eq, Ord, Enum, Bounded)
 
--- * Nested Map with pseudo-heterogenous key
+-- * Nested Map with pseudo-heterogenous key 
 -- we use here PersistValue as a Sum type containing
 -- the main basic types as well hav having an Ord instance
 -- This should be much more efficient than converting everything to Text.
@@ -528,7 +528,7 @@ nmapToList (NMap _ _ m) = [ (key : subkeys, es)
                       , (subkeys, es)<- nmapToList nmap
                       ]
 
--- * Forecast
+-- * Forecast 
 -- | Proportion of sales for each month of sales for each month. The sum should be 1 or 0 (and we should have 12 )
 data SeasonProfile = SeasonProfile [Double] deriving (Show, Read, Eq)
 seasonProfile [] = seasonProfile (repeat 1)

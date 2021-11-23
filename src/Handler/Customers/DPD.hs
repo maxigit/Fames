@@ -33,7 +33,7 @@ data Delivery = Delivery
   , additional_information :: Text
   , contactName :: Text
   , contactTelephoneNumber :: Text
-  , customValue :: Double -- | excluding shipping cost
+  , customValue :: Double -- -| excluding shipping cost
   , description :: Text
   , noOfPackages :: Int
   , notificationEmail :: Text
@@ -88,8 +88,8 @@ data ProductDetail = ProductDetail
 
 data PRD = PRD deriving (Show, Read)
 
--- * Instances
--- ** Fields
+-- * Instances 
+-- ** Fields 
 instance ToField CountryCode where
   toField = toField . show
 instance ToField ServiceCode where
@@ -113,7 +113,7 @@ instance ToField PRD where
 instance ToField ReasonForExport where
   toField Sale = "01"
     
--- ** NamedRecord
+-- ** NamedRecord 
 instance ToNamedRecord Delivery where
   toNamedRecord = namedRecord . deliveryToFields
 deliveryToFields Delivery{..} =
@@ -170,7 +170,7 @@ productDetailToFields ProductDetail{..} =
     , "UnitValue" .=(  printf "%.2f" $ max 0.01 unitValue :: String)
     ]
 
--- * Stream
+-- * Stream 
 makeDPDSource :: (Double -> Delivery ) -> [ProductDetail] -> ConduitT () (L.ByteString) Handler ()
 makeDPDSource _ [] = error "Invoice without product details"
 makeDPDSource delivery' details@(detail:_) = do

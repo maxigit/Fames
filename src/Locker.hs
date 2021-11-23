@@ -21,7 +21,7 @@ import Role
 import qualified Debug.Trace as D
 import Data.Either(isRight)
 
--- * Types
+-- * Types 
 
 -- | The locker Monad. A value which can't be accessed without a key
 data Locker r a where
@@ -34,7 +34,7 @@ deriving instance  (Ord r, Read a, Read r) => Read (Locker r a)
 
 data Granted = Granted | Forbidden deriving (Eq, Ord, Show, Read)
 
--- * Manipulators
+-- * Manipulators 
 lock :: Ord r => [r] -> a -> Locker r a
 lock rs x = Locker (setFromList rs) x
 
@@ -55,12 +55,12 @@ restrict rs' (Locker rs x) = Locker (rs <> setFromList rs') x
 _unlock' :: Ord p => ((p, r) -> Granted) -> p -> Locker r a -> Either [(p, r)] a
 _unlock' unlocker privilege (Locker roles value) = unlock unlocker $ Locker (setFromList $ map (privilege,) (toList roles)) value
 
--- * Unsafe
+-- * Unsafe 
 -- use prelude version issue a warning. 
 unsafeUnlock :: Show r => Locker r p -> p
 unsafeUnlock (Locker rs x) = D.traceShow ("Unsafe UNLOCK requiring " <> show rs) x 
 
--- * Instances
+-- * Instances 
 
 instance Functor (Locker r) where
   fmap f (Locker r x)  = Locker r (f x)
@@ -101,7 +101,7 @@ showLock  unlocker l_lock = case unlock unlocker l_lock of
   Right value -> show value
   
 
--- * Roles Granter
+-- * Roles Granter 
 
 data Privilege = ViewPriv | CreatePriv | DeletePriv | SavePriv deriving (Eq, Read, Show, Ord, Enum ,Bounded)
 granter :: Role -> (Privilege, Text) -> Granted

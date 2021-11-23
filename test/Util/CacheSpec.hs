@@ -31,7 +31,7 @@ clearLogs = do
 
 sleepMilli :: Int -> IO ()
 -- sleepMilli milli = timeout (milli*1000) (newEmptyMVar >>= takeMVar ) >> return ()
-sleepMilli milli = threadDelay (milli*1000) -- | milli <= 10000000000 =  threadDelay  (milli*1000) >> return ()
+sleepMilli milli = threadDelay (milli*1000) -- -| milli <= 10000000000 =  threadDelay  (milli*1000) >> return ()
 _sleepMilli milli = do
   print "BAD"
   threadDelay (100*1000)

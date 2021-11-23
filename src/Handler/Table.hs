@@ -5,11 +5,11 @@ import Import
 import Lens.Micro.Extras(view)
 import Data.Text(toTitle)
 
-displayTable :: [col] -- ^ index of columns to display
-             -> (col -> (Html, [Text])) -- ^ column index to header and class
+displayTable :: [col] --  ^ index of columns to display
+             -> (col -> (Html, [Text])) --  ^ column index to header and class
              -> [ (col -> Maybe (Html, [Text])
                   , [Text]
-                  )] -- ^ rows, given column index, return a value and classes
+                  )] --  ^ rows, given column index, return a value and classes
              -> Widget
 displayTable columns colDisplay rows = do
   [whamlet|
@@ -18,9 +18,9 @@ displayTable columns colDisplay rows = do
 |]
  
 
-displayTableRows :: [col] -- ^ index of columns to display
-             -> (col -> (Html, [Text])) -- ^ column index to header and class
-             -> [(col -> Maybe (Html, [Text]), [Text])] -- ^ rows, given column index, return a value and classes
+displayTableRows :: [col] --  ^ index of columns to display
+             -> (col -> (Html, [Text])) --  ^ column index to header and class
+             -> [(col -> Maybe (Html, [Text]), [Text])] --  ^ rows, given column index, return a value and classes
              -> Widget
 displayTableRows  columns colDisplay rows = do
   [whamlet|
@@ -35,9 +35,9 @@ displayTableRows  columns colDisplay rows = do
   |]
 
  
-displayTableRowsAndHeader :: [col] -- ^ index of columns to display
-             -> (col -> (Html, [Text])) -- ^ column index to header and class
-             -> [(col -> Maybe (Html, [Text]), [Text])] -- ^ rows, given column index, return a value and classes
+displayTableRowsAndHeader :: [col] --  ^ index of columns to display
+             -> (col -> (Html, [Text])) --  ^ column index to header and class
+             -> [(col -> Maybe (Html, [Text]), [Text])] --  ^ rows, given column index, return a value and classes
              -> Widget
 displayTableRowsAndHeader  columns colDisplay rows = do
   [whamlet|

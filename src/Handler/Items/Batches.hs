@@ -22,17 +22,17 @@ import Database.Persist.Sql -- (unSqlBackendKey)
 
 import Handler.Items.Batches.Matches
 import Handler.CsvUtils(renderParsingResult, Renderable(..))
--- * Type
+-- * Type 
 -- | Summary to display on main batches page
 data BatchSummaryCount = BatchSummaryCount
-  { bsColourCount :: Int -- ^ the number of colours
+  { bsColourCount :: Int --  ^ the number of colours
   , bsBatchCount :: Int -- ^ the number of colours
   } deriving Show
 data BatchSummary = BatchSummary
-  { bsGiven :: BatchSummaryCount -- ^ as opposed to guessed
+  { bsGiven :: BatchSummaryCount --  ^ as opposed to guessed
   , bsTotal :: BatchSummaryCount
   } deriving Show
--- * Form
+-- * Form 
 data Mode = Validate | Success deriving (Show, Read, Eq)
 batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
   form = Batch <$> areq textField "Name" (batchName <$> batchM)
@@ -64,8 +64,8 @@ matchTableForm categories = renderBootstrap3 BootstrapInlineForm form where
 batchCategoryIndexForm categories batchName = renderBootstrap3 BootstrapInlineForm form where
   form = (,) <$> areq (selectFieldList $ zip categories categories ) ("Batch category" { fsName = Just "category"}) Nothing
              <*> areq hiddenField ("" { fsName = Just "category-filter"}) (Just batchName)
--- * Handler
--- ** All batches
+-- * Handler 
+-- ** All batches 
 {-# NOINLINE getItemBatchesR #-}
 getItemBatchesR :: Handler Html
 getItemBatchesR = do
@@ -103,7 +103,7 @@ postItemBatchesR = do
   return ""
 
   
--- ** Single Batch
+-- ** Single Batch 
 -- display a batch
 {-# NOINLINE getItemBatchR #-}
 getItemBatchR :: Int64 -> Handler Html
@@ -170,7 +170,7 @@ saveMatchesForm encoding'hash'''pathM''day'''operator = renderBootstrap3 Bootstr
   view2 (_, b, _ ) = b
   view3 (_, _, c ) = c
 
--- ** Upload
+-- ** Upload 
 uploadBatchExtra =  do
   today <- todayH
   categories <- batchCategoriesH
@@ -231,7 +231,7 @@ postItemBatchSaveMatchesR = do
      
   -- return "Todo"
     
--- ** Match Table
+-- ** Match Table 
 {-# NOINLINE getItemBatchMatchTableR #-}
 getItemBatchMatchTableR :: Handler Html
 getItemBatchMatchTableR = do
@@ -393,7 +393,7 @@ loadBatchMatchTable batchKey = do
   loadMatchTable MatchTableParam{..}
   
 
--- * Rendering
+-- * Rendering 
 renderBatch :: Entity Batch -> Widget
 renderBatch (Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName) [whamlet|
 <table.table>
@@ -500,7 +500,7 @@ filterCloses getter ms =
   case partition ((<= Close) . getter ) ms of
     (closes, []) -> filter ((/= Bad) . getter) closes
     (_, goods) -> goods
--- * DB
+-- * DB 
 loadBatches :: SqlHandler [Entity Batch]
 loadBatches = do
   batches <- selectList [] [Desc BatchDate, Asc BatchName]

@@ -24,7 +24,7 @@ import Data.Aeson.Types(Parser,typeMismatch)
 import Control.Applicative (Const(..))
 
 
--- * General types
+-- * General types 
 type Amount = Rational
 -- | Rate dimensionless number. Used for tax rates.
 type Rate = Rational
@@ -39,7 +39,7 @@ data TaxType = TaxType
   , taxAccount :: GLAccount
   } deriving (Read, Show, Eq, Ord)
 
--- *  Receipt
+-- *  Receipt 
 
 data Receipt = Receipt
   { date :: Text
@@ -55,7 +55,7 @@ data ReceiptItem = ReceiptItem
   , taxType :: TaxType
   } deriving (Read, Show, Eq)
 
--- * Translation to FA objects
+-- * Translation to FA objects 
 translate :: Receipt -> FA.Payment
 translate receipt = FA.Payment (nets ++ taxes) where
   groupByTax =
@@ -81,7 +81,7 @@ translate receipt = FA.Payment (nets ++ taxes) where
   
 
 
--- * Template
+-- * Template 
 -- Templates allow to prefill or "guess" missing values from csv
 -- such as counterparty, GLAccount but also compute Tax backward etc
 -- It is parametrized by a functor but should only be use with two: const or Identity
@@ -89,10 +89,10 @@ translate receipt = FA.Payment (nets ++ taxes) where
 -- be loaded after the parameter has been read from the coni
  
 data ReceiptTemplate' f
-  = CounterpartySetter Text -- ^ set the counterparty
-  | BankAccountSetter (f FA.BankAccountRef) -- ^ set a bank account
+  = CounterpartySetter Text --  ^ set the counterparty
+  | BankAccountSetter (f FA.BankAccountRef) --  ^ set a bank account
   | CompoundTemplate [ReceiptTemplate' f] 
-  | ItemGLAccountSetter (f FA.GLAccountRef) -- ^ set a gl account
+  | ItemGLAccountSetter (f FA.GLAccountRef) --  ^ set a gl account
   | ItemVATDeducer (f FA.TaxRef)  -- ^ compute the net and tax from the gross
   | ItemMemoSetter  Text
   | ItemDimension1Setter  (f FA.Dimension1Ref)
@@ -136,7 +136,7 @@ expandTemplate refMap (ItemGLAccountMapper (mapping)) = ItemGLAccountMapper <$> 
 expandTemplate __refMap (CounterpartySetter text) = Right $ CounterpartySetter text
 expandTemplate __refMap (ItemMemoSetter text) = Right $ ItemMemoSetter  text
    
--- ** JSON
+-- ** JSON 
 -- parseJSON = withObject "primary"
 
 instance FromJSON (ReceiptTemplate' (Const Text)) where

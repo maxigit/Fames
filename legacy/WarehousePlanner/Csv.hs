@@ -330,7 +330,7 @@ readFromRecordWith  rowProcessor filename = do
 -- before going to the left
 -- example ^A|B|C|D will exit on top of B  and fill C (even though
 -- there might be space left to create a new column in A)
--- ^A|B C|D will exit B to A  until A and B are full
+-- \^A|B C|D will exit B to A  until A and B are full
 processMovesAndTags :: (BoxSelector s, [Text], Maybe Text ) -> WH [Box s] s
 processMovesAndTags (style, tags, locationM) = do
   boxes0 <- findBoxByNameAndShelfNames style
@@ -378,7 +378,7 @@ readMovesAndTags tags0 = readFromRecordWith go where
 
 splitTagsAndLocation :: Text -> ([Text], Maybe Text)
 splitTagsAndLocation tag'locations
-   -- | (tag, _:location@(_:_)) <- break (=='/') tag'locations = (just tag, just location)
+   -- -| (tag, _:location@(_:_)) <- break (=='/') tag'locations = (just tag, just location)
    | (location , uncons -> Just (_,tag@(uncons -> Just _))) <- break (=='#') tag'locations = (splitOn "#" tag, just location)
    | otherwise = ([], Just tag'locations)
    where just "" = Nothing
@@ -393,14 +393,14 @@ readOrientations def os = case uncons os of
     Just ('%', os') -> def `List.union` readOrientations def os'  -- def
     Just (o, os') -> [readOrientation o] `List.union` readOrientations def os'
 
--- * Read Shelf Tags
+-- * Read Shelf Tags 
 readShelfTags :: FilePath -> IO (WH [Shelf s] s)
 readShelfTags = readFromRecordWith go where
   go (selector, splitOn "#" -> tags) = do
     shelves <- findShelvesByBoxNameAndNames selector
     let tagOps = map parseTagOperation tags
     mapM (updateShelfTags tagOps) shelves
--- * Read transform tags
+-- * Read transform tags 
 -- | Temporary type to read a regex using Cassava
 -- Usefull so that regex validation is done when reading the file
 type RegexOrFn s =  Either Rg.Regex (Box s -> WH Rg.Regex s)
@@ -433,7 +433,7 @@ instance Csv.FromField (Selector a) where
 readTransformTags :: FilePath -> IO (WH [Box s] s)
 readTransformTags = readFromRecordWith (\(style, tagPat, tagSub) -> transformTags style tagPat tagSub)
 
- -- | Apply {transformTagsFor} to the matching boxes
+ -- -| Apply {transformTagsFor} to the matching boxes
 transformTags :: BoxSelector s -> RegexOrFn s -> Text -> WH [Box s] s
 transformTags style tagPattern tagSub = do
   boxes0 <- findBoxByNameAndShelfNames style
@@ -503,7 +503,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
             return (concat boxes, concat errors)
 
 
--- * read orientation rules
+-- * read orientation rules 
 readOrientationRules :: [Orientation] -> FilePath -> IO (Box s -> Shelf s -> Maybe [(Orientation, Int, Int)])
 readOrientationRules defOrs filename = do
     csvData <- BL.readFile filename

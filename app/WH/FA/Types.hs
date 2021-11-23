@@ -9,7 +9,7 @@ import ClassyPrelude
 import Data.Decimal
 import FATransType
 
--- * Connection parametes
+-- * Connection parametes 
 data FAConnectInfo = FAConnectInfo
   { faURL :: String
   , faUser :: String
@@ -20,8 +20,8 @@ data FAConnectInfo = FAConnectInfo
 -- the formatting matters, so we need to store them as Text
 newtype GLAccount = GLAccount {unGLAccount :: Text}
   deriving (Eq, Show, Read, Ord)
--- * Items
--- ** StockAdjustment
+-- * Items 
+-- ** StockAdjustment 
 -- | Information needed to post a FA stock adjustment
 data StockAdjustment = StockAdjustment
   { adjReference :: !Text
@@ -40,7 +40,7 @@ data StockAdjustmentDetail = StockAdjustmentDetail
 data AdjustmentType = PositiveAdjustment  | NegativeAdjustment
   deriving (Eq, Show, Enum)
 
--- ** Location Transfer
+-- ** Location Transfer 
 -- | needed to post a FA stock adjustment
 data LocationTransfer = LocationTransfer
   { ltrReference:: !Text
@@ -55,13 +55,13 @@ data LocationTransferDetail = LocationTransferDetail
   , ltrQuantity :: !Int
   } deriving (Eq, Show)
 
--- ** CostUpdate
+-- ** CostUpdate 
 data CostUpdate = CostUpdate
   { cuSku :: !Text
   , cuCost :: Double
   } deriving (Eq, Show)
--- * GL
--- ** Payments
+-- * GL 
+-- ** Payments 
 data BankPayment = BankPayment
   { bpDate :: !Day
   , bpReference  :: !(Maybe Text)
@@ -71,7 +71,7 @@ data BankPayment = BankPayment
   , bpItems :: [GLItemD]
   } deriving (Eq, Show)
 
--- ** Deposits
+-- ** Deposits 
 data BankDeposit = BankDeposit
   { bdDate :: !Day
   , bdReference  :: !(Maybe Text)
@@ -82,7 +82,7 @@ data BankDeposit = BankDeposit
   } deriving (Eq, Show)
 
 
--- ** Journal Entry
+-- ** Journal Entry 
 data JournalEntry = JournalEntry
   { jeDate :: !Day
   , jeReference :: !(Maybe Text)
@@ -90,8 +90,8 @@ data JournalEntry = JournalEntry
   , jeMemo :: !(Maybe Text)
   } deriving (Eq, Show)
 
--- * Purchases
--- ** GRN
+-- * Purchases 
+-- ** GRN 
 data GRN = GRN
   { grnSupplier :: !Int
   , grnDeliveryDate :: !Day
@@ -110,7 +110,7 @@ data GRNDetail = GRNDetail
   , grnPrice :: !Double
   } deriving (Eq, Show)
 
--- ** Invoice
+-- ** Invoice 
 data PurchaseInvoice = PurchaseInvoice
   { poiSupplier :: !Int
   , poiReference :: !(Maybe Text)
@@ -123,7 +123,7 @@ data PurchaseInvoice = PurchaseInvoice
   } deriving (Eq, Show)
 
 data GLItem' a = GLItem
-  { gliAccount :: !GLAccount -- ^ can't be a int as leading 0 matters ...
+  { gliAccount :: !GLAccount --  ^ can't be a int as leading 0 matters ...
   , gliDimension1 :: !(Maybe Int)
   , gliDimension2 :: !(Maybe Int)
   , gliAmount :: !a 
@@ -133,7 +133,7 @@ data GLItem' a = GLItem
 
 type GLItem = GLItem' Double
 type GLItemD = GLItem' Decimal
--- ** Credit Note
+-- ** Credit Note 
 data PurchaseCreditNote = PurchaseCreditNote
   { pcnSupplier :: !Int
   , pcnReference :: !(Maybe Text)
@@ -145,7 +145,7 @@ data PurchaseCreditNote = PurchaseCreditNote
   , pcnDeliveryIds :: ![()] -- Not saved yet (Int, Maybe Int)] -- Id + number of expected items
   , pcnGLItems :: ![GLItem]
   } deriving (Eq,Show)
--- * Sales
+-- * Sales 
 data SalesOrder = SalesOrder
     { soCustomerId :: !Int
     , soBranchNo  :: !Int
@@ -177,7 +177,7 @@ data SalesOrderItem = SalesOrderItem
 data NowOrNever = HappyToWait | NowOrNever
     deriving (Eq, Show, Enum)
 
--- * Payment
+-- * Payment 
 -- | Payment to a supplier. Items are the 
 data SupplierPayment = SupplierPayment
   { spSupplier :: !Int
@@ -197,7 +197,7 @@ data PaymentTransaction = PaymentTransaction
   } deriving (Eq, Show)
   
 
--- * Voiding
+-- * Voiding 
 data VoidTransaction = VoidTransaction
   { vtTransNo :: !Int
   , vtTransType :: !FATransType

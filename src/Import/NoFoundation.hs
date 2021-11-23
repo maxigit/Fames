@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# OPTIONS_HADDOCK ignore-exports #-}
 module Import.NoFoundation
     ( module Import
     , setWarning
@@ -124,13 +125,13 @@ infixr 5 ?:
 Nothing ?: xs = xs 
 (Just x) ?: xs = x:xs
 
--- ** Tuples
+-- ** Tuples 
 uncurry3 :: (a -> b -> c -> r) -> (a,b,c) -> r
 uncurry3 f (a,b,c) = f a b c
 
 curry3 :: ((a,b,c) -> r) -> a -> b -> c -> r
 curry3 f a b c = f (a,b,c)
--- * Format
+-- * Format 
 -- formatAmount :: Amount -> Text
 formatAmount :: Rational -> String
 formatAmount = (\t -> t :: String) .  printf "" . (\x -> x :: Double) .  fromRational
@@ -149,7 +150,7 @@ formatHours duration = let
 formatTime0 :: (IsString a, FormatTime t) => String -> t -> a
 formatTime0 l_format time = fromString $ formatTime defaultTimeLocale l_format time
 
--- ** Formating lforb
+-- ** Formating lforb 
 commasFixedWith :: Integral a => (Double -> a) -> Int -> Format r (Double -> r)
 commasFixedWith roundFn digit = later go where
   go x = let
@@ -199,7 +200,7 @@ commasDecimal = later go where
       0 -> bprint b0 n -- no decimal  -> no dot 
       _ -> bprint b n f
 
--- * FA utilit
+-- * FA utilit 
 showTransType :: IsString t => FATransType -> t
 showTransType ST_JOURNAL = "Journal Entry"
 showTransType ST_BANKPAYMENT = "Bank Payment"
@@ -230,7 +231,7 @@ showTransType ST_DIMENSION = "Dimensions"
 -- stock ^ = home
 -- invoice T
 -- 
--- =>
+-- *>
   
 showShortTransType :: IsString t => FATransType -> t
 showShortTransType ST_JOURNAL = "#=#"
@@ -350,11 +351,11 @@ transNoWithLink' showTrans urlForFA' class_ transType transNo = [shamlet|
 transIconWithLink :: (FATransType -> Int -> Text) -> Text -> FATransType -> Int -> Html
 transIconWithLink =  transNoWithLink'  (\transType _ -> transactionIcon transType)
  
--- * Html 
+-- * Html  
 decodeHtmlEntities :: Text -> Text
 decodeHtmlEntities s = maybe s TS.fromTagText (headMay $ TS.parseTags s)
   
--- * Util
+-- * Util 
 groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
 groupAsMap key f xs = Map.fromListWith (<>) [(key x, f x ) | x <- xs]
 
@@ -383,7 +384,7 @@ mapWithKeyM :: (Monad m, Ord k) => (k -> a -> m b) -> Map k a -> m (Map k b)
 mapWithKeyM f m = do
   pairs <- mapM (\(k, v) -> traverse (f k) (k, v)) (mapToList m)
   return $ mapFromList pairs
--- * Text
+-- * Text 
 -- | Transform camel case to word and remove prefix and suffix
 -- use full to make menu from data type
 wordize :: Maybe Text -> Maybe Text -> Text -> Text
@@ -403,7 +404,7 @@ alignSorted :: (Ord k) => [(k,a)] -> [(k,b)] -> [(k, These a b)]
 alignSorted as bs = Map.toList $ align (Map.fromAscList as)  (Map.fromAscList bs)
 
 
--- * Patterns
+-- * Patterns 
 pattern RJust :: a -> Either e (Maybe a)
 pattern RJust x = Right (Just x)
 

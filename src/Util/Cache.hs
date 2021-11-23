@@ -37,7 +37,7 @@ import Control.Monad (filterM)
 import Unsafe.Coerce(unsafeCoerce)
 import Type.Reflection
 
--- * Delayed
+-- * Delayed 
 -- | A syncronous actions, which can be started from another thread.
 -- Usefull to get value pre-cached for the next request.
 
@@ -130,13 +130,13 @@ statusDelayed d = liftIO $ do
           Just (Left _) -> return OnError
           Just (Right _ ) -> return Finished
 
--- * Cached
+-- * Cached 
 -- | Mutable Map with expiry date
 -- A value of Nothing means the MVar
 type ExpiryCache = Maybe (UTCTime, Map String (MVar (Dynamic, UTCTime)))
-                         -- ^ next time a value expires. Used to check if the cache needs purging or not
+-- \^ next time a value expires. Used to check if the cache needs purging or not
 
--- ** Standard cache
+-- ** Standard cache 
 newExpiryCache :: IO (MVar ExpiryCache)
 newExpiryCache = newMVar Nothing
 
@@ -244,7 +244,7 @@ toCacheMap :: ExpiryCache -> Map String (MVar (Dynamic, UTCTime))
 toCacheMap Nothing = mempty
 toCacheMap (Just (_, cache)) = cache
   
--- ** Delayed cache
+-- ** Delayed cache 
 
 cacheSecond, cacheMinute, cacheHour, cacheDay :: Int -> CacheDelay
 cacheSecond second = CacheDelay second
@@ -268,7 +268,7 @@ preCache :: (MonadUnliftIO io, Show k, Typeable a, Typeable io)
 preCache force cvar key vio (CacheDelay delay) = do
   d <- createDelayed vio
   let ab = abort d
-  -- ^ we don't need to keep a reference to d in the following thread
+  -- \^ we don't need to keep a reference to d in the following thread
   _ <- async $ do
     abortedm <- timeout ((delay+1)*1000000) $ readMVar ab
     case abortedm of

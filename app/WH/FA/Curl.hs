@@ -35,8 +35,8 @@ import Text.Regex.TDFA
 import Curl
 import Debug.Trace(traceM)
 
--- * Misc
--- ** FA specific
+-- * Misc 
+-- ** FA specific 
 faDateFormat :: String
 faDateFormat = "%Y/%m/%d"
 -- faURL = "http://172.18.0.1"
@@ -81,7 +81,7 @@ instance CurlPostField Day where
 
 instance CurlPostField GLAccount where
   toCurlPostField = toCurlPostField . unGLAccount
--- ** Util
+-- ** Util 
 -- | Extract the Id from the process adjustment response
 extractAddedId' :: String -> String -> [Tag String] -> Either Text Int
 extractAddedId' addedTag info tags = let
@@ -98,7 +98,7 @@ extractAddedId' addedTag info tags = let
 extractErrorMsgFromSoup :: [Tag [Element String]] -> Maybe Text
 extractErrorMsgFromSoup tags = let
   errors = sections (~== TagOpen ("div" :: String) [("class", "err_msg")]) tags
-  -- ^ get ALL div.err_msg (they can be many)
+  -- \^ get ALL div.err_msg (they can be many)
   msgs = map (takeWhile (~/= (TagClose ("div" :: String)))) errors
   in case msgs of
     [] -> Nothing
@@ -153,15 +153,15 @@ extractHRef  tag | (tag ~== TagOpen ("a" :: String) [("href", "")]) =
   Just (fromAttrib "href" tag )
 extractHRef  _ = Nothing
 
--- ** Test
+-- ** Test 
 testFAConnection :: FAConnectInfo -> IO (Either Text ())
 testFAConnection connectInfo = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     return ()
--- * Transactions
--- ** Urls
--- *** Items
+-- * Transactions 
+-- ** Urls 
+-- *** Items 
 inventoryAdjustmentURL :: (?baseURL :: URLString) => URLString
 inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
 newAdjustmentURL ::  (?baseURL :: URLString) => URLString
@@ -171,7 +171,7 @@ ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
 
 costUpdateURL :: (?baseURL :: URLString) => URLString
 costUpdateURL = ?baseURL <> "/inventory/cost_update.php"
--- *** GL
+-- *** GL 
 bankPaymentURL :: (?baseURL :: URLString) => URLString
 bankPaymentURL = ?baseURL <> "/gl/gl_bank.php"
 newBankPaymentURL :: (?baseURL :: URLString) => URLString
@@ -185,14 +185,14 @@ newBankDepositURL :: (?baseURL :: URLString) => URLString
 newBankDepositURL = bankDepositURL <>  "?NewDeposit=Yes"
 ajaxBankDepositItemURL :: (?baseURL :: URLString) => URLString
 ajaxBankDepositItemURL = toAjax bankDepositURL 
--- *** Journal
+-- *** Journal 
 journalEntryURL :: (?baseURL :: URLString) => URLString
 journalEntryURL = ?baseURL <> "/gl/gl_journal.php"
 newJournalEntryURL :: (?baseURL :: URLString) => URLString
 newJournalEntryURL = journalEntryURL <> "?NewJournal=Yes"
 ajaxJournalItemURL :: (?baseURL :: URLString) => URLString
 ajaxJournalItemURL = toAjax journalEntryURL
--- *** Purchases
+-- *** Purchases 
 grnURL, newGRNURL, ajaxGRNURL :: (?baseURL :: URLString) => URLString
 grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
 newGRNURL = grnURL <> "?NewGRN=Yes"
@@ -215,19 +215,19 @@ supplierPaymentURL, newSupplierPaymentURL, ajaxSupplierPaymentURL :: (?baseURL :
 supplierPaymentURL = ?baseURL <> "/purchasing/supplier_payment.php"
 newSupplierPaymentURL = supplierPaymentURL
 ajaxSupplierPaymentURL = toAjax supplierPaymentURL
--- *** Sales
+-- *** Sales 
 salesOrderURL, newSalesOrderURL, ajaxSalesOrderItemURL:: (?baseURL :: URLString) => URLString
 salesOrderURL = ?baseURL <> "/sales/sales_order_entry.php"
 newSalesOrderURL = salesOrderURL <> "?NewOrder=Yes"
 ajaxSalesOrderItemURL = toAjax salesOrderURL
 
--- *** Void
+-- *** Void 
 voidTransactionUrl, ajaxVoidTransactionUrl :: (?baseURL :: String) => String
 voidTransactionUrl = ?baseURL <> "/admin/void_transaction.php" 
 ajaxVoidTransactionUrl = toAjax $ voidTransactionUrl
 
--- ** Items
--- *** Stock Adjustment
+-- ** Items 
+-- *** Stock Adjustment 
 addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
                     => StockAdjustmentDetail -> ExceptT Text IO [Tag String]
 addAdjustmentDetail StockAdjustmentDetail{..} = do
@@ -258,7 +258,7 @@ postStockAdjustment connectInfo stockAdj = do
             Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
             Right faId -> return faId
 
--- *** Location Transfer
+-- *** Location Transfer 
 
 postLocationTransfer :: FAConnectInfo -> LocationTransfer -> IO (Either Text Int)
 postLocationTransfer connectInfo locTrans = do
@@ -295,7 +295,7 @@ addLocationTransferDetail LocationTransferDetail{..} = do
   curlSoup (toAjax locationTransferURL) items [200] "add items"
 
 
--- ** Cost Update
+-- ** Cost Update 
 -- Returns the id of the journal entry if created.
 -- If the cost is the same or there is no item left
 -- no gl will be generated
@@ -329,8 +329,8 @@ postCostUpdate connectInfo CostUpdate{..} = do
     e -> return e
   
   
--- ** GL
--- *** Bank Payment
+-- ** GL 
+-- *** Bank Payment 
 postBankPayment :: FAConnectInfo -> BankPayment -> IO (Either Text Int)
 postBankPayment connectInfo payment = do
   let ?baseURL = faURL connectInfo
@@ -413,7 +413,7 @@ addBankDepositItems GLItem{..} = do
   
 
 
--- ** Journal Entry
+-- ** Journal Entry 
 postJournalEntry :: FAConnectInfo -> JournalEntry -> IO (Either Text Int)
 postJournalEntry connectInfo journal = do
   let ?baseURL = faURL connectInfo
@@ -446,8 +446,8 @@ addJournalItem GLItem{..} = do
                               ] :method_POST
   curlSoup (ajaxJournalItemURL) fields [200] "add GL items"
 
--- ** Purchase
--- *** GRN
+-- ** Purchase 
+-- *** GRN 
 postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)
 postGRN connectInfo grn = do
   let ?baseURL = faURL connectInfo
@@ -482,7 +482,7 @@ addGRNDetail GRNDetail{..} = do
                               ] : method_POST
   curlSoup ajaxGRNURL fields [200] "add items"
   
--- *** Invoice
+-- *** Invoice 
 postPurchaseInvoice :: FAConnectInfo -> PurchaseInvoice -> IO (Either Text Int)
 postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
   let ?baseURL = faURL connectInfo
@@ -525,7 +525,7 @@ addPurchaseInvoiceDetail GLItem{..} = do
                               ] :method_POST
   curlSoup (ajaxPurchaseInvoiceURL) fields [200] "add GL items"
 
--- **** Invoice Purchase Order Delivery
+-- **** Invoice Purchase Order Delivery 
 -- | Find all the fields corresponding to the invoicable delivery
 -- and post then required one. We cheat a bit by simulated a press
 -- to Add All GRN whereas we are in fact only supplying the items we want to deliver.
@@ -573,7 +573,7 @@ extractDeliveryItems tags deliveryId'ns = do -- Either
   
 
   
--- *** CreditNote
+-- *** CreditNote 
 postPurchaseCreditNote :: FAConnectInfo -> PurchaseCreditNote -> IO (Either Text Int)
 postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
   let ?baseURL = faURL connectInfo
@@ -619,7 +619,7 @@ addPurchaseCreditNoteDetail GLItem{..} = do
                               ] :method_POST
   curlSoup (ajaxPurchaseCreditNoteURL) fields [200] "add GL items"
 
--- **** Credit Items from Invoice
+-- **** Credit Items from Invoice 
 -- | Find all the fields corresponding to the invoicable delivery
 -- and post then required one. We cheat a bit by simulated a press
 -- to Add All GRN whereas we are in fact only supplying the items we want to deliver.
@@ -633,7 +633,7 @@ _addPurchaseCreditNoteDeliveries tags deliveryIds = do
   fields <- ExceptT $ return $ extractDeliveryItems tags deliveryIds 
   curlSoup (ajaxPurchaseCreditNoteURL) (fields ++ extra) [200] "add delivery items"
 
--- *** Payment
+-- *** Payment 
 postSupplierPayment :: FAConnectInfo -> SupplierPayment -> IO (Either Text Int)
 postSupplierPayment connectInfo SupplierPayment{..} = do
   let ?baseURL = faURL connectInfo
@@ -771,8 +771,8 @@ groupPaymentTransactions transactions = let
      | ((no, typ), Sum amount) <- mapToList m
      ]
   
--- ** Sales
--- *** Sales Order
+-- ** Sales 
+-- *** Sales Order 
 postSalesOrder :: FAConnectInfo -> SalesOrder -> IO (Either Text Int)
 postSalesOrder connectInfo SalesOrder{..} = do
     let ?baseURL = faURL connectInfo
@@ -784,7 +784,7 @@ postSalesOrder connectInfo SalesOrder{..} = do
                              , "branch_id" <=> soBranchNo
                              , Just "_branch_id_updated=1"
                              , ("sales_type" <=>) =<< lookup "sales_type" selected0
-                             -- ^ get the initial sales_type (price list)
+                             -- \^ get the initial sales_type (price list)
                              -- If it is not changed when setting the user
                              -- it is not sent back and it won't be present in selected
                              ] : method_POST
@@ -863,7 +863,7 @@ test = do
     postSalesOrder FAConnectInfo{..} SalesOrder{..}
     -}
 
--- ** Voiding
+-- ** Voiding 
 postVoid ::  FAConnectInfo -> VoidTransaction -> IO (Either Text Int)
 postVoid connectInfo VoidTransaction{..} = do
   let ?baseURL = faURL connectInfo

@@ -109,7 +109,7 @@ import Data.Char(isUpper)
 import qualified Data.List.Split as Split 
 import Data.Aeson(encode)
 
--- * Display entities
+-- * Display entities 
 -- | Display Persist entities as paginated table
 -- the filter is mainly there as a proxy to indicate
 -- the entity type to display
@@ -188,7 +188,7 @@ renderPersistValue pvalue = case (fromPersistValueText pvalue) of
   Right text -> text
 
 
--- * Forms
+-- * Forms 
 uploadFileForm :: _ a
                         -> Markup
                         -> _
@@ -297,7 +297,7 @@ instance Read (Identifiable ()) where
           return $ Identifiable (name, ())
 
  
--- ** Read and reload file
+-- ** Read and reload file 
 -- | When validating a file, the file needs to be uploaded once for validating.
 -- In order to be sure that we are processing the file which has been validated
 -- (and because it's not possible to preset the upload parameter on the new form)
@@ -360,7 +360,7 @@ retrieveTextByKey base key = do
     else return Nothing
 
 
--- ** Form builder
+-- ** Form builder 
 -- TODO renderField :: (MonadIO m, MonadThrow m)
 --             => FieldView site
 --             -> WidgetT site m ()
@@ -377,7 +377,7 @@ renderField view = let
     <div .errors>#{err}
 |]
 
--- ** Directories
+-- ** Directories 
 -- | Return a list of options corresponding to the sub directories
 -- within the given one (on the server side)
 -- The easiest is to use Dropbox or equivalent to synchronize those files
@@ -398,7 +398,7 @@ getSubdirOptions appDir = do
       setWarning (toHtml $ "Planner master directory '" <> mainDir <> "' doesn't exist.")
       return []
 
--- * Labels
+-- * Labels 
 generateLabelsResponse ::
   Text
   -> Text
@@ -407,7 +407,7 @@ generateLabelsResponse ::
 generateLabelsResponse outputName template labelSource = do
   (_, (tmp, thandle)) <- allocateAcquire (mkAcquire (openTempFile "/tmp" (unpack outputName))
                                     (\ (tmp, __handle) -> removeFile tmp)
-                                   -- ^ Removing the file doesn't work so we just leave it there ... :-(
+                                   -- \^ Removing the file doesn't work so we just leave it there ... :-(
                                    )
   -- save csv so glabels can read it
   -- for some reason using a temporary file for the input doesn't seem to work all the time
@@ -431,7 +431,7 @@ generateLabelsResponse outputName template labelSource = do
   setAttachment (fromStrict outputName)
   sendFile "application/pdf" tmp
 
--- * Operator
+-- * Operator 
 -- | Returns the first active operator.
 -- This is the default operator which will be used in batch mode if  required.
 --- We should have at least one operator, so we don't need the Maybe
@@ -441,11 +441,11 @@ firstOperator = do
   maybe (error "No active operators found. Please contact your administrator") return operator
 
 
--- * SQL
+-- * SQL 
 (<-?.) :: PersistField typ => EntityField v typ -> [typ] -> [Filter v]
 _ <-?. []  =  []
 a <-?. list  =   [a <-. list]
--- ** Filtering Expressions (Like or Regexp)
+-- ** Filtering Expressions (Like or Regexp) 
 -- | Generate a like or rlike statement
 data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, Read)
 showFilterExpression :: FilterExpression -> Text
@@ -472,8 +472,8 @@ filterEField = convertField readFilterExpression showFilterExpression textField
 
 -- | Create a persistent filter from a maybe filter expression
 filterE :: PersistField a =>
-           (Text -> a) -- ^ how to convert the expression to the value of the field.
-        -> EntityField record a -- ^ Persistent field
+           (Text -> a) --  ^ how to convert the expression to the value of the field.
+        -> EntityField record a --  ^ Persistent field
         -> Maybe FilterExpression
         -> [Filter record]
 filterE _ _ Nothing = []
@@ -498,7 +498,7 @@ filterEToSQL exp = let (key, v) = filterEKeyword exp in key <> " '" <> v <> "'"
 filterEAddWildcardRight :: FilterExpression -> FilterExpression
 filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")
 filterEAddWildcardRight (RegexFilter f) = RegexFilter (f<>"*")
--- * Badges
+-- * Badges 
 badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe Text -> Text -> Html
 badgeSpan badgeWidth qty bgM klass = do
   let style = case badgeWidth qty of
@@ -511,7 +511,7 @@ badgeSpan badgeWidth qty bgM klass = do
       q = fromMaybe qs $  stripSuffix ".0" qs
   [shamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{q}|]
 
--- * Progress bars
+-- * Progress bars 
 -- Display a time range within a global time range
 -- (so that, all time range within the same page matches)
 -- The done parameter specifys how to display date in the past (success or failure)
@@ -558,7 +558,7 @@ timeProgress minDateM maxDateM today startm endm done = do
   opacity:0
                    |]
 
--- * Html
+-- * Html 
 tshowM :: Show a => Maybe a -> Text
 tshowM = maybe "" tshow
 
@@ -603,7 +603,7 @@ primaryPanel' = panel "panel-primary"
 -- | split snake
 splitSnake ::  Text -> Text
 splitSnake t = pack $ intercalate " " $ Split.split  (Split.keepDelimsL $ Split.whenElt isUpper) (unpack t)
--- ** Table attributes
+-- ** Table attributes 
 datatable, forDatatable, datatableNoPage :: [(Text, Text)]
 forDatatable = ("class", "table table-hover table-striped"):[("style", "width:100%")]
 datatable = ("class", "table table-hover table-striped datatable"):[("style", "width:100%")]
@@ -619,13 +619,13 @@ klass <>.  attrs = mapToList $ insertWith go "class" klass m
 attrs -.  klass = mapToList $ Map.adjust go "class" m
   where m = mapFromList attrs :: Map Text Text
         go = unwords . filter (/= klass) . words
--- * Cached Value accross session
+-- * Cached Value accross session 
 -- cacheEntities :: PersistEntity e => Text -> Bool -> Handler (Map (Key e) e )
 cacheEntities cacheKey force_ = cache0 force_ cacheForEver cacheKey $ do
   entities <- runDB $ selectList [] []
   return $ mapFromList [(key, entity) | (Entity key entity) <- entities ]
 
--- ** From Front Accounting
+-- ** From Front Accounting 
 -- Price list used as base to calculate other.
 -- Found it FA system preferecense
 basePriceList :: Handler Int
@@ -634,7 +634,7 @@ basePriceList = cache0 False cacheForEver "base-price-list" $ do
   let Just basePl = readMay =<< FA.sysPrefValue prefs
   return basePl
   
--- *** Customer and Supplier map
+-- *** Customer and Supplier map 
 allCustomers :: Bool -> Handler (Map (Key  FA.DebtorsMaster) FA.DebtorsMaster)
 allCustomers force_ = cacheEntities "all-customer-list" force_
 
@@ -659,15 +659,15 @@ entityNameMH force_ = do
 entityNameH :: Bool -> Handler (FATransType -> Maybe Int64 -> Text)
 entityNameH force_ = fromMaybe "" <$$$> entityNameMH force_
 
--- *** Current User
+-- *** Current User 
 currentFAUser :: Handler (Maybe FA.User)
 currentFAUser = do
   userM <- maybeAuthId
   fmap join $ forM userM $ \user ->  
     runDB $ get (FA.UserKey . fromIntegral . unSqlBackendKey . unUserKey $  user)
 
--- ** Fames
--- *** Operators
+-- ** Fames 
+-- *** Operators 
 allOperators :: Handler (Map (Key Operator) Operator)
 allOperators = cacheEntities "all-operators" False
   
@@ -701,7 +701,7 @@ operatorFinderWithError = do
   return go
 
 
--- *** Location
+-- *** Location 
 locationSet :: Handler (Set Text)
 locationSet = cache0 False cacheForEver "location-set" $ do
     locations <- appStockLocationsInverse . appSettings <$> getYesod
@@ -709,7 +709,7 @@ locationSet = cache0 False cacheForEver "location-set" $ do
 
   
 
--- * ExceptT 
+-- * ExceptT  
 
 type HandlerX = ExceptT Text Handler
 
@@ -748,8 +748,8 @@ eToX :: Monad m => Either e a -> ExceptT e m a
 eToX =  either throwError return
 
 
--- * Categories
--- ** Items
+-- * Categories 
+-- ** Items 
 
   -- return finder
 
@@ -771,7 +771,7 @@ _allSkus = do
   entities <- runDB $ selectList (filterE FA.StockMasterKey FA.StockMasterId (Just . LikeFilter $ stockLike) ) []
   return $ map entityKey entities
 
--- ** Customers
+-- ** Customers 
 
   -- return finder
 
@@ -779,13 +779,13 @@ customerCategoriesH :: Handler [Text]
 customerCategoriesH = do 
   catRulesMap <- appCustomerCategoryRules <$> getsYesod appSettings
   return $ concatMap keys catRulesMap
--- ** Orders
+-- ** Orders 
 orderCategoriesH :: Handler [Text]
 orderCategoriesH = do 
   catRulesMap <- appOrderCategoryRules <$> getsYesod appSettings
   return $ concatMap keys catRulesMap
 
--- * Misc
+-- * Misc 
 -- todayH :: Handler Day
 todayH :: MonadIO io => io Day
 todayH = utctDay <$> liftIO getCurrentTime

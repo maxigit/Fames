@@ -3,7 +3,7 @@ import ClassyPrelude
 import ModelField
 import Util.Decimal
 
--- * Type
+-- * Type 
 type Bucket = Text
 -- data Bucket = DefaultBucket | NamedBucket Text
 --   deriving (Show, Read, Eq, Ord)

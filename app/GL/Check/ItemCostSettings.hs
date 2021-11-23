@@ -5,7 +5,7 @@ import Data.Aeson.TH(deriveJSON)
 import Data.Aeson.Types
 import Data.Text(splitOn)
 import Control.Monad.Fail (MonadFail(..))
--- * Type
+-- * Type 
 data Account = Account { fromAccount:: Text } deriving (Eq, Show, Read, Ord)
 
 data Behavior
@@ -24,7 +24,7 @@ data Behavior
 
 data BehaviorSubject
   = ForTransaction Int Int
-  -- | ForMove Int
+  -- -| ForMove Int
   | ForGrnWithoutInvoice
   | ForGrnProvision
   | ForSku (Maybe Text)
@@ -33,7 +33,7 @@ data BehaviorSubject
   | ForSalesWithoutInvoice
   deriving (Eq, Show, Read, Ord)
 
--- * Settings
+-- * Settings 
 data Settings =  Settings
   { stockFilter ::  Text  -- to convert to FilterExpression
   , accounts :: Map Account AccountSettings
@@ -74,7 +74,7 @@ data InitialSettings
   deriving (Show, Read, Eq, Ord)
 
   
--- * JSON
+-- * JSON 
 ----------------------------------------------------
 instance FromJSON Account where
   parseJSON v = withText ("Account as Text")  (return . Account)  v

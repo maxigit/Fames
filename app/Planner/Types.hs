@@ -12,7 +12,7 @@ data Section = Section
    , sectionTitle :: Text
    } deriving (Show, Read, Eq)
 
--- * Content Types
+-- * Content Types 
 -- TODO needs refactoring. Now we are using orgmode drawer
 -- for planner instructions. HeaderL should only be drawer
 -- and org-mode drawer could be simple comment.
@@ -46,7 +46,7 @@ data HeaderType
   | TitleH
   deriving (Show, Read, Eq, Ord, Generic)
 
--- * Scenario
+-- * Scenario 
 -- | Description of warehouse. Initial stage plus way modify it.
 -- It is only a description, .i.e elements are either text or a sha of it.
 data Scenario = Scenario

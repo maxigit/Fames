@@ -11,7 +11,7 @@ import WarehousePlanner.Base hiding(Box(..))
 import qualified Data.Map as Map
 import Data.List(scanl')
 
--- * Types
+-- * Types 
 type Style = Text
 -- | A slice of boxes in a  unloading zone.
 -- Boxes are unloaded in the unloaded area in a rectangular zone.
@@ -31,7 +31,7 @@ type Style = Text
 --  Each section of similar style box is called a slice.
 
 data Slice = Slice
-             { slBox :: Box -- ^ style and box information
+             { slBox :: Box --  ^ style and box information
              , slNL :: Int -- ^ width in boxes
              , slNW :: Int -- ^ Depth in Boxes
              , slNH :: Int -- ^ Height in boxes
@@ -57,7 +57,7 @@ data Zone = Zone
   , zoneSlices :: [Slice]
   } deriving (Show, Eq)
 
--- * Slices for Chalk
+-- * Slices for Chalk 
 -- helps how to unload a container by finding "slices" of boxes of the same style
 findSlices :: [Zone] -> [Box] -> [Zone]
 findSlices zones0 boxes = let
@@ -99,7 +99,7 @@ aggregateGroupBox (boxes) = let
   in  (head boxes) { boxDimension = dim, boxNumber = number }
 
 
- -- | Try to fit style occupying one row
+ -- -| Try to fit style occupying one row
 -- One of the problem, is to find the best fit.
 -- However, we don't try to find the best fit but just an acceptable.
 -- We try all boxes in order, and try to find the best zone.

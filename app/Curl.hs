@@ -13,7 +13,7 @@ import Data.Decimal
 import Data.Aeson(eitherDecodeStrict, FromJSON, Value)
 import Data.Yaml.Pretty(encodePretty, defConfig) 
 
--- ** Curl
+-- ** Curl 
 docurl:: (?curl :: Curl) => URLString -> [CurlOption] -> ExceptT Text IO CurlResponse
 docurl url opts = lift $ do_curl_ ?curl url opts
 
@@ -37,10 +37,10 @@ mergePostFields opts = let
 doCurlWith :: (?curl :: Curl)
          => (Int -> String -> Either Text r)
          -> (Int -> String -> Maybe Text)
-         -> URLString -- ^ Url
-         -> [CurlOption] -- ^ Options
-         -> [Int] -- ^ Expected status
-         -> Text -- ^ To add to error message
+         -> URLString --  ^ Url
+         -> [CurlOption] --  ^ Options
+         -> [Int] --  ^ Expected status
+         -> Text --  ^ To add to error message
          -> ExceptT Text IO r
 doCurlWith onsuccess onfailure url opts status msg = do
   -- traceShowM ("POST to CURL", url, opts)
@@ -58,10 +58,10 @@ doCurlWith onsuccess onfailure url opts status msg = do
   ExceptT $ return $ onsuccess (respStatus r) (respBody r)
 
 curlJson :: (?curl :: Curl, FromJSON json)
-         => URLString -- ^ Url
-         -> [CurlOption] -- ^ Options
-         -> [Int] -- ^ Expected status
-         -> Text -- ^ To add to error message
+         => URLString --  ^ Url
+         -> [CurlOption] --  ^ Options
+         -> [Int] --  ^ Expected status
+         -> Text --  ^ To add to error message
          -> ExceptT Text IO json
 curlJson = doCurlWith (const success) (const failure) where
   success = first fromString . eitherDecodeStrict . fromString
@@ -69,7 +69,7 @@ curlJson = doCurlWith (const success) (const failure) where
     Left _ -> fromString body
     Right json -> decodeUtf8 $ encodePretty defConfig (json :: Value)
 
--- *** Post Paramters
+-- *** Post Paramters 
 class CurlPostField a where
   toCurlPostField :: a -> Maybe String
 

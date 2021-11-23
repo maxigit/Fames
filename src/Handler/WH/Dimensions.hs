@@ -19,7 +19,7 @@ import Data.Text (strip, split)
 import Data.Maybe (fromJust)
 -- import Linear.Affine ((.-.))
 
--- * Types
+-- * Types 
 data Facet = Facet
   { _unused_offset :: Dimension
   , _unused_background :: Maybe (Colour Double)
@@ -34,7 +34,7 @@ data PDimension = PDimension
   }
 
 
--- * Forms
+-- * Forms 
 singleForm = renderBootstrap3 BootstrapBasicForm form
   where
     form = (,,,,,,) <$> (areq intField "outer length" Nothing)
@@ -57,7 +57,7 @@ validateParam (l,w,h,il,iw,ih,style) =
 bulkForm text = renderBootstrap3 BootstrapBasicForm form where
   form = unTextarea <$> areq textareaField (bfs ("dimensions" :: Text)) (fmap Textarea text)
   
--- * Requests
+-- * Requests 
 
 mkDimension l w h = Dimension (c l) (c w) (c h) where
   c = fromIntegral
@@ -175,7 +175,7 @@ renderBoxes boxes = [whamlet|
 |]
   
 
--- * Misc
+-- * Misc 
 -- TODO  remove quick hack 
 loadBoxForStyles :: Text -> Handler [(Text, Dimension, Maybe Dimension)]
 loadBoxForStyles (stripPrefix "!" -> Just style) = do
@@ -237,7 +237,7 @@ parseBoxList text = mapMaybe go (lines text)
 routeFor (Dimension l w h) Nothing = WarehouseR $ WHDimensionOuterR ((fromIntegral.round) l) (round w) (round h)
 routeFor (Dimension l w h) (Just (Dimension il iw ih))
        =WarehouseR $ WHDimensionInnerR (round l) (round w) (round h) (round il) (round iw) (round ih)
--- * Diagrams
+-- * Diagrams 
 
 displayBox :: Dimension -> Maybe Dimension -> Diagram Cairo
 displayBox outer (Just (Dimension 0 0 0))   = displayBox outer Nothing
@@ -364,7 +364,7 @@ displayFacetISO (Facet offset_ bg_ points) = let
   trail = closeLine $ lineFromVertices (map iso points)
   in stroke trail # translate (iso offset_ .-. origin) # (maybe id fc  bg_)
 
--- ** Colours
+-- ** Colours 
 -- outerColourNX = sRGB24 158 221 225
 outerColourNY = sRGB24 60 183 192
 outerColourNX = blend 0.5 outerColourNY outerColourNZ -- sRGB24 224 201 153

@@ -6,7 +6,7 @@ import Data.Text(splitOn)
 import qualified FA
 import Handler.Items.Category.Cache
 
--- * Style names conversion
+-- * Style names conversion 
 -- Those function are in handler and not in app
 -- because  ultimately they should depend on the configuration file
 
@@ -44,7 +44,7 @@ dutyForH = do
 
 
 
--- ** Sku form info
+-- ** Sku form info 
 
 iiSku :: ItemInfo a -> Text
 iiSku (ItemInfo style var _ ) = styleVarToSku style var
@@ -60,7 +60,7 @@ varsToVariation = intercalate "/"
 
 
 
--- ** Date
+-- ** Date 
 -- Year of the given date
 year :: Day -> Integer
 year day = y where (y,_,_) = toGregorian day

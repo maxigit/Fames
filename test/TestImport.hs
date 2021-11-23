@@ -48,9 +48,9 @@ runDBWithApp :: App -> SqlPersistM a -> IO a
 runDBWithApp app query = runSqlPersistMPool query (appConnPool app)
 
 data AuthMode = BypassAuth | CheckAuth deriving (Eq, Read, Show)
-withApp ::  (Text -> KeepOrWipe) -- ^ filter tables to truncate
-        -> _ -- ^ Hook before o beforeAll
-        -> AuthMode -- ^ Bypass authorization
+withApp ::  (Text -> KeepOrWipe) --  ^ filter tables to truncate
+        -> _ --  ^ Hook before o beforeAll
+        -> AuthMode --  ^ Bypass authorization
         -> SpecWith (TestApp App)
         -> Spec
 withApp tablePredicate  hook authMode = hook $ do
@@ -99,7 +99,7 @@ getTables = do
     return $ map unSingle tables
 
 
--- * Utility function
+-- * Utility function 
 -- | Save a Text in a temporary file so it can be uploaded
 -- Returns a path
 saveToTempFile :: MonadIO io => Text -> io FilePath

@@ -438,7 +438,7 @@ addGuess old new  = case old of
   where  g = Just (Guessed new)
 
 
--- * Final 
+-- * Final  
 -- | Validate, once all field are correct that the receipt is consistent (total matchs, tax are correct etc ...)
 validateConsistency :: Day -> (ValidHeader, [ValidItem]) -> [Text] 
              -- -> Either (Text, (ValidHeader, [ValidItem]))

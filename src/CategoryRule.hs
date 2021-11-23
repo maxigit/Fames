@@ -18,7 +18,7 @@ instance Show RegexSub where
 -- | Category rule0. The phantom type is there to indicate on which the category shoulp apply
 data CategoryRule a
   = SkuTransformer RegexSub
-  -- | CategoryConjunction [CategoryRule] RegexSub -- regex on the result of all concatenation split by [an number]
+  -- -| CategoryConjunction [CategoryRule] RegexSub -- regex on the result of all concatenation split by [an number]
   -- if only one elements, doesn't 
   | CategoryDisjunction [(CategoryRule a)] -- match first categories
   | SalesPriceRanger PriceRanger

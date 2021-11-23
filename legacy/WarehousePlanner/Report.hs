@@ -199,12 +199,12 @@ bestAvailableShelvesFor style = do
 
 
 
--- * Summary
+-- * Summary 
 -- Display total volume shelf volume
 -- with a breakdown per shelf tags
 
 data SummaryInfo = SummaryInfo
-  { siFloor :: Maybe Double -- ^ m^2
+  { siFloor :: Maybe Double --  ^ m^2
   , siTotalVolume :: Maybe Double -- ^ m^3
   , siUsedVolume :: Double -- ^ m3
   } deriving (Show)
@@ -287,7 +287,7 @@ occupiedVolume s = do
 
 
 
--- * Shelve report
+-- * Shelve report 
 -- | Display shelf information including, depth really used
 --
 shelvesReport :: WH [Text] s
@@ -323,7 +323,7 @@ shelfTagsReport = do
   tags <- listShelfTags
   return $ (mapM_ putStrLn tags)
 
--- * box report
+-- * box report 
 -- | Display list of all individual boxes and their location
 boxesReport :: WH (IO ()) s
 boxesReport = do
@@ -337,7 +337,7 @@ boxesReport = do
           let (nl, nw, nh) = howMany (maxDim shelf) (boxDim box)
           return $ printf "%s,%s,%s,%s,%dx%dx%d\n" (boxStyle box) (boxContent box) (shelfName shelf) (showOrientation (orientation box)) nl nw nh
   
--- * Compatible with warehouse planner input
+-- * Compatible with warehouse planner input 
 -- | Generates moves from actual styles positions, ie find all shelves
 -- for  a given styles
 
@@ -367,9 +367,9 @@ generateMoves boxName0 = generateMoves' (Just "stock_id,location") (Just . boxNa
      printGroup  boxName' _ shelves = boxName' <> "," <> intercalate "|" (groupNames $ shelvesToNames shelves)
 -- generateMoves' :: (Box s -> Text) -> (Box s -> [Text]) -> WH [Text] s
 generateMoves' :: (Ord k, Eq k)
-               => Maybe Text -- ^ Header
-               -> (Box s -> Maybe k) -- ^ box key
-               ->  (k -> [Box s] -> [Shelf s]  -> Text) -- ^ string from key, boxes and unique shelfnames
+               => Maybe Text --  ^ Header
+               -> (Box s -> Maybe k) --  ^ box key
+               ->  (k -> [Box s] -> [Shelf s]  -> Text) --  ^ string from key, boxes and unique shelfnames
                -> WH [Text] s
 generateMoves' header boxKey0 printGroup = do
  s'bS <- shelfBoxes
@@ -491,7 +491,7 @@ lengthBy' boxes f = length . List.nub . sort $ (map f boxes)
   
 
   
--- * Optimizer
+-- * Optimizer 
 -- find optimal way to rearrange the warehouse.
 -- The first things is to separate what needs to go on the "top" from
 -- normal normal shelves

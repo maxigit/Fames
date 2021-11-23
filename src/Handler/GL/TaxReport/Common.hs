@@ -161,9 +161,9 @@ loadTaxTypeMap = do
   return $  mapFromList $ map (fanl entityKey) taxTypes
 
 data WhichBucket 
-  = AllBuckets -- ^ 
-  | BucketsIn -- ^ within period range
-  | BucketsOut -- ^ out of period range
+  = AllBuckets --  ^ 
+  | BucketsIn --  ^ within period range
+  | BucketsOut --  ^ out of period range
   deriving (Show, Read)
 
 loadBucketSummary :: WhichBucket -> Key TaxReport -> SqlHandler (Map (Bucket, Entity FA.TaxType) TaxSummary)
@@ -292,7 +292,7 @@ getBucketRateFromSettings reportId settings  = runDB $ do
                                           (repeat ConfigBucket)
                                      ) <> (const ExtraBucket <$> bucket'rates)
 
--- * Util
+-- * Util 
 
 formatDouble' :: Double -> Text
 formatDouble' = F.sformat (commasFixedWith round 4)
@@ -305,7 +305,7 @@ formatDecimal :: Decimal -> Text
 formatDecimal x = F.sformat commasDecimal x
 
 
--- * Rule
+-- * Rule 
 faTransToRuleInput :: (Text -> FA.DebtorsMasterId -> Maybe Text) -> FA.TransTaxDetail -> Maybe Int64 -> RuleInput
 faTransToRuleInput custCategoryFinder FA.TransTaxDetail{..} riEntity = let
   riTransType = maybe (error "DB Problem") toEnum transTaxDetailTransType

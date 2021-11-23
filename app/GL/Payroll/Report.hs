@@ -17,8 +17,8 @@ import Data.Align
 import Locker
 import Data.Text (Text)
 import System.FilePath((</>))
--- * Formatting
--- ** Display
+-- * Formatting 
+-- ** Display 
 -- Custom show
 class Display a where
     display :: a -> String
@@ -35,7 +35,7 @@ instance Display Day where
 
 instance {-# OVERLAPPING  #-} Display String where
   display c = c
--- *** Misc
+-- *** Misc 
 instance (Display a, Display b) => Display (a,b) where
     display (a,b) = display a
                     ++ "\t" ++ display b
@@ -53,7 +53,7 @@ instance (Display p, Display e) => Display (Timesheet p e) where
 instance Display ShiftType where
   display st = show st
 
--- *** Deduction and Costs
+-- *** Deduction and Costs 
 instance Display k =>  Display (Shift k) where
     display s = displayShift show show s
 
@@ -66,7 +66,7 @@ displayShift amountF durationF s = display (s ^. shiftKey)
 
 
 
--- *** Deduction and Costs
+-- *** Deduction and Costs 
 instance Display k => Display (DeductionAndCost k) where
   display = displayDAC show show 
 
@@ -104,7 +104,7 @@ groupBy key as =
         
     
     
--- **  Textcart
+-- **  Textcart 
 newtype Sku = Sku { sku :: String } deriving (Eq, Ord, Read, Show)
 newtype Textcart = Textcart (Day, ShiftType, [Shift Sku])
 textcarts :: ShiftType -> Timesheet p Sku -> [Textcart]
@@ -140,7 +140,7 @@ writeTextcart dir cart@(Textcart (d, st, __ss)) = do
     putStrLn $  "saving Texcart : " ++ path
     writeFile (dir </>  path) (display cart)
 
--- ** PAYROO
+-- ** PAYROO 
 -- 
 payroo :: ( ?viewPayrollAmountPermissions :: (Text -> Granted)
           , ?viewPayrollDurationPermissions :: (Text -> Granted)
@@ -189,7 +189,7 @@ writePayroo dir ts = do
 
     writeFile (dir </> path) (unlines (payroo ts))
 
--- * Payment summary
+-- * Payment summary 
 paymentSummary :: (Ord e, Ord p) => Timesheet p e -> [EmployeeSummary p e]
 paymentSummary timesheet_ = let
   -- group shifts and dacs per operators

@@ -14,8 +14,8 @@ import GL.Utils
 import qualified GL.Payroll.Timesheet as TS
 import Data.Time (addGregorianMonthsClip)
 import Lens.Micro ((^.))
--- * Forms
--- ** Type
+-- * Forms 
+-- ** Type 
 data CalendarParam = CalendarParam
   { from :: Maybe Day
   , to :: Maybe Day
@@ -23,7 +23,7 @@ data CalendarParam = CalendarParam
   , frequency :: Maybe PayrollFrequency 
   , shiftType :: Maybe TS.ShiftType
   }
--- ** Form
+-- ** Form 
 filterForm :: Maybe CalendarParam -> _ -- (FormResult CalendarParam, Widget)
 filterForm paramM = let
   form = CalendarParam
@@ -34,7 +34,7 @@ filterForm paramM = let
                  <*> aopt (selectField optionsEnum)  "Type" (shiftType <$> paramM)
   in renderBootstrap3 BootstrapBasicForm form
 
--- * Handler
+-- * Handler 
 {-# NOINLINE getGLPayrollCalendarR #-}
 getGLPayrollCalendarR :: Handler Html
 getGLPayrollCalendarR = do
@@ -58,7 +58,7 @@ postGLPayrollCalendarR = do
       renderMain (Just $ param)
 
 
--- ** Rendering
+-- ** Rendering 
 renderMain :: Maybe CalendarParam -> Handler Html
 renderMain paramM = do
   (formW, encType) <- generateFormPost (filterForm paramM)
@@ -72,7 +72,7 @@ renderMain paramM = do
         ^{result}
       |]
 
--- ** Process
+-- ** Process 
 processCalendar :: CalendarParam -> Handler Widget
 processCalendar param =  do
   timesheets <- loadTimesheet' param
@@ -94,7 +94,7 @@ processCalendar param =  do
               timedShifts <- addTimedFromMop firstActive lastActive allShifts
               return $ displayCalendar True minDay maxDay firstActive lastActive timedShifts
 
--- * DBAccess
+-- * DBAccess 
 loadTimesheet' :: CalendarParam -> Handler [TS.Timesheet Text Text]
 loadTimesheet' param = do
   -- TODO factorize

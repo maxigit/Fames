@@ -71,8 +71,8 @@ read :: Read p => String -> p
 read s = case readMaybe s of
   Nothing -> error $ "can't read ["   ++ s ++ "]"
   Just r -> r
--- * Inputs
--- ** Field converters
+-- * Inputs 
+-- ** Field converters 
 
 -- | Compare key ignoring the case and stripping
 newtype CleanedRecord = CleanedRecord [(Text,  BS.ByteString)] deriving Show
@@ -133,7 +133,7 @@ parseDebit debit credit r = do
 
 
 
--- ** Basic types
+-- ** Basic types 
 -- Each type corresponds to a different input format.
 -- | Transaction from FA statement report.
 data FATransaction = FATransaction
@@ -322,7 +322,7 @@ sToS SantanderTransaction{..} pos = HSBCDaily
          _stAmount
          pos
          
--- ** Parsec parser
+-- ** Parsec parser 
 
 parseSantanderStatement :: P.Stream s m Char
                         => P.ParsecT s u m SantanderStatement
@@ -409,7 +409,7 @@ mergeTrans transs dailyss = let
   -- in V.concat filteredTransaction
   in concat (transs:filteredTransaction)
 
--- ** Read functions
+-- ** Read functions 
 
 
 readCsv :: FromNamedRecord (Int -> r) => Maybe String -> String -> IO ([r])
@@ -479,12 +479,12 @@ readDaily discardPat path = do
         Right v -> return . V.toList $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
         -- transactions needs therefore to be numered in reverse order
--- * Encode Function
+-- * Encode Function 
 encodeHSBCTransactions :: [HSBCTransactions] -> BL.ByteString
 encodeHSBCTransactions hs = encodeDefaultOrderedByName hs
   
 
--- * Main functions
+-- * Main functions 
 --  | Group transaction of different source by amounts.
 reconciliate :: [HSBCTransactions] -> [FATransaction] -> Map Amount (These [HSBCTransactions] [FATransaction])
 reconciliate hsbcs fas = fmap cleanThese $ align groupH groupF where
@@ -560,7 +560,7 @@ best hfs hs fs = if minDistance < 31
     deleteAt i xs =  head' ++ (tail tail')
         where (head', tail') = splitAt i xs
 
--- * Output
+-- * Output 
 
 -- | Summary, for the output. Sort of Either HSBCTransactions FATransaction
 -- but exportable to CSV
@@ -599,7 +599,7 @@ hsbcTransToTransaction h = pure Transaction
         <*> _hBalance
         $ h
 
--- ** Converters between input transactions and summaries.b
+-- ** Converters between input transactions and summaries.b 
 faTransToTransaction :: FATransaction -> Transaction
 faTransToTransaction f = pure Transaction
                 <*> _fAmount
@@ -658,10 +658,10 @@ fillHSBCBalance transs = let
                                          in (Just newBalance, trans {_hBalance = Just (Guessed newBalance )})
           (balance , _ ) -> (fmap validValue balance, trans)
   in snd $ mapAccumL go Nothing sorted
--- * Main
--- ** Options
+-- * Main 
+-- ** Options 
 data Options = Options
-    { statementFiles :: !(String) -- ^ pattern of files containing HSBC full statements.
+    { statementFiles :: !(String) --  ^ pattern of files containing HSBC full statements.
     , dailyFiles :: !(String) -- ^ pattern of files containig HSBC recent transactions. (not a statment but called statement.csv)
     , output :: !(String)
     , startDate :: !(Maybe Day)
@@ -675,7 +675,7 @@ data Options = Options
 
 data FaMode = BankAccountId Int deriving (Show, Read, Eq)
 
--- ** Main body
+-- ** Main body 
 readFa :: Options -> IO [FATransaction]
 readFa opt  = case faMode opt of 
     BankAccountId i -> do 

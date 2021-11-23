@@ -20,7 +20,7 @@ import Text.Printf(printf)
 import Formatting hiding(base)
 import Data.Monoid(Sum(..), First(..))
 
--- * Param
+-- * Param 
 data ReportParam = ReportParam
   { rpToday :: Day -- today
   , rpDeduceTax :: Bool 
@@ -182,7 +182,7 @@ data RunSum = RunSum | RunSumBack | RSNormal deriving Show
 data TraceType = Line | LineMarker | Smooth | SmoothMarker | Bar | Hv
   deriving (Show, Eq, Ord, Enum, Bounded )
 
--- ** Default  style
+-- ** Default  style 
 amountStyle 3 = smoothStyle AmountAxis
 amountStyle 2 = smoothDotStyle AmountAxis
 amountStyle _ = markerLineStyle AmountAxis
@@ -333,7 +333,7 @@ rpPeriod rp = let
         Just PFQuaterly ->  Just $ FoldQuaterly currentYear
         Just PFWeekly -> Just $ FoldWeekly
         Nothing -> Nothing
--- * Columns
+-- * Columns 
 data Column = Column
   { colName :: Text
   , colFn :: ReportParam -> TranKey -> NMapKey
@@ -394,7 +394,7 @@ getColsWithDefault = do
            
 mkIdentifialParam  (tp, tp'runsumS) = Identifiable (tp, map mkTraceParam tp'runsumS)
 mkTraceParam (f, vtype, options, runsum) = TraceParam f vtype options runsum
--- ** Default parameters
+-- ** Default parameters 
 -- | Column colFn take a ReportParam as a parameter.
 -- This is only used for a few case.
 -- This function create a function suitable for Column from a normal function
@@ -456,7 +456,7 @@ mkTransactionType _ tkey = let ktype = tkType tkey
   in NMapKey -- (Just $ fromEnum ktype)
             (PersistText $ showTransType ktype)
 
--- *** Columns
+-- *** Columns 
 styleColumn = Column "Style" (constMkKey tkStyle)
 variationColumn = Column "Variation" (constMkKey tkVar)
 skuColumn = Column "Sku" (constMkKey tkSku)
@@ -527,16 +527,16 @@ w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo 
                                  year_ = slidingYear day0 (tkDay tk)
                              in mkNMapKey . PersistDay $ fromGregorian year_ 1 1
                    )
--- ** Default options
+-- ** Default options 
 emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
 emptyTrace = DataParams QPSales (mkIdentifialParam noneOption) Nothing
 noneOption = ("None" :: Text, [])
 amountOutOption n = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle n, RSNormal)] )
 amountInOption n = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle n, RSNormal)])
 
--- ** Default trace
+-- ** Default trace 
 bestSalesTrace = DataParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
--- * DB
+-- * DB 
 loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
                      -> Handler (NMap TranQP) 
@@ -908,8 +908,8 @@ loadStockInfo param = do
   -- traceShowM("Stock Info", rows)
   return . Map.fromList $ map toInfo rows
   
--- * Converter
--- ** StockMove
+-- * Converter 
+-- ** StockMove 
 moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   key = TranKey stockMoveTranDate
                 Nothing
@@ -930,7 +930,7 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
     _ -> error $ "unexpected transaction type " ++ show (toEnum stockMoveType :: FATransType) ++ " for stock adjustment "
   costPrice = iiStandardCost =<< lookup stockMoveStockId infoMap  
   
--- ** Sales Details
+-- ** Sales Details 
 detailToTransInfo :: Bool -> Map Int (Map Text Text)
                   -> (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64, Single (Maybe Int))
                   -> (TranKey, TranQP)
@@ -955,8 +955,8 @@ detailToTransInfo deduceTax orderCategoryMap
           else debtorTransDetailUnitPrice
           ) *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
 
--- ** Order details
-orderDetailToTransInfo :: InOutward -> OrderQuantityMode -> Map Int (Map Text Text) -- ^ Order category map
+-- ** Order details 
+orderDetailToTransInfo :: InOutward -> OrderQuantityMode -> Map Int (Map Text Text) --  ^ Order category map
                       -> (Entity FA.SalesOrderDetail, Entity FA.SalesOrder, Single Day)
                       -> (TranKey, TranQP)
 orderDetailToTransInfo io qtyMode orderCategoryMap (Entity _ FA.SalesOrderDetail{..}
@@ -978,7 +978,7 @@ orderDetailToTransInfo io qtyMode orderCategoryMap (Entity _ FA.SalesOrderDetail
   price = salesOrderDetailUnitPrice * (1- salesOrderDetailDiscountPercent)
   tqp = tranQP QPSalesOrder qp
 
--- ** Purchase info
+-- ** Purchase info 
 purchToTransInfo :: (Day -> Day)
                  -> (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)
                  -> (TranKey, TranQP)
@@ -999,7 +999,7 @@ purchToTransInfo alterDate ( Entity _ FA.SuppInvoiceItem{..}
   qp io = mkQPrice io suppInvoiceItemQuantity price
   price = suppInvoiceItemUnitPrice*suppTranRate
 
--- ** Purchase Order Detail
+-- ** Purchase Order Detail 
 poToTransInfo :: OrderDateColumn -> OrderQuantityMode -> (Entity PurchOrderDetail, Entity PurchOrder) -> (TranKey, TranQP)
 poToTransInfo orderDateColumn qtyMode (Entity _ FA.PurchOrderDetail{..}, Entity _ FA.PurchOrder{..}) = (key, tqp) where
   key = TranKey date (Just . Right $ fromIntegral purchOrderSupplierId)
@@ -1018,8 +1018,8 @@ poToTransInfo orderDateColumn qtyMode (Entity _ FA.PurchOrderDetail{..}, Entity 
                
   
 
--- * Reports
--- ** Common
+-- * Reports 
+-- ** Common 
 -- | Display sales and purchase of an item
 itemReportWithRank
   :: ReportParam
@@ -1234,7 +1234,7 @@ qpAdjustmentColumns ReportParam{..} =
                                     , \display tran -> display shape (qpValue <$> adjQPrice tran) 
                                     )
 
--- *** Csv
+-- *** Csv 
 -- | To Csv using table summary
 summaryToCsv qpMode param grouped' = let
   qpCols = concatMap (\f -> f qpMode param) [qpSalesColumns, qpOrderColumns, qpForecastColumns, qpPurchasesColumns]
@@ -1264,7 +1264,7 @@ tracesToCsv param grouped' = let
   in header : do
     (keys_, tran) <- nmapToList grouped'
     return $ intercalate "," $  ( map  (pvToText . nkKey) keys_ ) <> valueFromTraces tran
--- *** Sort and limit
+-- *** Sort and limit 
 sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap (Sum Double, TranQP)
 sortAndLimitTranQP ruptures nmap = let
   mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Sum Double , Maybe RankMode, Maybe Int, Bool)
@@ -1297,7 +1297,7 @@ nmapToListWithRank nmap = do -- []
   (rks, wa) <- nmapToListWithRank subNMap
   return (rank'key:rks, wa)
 
--- ** Plot
+-- ** Plot 
 insertNullNMapLevel nmap = NMap (nmapMargin nmap) (Nothing:nmapLevels nmap) (Map.singleton (mkNMapKey PersistNull) nmap )
 chartProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 chartProcessor param grouped = do
@@ -1365,7 +1365,7 @@ plotChartDiv param heightForBands all plotId0 panels = do
                                 ]
                        ids = scanl (+) 1 (map length series)
                        in zip series [ zip (repeat col) [n..]  | (col, n) <- zip defaultColors ids] -- (zip (map repeat defaultColors) ids)
-                      -- ^ aggregate band and serie
+                      -- \^ aggregate band and serie
               _ ->[((bands, Nothing), zip (cycle defaultColors) [1 :: Int ..])]
         in seriesChartProcessor all panels (rpSerie param)
                              ((isNothing $ cpColumn $ rpSerie param) || rpColourMode param == TraceColour) -- mono use a different colour for each trace instead of each serie
@@ -1545,7 +1545,7 @@ seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> [DataParam]
   -> Text
   -> Text
-  -> [((NMap (Sum Double, TranQP), Maybe Text), [(Text, Int)] )] -- ^ Series , colour fun
+  -> [((NMap (Sum Double, TranQP), Maybe Text), [(Text, Int)] )] --  ^ Series , colour fun
   -> Widget 
 seriesChartProcessor all panel rupture mono groupTrace params name plotId grouped'colour = do
      let -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
@@ -1574,17 +1574,17 @@ seriesChartProcessor all panel rupture mono groupTrace params name plotId groupe
   
 textValuesFor = map (toJSON . pvToText . fst)
 
-traceFor :: ([(PersistValue, (Sum Double, TranQP))] -> [Value]) -- ^ generate x values/l
-         -> ( -- ^ generates ys as Double
-               Maybe NormalizeMode -- ^ use how to apply magin
-            -> (TranQP -> Maybe Double) -- ^ value getter
+traceFor :: ([(PersistValue, (Sum Double, TranQP))] -> [Value]) --  ^ generate x values/l
+         -> ( --   ^ generates ys as Double
+               Maybe NormalizeMode --  ^ use how to apply magin
+            -> (TranQP -> Maybe Double) --  ^ value getter
             -> NMap (Sum Double, TranQP)
             -> [Maybe Value])
          -> (DataParam
-            , ((Int, NMapKey) -- ^ rank and trace/serie name
-              , NMap (Sum Double, TranQP)) -- ^ values to graph
-              , Text -- ^ colour
-              , Maybe Int -- ^ group_ id
+            , ((Int, NMapKey) --  ^ rank and trace/serie name
+              , NMap (Sum Double, TranQP)) --  ^ values to graph
+              , Text --  ^ colour
+              , Maybe Int --  ^ group_ id
               )
          -> Value
 traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
@@ -1608,7 +1608,7 @@ nmapToListWithRunSum runSum g' = let
     g = [ (nkKey (snd n), mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
     g'' = nmapRunSum runSum g'
     in g
--- ** Bubble
+-- ** Bubble 
 bubbleProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 bubbleProcessor param grouped = do
   renderPanelWith  "items-report-bubble" grouped (renderBubblePlotDiv param $ \n -> max 350 (900 `div` n))
@@ -1737,8 +1737,8 @@ bubbleTrace all panel band asList_ params =
                         ]
     in jsData
 
--- ** Scatter
-  -- | Like bubble map but uses 2 measures instead of 2 categories
+-- ** Scatter 
+-- | Like bubble map but uses 2 measures instead of 2 categories
 scatterProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 scatterProcessor param grouped = do
   renderPanelWith  "items-report-scatter" grouped (renderScatterPlotDiv param $ \n -> max 350 (900 `div` n))
@@ -1829,7 +1829,7 @@ scatterTrace all panel band asList_ params =
                                         
                         ]
     in jsData
--- ** Pivot
+-- ** Pivot 
 pivotProcessor:: [DataParams] -> _ColumnRuptures -> NMap TranQP -> Widget
 pivotProcessor tparams =  do
   processRupturesWith (panelPivotProcessor tparams "items-report-pivot") ()
@@ -2005,7 +2005,7 @@ formatPrice = formatDouble''  RSNormal VPrice
 formatPercentage = formatDouble''  RSNormal VPercentage
       
   
--- *** Plot
+-- *** Plot 
 
--- ** Utils
+-- ** Utils 
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]

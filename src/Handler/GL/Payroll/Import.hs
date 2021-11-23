@@ -19,7 +19,7 @@ import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
 import Control.Monad.Except
 import qualified Data.Map as Map
 
--- * Type
+-- * Type 
 data ImportParam = ImportParam
    { from :: Maybe Day
    , to :: Maybe Day
@@ -37,9 +37,9 @@ data Invoice = Invoice
   , key :: Maybe TimesheetId
   }
 
--- * Form
--- ** Type
--- ** Form
+-- * Form 
+-- ** Type 
+-- ** Form 
 importForm :: Maybe ImportParam -> _ -- (FormResult SummaryParam, Widget)
 importForm paramM = let
   form = ImportParam
@@ -48,7 +48,7 @@ importForm paramM = let
                  <*> aopt filterEField "Reference" (reference <$> paramM)
                  <*> pure (mempty)
   in renderBootstrap3 BootstrapBasicForm form
--- * Handler
+-- * Handler 
 {-# NOINLINE getGLPayrollImportR #-}
 getGLPayrollImportR :: Handler Html
 getGLPayrollImportR = do
@@ -145,7 +145,7 @@ showAmountM fa (Just ts) | abs (fa - ts) < 1e-6 = [shamlet|<span.correct>#{showD
           <span.timesheet.incorrect>#{showDouble ts}
         |]
 
--- ** Summary function
+-- ** Summary function 
 invoiceTimesheetCosts invoice = do
   (_, _, dacs) <- model invoice
   let costs = filter ((== Cost). payrollItemType) dacs
@@ -335,7 +335,7 @@ setParams param = do
                  ]
   return param { toImport = setFromList selected }
   
--- * 
+-- *  
 selectInvoice param = do
   invoices <- selectList ( (Just (FA.SuppTranSupplierId ==. Just 27)) ?:
                            (Just (FA.SuppTranType ==. fromEnum ST_SUPPINVOICE)) ?:
@@ -346,7 +346,7 @@ selectInvoice param = do
                          [Asc FA.SuppTranTranDate, Asc FA.SuppTranReference]
   return invoices
 
--- * Converters
+-- * Converters 
 invoiceToModel :: PayrollSettings
                -> (Text -> OperatorId)
                -> (Int -> OperatorId)
@@ -440,7 +440,7 @@ getOperatorFinders = do
                            (opF' dim2)
   return (opFinder, opFinder')
 
--- * Importing
+-- * Importing 
 loadSelectedInvoices param = do
   invoices' <- runDB $ selectInvoice param
   invoices <- mapM (loadInvoice param) invoices'
@@ -449,7 +449,7 @@ loadSelectedInvoices param = do
   -- we can't import already existing timesheet.
   return $ filter selected invoices
 
--- * Saving
+-- * Saving 
 importTimesheets :: ImportParam -> Handler [TimesheetId]
 importTimesheets param = do
   invoices' <- loadSelectedInvoices param
@@ -476,7 +476,7 @@ importTimesheets param = do
 
 
   
--- * Credit
+-- * Credit 
 -- importCredits :: ImportParam -> Handler [TimesheetId]
 importCredits param = do
   invoices <- loadSelectedInvoices param

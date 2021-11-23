@@ -16,7 +16,7 @@ import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import GL.Utils
 
--- * Form
+-- * Form 
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
 reportForm cols paramM extra = do
   today <- todayH
@@ -185,7 +185,7 @@ ruptureForm colOptions title paramM = do
 getForecastDirOptions :: Handler [(Text, FilePath)]
 getForecastDirOptions = getSubdirOptions appForecastProfilesDir
 
--- * Handler
+-- * Handler 
 
 {-# NOINLINE getItemsReportR #-}
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
@@ -345,7 +345,7 @@ postItemsReport2R mode = postItemsReportFor ItemsReport2R  (mode <|> Just Report
 {-# NOINLINE postItemsReport3R #-}
 postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport3R = postItemsReportFor ItemsReport3R 
--- ** Renders
+-- ** Renders 
 
 renderReportForm :: (Maybe ReportMode -> ItemsR)
                  -> Maybe ReportMode
@@ -358,7 +358,7 @@ renderReportForm  route modeM paramM status resultM = do
   (repForm, repEncType) <- generateFormGet' $ reportForm cols paramM
   let buttons = [(ReportCsv, "Export To Csv" :: Text), (ReportRaw, "Export Raw CSV")]
       navs = ([minBound..maxBound] :: [ReportMode]) List.\\ map fst buttons
-      -- ^ We use a button instead for the CSV
+      -- \^ We use a button instead for the CSV
       mode = fromMaybe ReportTable modeM
       navClass nav = if mode == nav then "active" else "" :: Html
       fay = $(fayFile "ItemsReport")

@@ -17,8 +17,8 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time (addGregorianMonthsClip, addDays)
 import Locker
 
--- * Forms
--- ** Type
+-- * Forms 
+-- ** Type 
 data SummaryParam = SummaryParam
   { from :: Maybe Day
   , to :: Maybe Day
@@ -26,7 +26,7 @@ data SummaryParam = SummaryParam
   , frequency :: Maybe PayrollFrequency 
   , dueDateMap :: Map Text Day -- override expected due date for a give timesheet
   }
--- ** Form
+-- ** Form 
 filterForm :: Maybe SummaryParam -> _ -- (FormResult SummaryParam, Widget)
 filterForm paramM = let
   form = SummaryParam
@@ -37,7 +37,7 @@ filterForm paramM = let
                  <*> pure (mempty :: Map Text Day)
   in renderBootstrap3 BootstrapBasicForm form
 
--- * Handler
+-- * Handler 
 {-# NOINLINE getGLPayrollSummaryR #-}
 getGLPayrollSummaryR :: Handler Html
 getGLPayrollSummaryR = do
@@ -61,7 +61,7 @@ postGLPayrollSummaryR = do
       renderMain (Just $ param)
 
 
--- ** Rendering
+-- ** Rendering 
 renderMain :: Maybe SummaryParam -> Handler Html
 renderMain paramM = do
   (formW, encType) <- generateFormPost (filterForm paramM)
@@ -78,7 +78,7 @@ renderMain paramM = do
       |]
 
 
--- ** Process
+-- ** Process 
 processSummary :: (?viewPayrollAmountPermissions :: (Text -> Granted))
                => SummaryParam -> Handler Widget
 processSummary param =  do
@@ -114,7 +114,7 @@ employeeSummaryTable' day cols0 colnames rows0 = let
       fn' col = fn col
   in employeeSummaryTable cols colnames rows
 
--- * Misc
+-- * Misc 
 computeDueDate :: PayrollSettings -> TS.Timesheet p e -> Day
 computeDueDate settings ts = let
   start = TS.periodEnd ts
@@ -154,7 +154,7 @@ makeSummaries timesheets = let
               ]
   in summaries
   
--- * DBAccess
+-- * DBAccess 
 loadTimesheet' :: SummaryParam -> Handler [TS.Timesheet Text Text]
 loadTimesheet' param = do
   let filter =  (from param <&> (TimesheetStart >=.) ) ?:

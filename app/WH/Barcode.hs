@@ -8,7 +8,7 @@ import Data.Char (ord, chr)
 import Data.List (iterate)
 import Formatting
 
--- * Types
+-- * Types 
 -- | Allowed prefixes. Read from configuration file.
 data BarcodeParams = BarcodeParams
   { bpPrefix :: Text
@@ -23,7 +23,7 @@ data BarcodeTemplate = BarcodeTemplate
 
 data OutputMode = Csv | GLabels deriving (Eq, Ord, Read, Show)
 
--- * FromJSON
+-- * FromJSON 
 instance FromJSON (Text -> BarcodeParams) where
   parseJSON (Object o) =  do
     bpDescription <- o .: "description"
@@ -35,7 +35,7 @@ instance FromJSON (Text -> BarcodeParams) where
   parseJSON _ = error "Barcode templates should be an object"
   
 
--- * Functions
+-- * Functions 
 -- | Month abbreviation on letter
 -- month2 :: Day -> Text
 month2 :: Day -> Builder
@@ -86,7 +86,7 @@ nextBarcode barcode = do
   (prefix, n,_) <- splitBarcode barcode
   Just $ formatBarcode prefix (n+1 :: Int)
 
--- * Location
+-- * Location 
 -- | Expand a location pattern by using all character in brackets.
 -- Also accepts simple ranges (w't)
 -- This doesn't use globbing, but just generate all possible combination.

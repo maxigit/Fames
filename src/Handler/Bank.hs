@@ -522,7 +522,7 @@ displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
                 <a href="@{GLR (GLBankStatementGenR account)}"> Download Statement
            ^{tableW}
                      |]
--- * Reconciliationg
+-- * Reconciliationg 
 data RecParam = RecParam
    { rpStartDate :: Maybe Day
    , rpOpeningBalance :: Double
@@ -647,7 +647,7 @@ renderReconciliate account param = do
           <input.rec-difference value="#{formatDouble $ (rpClosingBalance param - rpOpeningBalance param) - reconciliated}" readonly>
           |]
       emptyPanel = displayPanel "info" False  " " "" -- needed so that the statusBar doesn't hide the bottom of the last relevant panel
-      -- | Display a warning if some transaction needed to be reconciliated are before 
+      -- -| Display a warning if some transaction needed to be reconciliated are before 
       -- check if some transactions to reconcilated belong to a group in the past
       lastGroup = maximumMay $ catMaybes $ Map.keys recGroup
       toRecGroup = Map.lookup Nothing recGroup
@@ -755,7 +755,7 @@ rebalanceFA groups = let
   in result
 
 getOpenings :: [These B.Transaction B.Transaction] -> (Maybe (ValidField B.Amount), Maybe (ValidField B.Amount), Bool)
--- ^ Bool if end balances matches
+-- \^ Bool if end balances matches
 -- getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance) where 
 --   ts = case partitionThese st'sts of
 --     ([], ([], fas)) -> fas
@@ -966,7 +966,7 @@ getObjectH = do
                                 ]
   return (getObject customerMap supplierMap)
 
--- * Help : How to get the required files
+-- * Help : How to get the required files 
 {-# NOINLINE getGLBankHelpR #-}
 getGLBankHelpR :: Handler Html
 getGLBankHelpR = do
@@ -1015,7 +1015,7 @@ ccardHelp = [whamlet|
 <p>One can go from one to the other by either clicking on the balance or the <b>Business card</b> button.
 |]
 
--- * FX
+-- * FX 
 
 data FXParam = FXParam { fxStart :: Day, fxEnd :: Day, fxCurrency :: Text}
   deriving (Show, Eq)
@@ -1143,7 +1143,7 @@ transferToFXs (Single fxDate, Single fxDescription, Single fxFXAmount, Single fx
         fxExtra = ()
 
 
--- * Generate statement
+-- * Generate statement 
 -- generating statement can be usefull to reconciliate
 -- account which doesn't have statement but have for example
 -- known balances. This is a case of cash account.
@@ -1180,7 +1180,7 @@ getGLBankStatementGenR account= do
                  <> ".csv"
   setAttachment $ fromString filename
   respond "text/csv" content
--- * Generate receipt
+-- * Generate receipt 
 -- Generate a csv file compatible with GL Receipt 
 -- corresponding to all transactions which doesn't have a "save" button
 -- ie transaction not caught by autoRec.
@@ -1214,7 +1214,7 @@ mkReceipt account B.Transaction{..} = F.sformat (F.string F.% ",,"  F.%F.string 
 
       
 
--- * Auto rec
+-- * Auto rec 
 -- generate FA transactions to match statement ones.
 -- This can be for example, supplier payment corresponding to outsanding invoice
 -- or bank transfer.

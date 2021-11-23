@@ -151,7 +151,7 @@ addDeductionAndCost u costM deductionM = do
   cad <- align costM deductionM
   return $ u & currentTimesheet . deductionAndCosts %~ (++ [ DeductionAndCost (ext, e) cad])
   
--- ** Days
+-- ** Days 
 data WeekDay = WeekDay { shortName :: String
                        , fullName :: String
                        , index :: Int
@@ -170,7 +170,7 @@ parseWeekDay s = lookup s weekDaysAL
 dayToWeekDay :: Day -> Maybe WeekDay
 dayToWeekDay day_ = parseWeekDay dayName where
     dayName = formatTime defaultTimeLocale "%a" day_
--- * Tokenizer
+-- * Tokenizer 
 
 
 data Token = NameT String

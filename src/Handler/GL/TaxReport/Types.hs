@@ -38,7 +38,7 @@ import GL.TaxReport.Types
 import GL.TaxReport
 
 
--- * Type
+-- * Type 
 -- | A mix of FA trans tax detail and report
 -- A smart constructor makes sure that the information common
 -- to both report detail and trans matches
@@ -57,13 +57,13 @@ data TaxProcessor = TaxProcessor
   , submitReturn :: Entity TaxReport -> Handler (Either Text (TaxReport, Maybe TypedContent))
   , displayExternalStatuses :: Text -> Handler Widget
   , getBoxes :: Set Bucket -> SqlHandler [TaxBox]
-  -- ^ Allow a processor to alter boxes depending on buckets
+  -- \^ Allow a processor to alter boxes depending on buckets
   -- This is used for ECSL where each bucket corresponding to a box
   , preSubmitCheck ::  Entity TaxReport -> Handler (Maybe Widget)
-  -- ^ specific check and legal requirement
+  -- \^ specific check and legal requirement
   }
 
--- * Constructor
+-- * Constructor 
 makeAndValidateDetail :: Key TaxReport
                       -> (TransTaxDetail -> Maybe Int64 -> Bucket)
                       -> Entity TransTaxDetail
@@ -130,7 +130,7 @@ taxDetailFromDetails bucketFn currentReport trans details personm =
 isNew :: TaxDetail -> Bool
 isNew detail = isNothing (_private_currentDetail detail)
 
--- * Accessors
+-- * Accessors 
 tdFADetail :: TaxDetail -> TransTaxDetail
 tdFADetail = _private_faDetail
 tdReportDetail :: TaxDetail -> TaxReportDetail
@@ -162,7 +162,7 @@ tdBucket = taxReportDetailBucket . tdReportDetail
 
 tdEntity :: TaxDetail -> Maybe Int64
 tdEntity = _private_entity
--- * Compute difference with what the report should be
+-- * Compute difference with what the report should be 
 tdDetailToSave :: TaxDetail -> TaxReportDetail
 tdDetailToSave = _private_detailToSave
 tdExistingKey :: TaxDetail -> Maybe (Key TaxReportDetail)

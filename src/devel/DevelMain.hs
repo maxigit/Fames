@@ -68,8 +68,8 @@ update = do
         readStore doneStore >>= start
 
 
-    -- | Start the server in a separate thread.
-    start :: MVar () -- ^ Written to when the thread is killed.
+    -- -| Start the server in a separate thread.
+    start :: MVar () --  ^ Written to when the thread is killed.
           -> IO ThreadId
     start done = do
         (port, site, app) <- getApplicationRepl

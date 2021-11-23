@@ -63,7 +63,7 @@ info = infoPanel' (Just "info") "Info"
    and the second group invoice with reference 3
   |]
 
- -- | The real function where the checks are done and rendered to a Widget
+-- | The real function where the checks are done and rendered to a Widget
 processCheck :: CheckParam -> Handler Widget
 processCheck CheckParam{..} = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)

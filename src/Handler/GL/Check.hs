@@ -18,7 +18,7 @@ import qualified Data.Map as Map
 import Util.Decimal
 
 showDouble x = tshow $ toDecimalWithRounding (Round 6) x
--- * Types
+-- * Types 
 data TransactionSummary = TransactionSummary 
   { tsTransNo :: Int
   , tsTransType :: FATransType
@@ -108,7 +108,7 @@ showWithStatus ref v = [shamlet|<span :bad:.bg-danger :bad:.text-danger :warning
   bad = diff > 1e-2
   warning = diff > 1e-3 && (not bad)
 
--- * Form
+-- * Form 
 data CheckParam = CheckParam
   { pFrom :: Maybe Day
   , pTo :: Maybe Day
@@ -192,7 +192,7 @@ renderCheck param widgetM = do
                           |]
 
 
--- ** DB
+-- ** DB 
 checkAll :: CheckParam -> Handler [_]
 checkAll param = runDB $ do
   customerTransactions <- loadCustomerTransactions param
@@ -240,7 +240,7 @@ loadGLFor transNo transType = do
              ]
              [Asc GlTranId]
 
--- ** Check
+-- ** Check 
 {-# NOINLINE getGLCheckDebtorTransR #-}
 getGLCheckDebtorTransR :: Int64 -> Int64 -> Handler Html
 getGLCheckDebtorTransR no tType = do

@@ -9,7 +9,7 @@ import Import
 import qualified Data.Map as Map
 
 
--- * Requests
+-- * Requests 
 -- | Displays the list of locations
 {-# NOINLINE getWHStocktakeLocationR #-}
 getWHStocktakeLocationR :: Handler Html
@@ -44,7 +44,7 @@ getWHLocationStickersR = do
   generateLabelsResponse "location-stickers.pdf" "config/locations-qr.glabels" source
   
 
--- * Render
+-- * Render 
 -- | Generates a csv 
 csvSource :: Monad m => Handler (ConduitM () (Text) m ())
 csvSource = do

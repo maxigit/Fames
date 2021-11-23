@@ -136,7 +136,7 @@ buildRack xs = do
 
     return $ rackUp sorted
 
- -- | shelf use as error, ie everything not fitting anywhere
+ -- -| shelf use as error, ie everything not fitting anywhere
 defaultShelf :: WH (ShelfId s) s
 defaultShelf = (flip Seq.index) 0 <$> gets shelves
 
@@ -550,8 +550,8 @@ os = [tiltedForward, tiltedFR]
 
 
 -- | How many inner rectangle can fit in the outer one ?
-howMany :: Dimension -- ^ Outer
-        -> Dimension -- ^ Inner
+howMany :: Dimension --  ^ Outer
+        -> Dimension --  ^ Inner
         -> (Int, Int, Int)
 howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
                                                  , fit w wb
@@ -616,7 +616,7 @@ fillShelf exitMode  s simBoxes0 = do
                                         , il <- [0..nl-1]
                                         , iw <- [0..nw-1] -- width first
                                         ]
-                       -- ^ with the current algorithm only looking
+                       -- \^ with the current algorithm only looking
                        -- at the length and height used (and ignoring the depth )
                        -- we need to fill the depth (width) first, whichever filling row or column first
                        -- this might not be the expected Deadzone behavior but until we try
@@ -631,9 +631,9 @@ fillShelf exitMode  s simBoxes0 = do
         let leftm = dropSimilar (length box'Offsets) simBoxes
         case (box'Offsets, exitMode) of
             ([], _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
-            (_ , ExitOnTop) -> return (leftm, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
-            (_, ExitLeft) -> return (leftm, Nothing)  -- ^ pretends the shelf is full
-            -- _ ->  fillShelfm exitMode  shelf leftm -- ^ try to fit what's left in the same shelf
+            (_ , ExitOnTop) -> return (leftm, Just shelf) --  ^ exit on top, we stop there, but the shelf is not full
+            (_, ExitLeft) -> return (leftm, Nothing)  --  ^ pretends the shelf is full
+            -- _ ->  fillShelfm exitMode  shelf leftm --  ^ try to fit what's left in the same shelf
 
     where shiftBox ori box' offset = do
             _ <- updateBox (\box_ -> box_ { orientation = ori
@@ -658,8 +658,8 @@ assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(__offset:_) = case b
           _ColumnFirst -> dHeight o <= dHeight previous  && dLength o <= dLength previous
           -- RowFirst -> dHeight o <= dHeight previous  && dWidth o <= dWidth previous
         sameRow o =  case strat of
-          ColumnFirst -> dLength o <= dLength previous -- || dWidth o <= dWidth previous
-          RowFirst -> dHeight o <= dHeight previous -- || dWidth o <= dWidth previous
+          ColumnFirst -> dLength o <= dLength previous -- -|| dWidth o <= dWidth previous
+          RowFirst -> dHeight o <= dHeight previous -- -|| dWidth o <= dWidth previous
 
 
 
@@ -677,7 +677,7 @@ moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
   let layers = groupBy ((==)  `on` boxGlobalRank) $ sortBy (comparing boxGlobalRank) boxes
       boxGlobalRank box = (boxGlobalPriority box, boxStyle box, boxStylePriority box,  _boxDim box)
-      -- ^ we need to regroup box by style and size
+      -- \^ we need to regroup box by style and size
       -- However we take into the account priority within the style before the dimension
       -- so that we can set the priority
         
@@ -1008,8 +1008,8 @@ defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)
 --  - $rank^100 - cut to 99 and everything above = 100
 --  - $rank%100 - modulo 100
 
-stripStatFunction :: Text -- ^ prefix
-                  -> Text -- ^ text  to parse
+stripStatFunction :: Text --  ^ prefix
+                  -> Text --  ^ text  to parse
                   -> Maybe (Maybe (Char, Int) -- operator number
                            , Text
                            , Text) -- left over
@@ -1051,7 +1051,7 @@ extractBoxBreak tags = case maybe [] (Set.toList) (Map.lookup "@start" tags) of
   ["new-shelf"] ->Just StartNewShelf 
   _ -> Nothing
 
--- * Misc
+-- * Misc 
 -- | reorder box so they are ordered by column across all
 -- the given shelves.
 -- sortAccross :: Shelf' shelf => [shelf s] -> WH [Box s] s
@@ -1083,7 +1083,7 @@ usedDepth s = do
 
 
 
--- * Denormalizing
+-- * Denormalizing 
 --
 shelfBoxes :: WH [(Shelf s, Box s)] s
 shelfBoxes = do
@@ -1093,7 +1093,7 @@ shelfBoxes = do
     return [(s, box) | (s, bs) <- sbsS, box <- bs]
 
 
--- * Box corners operation
+-- * Box corners operation 
   {-
 extremeCorners :: [Box s] -> [(Double, Double)]
 extremeCorners boxes = let
@@ -1120,7 +1120,7 @@ splitCorner (cx,cy) (cx',cy')
 -}
 
 
--- * Misc
+-- * Misc 
 
 -- | Shelve or box name can have a tag, which is
 -- a prefix starting with :
@@ -1135,8 +1135,8 @@ extractTags :: Text -> (Text, [Text])
 extractTags name = (style, maybe [] (splitOn "#") tagM) where
   (style, tagM) = extractTag name
 
--- * Selectors
--- ** Applying
+-- * Selectors 
+-- ** Applying 
 -- | The phantom type guarantie that we are selecting the correct item
 applyNameSelector :: NameSelector a -> (a -> Text) -> a -> Bool
 applyNameSelector (NameMatches []) _ _ = True
@@ -1197,10 +1197,10 @@ unmatched pats0 valSet = go [] pats0 (Set.toList valSet) where
   go unused [] vals = (unused, vals)
   go unused (pat:pats) vals = case List.partition (applyPattern pat) vals of
     ([], _) -> go (pat:unused) pats vals
-    -- ^ doesn't match anything, add to unused
+    -- \^ doesn't match anything, add to unused
     (_, vals') -> go unused pats vals'
 
--- ** Parsing
+-- ** Parsing 
 -- | split on |
 parseSelector :: Text -> Selector a
 parseSelector s = case splitOn "#" s of
@@ -1251,8 +1251,8 @@ applyPattern pat value = case pat of
   MatchFull value0 -> value == value0
   MatchGlob glob -> Glob.match glob (unpack value)
 
--- * Warehouse Cache
--- ** Property stats
+-- * Warehouse Cache 
+-- ** Property stats 
 -- | Retrieve property stats (and compute if needed)
 propertyStatsFor :: Text -> WH PropertyStats s
 propertyStatsFor prop = do

@@ -8,8 +8,8 @@ import Data.Aeson.TH(deriveJSON)
 import Data.Aeson.Types
 import Control.Monad.Fail (MonadFail(..))
 
--- * Types
--- ** For config
+-- * Types 
+-- ** For config 
 data EmployeeSettings = EmployeeSettings
   { payrollId :: Int -- To add to 
   , hourlyRate :: Double
@@ -63,7 +63,7 @@ data PayrollSettings = PayrollSettings
   } deriving (Show, Read, Eq, Ord)
 
 
--- ** Date Calculator
+-- ** Date Calculator 
 data DateCalculator
   = DayOfMonth { dayX :: Int, cutoff :: Int } -- day , cut off
   | AddDays Int
@@ -95,14 +95,14 @@ succCyclic :: DayOfWeek -> DayOfWeek
 succCyclic Sunday = Monday
 succCyclic d = succ d
 
--- ** Formula
+-- ** Formula 
 -- | Simple formula to 
 data PayrollFormula = PFVariable Text
                     | PFValue Double
                     | PFNegVariable Text
   deriving (Show, Read, Eq, Ord)
 
--- * JSON
+-- * JSON 
 instance ToJSONKey (Maybe DayOfWeek) where
   toJSONKey = toJSONKeyText myKey where
     myKey Nothing = "default"
@@ -151,4 +151,4 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DACPaymentSe
 $(deriveJSON defaultOptions ''PayrollExternalSettings)
 $(deriveJSON defaultOptions ''PayrollSettings)
 
--- * Utils
+-- * Utils 

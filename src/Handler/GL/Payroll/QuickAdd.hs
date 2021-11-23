@@ -12,7 +12,7 @@ import Control.Monad.Except (ExceptT(..), runExceptT)
 import Data.Text (strip)
 import Database.Persist.Sql(unSqlBackendKey)
 
--- * Quick Add
+-- * Quick Add 
 saveQuickAdd :: Bool -> Text -> DocumentHash -> Handler (Either Text Widget)
 saveQuickAdd  save text __key  = do
   header <- headerFromSettings

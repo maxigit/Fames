@@ -414,7 +414,7 @@ isWorkingDay day = let (_, _, weekDay) = toWeekDate day
 computeAdj :: (Map Text Int) -> Maybe Int -> StockAdjustmentId -> PreAdjust -> [StockAdjustmentDetail]
 computeAdj qBefores modulo key pre =
   let qBefore = Map.findWithDefault 0 (sku pre) qBefores
-      -- ^ quantity selected by the user
+      -- \^ quantity selected by the user
       (orig, _) = preToOriginal modulo pre
       BadgeQuantities{..} = computeBadges orig { qoh = qoh orig + qBefore }
       lostLoc = Just . FA.LocationKey . location . lost $ pre 
@@ -759,14 +759,14 @@ preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo ,
               | move <- movesAt m
               , moveDate move <= day
               ]
-  -- | We want to pass the original quantities (without move) to the data- in html
+  -- -| We want to pass the original quantities (without move) to the data- in html
   -- however the badges needs to be computed as if
   -- the "before" select boxes needs have been selected
 toOrigAndBadges :: Maybe Int -> PreAdjust -> (OriginalQuantities, BadgeQuantities, Int)
 toOrigAndBadges modulo pre = (orig, computeBadges orig {qoh = qoh orig + before}, before)
   where (orig, before) = preToOriginal modulo pre
 
--- * To FA
+-- * To FA 
 
 splitDetails :: Maybe FA.LocationId -> Maybe FA.LocationId -> [StockAdjustmentDetail] -> DetailCarts
 splitDetails mainLocationLoc lostLoc details = let

@@ -40,22 +40,22 @@ import Data.Text (Text)
 
 import GL.Utils
 
--- * Type alias
+-- * Type alias 
 type Amount = Locker Text Double
 type Duration = Locker Text Double
 type Hour = Double
 
--- * Data
--- ** Employee
+-- * Data 
+-- ** Employee 
 -- | An employee.
 data Employee = Employee
-    { _nickName  :: String -- ^ use to designate an Employee. Must be unique
+    { _nickName  :: String --  ^ use to designate an Employee. Must be unique
     , _defaultHourlyRate :: Maybe Amount
     } deriving (Show, Eq, Ord)
 
 makeClassy ''Employee
 
--- *** Payroo
+-- *** Payroo 
 -- | Add Payroo information to employee *inherits* from Employee
 data PayrooEmployee = PayrooEmployee
     { _firstName :: String
@@ -67,7 +67,7 @@ makeClassy ''PayrooEmployee
 instance HasEmployee PayrooEmployee where
   employee = payrooEmployee'
 
--- ** Shift
+-- ** Shift 
 -- | The main data is a shift, ie a continous amount of time worked
 -- The key represent a way to identify a shift (Employe/Employe,Day) ...
 data ShiftType = Work | Holiday deriving (Show, Eq, Ord, Bounded, Enum)
@@ -171,8 +171,8 @@ mapPayee f ts =  ts { _deductionAndCosts = map f' (_deductionAndCosts ts) }
 newTimesheet :: PayrollFrequency -> Day -> Timesheet p e
 newTimesheet l_frequency l_day = Timesheet [] l_day l_frequency []
 
--- ** Period
--- ** EmployeeSummary
+-- ** Period 
+-- ** EmployeeSummary 
 -- Summary of payment, deductions and cost for a given Employee
 data EmployeeSummary p e = EmployeeSummary
   { _sumEmployee :: e 
@@ -195,7 +195,7 @@ data Period = Period
   } deriving (Show, Eq, Ord)
 makeLenses ''Period
 
--- * Period Calculator
+-- * Period Calculator 
 -- | End of a period
 periodEnd :: Timesheet p e -> Day
 periodEnd ts = let
@@ -260,8 +260,8 @@ dayRef period l_day = let
        Monthly -> printf "%s-%02d" dayS monthDay
 
 
--- * Summarize
--- ** Group by Key
+-- * Summarize 
+-- ** Group by Key 
 instance Semigroup k =>  Semigroup (Shift k) where
     a <> b = Shift
         (a^.shiftKey <> b^.shiftKey)
@@ -286,13 +286,13 @@ instance (Ord p, Semigroup e) => Semigroup (EmployeeSummary p e) where
               (Map.unionWith (+) (a ^. costs) (b ^. costs))
               (Map.unionWith (+) (a ^. totalHours) (b ^. totalHours))
 
--- * Locking
+-- * Locking 
 
 
-filterTimesheet :: (Shift (e, Day, ShiftType) -> Bool) -- ^ Shift filter
-                -> (DeductionAndCost (p, e) -> Bool) -- ^ DAC filter
+filterTimesheet :: (Shift (e, Day, ShiftType) -> Bool) --  ^ Shift filter
+                -> (DeductionAndCost (p, e) -> Bool) --  ^ DAC filter
                 -> Timesheet p e
-                -> Maybe (Timesheet p e) -- ^ returns nothing if everything has been filtered
+                -> Maybe (Timesheet p e) --  ^ returns nothing if everything has been filtered
 filterTimesheet sFilter iFilter ts = 
   case  ( filter sFilter (_shifts ts)
         , filter iFilter (_deductionAndCosts ts)

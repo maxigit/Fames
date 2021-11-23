@@ -18,7 +18,7 @@ readFromPalette name =
                               palettem = readBrewerSet paletteName <|> readColorSet paletteName
                               in palettem <*> (Just $ i-1)
     _ -> Nothing
--- * Brewer Set
+-- * Brewer Set 
 deriving instance Show ColorCat
 deriving instance Enum ColorCat
 deriving instance Bounded ColorCat
@@ -35,7 +35,7 @@ readBrewerSet name =
     [(n,  cat)] -> Just (\i -> brewerSet cat n !! (i `min` n))
     _ -> Nothing
     
--- * Read from Palette.ColorSet
+-- * Read from Palette.ColorSet 
 readColorSet :: Text -> Maybe (Int -> Kolor)
 readColorSet "rybColor" = Just (\i -> rybColor (i `mod` 24))
 readColorSet "wheel24" = Just (\i -> rybColor (i `mod` 24))

@@ -7,7 +7,7 @@ import Handler.Items.Category.Cache
 import Data.Yaml(decodeEither', encode)
 import qualified FA as FA
 
--- * List of categories
+-- * List of categories 
 -- | Displays the list of categories
 {-# NOINLINE getItemsCategoryR #-}
 getItemsCategoryR :: Handler Html
@@ -58,7 +58,7 @@ getItemsCategoryTermsR name = do
                  |]
 
 
--- * Test and previous category configuration
+-- * Test and previous category configuration 
 data TesterParam = TesterParam
   { tpStockFilter :: FilterExpression
   , tpConfiguration :: Textarea

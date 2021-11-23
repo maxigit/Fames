@@ -191,7 +191,7 @@ outputFile prefix start end ext =
   format ("barcodes-"%text%"-"%int%"-"%int%"."%text) prefix start end ext
 
 
--- * Utils
+-- * Utils 
 
 -- | generates a sequence of barcodes given a prefix
 -- roll to the next prefix if needed

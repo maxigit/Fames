@@ -2,7 +2,7 @@ module Util.Transformable where
 import Import.NoFoundation
 import Util.ValidField
 
--- * Transformables
+-- * Transformables 
 -- | Sort of convert but can loose information
 -- Used to demote valid rows to invalid ones.
 class Transformable a b where

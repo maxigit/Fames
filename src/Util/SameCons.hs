@@ -6,7 +6,7 @@ import Prelude
 import GHC.Generics
 
 class SameCons a where
-   -- | Returns true if both data have the same constructor
+   -- -| Returns true if both data have the same constructor
    sameCons :: a -> a -> Bool
 
    -- default sameCons :: (Generic a, GSameCons (Rep a)) => a -> a -> Bool

@@ -5,8 +5,8 @@ import Import.NoFoundation
 
 
 
--- * Util
--- * DB
+-- * Util 
+-- * DB 
 -- | Update the location of a boxtake and reactivate if needed
 -- We don't update the document key to keep the original one.
 -- In fact we can't, as there is a unique (reference, document_key).

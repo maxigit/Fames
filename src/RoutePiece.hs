@@ -3,7 +3,7 @@ module RoutePiece where
 import ClassyPrelude
 import Web.PathPieces
 
--- * General
+-- * General 
 -- | Encoding of the file being uploaded.
 data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
 
@@ -11,8 +11,8 @@ instance PathPiece Encoding where
   fromPathPiece = readFromPathPiece
   toPathPiece = showToPathPiece
 
--- * Warehouse
--- ** PackingList
+-- * Warehouse 
+-- ** PackingList 
 -- | Different way of viewing a packing list.
 data PLViewMode = Details 
                 | Textcart 
@@ -33,8 +33,8 @@ instance PathPiece PLViewMode where
   toPathPiece = showToPathPiece
 
 
--- * Items
--- ** ItemIndex
+-- * Items 
+-- ** ItemIndex 
 data ItemViewMode = ItemGLView
                    | ItemAllStatusView
                    | ItemPriceView
@@ -47,7 +47,7 @@ data ItemViewMode = ItemGLView
 instance PathPiece ItemViewMode where
   fromPathPiece = readFromPathPiece
   toPathPiece = showToPathPiece
--- ** Reports
+-- ** Reports 
 data ReportMode = ReportTable
                 | ReportChart
                 | ReportPivot
@@ -62,7 +62,7 @@ instance PathPiece ReportMode where
                 
 
 
--- * Planner
+-- * Planner 
 data PlannerViewMode = PlannerSummaryView
                      | PlannerGraphicCompactView
                      | PlannerGraphicBigView
@@ -76,19 +76,19 @@ data PlannerViewMode = PlannerSummaryView
                      | PlannerGenerateMovesWithTags
                      | PlannerGenerateMOPLocations
                      | PlannerGenericReport
-                     -- | PlannerScenarioHistory
-                     | PlannerBoxGroupReport -- ^ box dimensions and number summary per style
-                     -- | PlannerBoxGroupWarningReport -- ^ only group with different size Boxes
-                     | PlannerExport -- ^ Reexport a planner. Can be usefull to see where is what
+                     -- -| PlannerScenarioHistory
+                     | PlannerBoxGroupReport --  ^ box dimensions and number summary per style
+                     -- -| PlannerBoxGroupWarningReport --  ^ only group with different size Boxes
+                     | PlannerExport --  ^ Reexport a planner. Can be usefull to see where is what
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece PlannerViewMode where
   fromPathPiece = readFromPathPiece
   toPathPiece = showToPathPiece
 
--- * GL
--- ** Tax Report
-data TaxReportViewMode = TaxReportPendingView -- ^ display transaction to collect
-                       | TaxReportCollectedView -- ^ transaction  already collected
+-- * GL 
+-- ** Tax Report 
+data TaxReportViewMode = TaxReportPendingView --  ^ display transaction to collect
+                       | TaxReportCollectedView --  ^ transaction  already collected
                        | TaxReportBucketView 
                        | TaxReportBoxesView
                        | TaxReportConfigChecker

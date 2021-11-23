@@ -17,7 +17,7 @@ import Database.Persist.Sql -- (rawSql, Single(..))
 import Data.Either(isRight)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
--- * Types
+-- * Types 
 -- A graded version of MatchScore. This is ultimately what we expose to the end user.
 -- Quality are saved internally as Double (score) , only to make merging easier
 data MatchQuality = Bad | Close | Fair | Good | Excellent | Identical
@@ -38,32 +38,32 @@ data MatchRow (s :: RowTypes) = MatchRow
 deriving instance Show (MatchRow 'RawT)
 
 -- | Aggregate set os quality, kee
-data MatchAggregationMode = AllMatches -- ^ Keep all
-  -- | MedianMatches -- ^ get average of the two medians
-  | AverageMatches -- ^ get the average
-  | LastMatches -- ^ get the latest
+data MatchAggregationMode = AllMatches --  ^ Keep all
+  --  -| MedianMatches --  ^ get average of the two medians
+  | AverageMatches --  ^ get the average
+  | LastMatches --  ^ get the latest
   deriving (Show, Read, Eq, Enum, Bounded)
 -- | Display quality as text or sign, and hide bad and identical
-data QualityDisplayMode = FullQuality -- ^ display full text 
-                        | LimitQuality -- ^ remove Bad and Identical
-                        | LimitCloses -- ^ as LimitQuality and  remove closes except unique
+data QualityDisplayMode = FullQuality --  ^ display full text 
+                        | LimitQuality --  ^ remove Bad and Identical
+                        | LimitCloses --  ^ as LimitQuality and  remove closes except unique
                         deriving (Show, Read, Eq, Enum, Bounded)
 -- | How to merge batches into one and keep colours
 -- example, when displaying the table of a given style
 -- each colour can correspond to one or many batch.
 -- Merging batches mean merging all the match into one line.
 data BatchMergeMode =
-  -- AllBatches -- ^ don't do anything
-   MergeRaisesError -- ^ Raises an error if multiple batch.
+  -- AllBatches --  ^ don't do anything
+   MergeRaisesError --  ^ Raises an error if multiple batch.
     --  Allows to check that only one batch is needed
-  | SafeMatch -- ^ worst case scenario,
+  | SafeMatch --  ^ worst case scenario,
   -- in case of multiple batches, use the safest match
   -- ie, worst case scenario. check that a batch belong to ALL Batches
   -- and get the worst
-  -- | MergeBest -- ^ Only merge if the SafeMatch is good enough, otherwise raises an error
+  -- -| MergeBest --  ^ Only merge if the SafeMatch is good enough, otherwise raises an error
   deriving (Show, Read, Eq, Enum, Bounded)
 
--- * Instance
+-- * Instance 
 -- | Parse one match per row
 instance Csv.FromNamedRecord (MatchRow  'RawT) where
   parseNamedRecord  m = MatchRow
@@ -148,7 +148,7 @@ readMatchQuality t = readMay (toTitle t) <|> case t of
 instance Transformable (Entity Batch) Text where
   transform (Entity _ batch) = batchName batch
 
--- * Match operations
+-- * Match operations 
 qualityToMError :: MatchQuality -> MatchError
 qualityToMError Identical = MatchError  0
 qualityToMError Excellent = MatchError  1
@@ -200,7 +200,7 @@ targetKey BatchMatch{..} = (batchMatchTarget, batchMatchTargetColour)
 batchMatchKeys :: BatchMatch -> [(Key Batch, Text)]
 batchMatchKeys batch = [sourceKey batch, targetKey batch]
 
--- * Parsing
+-- * Parsing 
 parseMatchRows :: Text -> ByteString -> Handler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
 parseMatchRows batchCategory bytes = do
   case parseMatchRowsGo bytes of
@@ -296,7 +296,7 @@ validateRow' (MatchRow sourcem sourceColourm targetColourm targetm qualitym comm
   in MatchRow{..}
 
   
--- * Batch finding
+-- * Batch finding 
 -- Retrieve a batch given a batch name, a sku and a batch category
 -- The batch category, allows to find the batch name given a sku.
 -- Alternatively, if a sku is given as colour, we need to extract the colour from
@@ -391,7 +391,7 @@ finalRowToMatch date operatorId docKey MatchRow{..} =
               date
               docKey
               
--- * DB
+-- * DB 
 loadBatchMatchesFor :: [Key Batch] -> SqlHandler [Entity BatchMatch]
 loadBatchMatchesFor batchIds = do
   -- load everything with
@@ -407,17 +407,17 @@ normalizeBatchMatch batch = case batchMatchKeys batch of
   [a, b] | b < a -> reverseBatchMatch batch
   _ -> batch
 
--- * Match Table
+-- * Match Table 
 -- | Assures all source are source and target are target regardless of the database order
 newtype ForBuildTable = ForBuildTable [BatchMatch] 
-buildTable :: ([BatchMatch] -> Html) -- ^ qualitys rendered
+buildTable :: ([BatchMatch] -> Html) --  ^ qualitys rendered
            -> Maybe (Text -> Bool)  -- ^ filter column
-           -> [Entity Batch] -- ^ rows
-           -> [Entity Batch] -- ^ columns
-           -> ForBuildTable -- ^ matches
-           -> ( [ (Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) ] -- ^ COLUMNS : Column name, getter
-              , ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> (Html, [Text])) -- ^ COLUMN NAME: from column (as above)
-              , [ ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> Maybe (Html, [Text]), [Text]) ] -- ^ ROWS: column (as above) -> value (via getter) 
+           -> [Entity Batch] --  ^ rows
+           -> [Entity Batch] --  ^ columns
+           -> ForBuildTable --  ^ matches
+           -> ( [ (Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) ] --  ^ COLUMNS : Column name, getter
+              , ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> (Html, [Text])) --  ^ COLUMN NAME: from column (as above)
+              , [ ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> Maybe (Html, [Text]), [Text]) ] --  ^ ROWS: column (as above) -> value (via getter) 
               )
 buildTable renderMatches filterColumnFn rowBatches columnBatches (ForBuildTable matches) = let
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
@@ -450,10 +450,10 @@ buildTable renderMatches filterColumnFn rowBatches columnBatches (ForBuildTable 
 
 buildTableForSku ::
   col0 ~ (Text, (((Text, Text), Entity Batch)) -> Maybe (Either Html PersistValue))
-  => ([BatchMatch] -> Html) -- ^ match renderer
-  -> [((Text, Text), Entity Batch)] -- ^ sku@style'var batch
-  -> [Entity Batch] -- ^ batches
-  -> ForBuildTable -- ^ matches
+  => ([BatchMatch] -> Html) --  ^ match renderer
+  -> [((Text, Text), Entity Batch)] --  ^ sku@style'var batch
+  -> [Entity Batch] --  ^ batches
+  -> ForBuildTable --  ^ matches
   -> ([col0]
      , col0 -> (Html, [Text])
      , [(col0 -> Maybe (Html, [Text]), [Text])])
@@ -489,10 +489,10 @@ buildTableForSku renderMatches sku'batches columnBatches (ForBuildTable matches)
 buildTableForSkuMerged ::
   col0 ~ (Text, (((Text, Text), [Entity Batch])) -> Maybe (Either Html PersistValue))
   => BatchMergeMode
-  -> ([BatchMatch] -> Html) -- ^ match renderer
-  -> [((Text, Text), Entity Batch)] -- ^ sku@style'var batch
-  -> [Entity Batch] -- ^ batches
-  -> ForBuildTable -- ^ matches
+  -> ([BatchMatch] -> Html) --  ^ match renderer
+  -> [((Text, Text), Entity Batch)] --  ^ sku@style'var batch
+  -> [Entity Batch] --  ^ batches
+  -> ForBuildTable --  ^ matches
   -> ([col0]
      , col0 -> (Html, [Text])
      , [(col0 -> Maybe (Html, [Text]), [Text])])
@@ -654,9 +654,9 @@ loadSkuBatches batchCategory filterE_ = do
   return $ map (\(Single sku, Single batchId) -> (sku, batchId)) rows
 
 
-skuToStyle''var'Batch :: (Text -> (Text, Text)) -- ^ Category
-                      -> [Entity Batch] -- ^ available batches
-                      -> (Text, Key Batch) -- ^ Sku, batch Id
+skuToStyle''var'Batch :: (Text -> (Text, Text)) --  ^ Category
+                      -> [Entity Batch] --  ^ available batches
+                      -> (Text, Key Batch) --  ^ Sku, batch Id
                       -> ((Text, Text), Entity Batch)
 skuToStyle''var'Batch skuToStyleVar batches = let
   -- split in two function to memoize the batchMap
@@ -682,7 +682,7 @@ skuToStyle''var'Batch skuToStyleVar batches = let
 
 
   
--- * Bleed
+-- * Bleed 
 -- Extrapolate matches using best path (chain of batch) between colours
   
 -- type MatchTable = Map (Key Batch, Text) (Map (Key Batch, Text) )[BatchMatch]
@@ -740,7 +740,7 @@ currentBatchDotPrefix :: Text
 currentBatchDotPrefix = "/*current*/ "
 -- | Connect 2 matches if possible
 -- match can connect if one 
-connectMatches :: (Key Batch -> Key Batch -> MatchScore -> Maybe MatchScore) -- ^ score limiter
+connectMatches :: (Key Batch -> Key Batch -> MatchScore -> Maybe MatchScore) --  ^ score limiter
                -> (Key Batch -> Text) -> BatchMatch -> BatchMatch -> Maybe BatchMatch
 connectMatches scoreLimiter batchNameFn ma mb = do -- maybe
    batchMatchScore0 <- mergeScores [batchMatchScore ma,  batchMatchScore mb]
@@ -794,7 +794,7 @@ expandMatches scoreLimiter batchNameFn matches =
   -- find 
   
 
--- * Rendering
+-- * Rendering 
 instance Renderable ([MatchRow 'RawT]) where
   render rows = [whamlet|
 <table.table.table-hover>

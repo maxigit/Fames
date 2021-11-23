@@ -11,7 +11,7 @@ import GL.TaxReport.Settings as GL.TaxReport
 import GL.TaxReport.Types 
 
 import Util.Decimal
--- * Types
+-- * Types 
 -- | 
 data TaxSummary = TaxSummary
    { netAmount :: Amount
@@ -25,14 +25,14 @@ reverseTaxSummary :: TaxSummary -> TaxSummary
 reverseTaxSummary TaxSummary{..} = TaxSummary (-netAmount) (-taxAmount)
 
 data TaxReportStatus
-  = Early -- ^ before start date
-  | Open -- ^ 
-  | Ready -- ^ to be processed
-  | Closed -- ^ close , read to submit
-  | Late Day -- ^ with deadline
-  | Submitted UTCTime -- ^ With submissioon date
+  = Early --  ^ before start date
+  | Open --  ^ 
+  | Ready --  ^ to be processed
+  | Closed --  ^ close , read to submit
+  | Late Day --  ^ with deadline
+  | Submitted UTCTime --  ^ With submissioon date
   deriving (Eq, Show, Read)
--- * Instance
+-- * Instance 
 instance Semigroup TaxSummary where
   (TaxSummary net tax) <> (TaxSummary net' tax') = TaxSummary (net + net') (tax + tax')
 instance Monoid TaxSummary where
@@ -56,7 +56,7 @@ instance HasTaxSummary TaxReportDetail where
 instance HasTaxSummary e => HasTaxSummary (Entity e) where
   taxSummary = taxSummary . entityVal
 
--- * Rules
+-- * Rules 
 infix 4 *==, *==?
 (*==) :: Eq a => [a] -> a -> Bool
 [] *== _ = True
@@ -97,7 +97,7 @@ isCustomer, isSupplier :: FATransType -> Bool
 isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
 
--- * Boxes
+-- * Boxes 
 computeBoxAmount :: TaxBoxRule -> RoundingMethod -> Map Bucket TaxSummary -> Either Text Decimal
 computeBoxAmount rule rounding buckets = applyRounding rounding <$> go rule
   where
@@ -121,7 +121,7 @@ computeBoxAmount rule rounding buckets = applyRounding rounding <$> go rule
 
 deriving instance (Show FA.TaxType)
 
--- * Misc
+-- * Misc 
 -- | Return the list of bucket rates possible combination
 computeBucketRates :: Rule -> Map FA.TaxTypeId FA.TaxType -> Set (Bucket, Entity FA.TaxType)
 computeBucketRates rule0 rateMap = let
@@ -160,7 +160,7 @@ ruleCatchesAll (RuleList rules) = any ruleCatchesAll rules
 -- ruleCatchesAll (TaxRateRule [] rule_) = ruleCatchesAll rule_
 ruleCatchesAll _ = False
 
--- * Status
+-- * Status 
 
 taxReportDeadline :: TaxReportSettings -> TaxReport -> Day
 taxReportDeadline TaxReportSettings{..} TaxReport{..} = maybe id calculateDate deadline  $ taxReportEnd

@@ -12,12 +12,12 @@ import ClassyPrelude
 import qualified System.FilePath.Glob as Glob
 import qualified Data.Text as Text
 
--- * General types
+-- * General types 
 type Amount = Double -- that's how there are in FA
 type GLAccount = Int  -- to change
 type DimensionId = Int
 
--- * Reference
+-- * Reference 
 -- References are a pair of Id and name of entitie existing in FA.
 -- There are use to be able to display or parse such entites (such GL accounts, dimensions etc)
 data ReferenceType
@@ -95,7 +95,7 @@ parseReference refMap ref0 =
     _ -> Left $ "No match found for " <> ref0
 
 
--- * Payment related
+-- * Payment related 
 -- | Correspond to the payment form to "Misc"
 data Payment = Payment [PaymentItem] deriving (Show, Read, Eq)
 

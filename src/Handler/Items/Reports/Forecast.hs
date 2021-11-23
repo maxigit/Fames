@@ -11,7 +11,7 @@ import System.FilePath.Glob (glob)
 import FA as FA hiding (unUserKey)
 import Control.Monad.Fail (MonadFail(..))
 
--- * Profiles
+-- * Profiles 
 -- | Read a map of season profiles from a valid csv
 -- collection,month,weight
 data CollectionProfileRow = CollectionProfileRow
@@ -54,7 +54,7 @@ readProfiles path = do
   return $ fmap seasonProfileFromMap grouped
 
 
--- * Sku Speed
+-- * Sku Speed 
 -- | Row coming from a sku speed file.
 data SkuSpeedRow = SkuSpeedRow
   { ssSku :: Text
@@ -97,7 +97,7 @@ skuSpeedRowToTransInfo :: Map Text ItemInitialInfo
                        -> SkuSpeedRow
                        -> [(TranKey, TranQP)]
 skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) =
-  let io = fromMaybe Outward iom  -- ^ like sales
+  let io = fromMaybe Outward iom  --   ^ like sales
       extra = maybe [] ioToQPType iom
   in case (profileFor sku, lookup sku infoMap) of
     (Just profile, Just info) -> do -- []

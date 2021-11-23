@@ -4,7 +4,7 @@ module Role where
 import ClassyPrelude.Yesod hiding(wreq, parseRequest)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
--- * Types
+-- * Types 
 -- | Read or Write request
 data WriteRequest = ReadRequest | WriteRequest deriving (Eq, Read, Show, Ord)
 
@@ -22,13 +22,13 @@ instance Show RoleFor where
 -- An object can require  many permissions.
 -- To be authorized the object needs all the permissions to be grant from the role.
 -- There is no distinction between a user and a role.
-data Role = Administrator -- ^ As access to everything
-          | RoleGroup [Role] -- ^ groups role
-          | RolePermission Permissions -- ^ a set of permissions
-          | RoleRoute (URL) WriteRequest -- ^ a url. Override everything else
+data Role = Administrator --  ^ As access to everything
+          | RoleGroup [Role] --  ^ groups role
+          | RolePermission Permissions --  ^ a set of permissions
+          | RoleRoute (URL) WriteRequest --  ^ a url. Override everything else
   deriving(Show, Read, Eq)
 
--- * Checking permissions
+-- * Checking permissions 
 -- | Check if the given route is allowed, based on it path .
 -- Ignores any route attributes.
 
@@ -71,7 +71,7 @@ authorizeFromPath (RolePermission _) _ _ = False
 authorizeFromPath (RoleRoute route' wreq') route wreq = route == route' && wreq' >= wreq
 
 
--- * From JSON
+-- * From JSON 
 
 instance FromJSON Role where
   parseJSON (String s) | s ==  "Administrator" = return Administrator
@@ -91,7 +91,7 @@ instance FromJSON Role where
                                 | otherwise = (r, ReadRequest)
   parseJSON _ = error "Can't parse Role"
 
--- * Filtering
+-- * Filtering 
 -- | Filter role by attributes
 filterRole ::  Text -> Role -> Role
 filterRole att (RoleGroup roles) = RoleGroup (map (filterRole att) roles)

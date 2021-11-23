@@ -36,7 +36,7 @@ import Control.Monad (zipWithM_, zipWithM)
 
 import Yesod.Form.Bootstrap3
 
--- * Rendering
+-- * Rendering 
 getGLCheckItemCostR :: Handler Html
 getGLCheckItemCostR = do
   accounts <- getStockAccounts
@@ -756,7 +756,7 @@ postGLCheckItemCostCheckPastRefreshR = do
   runDB $ zipWithM_ refreshAccount uncollectables accounts
   getGLCheckItemCostCheckPastR
 
--- * Saving
+-- * Saving 
 loadAndCollectAccount account = do
   (date, _form, _encType) <- extractDateFromUrl
   sku'counts <- loadPendingTransactionCountFor date account
@@ -792,7 +792,7 @@ postGLCheckItemCostCollectAllR = do
   transEs <- mapM loadAndCollectAccount accounts
   renderWithDuplicate (redirect $ GLR (GLCheckItemCostR)) "Any"  (concat transEs)
 
--- ** Purge
+-- ** Purge 
 
 postGLCheckItemCostPurgeR :: Handler Html
 postGLCheckItemCostPurgeR = do
@@ -811,7 +811,7 @@ postGLCheckItemCostPurgeAccountItemR account sku = do
                     , ItemCostTransactionItemCostValidation ==. Nothing
                     ]
   redirect $ GLR $ GLCheckItemCostItemViewR account sku
--- ** Upate GL
+-- ** Upate GL 
 --
 postGLCheckItemCostUpdateGLR :: Handler Html
 postGLCheckItemCostUpdateGLR = do
@@ -858,7 +858,7 @@ postGLCheckItemCostUpdateGLAccountItemR account skum = do
                    |]
         redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
 --
--- ** Upate Cost
+-- ** Upate Cost 
 --
 postGLCheckItemCostUpdateCostR :: Handler Html
 postGLCheckItemCostUpdateCostR = do
@@ -902,13 +902,13 @@ postGLCheckItemCostUpdateCostAccountItemR account skum = do
                    |]
         redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
 
--- * Voiding
+-- * Voiding 
 postGLCheckItemCostVoidValidationR :: Int64 -> Handler Html
 postGLCheckItemCostVoidValidationR vId = do
   n <- voidValidation (toSqlKey vId)
   setInfo [shamlet|<h2> #{tshow n} transactions have voided|]
   redirect . GLR $ GLCheckItemCostValidationViewR vId
--- * Util
+-- * Util 
 
 dateForm datem = renderBootstrap3 BootstrapInlineForm form where
   form = areq dayField "date" datem 

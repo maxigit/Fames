@@ -18,5 +18,5 @@ data DPDSettings = DPDSettings
   } deriving (Show, Read, Eq, Ord)
 
 
--- * JSON
+-- * JSON 
 $(deriveJSON defaultOptions ''DPDSettings)

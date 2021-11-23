@@ -77,7 +77,7 @@ saveShippingDetails detail = do
 
 data Match = FullKeyMatch
            | AddressOnlyMatch -- Only address stripped of contact
-           -- | FullContactMatch
+           -- -| FullContactMatch
            | TelephoneMatch
            | EmailMatch
      deriving (Eq, Ord, Show, Read, Bounded, Enum)

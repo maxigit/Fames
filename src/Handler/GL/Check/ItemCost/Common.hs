@@ -46,7 +46,7 @@ import Data.Conduit.List(chunksOf, groupOn1)
 import Data.Time (addDays)
 import Data.These.Lens
 
--- * Types
+-- * Types 
 
 data AccountSummary = AccountSummary
   { asAccount :: Account
@@ -76,7 +76,7 @@ data CheckInfo  = CheckInfo
 -- | Wether a transaction is part of a cancelling pair or not
 data  Cancelling = Cancelling | Normal deriving (Show, Eq)
 type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), (Int, Cancelling))
--- * Summaries
+-- * Summaries 
 getStockAccounts :: Handler [Account]
 getStockAccounts = do
   let sql0 = "SELECT DISTINCT(inventory_account) FROM 0_stock_master WHERE mb_flag <> 'D' "
@@ -197,8 +197,8 @@ itemTodayInfo (Account account) = do
   rows <- runDB $ rawSql sql [toPersistValue account]
   return . mapFromList $ map (\(Single sku, Single qoh, Single cost) -> (sku, (cost, qoh))) rows
 
--- * Account  details
--- ** Loading
+-- * Account  details 
+-- ** Loading 
 -- Load And join stock moves & gl trans of a given account and sku
 -- If the sku is not provided, load the gl trans which doesn't have the stock_id set.
 -- ONly load transaction not saved in inventory_cost_transaction
@@ -293,7 +293,7 @@ filterTransactionFromSummary maxId startDatem idField dateField =
             (Uncollectables, Nothing, _) -> ("" , [])
             (_, Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ? OR " <> dateField <> " is NULL)  " 
                                      , [toPersistValue id_, toPersistValue startDate, toPersistValue startDate] )
-             -- ^ we use gl.counter only the day of the summary, to know what transaction haven't been collected
+             -- \^ we use gl.counter only the day of the summary, to know what transaction haven't been collected
              -- but created since the collection.
              -- It only works on the day because we can have transaction < counter with date >= summary.date.
              -- It happens when transaction are not entered in chronological order.
@@ -376,7 +376,7 @@ loadUncollectables account = do
         return $ headMay $ trans
       _ -> return Nothing
 
--- ** Computing cost transaction
+-- ** Computing cost transaction 
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
 computeItemCostTransactions :: BehaviorMap -> Maybe Double -> (Maybe ItemCostSummary) -> Account -> [Matched] -> Either (Text, [Matched])  [ItemCostTransaction]
@@ -522,7 +522,7 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, (_s
     ------------------- GRN Provision and FAONly  , --------------------------------------------
     (_, WithPrevious allowN previous) | Just faAmount <- faAmountM, behavior == Just FAOnly ->
       let (newSummary, newTrans) = if qoh previous == 0 
-                                   -- ^ the adjustement is updating a stock which should be null and stay null (0 items on hand, 0 comming)
+                                   -- \^ the adjustement is updating a stock which should be null and stay null (0 items on hand, 0 comming)
                                    -- therefore processing it do adjust the cost price doesn't make sense.
                                    then let (newSummary, trans) = updateSummaryFromAmount previous 0 0 faAmount
                                         in (newSummary {stockValue = 0, expectedBalance =  0} , trans { tComment = "Z - FA Only"})
@@ -673,7 +673,7 @@ historyForGrnInvoice behaviors_ account0 previous grn invs toprocess sm'gls = le
     _ -> Left $ "Unexpected happended. Grn should be a GRN and inv a Supplier Invoice " <> tshow (entityKey <$> preview there (fst grn))
 
 
--- *** Update Running State
+-- *** Update Running State 
 -- | Update the running state given a quantity and cost (and check overall amount)
 updateSummaryFromAmount :: RunningState -> Double -> Double -> Double -> (RunningState, Transaction)
 updateSummaryFromAmount previous 0 givenCost amount =  
@@ -791,7 +791,7 @@ makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
   
   
 
--- ***    PRocess transactions
+-- ***    PRocess transactions 
 
 -- | If a transaction contains the same items many times, for example 2 moves and 2 gl_trans  
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
@@ -809,11 +809,11 @@ fixDuplicates move'gls = let
          ((m'g,seqN):_)  -> let
             (moves, cancellingPairs) = case removeCancellingMoves $ mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here . fst) m'gs of
                 ([], cancellings) |  length cancellings == glLength && length cancellings  * glLength == length m'gs -> (cancellings, [])
-                 -- ^ ignore cancelling pairs in case the gls cancel each other as well
+                 -- \^ ignore cancelling pairs in case the gls cancel each other as well
                  --  happened when "removing" a GRN
                  --  the GRN is modified to have a negative stock + corresponding gl
                 -- ([], _) |  glLength == 0 ->  ([], [])
-                -- ^ filter out totally cancelling moves. Appears when GRN have been removed or inventory transfer
+                -- \^ filter out totally cancelling moves. Appears when GRN have been removed or inventory transfer
                 m'c -> m'c
             glLength = length gls
             gls = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview there . fst) m'gs
@@ -822,15 +822,15 @@ fixDuplicates move'gls = let
                  (0, _ ) -> Right $ map (\g -> (That g, seqN)) gls
                  (_, 0 ) -> Right $ map (\m -> (This m, seqN)) moves
                  (moveLength, _) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> Right $ zipWith (\m g -> (These m g, seqN)) moves gls 
-                 (1, 2) -- | (FA.stockMoveType . entityVal <$> preview here m'g) == Just (fromEnum ST_INVADJUST)
+                 (1, 2) -- -| (FA.stockMoveType . entityVal <$> preview here m'g) == Just (fromEnum ST_INVADJUST)
                         | abs (sum (map (FA.glTranAmount . entityVal) gls)) < 1e-4
                         ->
-                          -- ^ Inventory adjustment uses by mistake the same GL ACcount as the stock account and adjustment account
+                          -- \^ Inventory adjustment uses by mistake the same GL ACcount as the stock account and adjustment account
                           -- In that case the stock account should be matched with the moves
                           let direction = maybe False ((>0) . FA.stockMoveQty . entityVal) (preview here m'g)
                           in case  (moves, partition ((== direction) . ((>0) . FA.glTranAmount . entityVal)) gls) of
                                ([move], ([conv], [div])) -> Right $ [(These move conv, seqN), (That div, seqN)]
-                               _ -> error ( "Unexpected happend") -- ^ we know we have 2 gl transactions
+                               _ -> error ( "Unexpected happend") --  ^ we know we have 2 gl transactions
                  _ -> Left ( "Not cartesian product for " ++ (tshow $ transKey m'g) 
                             ++ " moves: " ++ tshow (length moves)
                             ++ " gls: " ++ tshow (length gls) 
@@ -860,7 +860,7 @@ removeCancellingMoves moves = let
 
 
 
--- ** Collect and Save
+-- ** Collect and Save 
 
 -- | Load the last summary or the last summary of another account
 -- if the item used a previous account
@@ -891,7 +891,7 @@ loadInitialSummary account@(Account acc) onOldAccount skum = do
                         return . Just $ Left summary { itemCostSummaryAccount = acc
                                                                               , itemCostSummaryFaStockValue = 0
                                                                               , itemCostSummaryStockValue = itemCostSummaryCostAfter summary * itemCostSummaryQohAfter summary
-                                                                              -- ^ needs to be recalculated because
+                                                                              -- \^ needs to be recalculated because
                                                                               , itemCostSummaryDate = newDate}
                       _ -> do
                         summ <- onOldAccount oldAccount --  error . unpack $ "Can't load old account summary for " <> acc <> " " <>  sku
@@ -944,18 +944,18 @@ collectCostTransactions' forRefresh date account skum = do
       behaviors_ = fromMaybe mempty (settingsm >>= behaviors)
       finalBalance = case settings >>= closingDate of
                     Just closing | closing <= date -> Just 0
-                    -- ^ If the item is "closed" is final balance should be 0
+                    -- \^ If the item is "closed" is final balance should be 0
                     _ -> Nothing
   trans0 <- if forRefresh
             then loadTransactionsWithNoMoves' ((\s ->  s{itemCostSummaryDate = date
                                                         ,itemCostSummaryGlDetail = itemCostSummaryGlDetail s <|> Just 0
-                                                        -- ^ If there is no gl details in the summary,
+                                                        -- \^ If there is no gl details in the summary,
                                                         -- We need to force checking GL on the fixing day
                                                         -- To do so we need give a Gl id
                                                         -- Without that, we will only check AFTER the given date
                                                         }) <$> lastm)
                                               (Just date) account skum
-                 -- ^ load transaction on the day, corresponding to result of fixGLBalance
+                 -- \^ load transaction on the day, corresponding to result of fixGLBalance
                  -- we tweak the itemCostSummaryDate to be the same as date.
                  -- This date is used as the starting date.
             else loadMovesAndTransactions lastm endDatem account skum
@@ -989,7 +989,7 @@ updateSummaryFromTransactions lastEm trans =
         Just (Right (Entity key _)) -> repsert key ItemCostSummary{..}
         _ -> insert_ ItemCostSummary{..}
 
--- ** Purging
+-- ** Purging 
 -- | Delete all selected transactions but also the ones which are after
 purgeTransactions :: [Filter ItemCostTransaction] -> Handler ()
 purgeTransactions criteria = do
@@ -1028,8 +1028,8 @@ refreshSummaryFrom (Account account) skum = do
                       ] [ Asc ItemCostTransactionId ]
   updateSummaryFromTransactions Nothing $ map entityVal trans
 
--- * Fixing
--- ** Balance
+-- * Fixing 
+-- ** Balance 
 -- Generates a journal entry to balance all summary
 fixGLBalance :: Day -> [Entity ItemCostSummary]
              -> Handler (Maybe (Entity ItemCostValidation))
@@ -1037,7 +1037,7 @@ fixGLBalance date summaries = do
  -- today <- todayH
   settings <- getsYesod appSettings
   let summariesC = yieldMany summaries
-  -- ^ using a Conduit source for ItemCostSummary seems to
+  -- \^ using a Conduit source for ItemCostSummary seems to
   -- timeout the sql connection, as we are processing (post To FA, update in DB)
   -- as long as we are consuming the data
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
@@ -1120,7 +1120,7 @@ generateJournals chunkSize date =
                            , gliTaxOutput = Nothing
                            , gliMemo = Just $ memo <> maybe "" (":stock_id=" <>) skum
                            , gliAccount = WFA.GLAccount account
-                           -- ^ hack to set the stock_id in the gl_trans table
+                           -- \^ hack to set the stock_id in the gl_trans table
                            -- updated afterward with a SQL query
                            , ..
                            }
@@ -1151,7 +1151,7 @@ refreshSummary day e = do
   collectCostTransactions' True day (Account $ itemCostSummaryAccount summary) (itemCostSummarySku summary) 
 
 
--- ** Cost update
+-- ** Cost update 
 -- Update the standard cost using FA
 -- on the given date, but only on the style
 -- where the last transaction is before that date
@@ -1190,7 +1190,7 @@ updateCost connectInfo today (Entity _ summary@ItemCostSummary{..}) | Just sku <
     case rows of
       [Single currentCost] | abs (currentCost - itemCostSummaryCostAfter) > 1e-6 
                            , (itemSettings settingsm (Account itemCostSummaryAccount) sku >>= closingDate) == Nothing
-                           -- ^ For closed item, cost should not be udated using the old account as it will be using an old cost price
+                           -- \^ For closed item, cost should not be udated using the old account as it will be using an old cost price
                            -- and a wrong account. We just skip them
                            -- The cost will be updated when updating the item for the correct account
                            -> do
@@ -1215,7 +1215,7 @@ updateCost _ _ _ = return $ Nothing
 
   
 
--- * Validation
+-- * Validation 
 validateFromSummary :: Day -> Text -> [Entity ItemCostSummary] -> Double -> Handler (Maybe (Entity ItemCostValidation))
 -- validateFromSummary _date _comment [] = return Nothing
 validateFromSummary date comment summaries total = do
@@ -1272,7 +1272,7 @@ voidFATransaction connectInfo vtDate comment (Entity __tId TransactionMap{..}) =
   
 
 --
--- * sanity check
+-- * sanity check 
 -- | Detect all Sku/Account which look suspect
 -- (not much variation in cost price, too much discrepency between FA and calculated etc ...
 loadCheckInfo :: Handler [CheckInfo]
@@ -1307,7 +1307,7 @@ loadCheckInfo = do
   rows <- runDB $ rawSql sql []
   return $ map mkCheck rows
 
--- *  Utils
+-- *  Utils 
 itemSettings :: Maybe Settings -> Account -> Text -> Maybe ItemSettings
 itemSettings settingsm account sku = 
   settingsm >>= lookup account . accounts >>= lookup sku . items 
@@ -1349,7 +1349,7 @@ showForError (That (Entity glId FA.GlTran{..}), _ ) =
   tshow (toEnum glTranType :: FATransType) <> " " <> tshow glTranType <> "/" <> tshow  glTranTypeNo
   <> " " <>   tshow (FA.unGlTranKey glId )
   <> " " <> fromMaybe "" glTranStockId
--- * Behavior
+-- * Behavior 
 
 behaviorFor :: Account -> BehaviorMap -> [BehaviorSubject] -> Matched -> Maybe Behavior
 behaviorFor (Account account) behaviors_ subjects sm'gl'seq@(sm'gl, _) = let

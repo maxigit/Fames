@@ -25,10 +25,10 @@ import System.FilePath.Glob(globDir1, compile, match)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import qualified Data.Map as Map
 import GL.Utils
--- * Type
+-- * Type 
 -- data FamesImport
---   = ImportPackingList (Key PackingList) -- ^ import packing list
---   -- | BoxTag
+--   = ImportPackingList (Key PackingList) --  ^ import packing list
+--   -- -| BoxTag
 --   deriving (Eq, Show)
 
 -- | Create a Route type for each type of import
@@ -67,7 +67,7 @@ mkYesodSubData "FI" [parseRoutes|
 |]
 
 __avoid_unused_warning_for_resourcesFI = resourcesFI 
--- *  Dispatcher
+-- *  Dispatcher 
 importFamesDispatch :: Section -> Handler (Either Text [Section])
 importFamesDispatch (Section ImportH (Right content) _) = do
   sectionss <- forM content $ \uri ->  do
@@ -119,7 +119,7 @@ importFamesDispatch (Section ImportH (Right content) _) = do
 importFamesDispatch section = return $ Right [section]
 
 
--- * Importers
+-- * Importers 
 -- | Imports undelivered boxes from packing list.
 -- We only import undeliverd one because the delivered one are probablly in the planner somewhere
 importPackingList :: Key PackingList -> [Text] -> Handler Section
@@ -213,7 +213,7 @@ executeReport headerType paths reportParamM = do
                  ]
       
 
--- ** FA status
+-- ** FA status 
 -- | Create tags for each variations for FA and Website status
 -- corresponding to the All statuses tabs in item report
 importVariationStatus :: WhichBoxes -> Text -> Handler Section
@@ -312,7 +312,7 @@ indexParam = I.IndexParam{..} where
   ipCategories = Nothing
   ipBaseVariation= Nothing
 
--- ** Live box status adjusted with realive QOH
+-- ** Live box status adjusted with realive QOH 
 importBoxStatusLive :: Maybe Day -> WhichBoxes -> Text -> [Text] -> Handler Section
 importBoxStatusLive todaym which prefix __tags = do
   summaries <- loadLiveSummaries todaym
@@ -377,7 +377,7 @@ importActiveBoxtakesLive todaym tags = do
 
 
   
--- ** Website color
+-- ** Website color 
 -- | Transform colour name with RGB value
 importColourDefinitions :: Text -> Handler Section
 importColourDefinitions prop =  do
@@ -392,7 +392,7 @@ importColourDefinitions prop =  do
 
   return $ Section (TagsH) (Right $ "selector,tag" : content) ("* Colour transform")
 
--- ** Category
+-- ** Category 
 importCategory skus categories = do
   skuToStyleVar <- I.skuToStyleVarH
   cats <- runDB $ selectList ( filterE id ItemCategoryStockId (Just $ LikeFilter skus)

@@ -36,7 +36,7 @@ import qualified Data.Set as Set
 import Text.Blaze(Markup)
 
 
--- * Types
+-- * Types 
 -- | Validate spreadsheet, save , collect and save partial stocktakes generated from lost items
 data SavingMode = Validate | Save | CollectMOP deriving (Eq, Read, Show)
 
@@ -74,7 +74,7 @@ data FormParam = FormParam
  , pOveridde :: Bool
  }
 
--- * Requests
+-- * Requests 
 {-# NOINLINE getWHStocktakeR #-}
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = do
@@ -327,7 +327,7 @@ postWHStocktakeSaveR = processStocktakeSheet Save
 postWHStocktakeCollectMOPR :: Handler Html
 postWHStocktakeCollectMOPR = processStocktakeSheet CollectMOP
 
--- * Form
+-- * Form 
 uploadForm :: SavingMode -> Maybe FormParam -> Markup ->  _ (FormResult FormParam, Widget)
 uploadForm mode paramM = 
   let form' Save = FormParam
@@ -359,7 +359,7 @@ uploadForm mode paramM =
                    <*> pure False
   in renderBootstrap3 BootstrapBasicForm . form' $ mode
 
--- * Rendering
+-- * Rendering 
 renderWHStocktake :: SavingMode -> Maybe FormParam -> Int -> Handler () -> Widget -> Handler Html
 renderWHStocktake mode paramM status message pre = do
   let (action, button,btn) = case mode of
@@ -405,7 +405,7 @@ renderValidRows param rows = do
           DisplayMissingOnly -> missingW
           HideMissing -> render rows
   
--- * Processing
+-- * Processing 
 
 -- | Display or save the uploaded spreadsheet
 -- At the moment saving a spreadsheet involves having to upload it twice.
@@ -496,7 +496,7 @@ processStocktakeSheet mode = do
 
 
             let stocktakes0 =  map alterActive $ concatMap (groupToStocktakes keyId) groups
-                -- ^ If NoAdjustment set stocktake to inactive = 
+                -- \^ If NoAdjustment set stocktake to inactive = 
                 alterActive = if pStyleComplete param == StyleNoAdjustment
                                  then \s -> s { stocktakeActive = False }
                                  else id
@@ -705,10 +705,10 @@ updateLookedUp docKey i'rows = do
                                          (opId (rowOperator s))
                                          (rowDate s)
 
--- * Csv
+-- * Csv 
 
 -- | Wrapper around Operators
--- ** Temporary types for parsing
+-- ** Temporary types for parsing 
 data Operator' = Operator' {opId :: OperatorId, _unused_op :: Operator} deriving (Eq, Show)
 type OpFinder = Text -> Maybe Operator'
 
@@ -738,7 +738,7 @@ data TakeRow s = TakeRow --  Basic       QuickTake BarcodeLookup
 
 data TakeRowType = RawT | PartialT | FullT
   | QuickT | FinalQuickT
-  |  BarcodeLookupT -- | FinalBarcodeLookupT
+  |  BarcodeLookupT -- -| FinalBarcodeLookupT
   | FinalT deriving (Eq, Read, Show)
 type RawRow = TakeRow 'RawT -- Raw data. Contains if the original text value if necessary
 type PartialRow = TakeRow 'PartialT -- Well formatted row. Can contains blank
@@ -778,7 +778,7 @@ data FinalRow = FinalFull FinalFullRow
 
 data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 
--- ** Parsing
+-- ** Parsing 
 -- | Validates if a raw row has been parsed properly. ie cell are well formatted
 validateRaw :: OpFinder -> LocFinder ->  RawRow -> Either RawRow PartialRow
 validateRaw ops locs raw= do
@@ -942,7 +942,7 @@ fillFromPrevious skus (Right (BLookupST previous)) partial = let
       in validateRow skus CheckBarcode =<< validateRaw (const Nothing) (const Nothing)  raw
 
 fillFromPrevious skus (Right (FullST previous)) partial
-  -- | Right valid  <- validateRow CheckBarcode partial = Right valid
+  -- -| Right valid  <- validateRow CheckBarcode partial = Right valid
   --  ^ can't do that, as we need to check if a barcode sequence is correct
 
   | otherwise = let
@@ -1304,7 +1304,7 @@ lookupPackingListDetail checkStyle barcode = do
                                  Just err -> Left err
     _ -> Right []
 -- 
--- * Transform instance Related
+-- * Transform instance Related 
 
 -- transformRow :: TakeRow t -> TakeRow s
 transformRow TakeRow{..} = TakeRow
@@ -1370,7 +1370,7 @@ styleFor (BLookedupST row) = rowStyle row
 
 makeSku :: Text -> Text -> Text
 makeSku style colour = style <> "-" <> colour
--- * Csv
+-- * Csv 
 instance Csv.FromNamedRecord RawRow where
   parseNamedRecord m = pure TakeRow
     <*> m `parse` "Style"
@@ -1408,7 +1408,7 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField (Location')))) wh
       Nothing -> return $ Right Nothing
       Just t' -> return $ Left (ParsingError "Location doesn't exist" t')
 
--- * Generate partial stocktake from lost items in MOP
+-- * Generate partial stocktake from lost items in MOP 
 -- | It seems easier to generate the result of parsing a spreading
 -- and passing to the process function which will take care of generating
 -- fake barcodes and invalidates everything required
@@ -1480,7 +1480,7 @@ cleanupTopick (QuickST TakeRow{..}) = do
 cleanupTopick  (FullST _) = error "Should not happen"
 cleanupTopick (BLookedupST _) = error "Should not happen"
 cleanupTopick (BLookupST _) = error "Should not happen"
--- * Rendering
+-- * Rendering 
 
 -- renderRow :: TakeRow _ -> Widget
 renderRow TakeRow{..} = do

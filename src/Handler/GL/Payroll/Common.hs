@@ -8,7 +8,6 @@
 module Handler.GL.Payroll.Common
 where
 
--- * Import
 import Import
 import Handler.Table
 import qualified GL.Payroll.Timesheet as TS
@@ -30,16 +29,16 @@ import Data.List(iterate, cycle)
 import Locker
 import  Util.Cache
 
--- ** Orphan Instances
+-- ** Orphan Instances 
 instance TS.Display Text where
   display = unpack
 
--- * Types
+-- * Types 
 -- | Extended version of Timesheest ShiftType adding an option corresponding
 -- to work which has been timed
 data ShiftType = ShiftType TS.ShiftType | Timed deriving (Show, Eq, Ord)
    
--- * DB access
+-- * DB access 
 -- | Save a timesheet.
 saveTimeSheet :: DocumentHash -> (TS.Timesheet String TS.PayrooEmployee) -> Handler (TimesheetId, Text)
 saveTimeSheet key timesheet = do
@@ -56,7 +55,7 @@ saveTimeSheet key timesheet = do
           saveTimeSheetModel Nothing key ref (model, shiftsFn, itemsFn)
 
 -- saveTimeSheetModel :: DocumentHash -> (TS.Timesheet String TS.PayrooEmployee) -> Handler (TimesheetId, Text)
-saveTimeSheetModel :: Maybe Int -- ^ FA Invoice if already exits (imp)
+saveTimeSheetModel :: Maybe Int --  ^ FA Invoice if already exits (imp)
                    -> DocumentHash
                    -> Text
                    -> ( Key DocumentKey -> Timesheet
@@ -130,11 +129,11 @@ loadTimedShiftsFromTS timesheet = do
   loadTimedFromMOPactions (TS._periodStart timesheet) (TS.periodEnd timesheet)
 
 
--- * Converter
+-- * Converter 
 -- | Convert a Payroll Timesheet to it's DB model.
 -- It doesn't return a list of Shift but a function creating them
 -- as we are missing the Timesheet id.
--- ** Timesheet conversion
+-- ** Timesheet conversion 
 timesheetOpIdToModel :: Text
                  -> (TS.Timesheet String OperatorId)
                  -> ( Key DocumentKey -> Timesheet
@@ -272,7 +271,7 @@ timesheetOpIdToTextH ts = do
   employeeInfos <- getEmployeeInfo
   return $ timesheetOpIdToText employeeInfos ts
 
--- ** GL Account
+-- ** GL Account 
 -- | GL Account should be Int, however
 -- There definition in FA Allows leading 0 and so need to be converted to Text
 -- A solution would be to format them using printf like.
@@ -288,7 +287,7 @@ mkAccountH = cache0 False (cacheMinute 5) "gl-account-maker" $ do
   return $ \acc -> WFA.GLAccount $ findWithDefault (tshow acc) acc accountMap
   
 
--- * Configuration
+-- * Configuration 
 
 -- | A returns a list of employees from the payroll settings
 -- completed with the operator information (from table)
@@ -372,8 +371,8 @@ validateTimesheet settings timesheet = let
 
   
           
--- * Rendering
--- ** Pending Sheet
+-- * Rendering 
+-- ** Pending Sheet 
 displayPendingSheets :: Handler Widget
 displayPendingSheets = do
   timesheets <- runDB $ selectList [TimesheetStatus ==. Pending] []
@@ -392,7 +391,7 @@ displayLastSheets n = do
        ^{displayTimesheetList timesheets}
           |]
 
--- ** Timesheet list
+-- ** Timesheet list 
 displayTimesheetList :: [Entity Timesheet] -> Widget
 displayTimesheetList timesheets = [whamlet|
 <table.table.table-hover.table-striped.nowrap.nowrap.responsive style=width:100%>
@@ -415,7 +414,7 @@ displayTimesheetList timesheets = [whamlet|
       <td> #{tshow $ timesheetStatus ts}
 |]
 
--- ** Timesheet
+-- ** Timesheet 
 displayTimesheet :: ( ?viewPayrollAmountPermissions :: (Text -> Granted)
                     , ?viewPayrollDurationPermissions :: (Text -> Granted))
                  => (TS.Timesheet String TS.PayrooEmployee) -> Widget
@@ -442,7 +441,7 @@ displayDAC = let
   durationF = e ?viewPayrollDurationPermissions
   in TS.displayDAC amountF durationF
 
--- ** Employee Summary
+-- ** Employee Summary 
 -- | Displays a table with all payment information for each employee t
 displayEmployeeSummary :: (?viewPayrollAmountPermissions :: (Text -> Granted))
                        => TS.Timesheet Text Text -> Widget
@@ -489,7 +488,7 @@ tweakSummary formulas emp =  let
                                                        | (name, formula) <- formulas
                                                        , [PFVariable name] /= formula
                                                        , [] /= formula
-                                                       -- ^ we need to filter normal field
+                                                       -- \^ we need to filter normal field
                                                        -- but only keep calculated formula
                                                        ] 
                                                      )
@@ -518,8 +517,8 @@ evalFormula  emp formula = let
 -- | Return columns compatibles with employeeSummaryTable
 employeeSummaryColumns :: [TS.EmployeeSummary Text e]
                        -> ([(Maybe (TS.EmployeeSummary Text e -> Map Text TS.Amount),
-                             Text)] -- ^ columns (value getter, column name)
-                          , (a, Text) -> (Html, [a1]) -- ^ function to render column names
+                             Text)] --  ^ columns (value getter, column name)
+                          , (a, Text) -> (Html, [a1]) --  ^ function to render column names
                           )
 employeeSummaryColumns summaries = let 
   toCols getter = map (Just getter,)  .  Map.keys $ mconcat $ map getter summaries
@@ -532,7 +531,7 @@ employeeSummaryColumns summaries = let
                                 | (k,h)  <- Map.toList (TS._totalHours s)
                                 ]
     
-  -- | Columns are either straight field (Nothing)
+  -- -| Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
   columns = [(Nothing,) "Employee", (Nothing,) ("To Pay" :: Text) ]
             ++ netDeductions
@@ -578,7 +577,7 @@ defaultColors = defaultPlottly where
               "#17becf"   -- blue-teal
              ]
 employeeSummaryRows summaries = let 
-  -- | Columns are either straight field (Nothing)
+  -- -| Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
   colFns = map mkColFn summaries
           
@@ -625,7 +624,7 @@ generatePaymentForm timesheet = let
             <input name="payment-date-for-#{snd (TS._sumEmployee summary)}" type=date>
              |]
 
--- ** Calendar
+-- ** Calendar 
 -- | Display timesheet as a calendar
 -- displayTimesheetCalendar :: (?viewPayrollDurationPermissions:: Text -> Granted)
 --                          =>  [TS.Shift paye Text] -> (TS.Timesheet payee Text) -> Widget
@@ -663,7 +662,7 @@ displayTimesheetCalendar timed timesheet = do
 --                 -> Map Text (Map Day [TS.Shift emp])
 --                 -> Widget
 displayCalendar :: (?viewPayrollDurationPermissions::Text -> Granted)
-  => Bool -- ^ display total
+  => Bool --  ^ display total
   -> Day
   -> Day
   -> Day
@@ -762,7 +761,7 @@ calendarFn shiftMap (operator,color) weekStart (Right col) = do -- Maybe
       html = displayTimeBadges color maxDuration types
   return (html, [])
 
--- ^ Display shift as badges
+-- | Display shift as badges
 displayTimeBadges :: (?viewPayrollDurationPermissions :: Text -> Granted)
                   => Text -> Double -> [TS.Shift ShiftType] -> Html
 displayTimeBadges color maxDuration durations0 = 
@@ -860,8 +859,8 @@ rowTotal periodStart shiftMap operators = let
  in header:rows
   
 
--- * To Front Accounting
--- ** GRN
+-- * To Front Accounting 
+-- ** GRN 
 saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet _ (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, [PayrollShiftId])]
 saveGRNs settings __key timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
@@ -919,7 +918,7 @@ saveGRNs settings __key timesheet = do
            return (faId, keys)
        ) grns
 
--- ** Invoice
+-- ** Invoice 
 saveInvoice :: (Int -> WFA.GLAccount) -> Day
             -> AppSettings
             -> TS.Timesheet (Text, PayrollExternalSettings) _
@@ -971,11 +970,11 @@ itemsForCosts mkAccount timesheet = let
                   (Just memo)
   in map mkItem costs
 
--- ** Payment
+-- ** Payment 
 savePayments :: Ord p
-             => Day -- ^ Payment date
-             -> Maybe Text -- ^ Payment reference suffix. Too avoid duplicate
-             -> Map Text (Maybe Double , Maybe Day) -- ^ Payments overriding
+             => Day --  ^ Payment date
+             -> Maybe Text --  ^ Payment reference suffix. Too avoid duplicate
+             -> Map Text (Maybe Double , Maybe Day) --  ^ Payments overriding
              -> AppSettings
              -> TimesheetId
              -> TS.Timesheet p Text
@@ -1045,16 +1044,16 @@ employeePayment ref paymentDate paymentMap settings invM summary = do -- Maybe
     Just payment
 
 
--- ** External payments
+-- ** External payments 
 -- Payments to external entities can be either stored as a direct payment using the main Wages supplier
 -- or by a pair of credit note/invoice. The credit note being made on the main wages supplier
 -- and the invoice on the external supplier. This is a way of "transfering part of an invoice" from a
 -- supplier to another one.
 saveExternalPayments :: AppSettings
                      -> TimesheetId
-                     -> Int -- ^ Invoice num
-                     -> (Int -> WFA.GLAccount) -- ^ Convert account no to account in Text (might include adding leading 0)
-                     -> Day -- ^ transaction date
+                     -> Int --  ^ Invoice num
+                     -> (Int -> WFA.GLAccount) --  ^ Convert account no to account in Text (might include adding leading 0)
+                     -> Day --  ^ transaction date
                      -> TS.Timesheet (Text, PayrollExternalSettings) emp 
                      ->  ExceptT Text Handler [Either (Int, Maybe Int) Int]
 saveExternalPayments settings key invoiceNo mkAccount day timesheet = do
@@ -1088,8 +1087,8 @@ saveExternalPayments settings key invoiceNo mkAccount day timesheet = do
 makeExternalPayments :: PayrollSettings
                      -> Maybe Int  -- ^ Invoice number
                      -> (Int -> WFA.GLAccount)
-                     -> Day -- ^ transaction date
-                     -> Text -- ^ invoice reference
+                     -> Day --  ^ transaction date
+                     -> Text --  ^ invoice reference
                      -> TS.Timesheet (Text, PayrollExternalSettings) emp
                      -> [Either (WFA.PurchaseCreditNote, WFA.PurchaseInvoice)
                                  WFA.SupplierPayment]
@@ -1138,9 +1137,9 @@ dacToExternalItems :: (Int -> WFA.GLAccount)
              -> Text 
              -> TS.DeductionAndCost (Text, PayrollExternalSettings)
              -> [ Either ((Int, Text, Day), WFA.GLItem) -- credit/invoice
-                         -- ^ -- supplier
+                         --  ^ -- supplier
                          ((Int, Text, Day), Double) -- payment
-                         -- ^ Bank Account
+                         --  ^ Bank Account
                 ] 
 dacToExternalItems mkAccount day tsReference dac = let
     (payee, settings) = dac ^. TS.dacKey
@@ -1157,8 +1156,8 @@ dacToExternalItems mkAccount day tsReference dac = let
   in extract (payee <> "^") TS.dacDeduction deductionsPaymentSettings
      <>  extract ("^" <> payee) TS.dacCost costPaymentSettings
   
-makeExternalPair :: Day -- ^ Transactioin date
-                 -> Maybe Int -- ^ Invoice number to allocate Credit note
+makeExternalPair :: Day --  ^ Transactioin date
+                 -> Maybe Int --  ^ Invoice number to allocate Credit note
                  -> ((Int, Text, Day), [WFA.GLItem])
                  -> (WFA.PurchaseCreditNote, WFA.PurchaseInvoice)
 makeExternalPair day invoiceNo ((supplier, reference, dueDate), glItems) = let
@@ -1224,7 +1223,7 @@ isShiftUnlocked = liftA2 (&&) isShiftDurationUnlocked isShiftAmountUnlocked
 isDACUnlocked = isUnlocked ?viewPayrollAmountPermissions . TS.dacTotal 
 isShiftViewable = liftA2 (||) isShiftAmountUnlocked isShiftDurationUnlocked
 
--- ** Voiding
+-- ** Voiding 
 
 -- | Void transaction in FA From transaction map and mark them as voided
 voidTransactions :: Day -> (TransactionMap -> Maybe Text) -> [Filter TransactionMap] -> Handler Int

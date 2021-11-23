@@ -36,7 +36,7 @@ import System.FilePath (takeExtension)
 import Model.DocumentKey
 import GHC.Generics
 
--- * Example
+-- * Example 
 warehouseExamble :: WH (ShelfGroup s) s
 warehouseExamble  = do
   let dim0 = Dimension 270 80 145
@@ -51,7 +51,7 @@ warehouseExamble  = do
 
 __use_binding = warehouseExamble
 
--- * Parsing
+-- * Parsing 
 -- | Read and cut a scenario file into different component
 parseScenarioFile :: Text -> Either Text [Section]
 parseScenarioFile text = do -- Either
@@ -74,10 +74,10 @@ parseLine line | "-- END " `isPrefixOf` line          = Right EndL
 -- | Regroup lines into section
 linesToSections :: [TypedLine] -> [Either Text Section]
 linesToSections lines_ = reverse $ go lines_ Nothing [] [] where
-  go :: [TypedLine] -- ^ lines_ to parse
+  go :: [TypedLine] --  ^ lines_ to parse
      -> Maybe (HeaderType, Text) --  ^ header for current body
-     -> [Text] -- ^ line of the current body in reverse order
-     -> [Either Text Section] -- ^ previously parsed in reverse order
+     -> [Text] --  ^ line of the current body in reverse order
+     -> [Either Text Section] --  ^ previously parsed in reverse order
      -> [Either Text Section]
   go ((HeaderL newHeader title):ls) header current sections = -- start new section
     go ls (Just (newHeader, title)) [] (merge header current sections)
@@ -184,7 +184,7 @@ writeHeader = gwriteHeader . from
 -- To avoid creating the same temporary file over and over, which
 -- just cache them once and use a SHA identify them.
 readScenario :: MonadIO m
-             => (Section -> m (Either Text [Section])) -- ^ section expander, mainly to import sections for URI
+             => (Section -> m (Either Text [Section])) --  ^ section expander, mainly to import sections for URI
              -> Text
              -> m (Either Text Scenario)
 readScenario expandSection text = do
@@ -199,7 +199,7 @@ readScenario expandSection text = do
 -- readScenarioDir :: MonadIO m => FilePath -> m Either [Step]
 readScenariosFromDir :: MonadIO io
                      => (Section -> io (Either Text [Section]))
-                     -- ^ section expander, mainly to import sections for URI
+                     -- \^ section expander, mainly to import sections for URI
                      -> FilePath -> io (Either Text [Scenario])
 readScenariosFromDir expandSection path = do
   contents <- liftIO $ do
@@ -213,7 +213,7 @@ readScenariosFromDir expandSection path = do
 -- | Read one scenario file
 readScenarioFromPath :: MonadIO io
                      => (Section -> io (Either Text [Section]))
-                     -- ^ section expander, mainly to import sections for URI
+                     -- \^ section expander, mainly to import sections for URI
                      -> FilePath -> io (Either Text Scenario)
 readScenarioFromPath expandSection path = do
   exists <-  liftIO $ doesFileExist path
@@ -298,7 +298,7 @@ makeScenario sections0 = do -- Either
 
   Right $ Scenario (map fst initial) steps (map fst layout)
 
--- * Pretty Printing
+-- * Pretty Printing 
 scenarioToTextWithHash :: Scenario -> Text
 scenarioToTextWithHash scenario = sectionsToText $ scenarioToSections scenario
 
@@ -354,7 +354,7 @@ sSortedSteps Scenario{..} = let
   sorted = sortBy (comparing fst) steps
   in  map snd sorted
 
--- * Rendering
+-- * Rendering 
 execWH :: MonadIO m => Warehouse RealWorld -> WH a RealWorld -> m a
 execWH warehouse0 wh = liftIO $ stToIO $ evalStateT wh warehouse0
 

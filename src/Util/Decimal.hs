@@ -7,7 +7,7 @@ import ClassyPrelude
 import Data.Decimal
 
 
--- * Decimal rounding
+-- * Decimal rounding 
 
 
 data RoundingMethod = Round {roundDec' :: Word8 }

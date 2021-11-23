@@ -40,7 +40,7 @@ import Control.Monad.Except
 import qualified Data.Map as Map
 import qualified FA as FA
 
--- * Types
+-- * Types 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data UploadParam = UploadParam
   { upTimesheet :: Textarea
@@ -52,7 +52,7 @@ data FAParam = FAParam
   , ffReferenceSuffix :: Maybe Text
   , ffPayments :: Map Text (Maybe Double, Maybe Day)
   } deriving (Eq, Read, Show)
--- * Form
+-- * Form 
 uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
 uploadForm mode paramM = let
   form _ = UploadParam <$> areq textareaField "Timesheet" (upTimesheet <$> paramM)
@@ -68,8 +68,8 @@ faForm = renderBootstrap3 BootstrapBasicForm form  where
 voidForm = renderBootstrap3 BootstrapBasicForm form where
   form = areq boolField "Keep payments" (Just True)
   
--- * Handlers
--- ** upload and show timesheets
+-- * Handlers 
+-- ** upload and show timesheets 
 {-# NOINLINE getGLPayrollR #-}
 getGLPayrollR :: Handler Html
 getGLPayrollR = do
@@ -183,7 +183,7 @@ setFaParamPayments param = do
 
 
   
--- ** Individual timesheet
+-- ** Individual timesheet 
 {-# NOINLINE getGLPayrollViewR #-}
 getGLPayrollViewR :: Int64 -> Handler Html
 getGLPayrollViewR key = do
@@ -335,7 +335,7 @@ postGLPayrollToPayrooR key = do
             respondSource "text/csv" (source .| mapC toFlushBuilder)
         Left e -> error $ "Problem generating payroo csv: " <> unpack e
 
--- ** Void
+-- ** Void 
 {-# NOINLINE getGLPayrollVoidFAR #-}
 getGLPayrollVoidFAR :: Int64 -> Handler Html
 getGLPayrollVoidFAR timesheetId = do
@@ -433,7 +433,7 @@ transactionMapFilterForTS timesheetId =  do
           ||. for PayrollShiftE unPayrollShiftKey shiftIds
           ||. for PayrollItemE unPayrollItemKey itemIds
 
--- ** Quick Add
+-- ** Quick Add 
 quickadd :: UploadParam -> DocumentHash -> Handler Html
 quickadd  param key = do
   wE <- saveQuickAdd False (unTextarea $ upTimesheet param) key
@@ -458,7 +458,7 @@ saveQuickadd  param key = do
             getGLPayrollR
             -- renderMain Validate Nothing created201 msg w
 
--- ** Renders
+-- ** Renders 
 -- | Renders the main page. It displays recent timesheet and also allows to upload a new one.
 -- The given mode is actually the next one, if the spreadsheet needs to be validated or saved.
 renderMain :: Mode -> (Maybe UploadParam) -> Status -> Handler() -> Widget -> Handler Html
@@ -526,7 +526,7 @@ To do so, days needs to be explicetly skipped using <code>_</code>
 Example, <code>Alice Mon _ Mon 8</code>, means Alice worked 8 hours on the 2nd Monday of the period.
 |]
 
--- * Processing
+-- * Processing 
 processTimesheet :: Mode -> (UploadParam -> DocumentHash -> Handler r) -> Handler r
 processTimesheet mode post = do
   ((resp, __formW), __enctype) <- runFormPost (uploadForm mode Nothing)
@@ -552,7 +552,7 @@ parseTimesheetH param = do
   header <- headerFromSettings
   return $ parseTimesheet header (upTimesheet param)
 
--- * To Front Accounting
+-- * To Front Accounting 
 postTimesheetToFA :: FAParam
                   -> TimesheetId
                   -> Entity Timesheet

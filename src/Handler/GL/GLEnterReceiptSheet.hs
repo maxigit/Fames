@@ -265,7 +265,7 @@ t = id
 
 setMessage' :: (ToMarkup a, MonadHandler m) => a -> m ()
 setMessage' msg = {-trace ("set message : " ++ show msg)-} (setMessage $ toHtml msg)
--- ** Widgets
+-- ** Widgets 
 instance (
                      -- Renderable (HeaderFieldTF t Text),
                      -- Renderable (HeaderFieldTF t Double),
@@ -549,7 +549,7 @@ faReferenceMapH = runDB $ do
   
 
 
--- * to Front Accounting
+-- * to Front Accounting 
 saveReceiptsToFA :: Key DocumentKey -> AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [(ValidHeader, FATransType, Int)]
 saveReceiptsToFA docKey settings receipts0 = do
   mkAccount <- lift mkAccountH

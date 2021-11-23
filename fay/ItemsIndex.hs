@@ -90,13 +90,13 @@ onSelectBase base = do
                ) radio
   return base
 
-updateWithAjax :: JQuery -- ^ form
-               -> (a -> Fay()) -- ^ success handler
+updateWithAjax :: JQuery --  ^ form
+               -> (a -> Fay()) --  ^ success handler
                -> Fay ()
 updateWithAjax =
   ffi "$.ajax({url:%1[0].action, data:%1.serialize(), dataType:'json', type:'POST',success:%2})"
-updateWithAjax' :: JQuery -- ^ form
-               -> (a -> Fay()) -- ^ success handler
+updateWithAjax' :: JQuery --  ^ form
+               -> (a -> Fay()) --  ^ success handler
                -> Fay ()
 updateWithAjax' =
   ffi "alert(JSON.stringify({url:%1[0].action, data:%1.serialize(), dataType:'json', type:'POST',success:%2}))"

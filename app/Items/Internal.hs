@@ -50,8 +50,8 @@ $(mmZipN 1 "setPure" ''ItemStatusF Nothing)
 $(mmZipN 1 "setPure" ''ItemWebStatusF Nothing)
 
 
--- * For Types
--- ** MinMax
+-- * For Types 
+-- ** MinMax 
 minMax :: a -> MinMax a
 minMax a = MinMax a a
  
@@ -59,12 +59,12 @@ minMax a = MinMax a a
 
   -- mappend = mappendStockMasterF
 
--- ** QP
+-- ** QP 
 promoteQP :: QPType -> (QPType, QPrice) -> Maybe (QPType, QPrice)
 promoteQP qtype' (qtype, qp) | qtype' == qtype = Just (qtype, qp)
                            | otherwise = Nothing
--- * Index
--- ** Diff
+-- * Index 
+-- ** Diff 
 -- | Check the status of an item variation given a list of expected variation
 -- As well as checking if the variation exists, or is extra is also compares it
 -- to a reference items, to check if the information are the same.
@@ -77,9 +77,9 @@ promoteQP qtype' (qtype, qp) | qtype' == qtype = Just (qtype, qp)
 -- the description to "Red T-Shirt" for the Red variation. 
 computeItemsStatus :: (ItemInfo a -> Text -> ItemInfo a )
                    -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
-                   -> ItemInfo a -- ^ base item
-                   -> [Text] -- ^ list of variations to expand to
-                   -> [ItemInfo a] -- ^ item (base, variation) alreadyexisting
+                   -> ItemInfo a --  ^ base item
+                   -> [Text] --  ^ list of variations to expand to
+                   -> [ItemInfo a] --  ^ item (base, variation) alreadyexisting
                    -> [(VariationStatus, ItemInfo diff)]
 computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
   styleMap = mapFromList [(iiVariation i, i) | i <- items ]
@@ -87,7 +87,7 @@ computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
   joineds = align varMap' styleMap
   ok _ item = (VarOk,  item)
   r = map (these (VarMissing,) (VarExtra,) ok) (Map.elems joineds)
-  adjustItemBase var = (adjustItem0 item0 var) {iiVariation = var} -- | Force variation
+  adjustItemBase var = (adjustItem0 item0 var) {iiVariation = var} -- Force variation
   in map (\(s, i) -> (s, computeDiff_ (adjustItemBase (iiVariation i)) i)) r
 
 computeDiff :: ItemInfo (ItemMasterAndPrices Identity)
@@ -131,7 +131,7 @@ faToWebStatus style fa = case faRunningStatus <$> fa of
   Just (Identity FARunning) -> ItemWebStatusF (pure (Just style)) (pure True)
   _ -> ItemWebStatusF (pure Nothing) (pure False)
   
--- ** Join variations
+-- ** Join variations 
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation
 -- is not present in the variation map will be created from item0
@@ -141,17 +141,17 @@ faToWebStatus style fa = case faRunningStatus <$> fa of
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
 joinStyleVariations :: Copointed a
                     =>  Map Text (Text, Text)
-                    -> [Text] -- ^ help to find the base if not given
+                    -> [Text] --  ^ help to find the base if not given
                     -> (ItemInfo (ItemMasterAndPrices a) -> Text -> ItemInfo (ItemMasterAndPrices a))
                     -> (ItemInfo (ItemMasterAndPrices a) -> ItemInfo (ItemMasterAndPrices a) -> ItemInfo diff)
                     -> [ItemInfo (ItemMasterAndPrices a)]
-                    -> [Text] -- ^ All possible variations
+                    -> [Text] --  ^ All possible variations
                     -> [( ItemInfo (ItemMasterAndPrices a)
                         , [(VariationStatus, ItemInfo diff)]
                         )]
 joinStyleVariations bases baseCandidates adjustBase computeDiff_ items vars = let
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
-  -- | if base is not defined, find the first active
+  -- -| if base is not defined, find the first active
 
   in map (\(_, variations@(var:_)) -> let
              -- bases Map a style to the base sku. We need to find the sku then item
@@ -159,7 +159,7 @@ joinStyleVariations bases baseCandidates adjustBase computeDiff_ items vars = le
              varsForBase = if null vars
                            then map iiVariation variations
                            else vars
-             -- | if the base is not set, find the first active variation
+             -- -| if the base is not set, find the first active variation
              -- but preferably the one true for baseCandidate
              weightMap = Map.fromList (zip baseCandidates [1..])
              weight v = Map.findWithDefault (1 + length baseCandidates) v weightMap
@@ -194,7 +194,7 @@ mergeInfoSources sources = let
   in [ ItemInfo style var i | (ItemInfo style var (), i) <- Map.toList merged]
   
 
--- ** Columns
+-- ** Columns 
 pricesColumns field masters =
   let colSetFor m  = keysSet m
       cols = mapMaybe (fmap colSetFor . field ) masters
@@ -208,7 +208,7 @@ purchasePricesColumns ::  [ItemMasterAndPrices f] -> [Int]
 purchasePricesColumns masters = pricesColumns impPurchasePrices masters
   
 
--- ** Status
+-- ** Status 
 faRunningStatus :: Applicative f => ItemStatusF f -> f FARunningStatus
 faRunningStatus ItemStatusF{..} = let
   go qoh onOrder_  allQoh  onOrder  allOnDemand  used = case () of
@@ -227,7 +227,7 @@ webDisplayStatus ItemWebStatusF{..} =  status <$> iwfProductDisplay <*> iwfActiv
                         (Nothing, True) -> WebUnlinked
                         (Nothing, False) -> WebMissing
 
--- ** Prices
+-- ** Prices 
 -- | Computes  theoretical prices based on default price and price list info.
 -- | Doesn't touch prices if given
 computeTheoreticalPrices :: Int -> [Entity SalesType] -> IntMap Double -> IntMap Double
@@ -265,7 +265,7 @@ masterPrice baseId master = do -- Maybe
 
 
 
--- * Forecast
+-- * Forecast 
 -- | Compute the weight of a date range given a profile.
 -- For example if we now, that the 4 first months have a weight of 25% and the other 0.
 -- The weight from the mid April to end of April should be 12.5%

@@ -13,7 +13,7 @@ import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Either
--- * Type
+-- * Type 
 -- | The raw result of a scanned row
 data RawScanRow = RawDate Day
              | RawOperator Text
@@ -51,14 +51,14 @@ data StyleMissing = StyleMissing
   , missingBoxes :: [Entity Boxtake] }
 -- | If a boxtake has been done on a full shelf, we should
 -- be able to inactivate all the box previously on this shelf.
-data WipeMode = FullShelves -- ^ Wipe all boxes previously on the scanned location.
-              | FullStyles -- ^ Considers the styles as complete. Wipe all previous boxes from the scanned
+data WipeMode = FullShelves --  ^ Wipe all boxes previously on the scanned location.
+              | FullStyles --  ^ Considers the styles as complete. Wipe all previous boxes from the scanned
                   -- styles, regardless of their location.
               | FullStylesAndShelves
-              | Addition -- ^ Don't wipe anything. Just add new boxes 
+              | Addition --  ^ Don't wipe anything. Just add new boxes 
               | Deactivate -- deactivate all boxes instead of reactivate them. 
               deriving (Eq, Read, Show, Enum, Bounded)
--- * Util
+-- * Util 
 
 -- | Reverse op parseRawScan
 rawText :: RawScanRow -> Text
@@ -76,7 +76,7 @@ boxVolume Boxtake{..} = boxtakeLength*boxtakeWidth*boxtakeHeight/1000000
 
 rowIsFound :: Row -> Bool
 rowIsFound row = not $ maybe False (boxtakeActive . entityVal) (rowBoxtake row)
--- * Boxtakes scanning parsing
+-- * Boxtakes scanning parsing 
 
 parseRawScan :: Text -> RawScanRow
 parseRawScan line' = let line = strip line' in  case () of
@@ -86,8 +86,8 @@ parseRawScan line' = let line = strip line' in  case () of
       () | Just day <- parseDay (unpack line) -> RawDate (allFormatsDay day)
       _ -> RawOperator line
 
-loadRow :: (Text -> Bool) -- ^ Location validator
-        -> (Text -> Maybe (Entity Operator)) -- ^ Operator finder
+loadRow :: (Text -> Bool) --  ^ Location validator
+        -> (Text -> Maybe (Entity Operator)) --  ^ Operator finder
         -> RawScanRow -> Handler (Either InvalidField ScanRow)
 loadRow isLocationValid findOperator row = do
   case row of
@@ -159,7 +159,7 @@ parseScan wipeMode spreadsheet = do -- Either
 -- complete a new section or should reset everything
 -- Also, a location can be empty. In that case the location needs to be scanned twice in a row.
 -- We check that there is no barcode after it.
-makeRow :: (Maybe Day, Maybe (Entity Operator), Maybe Text, Maybe (Entity Boxtake)) -- ^ last day, operator , and location and barcode (last box)
+makeRow :: (Maybe Day, Maybe (Entity Operator), Maybe Text, Maybe (Entity Boxtake)) --  ^ last day, operator , and location and barcode (last box)
         -> ScanRow
         -> ((Maybe Day, Maybe (Entity Operator), Maybe Text, Maybe (Entity Boxtake))
            , Maybe (Either Text Row))
@@ -239,8 +239,8 @@ extractUnique fieldname toText toKey field rows = let
        [unique] -> Right unique
        elems -> Left $ fieldname <> "s are not unique : " <> unlines (map toText elems) 
 
--- ** Validation
--- * Rendering
+-- ** Validation 
+-- * Rendering 
 instance Renderable [Either InvalidField ScanRow] where
   render rows = do
     displayTable indexes colnameF (map mkRowF rows)
@@ -292,12 +292,12 @@ renderRows renderUrl rows  =
             in ( ((,[]) <$>) .value, ["bg-danger"])
 
 
--- * Csv
+-- * Csv 
 instance Csv.FromNamedRecord RawScanRow where
   parseNamedRecord m = m Csv..: "Barcode" <&> parseRawScan
   
 
--- * DB
+-- * DB 
 -- | Load boxes from scanned location which have not been moved elsewhere.
 barcodeSetFor :: [Session] -> Set Text
 barcodeSetFor sessions = let
@@ -305,7 +305,7 @@ barcodeSetFor sessions = let
             <> concatMap sessionMissings sessions
   in Set.fromList $ map (boxtakeBarcode . entityVal) boxtakes
 
--- ** From locations
+-- ** From locations 
 -- In order to load multiple location (boxtake can have A|B) as a location
 -- we need to use a like '%B%' filter. Doing that results on the same
 -- boxes being loaded twice for A and B. To avoid this, we expand the barcodeSet
@@ -326,7 +326,7 @@ loadMissingForSession (barcodes, sessions) session = do
   let missings = filter missing allboxes
       missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodes
         && location `elem` (splitOn "|" boxtakeLocation)
-      -- ^ The LIKE filter might result in loading boxes not from the current locations
+      -- \^ The LIKE filter might result in loading boxes not from the current locations
       -- They need NOT to be shown as missing
 
       missingBarcodes = Set.fromList $ map (boxtakeBarcode . entityVal) missings
@@ -334,7 +334,7 @@ loadMissingForSession (barcodes, sessions) session = do
   return (barcodes <> missingBarcodes, newSession:sessions)
   
 
--- ** From styles
+-- ** From styles 
 -- | Loads all boxes from given styles which haven't been moved elsewhere.
 -- Create session for each of those styles
 loadMissingFromStyles :: [Session] -> Handler ([Session], [StyleMissing])
@@ -364,19 +364,19 @@ loadMissingFromStyle barcodeSet style = do
     [] -> Nothing
     _ -> Just $ StyleMissing style missings
 
--- ** From styles and shelves
+-- ** From styles and shelves 
 loadMissingFromStyleAndShelves :: [Session] -> Handler ([Session], [StyleMissing])
 loadMissingFromStyleAndShelves sessions0 = do
   (sessions1, _) <- loadMissing sessions0
   loadMissingFromStyles sessions1
   
--- ** Make all boxtake as missing
+-- ** Make all boxtake as missing 
 loadAsMissing :: [Session] -> Handler ([Session], [StyleMissing])
 loadAsMissing sessions =  do
   let barcodeSet = barcodeSetFor sessions
   allBoxes <- runDB $ selectList [BoxtakeBarcode <-. toList barcodeSet] []
   return ([], [StyleMissing "To Deactivate" allBoxes])
--- ** Save boxtake
+-- ** Save boxtake 
 -- | Update boxtake to the new location or disable them if missing. wwkk 1k
 saveFromSession :: Session -> SqlHandler ()
 saveFromSession Session{..} = do

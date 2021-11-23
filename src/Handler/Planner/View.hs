@@ -26,10 +26,10 @@ import qualified Data.Map as Map
 import Control.Monad.State
 import System.Directory (listDirectory)
 
--- * Type
+-- * Type 
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
 data FormParam = FormParam
-  { pPlannerPath :: Maybe FilePath -- ^ planner file to load
+  { pPlannerPath :: Maybe FilePath --  ^ planner file to load
   , pOrgfile :: Maybe Textarea -- ^ text to add to the content of pPlannerPath
   , pTAMSection :: Maybe Textarea -- ^ Tags and Moves section, don't need header and drawer decoration
   , pDeleteSection :: Maybe Textarea-- ^ Delete section, don't need header and drawer decoration
@@ -41,7 +41,7 @@ data FormParam = FormParam
 defaultParam :: FormParam
 defaultParam = FormParam Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
--- * Handler
+-- * Handler 
 setInfoToDoc :: Handler ()
 setInfoToDoc = do
   doc <- widgetToPageContent plannerDoc
@@ -89,7 +89,7 @@ getPDocR = do
   --    ^{plannerDoc'}
   --                       |]
 
--- * Form
+-- * Form 
 
 paramForm :: Maybe FormParam -> Html -> MForm Handler (FormResult FormParam, Widget)
 paramForm param extra = do
@@ -137,8 +137,8 @@ getPlannerPathOptions = do
                     ]
 
 
--- * Rendering
--- ** General
+-- * Rendering 
+-- ** General 
 plannerDoc :: Widget
 plannerDoc = do
   let expanded = False
@@ -258,7 +258,7 @@ sendResponseDiag width diag =  do
       w = fromIntegral width
   M.renderContent (M.SizedDiagram size diag)
 
--- ** Graphical View
+-- ** Graphical View 
 renderGraphicCompactView :: Scenario -> Handler Widget
 renderGraphicCompactView scenario = do
   (sha, layoutSize) <- cacheScenarioIn scenario
@@ -281,7 +281,7 @@ renderGraphicBigView scenario = do
     <tr><td><a href="@{imgRoute i 8000}" ><img src=@{imgRoute i 750} style="width:800;">
 |]
 
--- ** Summary report
+-- ** Summary report 
 renderSummaryReport :: Scenario -> Handler Widget
 renderSummaryReport scenario = do
   (header:rows, total) <- renderReport scenario summary

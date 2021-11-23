@@ -16,11 +16,11 @@ import GL.TaxReport.Types
 import Data.Text(strip)
 import Util.Decimal
 import Control.Monad.Fail (MonadFail(..))
--- * Type
+-- * Type 
 -- | Main settins to define a report.
 -- The actual report name should be in the key map
 data TaxReportSettings  = TaxReportSettings
-  { startDate :: Day -- ^ starting period of the first report
+  { startDate :: Day --  ^ starting period of the first report
   , nextPeriod :: DateCalculator -- ^ how to calculate the next start from the last start
   , deadline :: Maybe DateCalculator -- ^ deadline to submit the report
   , referenceFormat :: Text -- ^ format to use with format time to create reference
@@ -32,7 +32,7 @@ data TaxReportSettings  = TaxReportSettings
 data TaxProcessorSettings
   = HMRCProcessor HMRCProcessorParameters 
   | ManualProcessor  ManualProcessorParameters-- ^ Don't submit anything but set the submitted date using the deadline or the submission date
-  | ECSLProcessor ECSLProcessorParameters -- ^ European community VAT
+  | ECSLProcessor ECSLProcessorParameters --  ^ European community VAT
   deriving (Eq, Read, Show)
 
 data HMRCProcessorParameters = HMRCProcessorParameters
@@ -53,17 +53,17 @@ data HMRCProcessorParameters = HMRCProcessorParameters
        }
   deriving (Eq, Read, Show)
 data ManualProcessorParameters = ManualProcessorParameters
-    { submissionDate :: Maybe DateCalculator -- ^ submission date calculated next period
+    { submissionDate :: Maybe DateCalculator --  ^ submission date calculated next period
     }
   deriving (Eq, Read, Show)
 data ECSLProcessorParameters = ECSLProcessorParameters
-  { outOfScope :: Maybe Bucket -- ^ Bucket used for tax out of ECSL scope
+  { outOfScope :: Maybe Bucket --  ^ Bucket used for tax out of ECSL scope
   , vatNumber :: Text
   , branch :: Text
   }
   deriving (Eq, Read, Show)
 
--- * JSON
+-- * JSON 
 -- $(deriveJSON defaultOptions ''TaxReport.Bucket)
 
 -- use then key of an object as the boxname and nested fields as  field

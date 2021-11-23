@@ -20,7 +20,7 @@ import Data.Colour.Names (readColourName,black,lightgray,white, wheat, darkorang
 import Data.Colour.SRGB(sRGB24read)
 import Data.Char(isHexDigit,toLower)
 
--- * Type
+-- * Type 
 -- | Typeable version of Warehouse. Needed to be cached.
 
 instance Show (Warehouse s) where
@@ -28,7 +28,7 @@ instance Show (Warehouse s) where
                            ++ "\nSHELVES:\n" ++ show (length $ shelves wh)
                            -- ++ "\nGROUPS\n" ++ show (length $ shelfGroup wh)
 data WarehouseCache = WarehouseCache (Warehouse ()) deriving (Show, Typeable)
--- * Caching
+-- * Caching 
 
 
 cacheWarehouseIn :: DocumentHash -> Warehouse s -> Handler (Maybe WarehouseCache)
@@ -64,7 +64,7 @@ cacheScenarioOut :: Text -> Handler (Maybe (Scenario, Int))
 cacheScenarioOut key = do
   cache0 False (cacheHour 1) ("scenario", key) (return Nothing)
 
--- * Deep copy
+-- * Deep copy 
 copyWarehouse :: WH (WH (Warehouse s) s) t
 copyWarehouse = do
   wh0 <- get
@@ -109,7 +109,7 @@ copyBox box@Box{..} = return $ \shelf -> do
   newBox <- newBox boxStyle boxContent _boxDim orientation shelf boxBoxOrientations (getTagList box)
   updateBox (\b -> b { boxOffset = boxOffset, boxTags = boxTags}) newBox
 
--- * Exec
+-- * Exec 
 -- underscores are stripped before looking for the color name
 -- this allow the same colours to be used more that once
 -- example, navy#_navy#white,  will use navy twice

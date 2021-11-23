@@ -13,7 +13,7 @@ import Formatting
 import Formatting.Time(year, month)
 import qualified FA as FA
 --------------------------------------------------------------------------------
--- * Form
+-- * Form 
 data ECSLParam = ECSLParam
   { epStartDate :: Day
   , epEndDate :: Day
@@ -34,7 +34,7 @@ ecslForm paramM = renderBootstrap3 BootstrapBasicForm form where
     form = ECSLParam <$> areq dayField "start" (epStartDate <$> paramM)
                      <*> areq dayField "end" (epEndDate <$> paramM)
                      <*> areq textField "Contact" (epContactName <$> paramM)
--- * Handler
+-- * Handler 
 --------------------------------------------------------------------------------
 {-# NOINLINE getGLVATR #-}
 getGLVATR :: Handler Html
@@ -73,7 +73,7 @@ postGLVATEcslR = do
   
   
 --------------------------------------------------------------------------------
--- * Render
+-- * Render 
 {-# NOINLINE renderGLVATEcslR #-}
 renderGLVATEcslR :: ECSLParam -> Widget -> Handler Html
 renderGLVATEcslR param result = do
@@ -122,7 +122,7 @@ renderEcsl ecsls = [whamlet|
     opacity: 0.5
 
                |]
--- * DB
+-- * DB 
 loadEcsl :: ECSLParam -> Handler [ECSL]
 loadEcsl ECSLParam{..} = do
   let sql = "SELECT d.debtor_no, d.name AS cust_name, d.tax_id, "

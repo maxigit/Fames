@@ -19,7 +19,7 @@ import Util.Transformable
   
 import qualified Data.ByteString.Lazy as LazyBS
 
--- * Types
+-- * Types 
 -- | If we can't parse the csv at all (columns are not present),
 -- we need a way to gracefully return a error
 data InvalidSpreadsheet = InvalidSpreadsheet
@@ -48,7 +48,7 @@ data ParsingResult row result
   = WrongHeader InvalidSpreadsheet
   | InvalidFormat [row]-- some cells can't be parsed
   | InvalidData [Text] [row] [row]-- each row is well formatted but invalid as a whole.
-                      -- ^ errors to be displayed first
+                      -- \^ errors to be displayed first
   | ParsingCorrect result -- Ok
 
 
@@ -121,7 +121,7 @@ type family ForRowT (s :: RowTypes) raw partial valid final where
   ForRowT 'ValidT raw partial valid final = valid
   ForRowT 'FinalT raw partial valid final = final
   
--- * Functions
+-- * Functions 
 
 parseInvalidSpreadsheet :: Show a
   => Csv.DecodeOptions
@@ -182,8 +182,8 @@ m .: field = do
   
 -- | Parse a spread sheet 
 parseSpreadsheet :: (Csv.FromNamedRecord a, Show a)
-                 => Map String [String] -- ^ Columns (what to display, possible names)
-                 ->  Maybe String -- ^ separtors
+                 => Map String [String] --  ^ Columns (what to display, possible names)
+                 ->  Maybe String --  ^ separtors
                  -> ByteString
                  -> Either InvalidSpreadsheet [a]
 parseSpreadsheet columnMap seps bytes = do
@@ -217,7 +217,7 @@ capitalize :: String -> String
 capitalize [] = []
 capitalize (x:xs) = Data.Char.toUpper x : map Data.Char.toLower xs
 
--- ** Custom field parsers.
+-- ** Custom field parsers. 
 -- | temporary class to remove currency symbol
 newtype Currency = Currency {unCurrency :: Double} deriving (Show, Eq, Num, Fractional)
 instance Csv.FromField Currency where
@@ -308,7 +308,7 @@ toError :: Text -> Either Csv.Field a -> Either InvalidField a
 toError t e = case e of
   Left err -> Left (ParsingError ("Invalid format:" <> decodeUtf8 err) t)
   Right v -> Right v
--- * Renderable
+-- * Renderable 
 
 class Renderable r where
   render :: r -> Widget

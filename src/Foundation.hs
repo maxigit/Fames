@@ -495,7 +495,7 @@ decodeTitle :: Text -> Text
 decodeTitle = Text.replace "_" " " 
     
 
--- * Add suggested links to the suggested links sidebar
+-- * Add suggested links to the suggested links sidebar 
 linksKey :: Text
 linksKey = "links"
 
@@ -516,7 +516,7 @@ getSuggestedLinks = do
 
 
 
--- * Caching
+-- * Caching 
 -- | Caches a Delayed action ie , cache the action
 -- but doesn't execute it until it started (or needed)
 -- The advantage is that the actual action is executed in a separated thread
@@ -549,7 +549,7 @@ purgeCacheKey key = do
   cache <- getsYesod appCache
   purgeKey cache key
 
--- * Colours
+-- * Colours 
 blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg :: Text
 blueBadgeBg = "#29abe0"
 grayBadgeBg = "#cccccc"

@@ -28,11 +28,11 @@ import Formatting.Time(year, month)
 import qualified FA as FA
 
 
--- * Type
+-- * Type 
 
 
--- * Processors
--- ** Manual
+-- * Processors 
+-- ** Manual 
 emptyProcessor :: TaxReportSettings ->  TaxProcessor
 emptyProcessor settings = TaxProcessor {..} where
   checkExternalStatus _ = return Ready
@@ -52,7 +52,7 @@ mkManualProcessor params settings = (emptyProcessor settings)
   { submitReturn = \report -> (Right . (,Nothing)) <$> submitManual params (settings) report
   }
 
--- ** ECSL
+-- ** ECSL 
 mkECSLProcessor :: ECSLProcessorParameters -> TaxReportSettings -> TaxProcessor
 mkECSLProcessor params settings = (emptyProcessor settings)
   { submitReturn = \report -> submitECSL params report settings
@@ -63,7 +63,7 @@ mkECSLProcessor params settings = (emptyProcessor settings)
      <p> Please check negative values are correct before submitting the report.
      |]
   }
--- ** HMRC
+-- ** HMRC 
 mkHMRCProcessor :: HMRCProcessorParameters -> TaxReportSettings -> TaxProcessor
 mkHMRCProcessor params settings = processor where
   processor = (emptyProcessor settings)
@@ -77,23 +77,23 @@ mkHMRCProcessor params settings = processor where
   loadReturn reportId whichBucket = do
     bucket'rates <- getBucketRateFromSettings reportId settings
     boxes <- runDB $ loadTaxBoxesFromBuckets processor  whichBucket reportId bucket'rates
-    -- ^ recompute boxes for the corresponding bucket mode
+    -- \^ recompute boxes for the corresponding bucket mode
     -- which are never saved in the database
     case mkVatReturn "<periodKey>" False (map (mkBox reportId) boxes) of
       Left err -> error (unpack err)
       Right ret -> return ret
-  -- ^ loadTaxBoxes need the processor to use getBoxes
+  -- \^ loadTaxBoxes need the processor to use getBoxes
   mkBox reportId (TaxBox{..}, amount) = TaxReportBox{..} where
           taxReportBoxReport = reportId
           taxReportBoxName = tbName
           taxReportBoxValue = amount
   
 
--- * Main Dispatchers
--- * HMRC
--- ** Types
+-- * Main Dispatchers 
+-- * HMRC 
+-- ** Types 
   
--- ** Main functions
+-- ** Main functions 
 -- | Connect to HMRC and check the status of the current tax return.
   -- Retrieve if needed the period reference needed to submit the return
 checkHMRCStatus :: Entity TaxReport -> HMRCProcessorParameters -> Handler TaxReportStatus
@@ -196,7 +196,7 @@ hmrcMethodsForCorrectingErrors = [shamlet|
 
 -- | Display the legal declaration but within a form with a
 -- mandatory check button
-hmrcPreSubmitCheck :: (Key TaxReport -> Handler (CorrectionStatus, Fixed E2) ) -- ^ status loader
+hmrcPreSubmitCheck :: (Key TaxReport -> Handler (CorrectionStatus, Fixed E2) ) --  ^ status loader
                    -> Entity TaxReport
                    -> Handler (Maybe Widget)
 hmrcPreSubmitCheck getStatus report = do
@@ -231,7 +231,7 @@ getHMRCCorrectionStatus loadReturn report = do
                          allReturn <- loadReturn report AllBuckets
                          let total = abs (vr_totalValueSalesExVAT allReturn)
                          if vat >= (fromRational $ toRational total) * 0.01
-                           -- ^ total is E0 fixed, so we have to convert to E2 before multiplying by 0.01
+                           -- \^ total is E0 fixed, so we have to convert to E2 before multiplying by 0.01
                            -- otherwise 0.0.1 get converted to 0
                            then return CorrectionManual
                            else return CorrectionDisplayNotice
@@ -248,7 +248,7 @@ hmrcPreSubmitForm extra =  do
           ^{renderField v}
           |]
   return (f, widget)
--- * Manual
+-- * Manual 
 -- Set the submitted date 
 submitManual ManualProcessorParameters{..} settings (Entity _ report) = do
   let
@@ -260,8 +260,8 @@ submitManual ManualProcessorParameters{..} settings (Entity _ report) = do
                 , taxReportExternalReference = Just ("Manual:" <> taxReportReference report)
                 }
   
--- * ECSL
--- ** Type
+-- * ECSL 
+-- ** Type 
 data ECSL = ECSL
   { eCountry :: Text
   , eCustomerGST :: Text
@@ -269,7 +269,7 @@ data ECSL = ECSL
   , eAmount :: Int
   , eIndicator :: Int
   } deriving (Eq, Show)
--- ** Common
+-- ** Common 
 parseECSLBucket :: Bucket -> Either (Text, Maybe Text) (Text, Int)
 parseECSLBucket bucket = case break (==';') bucket of 
   (_, "") -> Left (bucket, Nothing)
@@ -301,7 +301,7 @@ getECSLBoxes ECSLProcessorParameters{..} TaxReportSettings{..} buckets = do
   return $ boxesRaw <> bucketBoxes
     
 
--- ** Submit
+-- ** Submit 
 submitECSL :: ECSLProcessorParameters -> Entity TaxReport -> TaxReportSettings
            -> Handler (Either Text ( TaxReport, Maybe TypedContent ))
 submitECSL params@ECSLProcessorParameters{..} report TaxReportSettings{..} = do

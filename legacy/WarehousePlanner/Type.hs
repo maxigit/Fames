@@ -19,7 +19,7 @@ import qualified System.FilePath.Glob as Glob
 import Data.Text hiding(map)
 import Data.Time (Day)
 
--- * Types
+-- * Types 
 data Dimension = Dimension { dLength :: !Double
                            , dWidth  :: !Double
                            , dHeight :: !Double
@@ -114,7 +114,7 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int, Int)]
                            , whCacheM :: Maybe (STRef s (OperationCache s))
                            , whDay :: Day -- Today usefull to compute date operation
-                           -- ^ a cache. We use maybe to that an empty warehouse can be created "purely"
+                           -- \^ a cache. We use maybe to that an empty warehouse can be created "purely"
                            -- Should probably be part of of the WH 
                            
              } -- deriving Show
@@ -144,7 +144,7 @@ type Corner = (Double, Double)
 
 -- | how to render boxes
 data BoxStyling = BoxStyling
-  { foreground :: Colour Double -- ^ Text colour
+  { foreground :: Colour Double --  ^ Text colour
   , background :: Colour Double -- ^ Background colour
   , background2 :: Maybe (Colour Double) -- ^ 2nd Background colour
   , border :: Maybe (Colour Double)  -- ^ border colour if different from foreground
@@ -156,7 +156,7 @@ data BoxStyling = BoxStyling
   } deriving (Show, Eq, Read)
   
 data ShelfStyling = ShelfStyling
-  { foreground :: Colour Double -- ^ Text colour
+  { foreground :: Colour Double --  ^ Text colour
   , background :: Colour Double -- ^ Background colour
   , barForeground :: Colour Double -- ^ Text colour
   , barBackground :: Colour Double -- ^ Background colour
@@ -165,7 +165,7 @@ data ShelfStyling = ShelfStyling
   , barTitle :: Maybe Text -- ^ text to display in the bar
   , displayBarGauge :: Bool -- ^ to display or the bar gauge
   } deriving (Show, Eq, Read)
--- * Classes
+-- * Classes 
 class ShelfIdable a where
     shelfId :: a s -> ShelfId s
 class (ShelfIdable b) => Shelf' b where
@@ -181,7 +181,7 @@ class Referable a where
 class HasTags a where
   getTags :: a -> Tags
 
--- * Instances
+-- * Instances 
 instance Semigroup Dimension where
     (Dimension l w h) <> (Dimension l' w' h') =
             Dimension (l+l') (w+w') (h+h')
@@ -244,15 +244,15 @@ instance Semigroup (ShelfGroup s) where
 instance Monoid (ShelfGroup s) where
     mempty = ShelfGroup [] Vertical
 
--- * Utilities
--- ** Dimensions
+-- * Utilities 
+-- ** Dimensions 
 volume :: Dimension -> Double
 volume (Dimension l w h) = l*w*h
 floorSpace :: Dimension -> Double
 floorSpace (Dimension l w _) = l*w
--- ** Boxes
+-- ** Boxes 
 
--- ** Orientations
+-- ** Orientations 
 up, tiltedForward, tiltedRight, tiltedFR, rotatedSide, rotatedUp :: Orientation
 up = Orientation Vertical Depth
 tiltedForward = Orientation Depth Vertical
@@ -300,7 +300,7 @@ rotate o (Dimension l w h)
     | o == rotatedSide    =  Dimension h l w
     | True  = error $ "Unexpected rotation" <> show o
 
--- ** Boxes
+-- ** Boxes 
 boxKey :: Box s -> Text
 boxKey b = (boxStyle b) <> (boxContent b)
 boxSku :: Box s -> Text
@@ -329,7 +329,7 @@ boxVolume = volume . boxDim
 boxOffset' :: Box s -> Dimension
 boxOffset' b = boxOffset b <> boxDim b
 
--- ** Tags
+-- ** Tags 
 flattenTagValues :: Set Text -> Text
 flattenTagValues = intercalate ";" . Set.toList
 flattenTag'Values :: (Text, Set Text) -> Text
@@ -339,7 +339,7 @@ flattenTag'Values (tag, values) = case flattenTagValues values of
 
 flattenTags :: Tags -> [Text]
 flattenTags = map flattenTag'Values . Map.toList 
--- ** Shelves
+-- ** Shelves 
 shelfVolume :: Shelf s -> Double
 shelfVolume = volume . minDim
 
@@ -347,20 +347,20 @@ shelfNameTag :: Shelf s -> Text
 shelfNameTag s = intercalate "#" ( shelfName s
                                  : (flattenTags (shelfTag s))
                                  )
--- ** Selectors
+-- ** Selectors 
 -- | Some cases are overlapping but it is on purpose
 -- so that we can speed up 
 data TagSelector  a
-          = TagHasKey !MatchPattern -- ^ check present of key not is value
-          | TagHasNotKey !MatchPattern -- ^ check present of key not is value
-          | TagIsKey !MatchPattern -- ^ present with no value
-          -- | TagHasNotKey !MatchPattern -- ^ not present  (in all values)
-          -- | TagIsKeyAndValue Text Text -- ^ check key and value
-          | TagIsKeyAndValues !MatchPattern ![MatchPattern] -- ^ check key and all values are exact
-          | TagHasKeyAndValues !MatchPattern ![MatchPattern] -- ^ check key and at least all values are present
+          = TagHasKey !MatchPattern --  ^ check present of key not is value
+          | TagHasNotKey !MatchPattern --  ^ check present of key not is value
+          | TagIsKey !MatchPattern --  ^ present with no value
+          -- -| TagHasNotKey !MatchPattern --  ^ not present  (in all values)
+          -- -| TagIsKeyAndValue Text Text --  ^ check key and value
+          | TagIsKeyAndValues !MatchPattern ![MatchPattern] --  ^ check key and all values are exact
+          | TagHasKeyAndValues !MatchPattern ![MatchPattern] --  ^ check key and at least all values are present
           | TagHasValues ![MatchPattern]
           | TagHasNotValues ![MatchPattern]
-          | TagHasKeyAndNotValues !MatchPattern ![MatchPattern] -- ^ check key and at least all values are present
+          | TagHasKeyAndNotValues !MatchPattern ![MatchPattern] --  ^ check key and at least all values are present
           deriving Show
           -- deriving (Eq,Show,Ord)
 
@@ -369,7 +369,7 @@ data MatchPattern
    | MatchAnything
    | MatchGlob !Glob.Pattern
    deriving (Eq, Show)
-   -- | MatchRegext Text
+   -- -| MatchRegext Text
 
 data NameSelector a = NameMatches [MatchPattern] -- matches one of
                     | NameDoesNotMatch [MatchPattern] -- matche none of
@@ -405,6 +405,6 @@ data ShelfSelector s = ShelfSelector
   } deriving (Show)
 
 
--- ** Warehouse
+-- ** Warehouse 
 
--- ** Similar
+-- ** Similar 

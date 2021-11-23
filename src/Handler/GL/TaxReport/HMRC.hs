@@ -20,7 +20,7 @@ import Data.Yaml.Pretty(encodePretty, defConfig)
 import qualified Network.Wai as W
 import qualified Data.CaseInsensitive as CI
 
--- * Types
+-- * Types 
 data VATObligation = VATObligation
    { start :: Day
    , end :: Day
@@ -58,12 +58,12 @@ $(deriveJSON defaultOptions {fieldLabelModifier = drop 3} ''VATReturn)
 
 -- | Weither corrections from the past can be submitted or
 data CorrectionStatus
-  = CorrectionOK -- ^ No correction neeed
-  | CorrectionDisplayNotice -- ^ ask the user to check that correctin are within threshold
-  | CorrectionManual -- ^ Can't do it. Things in the past needs to be uncollected
+  = CorrectionOK --  ^ No correction neeed
+  | CorrectionDisplayNotice --  ^ ask the user to check that correctin are within threshold
+  | CorrectionManual --  ^ Can't do it. Things in the past needs to be uncollected
   deriving Show
 
--- ** Connection to HMRC website
+-- ** Connection to HMRC website 
 
 --  Key used to cache auth information
 data AuthKey = HMRCAuthKey Text  -- report Type
@@ -279,7 +279,7 @@ mkVatReturn vr_periodKey vr_finalised boxes = do -- Either
 
   return VATReturn{..}
 
--- * Fraud Validation headers
+-- * Fraud Validation headers 
 -- | Validates the fraud preventions using HMRC test website
 validateHMRCFraudPreventionHeaders :: Text -> HMRCProcessorParameters -> Handler Html
 validateHMRCFraudPreventionHeaders taxReportType params = do

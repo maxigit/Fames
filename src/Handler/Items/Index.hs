@@ -32,7 +32,7 @@ import Util.Cache
 import Control.Comonad
 import qualified Generics.OneLiner as OL
   
--- * Types
+-- * Types 
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
 data IndexParam = IndexParam
@@ -113,7 +113,7 @@ data Button = CreateMissingBtn
             | DeleteBtn
             deriving (Read, Show)
 data ButtonStatus = BtnActive | BtnInactive Text | BtnHidden deriving Show
--- * Handlers
+-- * Handlers 
 -- | Override parameters from Url
 -- Allows, link from categories to call this page
 overrideParamFromUrl :: IndexParam -> Handler IndexParam
@@ -163,8 +163,8 @@ purchaseAuth = do
   role <- currentRole
   return $ null (filterPermissions ReadRequest (setFromList ["purchase/prices"]) role)
     
--- * Utils
--- ** Constants
+-- * Utils 
+-- ** Constants 
 -- | Default cached delay. 5 minutes. Can be refreshed using the refresh cache button if needed.
 -- At the moment there is a bug in the Cache which prevent
 -- cache items to be purged before the delay expires.
@@ -172,16 +172,16 @@ purchaseAuth = do
 -- so it is better at the moment to have of short life cache.
 cacheDelay :: CacheDelay
 cacheDelay = cacheMinute 15
--- ** Params and Forms
+-- ** Params and Forms 
 paramDef :: Maybe ItemViewMode -> IndexParam
 paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
                            Nothing Nothing -- variation
                            False True
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
-                           False -- ^ clear c
+                           False --  ^ clear c
                            Nothing Nothing Nothing Nothing Nothing Nothing Nothing -- status filter
-                           Nothing -- ^ base variation
+                           Nothing -- _^ base variation
 
 -- g :: Applicative f => (f (Double -> Bool -> ABC)) -> _ -> f ABC
 -- g  = a <*> undefined
@@ -317,7 +317,7 @@ checkFilter param sku0 =
         _non_empty -> sku `member` set
   in toKeep sku0
 
--- ** Preloaded Cache
+-- ** Preloaded Cache 
 fillIndexCache :: Handler IndexCache
 fillIndexCache = fillIndexCache' (Just [])
 fillIndexCache' :: Maybe [Text] -> Handler IndexCache
@@ -350,7 +350,7 @@ fillIndexCache' categoriesm = do
   return $ mkCache catFinder categories
   
   
--- ** StyleAdjustment
+-- ** StyleAdjustment 
 getAdjustBase :: Handler (IndexCache -> ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
 getAdjustBase = do
   settings <- appSettings <$> getYesod
@@ -396,8 +396,8 @@ adjustDescription varMap var0 var desc =
               , let f vs = varsToVariation (map f0 vs)
               ]
       in appEndo (mconcat endos) desc
--- * Load DB 
--- ** StockMaster info
+-- * Load DB  
+-- ** StockMaster info 
 -- |  Load all variations matching the criteria
 -- regardless or whether they've been checked or not
 loadVariations :: (?skuToStyleVar :: Text -> (Text, Text))
@@ -491,7 +491,7 @@ loadVariations cache param = do
       filterActive = if ipShowInactive param
                      then id
                      else  (List.filter (maybe False (not . runIdentity . smfInactive) . (impMaster . iiInfo)))
-                     -- ^ only keep active variations
+                     -- \^ only keep active variations
                      -- impMaster not present, means the variations hasn't been loaded (ie filtered)
                      -- so we are not showing it
       baseCandidates = maybe [] (splitOn "|") (ipBaseVariation param)
@@ -532,7 +532,7 @@ filterFromParam param@IndexParam{..} cache (base, vars0) = let
                                      , purchasePriceStatusOk (suppliersToKeep cache param)
                                      , faStatusOk, webStatusOk, webPriceStatusOk (webPriceListToKeep cache param)
                                      ]
-  -- | variation given as parameter or base one
+  -- -| variation given as parameter or base one
   isBase info = iiVariation base == iiVariation info
   in case vars of
        []                       -> Nothing
@@ -603,7 +603,7 @@ webPriceStatusOk priceListIds = checkStatuses ipWebPriceStatusFilter (fmap (([],
 webPriceStatus :: [Key SalesType] -> ItemPriceF ((,) [Text]) -> PriceStatus
 webPriceStatus priceListIds (ItemPriceF prices) = pricesStatus id unSalesTypeKey priceListIds prices
   
--- ** Sales prices
+-- ** Sales prices 
 -- | Load sales prices 
     -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices :: (?skuToStyleVar :: Text -> (Text, Text))
@@ -647,7 +647,7 @@ priceListsToKeep cache params =
   let plIds =  map (entityKey) (icPriceLists cache)
   in filter (\(SalesTypeKey i) -> (priceColumnCheckId i) `elem` ipColumns params) plIds
   
--- ** Purchase prices
+-- ** Purchase prices 
 -- | Load purchase prices
 -- loadPurchasePrices :: IndexParam -> Handler [ ItemInfo (Map Text Double) ]
 loadPurchasePrices :: (?skuToStyleVar :: Text -> (Text,Text))
@@ -689,7 +689,7 @@ suppliersToKeep cache params = let
   suppIds = keys (icSupplierNames cache)
   in (map SupplierKey) (filter (\i -> (supplierColumnCheckId i) `elem` ipColumns params) (suppIds))
 
--- ** FA Status
+-- ** FA Status 
 -- | Load item status, needed to know if an item can be deactivated or deleted safely
 -- This includes if items have been even ran, still in stock, on demand (sales) or on order (purchase)
 loadStatus :: (?skuToStyleVar :: Text -> (Text,Text))
@@ -744,7 +744,7 @@ loadStatus param = do
              ]
     _ -> return []
 
--- ** Web Status
+-- ** Web Status 
     
 -- | Load Web Status, if item exists, have a product display, activated and the prices
 -- FIXME: Technically we don't need to return SqlHandler, as we are not using
@@ -772,7 +772,7 @@ loadWebStatus param = do
          
     _ -> return []
 
--- ** Web Prices
+-- ** Web Prices 
 loadWebPrices :: (?skuToStyleVar :: Text -> (Text, Text))
               => IndexCache -> IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebPrices cache param = do
@@ -822,8 +822,8 @@ loadVariationsToKeep cache params = do
   return . filter (not . null . snd  ) -- filter Group with no variations left
          $ (filter toKeep) <$$> itemGroups -- 
 
--- * Misc
--- ** Type conversions
+-- * Misc 
+-- ** Type conversions 
 stockItemMasterToItem :: (?skuToStyleVar :: Text -> (Text,Text))
               => (Entity FA.StockMaster) -> ItemInfo (ItemMasterAndPrices Identity)
 stockItemMasterToItem (Entity key val) = ItemInfo  style var master where
@@ -843,13 +843,13 @@ stockMasterToItemCode (Entity stockIdKey StockMaster{..}) = let
   itemCodeInactive = stockMasterInactive
   in ItemCode{..}
 
--- ** Helpers
+-- ** Helpers 
 -- | Lookup for list of variation code
 lookupVars :: Map Text Text -> Text -> [Text]
 lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
 
 
--- ** Table Infos
+-- ** Table Infos 
 -- | List or columns for a given mode
 columnsFor :: IndexCache -> ItemViewMode -> [ItemInfo (ItemMasterAndPrices f)] -> [IndexColumn]
 columnsFor _ ItemGLView _ = GLStatusColumn : map GLColumn cols where
@@ -1022,7 +1022,7 @@ itemsTable cache param = do
                                     .map styleFirst $ rowGroup))
                       
 
--- *** columns
+-- *** columns 
 columnForSMI :: Text -> (StockMasterF ((,) [Text])) -> Maybe ([Text], Html)
 columnForSMI col stock =
   case col of 
@@ -1135,7 +1135,7 @@ columnForCategory catName category = ([], badgify catName category <> link ) whe
   link = [shamlet|<a href="/items/index/Nothing?category=#{catName}&category-filter=#{category}">@|]
   --  hack because shamlet can't use a route, so we need to set the route manually instead
   --  of using @{..}
--- * Rendering
+-- * Rendering 
 renderButton :: IndexParam -> Text -> Button -> Html
 renderButton param bclass button = case buttonStatus param button of
   BtnActive ->  [shamlet|
@@ -1271,7 +1271,7 @@ $('[data-toggle="tooltip"]').tooltip();
       returnJson (renderHtml html)
       
         
--- ** css classes
+-- ** css classes 
   
 priceColumnCheckId i = tshow i
 supplierColumnCheckId i = tshow i
@@ -1335,9 +1335,9 @@ getColumnToTitle cache param = do
 columnClass :: IndexColumn -> Text
 columnClass col = filter (/= ' ') (tshow col)
   
--- * Actions
--- ** Missings
--- *** Actions
+-- * Actions 
+-- ** Missings 
+-- *** Actions 
 createMissing :: (?skuToStyleVar :: Text -> (Text, Text))
                   => IndexParam -> Handler ()
 createMissing params = do
@@ -1362,7 +1362,7 @@ deleteItems params = do
   return resp
 
 
--- ***  Gl
+-- ***  Gl 
 createGLMissings :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexParam -> Handler ()
 createGLMissings params = do
@@ -1478,7 +1478,7 @@ deletePurchasePrices  params = do
 
   runDB $ mapM_ deleteWhere deletePairs
 
--- *** Website
+-- *** Website 
 createDCMissings :: (?skuToStyleVar :: Text -> (Text, Text))
                   => IndexParam -> Handler ()
 createDCMissings params = do
@@ -1610,7 +1610,7 @@ newProductField f (pId, revId) = f
  "und"
  0
 
--- **** commerce_product
+-- **** commerce_product 
 -- | Create and insert a new product in the corresponding table
 createAndInsertNewProducts :: Int -> [Text] -> SqlHandler [Entity DC.CommerceProductT]
 createAndInsertNewProducts timestamp skus =  do
@@ -1668,7 +1668,7 @@ deleteCommerceProduct (pId, mrevId) = do
 
                  delete revId
               )
--- **** field_*_field_price : main price. Should be Retail price
+-- **** field_*_field_price : main price. Should be Retail price 
 createAndInsertProductPrices :: [Double]
                              -> [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
                              -> _
@@ -1697,7 +1697,7 @@ deleteProductPrice (pId,mrevId) = do
                              , DC.FieldRevisionCommercePriceTEntityType ==. "commerce_product"
                              ]
              )
--- **** field*_field_colour
+-- **** field*_field_colour 
 loadDCColorMap :: Handler (Map Text Int)
 loadDCColorMap = cache0 False cacheForEver "dc-color-map" $ do
   let sql = "SELECT field_colour_code_value, entity_id "
@@ -1754,7 +1754,7 @@ deleteProductTrimColour (pId,mrevId) = do
 newProductColour colId mkColour pId'revId =
   newProductField mkColour pId'revId (Just colId)
 
--- **** field_*_field_stock_status 
+-- **** field_*_field_stock_status  
 createAndInsertProductStockStatus p'rKeys = do
   createAndInsertFields (newProductStockStatus (Just 70) DC.FieldDataFieldStockStatusT) p'rKeys
   createAndInsertRevFields (newProductStockStatus (Just 70) DC.FieldRevisionFieldStockStatusT) p'rKeys
@@ -1786,12 +1786,12 @@ deleteProductStockStatus (pId,mrevId) = do
                              ]
              )
   
--- **** field_*_field_product : link to product display
+-- **** field_*_field_product : link to product display 
 -- | Create product display link for all variations of a given style
 createMissingDCLinks
   :: IndexCache
-  -> Text -- ^ Style name, common to all variations
-  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
+  -> Text --  ^ Style name, common to all variations
+  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] --  ^ variations
   -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
   -> SqlHandler ()
 createMissingDCLinks __cache style group_ p'rMap = do
@@ -1943,11 +1943,11 @@ newProductDCLink' displayId displayRev mk delta (pId, __revId) = mk
 
       
     
--- **** Web Prices : different price lists
+-- **** Web Prices : different price lists 
 
 createMissingWebPrices
   :: IndexCache
-  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
+  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] --  ^ variations
   -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
   -> SqlHandler ()
 createMissingWebPrices cache group_ p'revMap = do
@@ -2000,7 +2000,7 @@ newProductFieldPrice mk price p'r =
   newProductField mk p'r (round $ 100* price) ("GBP") Nothing
   
 
--- ** Activation
+-- ** Activation 
 -- | Activates/deactivate and item in FrontAccounting.
 changeFAActivation :: Bool -> IndexParam -> Handler ()
 changeFAActivation activate_ param = do

@@ -29,7 +29,7 @@ import qualified Data.Map as Map
 import Data.List(nub)
 import Util.Decimal
 
--- * Handler
+-- * Handler 
 
 -- | Display the list of the available tax reports
 {-# NOINLINE getGLTaxReportsR #-}
@@ -218,7 +218,7 @@ getGLTaxReportStatusesR name = do
   w <- displayExternalStatuses processor name
   defaultLayout $ infoPanel name w
 
--- ** HMRC OAuth2
+-- ** HMRC OAuth2 
 -- | Process The authorization code from HMRC
 {-# NOINLINE getGLTaxReportOAuthR #-}
 getGLTaxReportOAuthR :: Handler TypedContent
@@ -276,7 +276,7 @@ getGLTaxReportValidateFraudPreventionHeadersR report = do
   
   
 
--- * Render
+-- * Render 
 
 renderReportList :: (Text, TaxReportSettings) -> Handler (Text, Widget)
 renderReportList (name, settings) = runDB $ do
@@ -474,9 +474,9 @@ _to_remove_renderTransDifferedTable reportId = do
     })
                   |]
 
-renderTaxDetailTable :: (FATransType -> Int -> Text) -- ^ Url
-                     -> (FATransType -> Maybe Int64 -> Text) -- ^ Name
-                     -> (FA.TaxTypeId -> Maybe Text) -- ^ Tax type name
+renderTaxDetailTable :: (FATransType -> Int -> Text) --  ^ Url
+                     -> (FATransType -> Maybe Int64 -> Text) --  ^ Name
+                     -> (FA.TaxTypeId -> Maybe Text) --  ^ Tax type name
                      -> [(TaxBox, TaxDetail -> Maybe Decimal) ]
                      -> Day -> [TaxDetail] -> Widget
 renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
@@ -547,7 +547,7 @@ renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
           |] <> toWidget commonCSS
 
 -- | Do pivot table  Bucket/Rate
-renderBucketTable :: Set (Bucket, Entity FA.TaxType) -- ^ Combination bucket/rate used by config
+renderBucketTable :: Set (Bucket, Entity FA.TaxType) --  ^ Combination bucket/rate used by config
                   -> Map (Bucket, Entity FA.TaxType) TaxSummary -> Widget
 renderBucketTable bucket'rates bucketMap = let
   bucketMap' = unionWith (<>) bucketMap $ mapFromList $ (map (, TaxSummary 0 0 ) (toList bucket'rates))
@@ -848,7 +848,7 @@ span.badge.down
 
     
 
--- ** Saving
+-- ** Saving 
 -- | Mark the report as done and save its boxes
 closeReport  :: TaxProcessor -> Entity TaxReport -> Handler ()
 closeReport  processor report = do
@@ -873,7 +873,7 @@ openReport (Entity reportKey report) = do
   lift $ setSuccess "Report has been succesfully reopened."
   
 
--- ** Util
+-- ** Util 
 -- | Return the setting corresponding to a report name.
 -- Normally, all the function calling should have been given
 -- a valid report name. Unless the user is typing randorm url.

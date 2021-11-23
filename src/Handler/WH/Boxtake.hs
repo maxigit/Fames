@@ -25,7 +25,7 @@ import Handler.WH.Boxtake.Upload
 import Handler.WH.Boxtake.Adjustment
 import Data.Conduit.List(sourceList)
 import Database.Persist.Sql (fromSqlKey)
--- * Types
+-- * Types 
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Read, Show, Enum, Bounded)
 
@@ -56,8 +56,8 @@ data UploadParam = UploadParam
 -- defaultUploadParam = UploadParam Nothing Nothing Nothing UTF8 WipeShelves
 
 
--- * Requests
--- ** Boxtake history
+-- * Requests 
+-- ** Boxtake history 
 {-# NOINLINE getWHBoxtakeR #-}
 getWHBoxtakeR :: Handler Html
 getWHBoxtakeR = do
@@ -83,7 +83,7 @@ getWHBoxtakeDetailR barcode = do
       Nothing -> setError (toHtml ("Can't find any box with barcode '" <> barcode <> "'")) >> return ""
       Just boxtake -> return $ renderBoxtakeDetail operatorsMap boxtake stocktakes
   
--- ** Upload
+-- ** Upload 
 {-# NOINLINE getWHBoxtakeValidateR #-}
 getWHBoxtakeValidateR :: Handler Html
 getWHBoxtakeValidateR = renderBoxtakeSheet Validate Nothing 202 (return ()) (return ())
@@ -105,7 +105,7 @@ postWHBoxtakeSaveR = do
                         in spreadSheetToCsv adjust renderStocktakeCsv
     _ -> processBoxtakeSheet Save
 
--- * Planner
+-- * Planner 
 {-# NOINLINE getWHBoxtakePlannerR #-}
 getWHBoxtakePlannerR :: Handler TypedContent
 getWHBoxtakePlannerR = do
@@ -160,7 +160,7 @@ spreadSheetToCsv adjust renderCsv = processBoxtakeSheet' Save go
                  Just (Entity bId box) <- return $ rowBoxtake row -- skip Nothing
                  return $ Entity bId (adjust session box)
 
--- * To Stocktake
+-- * To Stocktake 
 renderStocktakeCsv boxSources = do
   today <- todayH
   oMap <-  allOperators
@@ -191,7 +191,7 @@ toStocktake opMap (Entity _ Boxtake{..}) =
    ]
   
   
--- * Adjustment
+-- * Adjustment 
 -- Boxtake Adjustment allows to validate or invalidate boxtake
 -- depending on the actual stock
 
@@ -230,7 +230,7 @@ getWHBoxtakeAdjustmentForR style skipOk todaym = do
 
   
 
--- * Forms
+-- * Forms 
 inquiryForm :: Maybe BoxtakeInquiryParam -> _
 inquiryForm param0 = renderBootstrap3 BootstrapBasicForm form
   where form = BoxtakeInquiryParam
@@ -266,8 +266,8 @@ adjustmentForm param = renderBootstrap3 BootstrapBasicForm form where
                          <*> areq boolField "Group Style" (Just $ aStyleSummary param)
                          <*> aopt dayField "Stock Valuation Date" (Just $ aDate param)
 
--- * Rendering
--- ** Boxtake history
+-- * Rendering 
+-- ** Boxtake history 
 renderBoxtakes :: BoxtakeInquiryParam -> Handler Html
 renderBoxtakes param = do
   boxtakes <- loadBoxtakes param
@@ -290,7 +290,7 @@ renderBoxtakes param = do
           |]
   
 
--- *** Table
+-- *** Table 
 renderBoxtakeTable :: (Map (Key Operator) Operator) -> [Entity Boxtake] -> Widget
 renderBoxtakeTable opMap boxtakes = do
   [whamlet|
@@ -319,12 +319,12 @@ renderBoxtakeTable opMap boxtakes = do
         <td> #{displayActive (boxtakeActive boxtake)}
           |]
   
--- *** List
+-- *** List 
 renderBoxtakeList :: (Map (Key Operator) Operator) ->  [(Entity Boxtake, [Entity Stocktake])] -> Widget
 renderBoxtakeList opMap boxtake'stocktakesS = do
   mapM_ (\(box, sts) -> renderBoxtakeDetail opMap box sts ) boxtake'stocktakesS
 
--- ** Detail
+-- ** Detail 
 
 renderBoxtakeDetail :: (Map (Key Operator) Operator) -> Entity Boxtake  -> [Entity Stocktake] -> Widget
 renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
@@ -530,7 +530,7 @@ renderMissingBoxRow renderUrl (Entity _ missing) = [whamlet|
         <td> #{boxtakeActive missing}
         <td> #{tshow (boxtakeDate missing)}
         |]
--- ** Upload 
+-- ** Upload  
 -- | Displays the main form to upload a boxtake spreadsheet.
 -- It is also use to display the result of the validation (the 'pre' Widget)
 renderBoxtakeSheet :: SavingMode -> Maybe UploadParam -> Int -> Handler() -> Widget -> Handler Html
@@ -605,7 +605,7 @@ processBoxtakeMove Save _ (sessions, styleMissings) = do
         mapM_ (setActivateBoxtake False maxDate) (concatMap missingBoxes styleMissings)
   renderBoxtakeSheet Validate Nothing (fromEnum created201) (setSuccess "Boxtake uploaded successfully") (return ())
 
--- ** Adjustment
+-- ** Adjustment 
           
 renderBoxtakeAdjustments :: AdjustmentParam -> Maybe Widget -> Handler TypedContent
 renderBoxtakeAdjustments param resultM = do
@@ -628,7 +628,7 @@ renderBoxtakeAdjustments param resultM = do
                                        )
   
 
--- * DB Access
+-- * DB Access 
 loadBoxtakes :: BoxtakeInquiryParam -> Handler [Entity Boxtake]
 loadBoxtakes param = do
   let filter_ = filterE id BoxtakeBarcode (pBarcode param)
@@ -648,7 +648,7 @@ loadBoxtakes param = do
                else [BoxtakeActive ==. True]
   runDB $ selectList (active <> filter_) opts
   
--- * Util
+-- * Util 
 
 opName :: (Map (Key Operator) Operator) -> Key Operator -> Text
 opName opMap key = maybe "" operatorNickname (lookup key opMap)

@@ -328,7 +328,7 @@ mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} =
     -- and amount. Without that, because of the minimum weigh of 10g, 250 feathers will be seen
     -- weighing 250x0.01= 2.5kg
   in case unitWeight of
-      Right w | w {- * debtorTransDetailQuantity -} < 0.01 ->
+      Right w | w {-  * debtorTransDetailQuantity -} < 0.01 ->
            ProductDetail{ quantity=1
                         , description= (fromString $ show quantity <> " x ") <>  description
                         , unitValue = fromIntegral quantity * unitValue

@@ -143,7 +143,7 @@ getOriginalQuantities row = do
 -- updateQOH = 
 -- updateQOH _ = undefined
 
--- * Toggle All
+-- * Toggle All 
 installActiveCallback :: Fay JQuery
 installActiveCallback = do
   master <- select "#stock-adj-active-all"

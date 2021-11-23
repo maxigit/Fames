@@ -50,7 +50,7 @@ data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
 -- | Type of file
 data Format = PartialFirst deriving (Eq, Read, Show)
 data UploadParam = UploadParam
-  { orderRef :: Text -- ^ original order reference
+  { orderRef :: Text --  ^ original order reference
   , invoiceRef :: Text -- ^ name of the file to upload
   , container :: Maybe Text
   , vessel :: Maybe Text
@@ -232,7 +232,7 @@ processUpload mode param = do
                       (onSuccess mode)
     (parsePackingList (orderRef param) bytes)
 
-  -- | Update denormalized fields, ie boxesToDeliver_d
+  -- -| Update denormalized fields, ie boxesToDeliver_d
 updateDenorm :: Key PackingList -> SqlHandler ()
 updateDenorm plKey = do
   boxesToDeliver <- count [ PackingListDetailPackingList ==. plKey
@@ -359,7 +359,7 @@ detailToBoxtake param docKey detail = Boxtake
 
 
 
--- ** View
+-- ** View 
 
 
 {-# NOINLINE getWHPackingListViewR #-}
@@ -1220,7 +1220,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
 
 
 
--- ** Parse delivery cart
+-- ** Parse delivery cart 
 
 -- | Wrap result of parseDeliveryList in a newtype to be renderable
 
@@ -1247,7 +1247,7 @@ parseDeliverList cart = let
 
 
 
--- ** Parse invoice list
+-- ** Parse invoice list 
 parseInvoiceList :: PackingListId -> Text -> ParsingResult ParseDeliveryError [TransactionMap]
 parseInvoiceList plKey cart = let
   parsed = map parseLine (filter (not . isPrefixOf "--") (lines cart))
@@ -1273,7 +1273,7 @@ parseInvoiceList plKey cart = let
 
 
 
--- * Render
+-- * Render 
 instance Num () where
   () + () = ()
   () * () = ()
@@ -1362,7 +1362,7 @@ instance Renderable [ParseDeliveryError] where
         <li>#{line'}
 |]
 
--- * Saving
+-- * Saving 
 savePLFromRows :: DocumentHash -> UploadParam -> [(PLOrderRef, [PLBoxGroup])] -> Handler (PackingList, [PackingListDetail])
 savePLFromRows key param sections = do
   runDB $ do
@@ -1445,7 +1445,7 @@ updateDocumentKey plKey bytes  = do
 
   update plKey [PackingListDocumentKey =. docKey ]
 
--- ** Update details
+-- ** Update details 
 replacePLDetails ::  Key PackingList -> [(PLOrderRef, [PLBoxGroup])] -> ByteString -> SqlHandler ()
 replacePLDetails plKey sections cart = do
   -- As we total discard the content of the previous document
@@ -1480,7 +1480,7 @@ deletePLDetails plKey sections = do
                                               <*> packingListDetailBoxNumber
                           )
                 )
--- * Report
+-- * Report 
 formatDouble' = sformat commasFixed
 data ReportParam  = ReportParam
   { rpStart :: Maybe Day
@@ -1723,10 +1723,10 @@ renderDetailInfo marginM infos = do
 
 -- | Computes cbm and costs for a given PL
 loadPLInfo :: (Double -> Double -> Double) -> Entity PackingList
-           -> SqlHandler (Entity PackingList -- ^ itself
-                         , (Double -- ^ Cbm
+           -> SqlHandler (Entity PackingList --  ^ itself
+                         , (Double --  ^ Cbm
                            , (_ -- PL cost
-                             , Map Text DetailInfo -- ^ cost per style
+                             , Map Text DetailInfo --  ^ cost per style
                              ) )
                          )
 loadPLInfo rateFn e@(Entity plKey pl) = do
