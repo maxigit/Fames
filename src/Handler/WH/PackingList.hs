@@ -633,10 +633,10 @@ renderStickers today pl entities =
 -- Transforms a serie of colour quantites, to box marks ie
 -- colour name and circles for every 6.
 -- see specs for explanation
-detailToStickerMarks :: PackingListDetail -> [Text] -- 16 fields
+detailToStickerMarks :: PackingListDetail -> [Text] -- 12 fields
 detailToStickerMarks detail = let
   marks = contentToMarks . Map.toList $ packingListDetailContent detail
-  in take 16 $ marks ++ (repeat "")
+  in take 12 $ marks ++ (repeat "")
 
 contentToMarks :: [(Text, Int)] -> [Text]
 contentToMarks unsorted =  let
