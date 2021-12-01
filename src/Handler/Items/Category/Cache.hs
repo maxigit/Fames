@@ -26,6 +26,7 @@ import qualified Data.List as Data.List
 import Data.Maybe(fromJust)
 import Data.Align(align)
 import Lens.Micro.Extras (preview)
+import Lens.Micro
 import Data.These.Lens
 import Text.Printf(printf) 
 import Data.Time (diffDays)
@@ -47,7 +48,7 @@ data StockMasterRuleInfo = StockMasterRuleInfo
   , smInventoryAccount :: !String
   , smAdjustmentAccount :: !String
   , smSalesPrice :: !(Maybe Double)
-  , smDeliveries :: [FA.StockMove]
+  , smDeliveries :: [StockMove'Batch]
   } deriving Show
 
 stockMasterRuleInfoToTuple StockMasterRuleInfo{..} =
@@ -292,18 +293,21 @@ categoriesFor deliveryRules rules = let
 
 
 -- ***  Track delivery 
+type StockMove'Batch = (FA.StockMove, Maybe Batch')
+newtype Batch' = Batch' { unBatch' :: Text } 
+  deriving (Show)
 -- Try to guess the provenance of each item in stock
 -- by comparing the quantity on hand in each container
 -- and what's been delivered.
 -- We cheat a bit and replace the reference with the Purchase order ref
 -- if possible
-type StockMovePlus = StockMove -- (FA.StockMove, Maybe (Entity Packing List))
-loadItemDeliveryForSku :: Key StockMaster -> SqlHandler [StockMovePlus]
+--
+loadItemDeliveryForSku :: Key StockMaster -> SqlHandler [StockMove'Batch]
 loadItemDeliveryForSku (FA.StockMasterKey sku) = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
 -- Load transactions "creating"  new item, ie purchase order delivery  and postive adjustments
   let moveSql = "SELECT ??, IF(po.requisition_no='', concat('#', po.order_no) , po.requisition_no) "
-              <> ", ?? "
+              <> ", batch "
               <> "FROM 0_stock_moves " 
               <> "LEFT JOIN 0_grn_batch AS b ON (b.id = trans_no and type =?) "
               <> "LEFT JOIN 0_purch_orders AS po ON (b.purch_order_no = po.order_no) "
@@ -314,17 +318,19 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
               <> "WHERE type IN (?,?) AND 0_stock_moves.stock_id = ? AND qty >0 "
               <> "ORDER BY 0_stock_moves.stock_id, loc_code, tran_date DESC "
   
-  move'pos'pl <- rawSql moveSql [ toPersistValue (fromEnum ST_SUPPRECEIVE)
+  move'pos'batch <- rawSql moveSql [ toPersistValue (fromEnum ST_SUPPRECEIVE)
                           , toPersistValue PackingListInvoiceE
                           , toPersistValue (fromEnum ST_SUPPRECEIVE)
                           , toPersistValue (fromEnum ST_INVADJUST)
                           , toPersistValue sku
                           ]
-  let _types = move'pos'pl :: [(Entity StockMove, Single (Maybe Text), Maybe (Entity PackingList)) ]
-  let moves = map (\(Entity _ move, Single poRefM, _plm) -> case poRefM of
-                     Nothing -> move
-                     Just ref -> move { stockMoveReference = "PO=" <> ref } -- stockMover reference should be null 
-                  ) $ traceShowId $ move'pos'pl
+  let moves = map (\(Entity _ move, Single poRefM, batchm) -> 
+                    ( case poRefM of
+                         Nothing -> move
+                         Just ref -> move { stockMoveReference = "PO=" <> ref } -- stockMover reference should be null 
+                    , fmap (Batch' . unSingle)  batchm
+                    )
+                  ) move'pos'batch
   -- [FA.StockMoveType <-. (map fromEnum [ST_SUPPRECEIVE, ST_INVADJUST]),  FA.StockMoveStockId ==. sku ]
   --           [Asc FA.StockMoveStockId, Asc FA.StockMoveLocCode, Asc FA.StockMoveTranDate]
   
@@ -332,7 +338,7 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
   qohs <- selectList [FA.DenormQohStockId ==. Just sku] [Asc FA.DenormQohLocCode]
 
   let locQohMap = Map.fromList $ map ((fromJust . FA.denormQohLocCode &&& fromJust . FA.denormQohQuantity) . entityVal) qohs
-      locTransMap = groupAscAsMap  FA.stockMoveLocCode (:[])  moves
+      locTransMap = groupAscAsMap  (FA.stockMoveLocCode . fst) (:[])  moves
       locs = align locTransMap locQohMap
 
       defLocM = lookup defaultLocation locs
@@ -341,7 +347,7 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
       -- transaction "used" From other container (ie not lef t) have
       -- probably been transfered to the default location
       used = concatMap fst $ map (partitionDeliveriesFIFO) (Map.elems otherLoc)
-      defThese = These (sortOn FA.stockMoveTranDate $ fromMaybe [] (defLocM >>= preview here) <> used)
+      defThese = These (sortOn (FA.stockMoveTranDate . fst)  $ fromMaybe [] (defLocM >>= preview here) <> used)
                        (fromMaybe 0 (defLocM >>= preview there))
       (_, remainers) = partitionDeliveriesFIFO defThese
 
@@ -355,26 +361,28 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
 -- this will be split into A:10 B:2 (used) and B:2 C:5 (left)
 -- This gives us the composition of the current stock given the qoh assuming
 -- items are use FIFO
-partitionDeliveriesFIFO :: These [FA.StockMove] Double -> ([FA.StockMove], [FA.StockMove])
+partitionDeliveriesFIFO :: These [StockMove'Batch] Double -> ([StockMove'Batch], [StockMove'Batch])
 partitionDeliveriesFIFO (This moves) = (moves, []) -- nothing left
 partitionDeliveriesFIFO (That _) = ([], []) -- should raise an error ?
 partitionDeliveriesFIFO (These moves 0) = partitionDeliveriesFIFO (This moves)
 partitionDeliveriesFIFO (These [] _) = ([], [])
 partitionDeliveriesFIFO (These moves' qoh) = let
-  moves = sortOn FA.stockMoveTranDate moves'
-  quantities = map FA.stockMoveQty moves
+  moves = sortOn (FA.stockMoveTranDate . fst) moves'
+  quantities = map (FA.stockMoveQty . fst)  moves
   -- normally we could create a running balance from the end
   -- but it might be faster to not create a reverse list
   total = sum quantities 
+  setQty = sets (\f s -> s { stockMoveQty = f (stockMoveQty s ) })
   usedQty = total - qoh
   running = zip (Data.List.scanl1 (+) quantities) moves
   (used',leftover') = case span ((<= usedQty) . fst) running of
     (used, l@((run, current):leftover)) ->
-      let toUse = usedQty - (run - FA.stockMoveQty current)
+      let toUse = usedQty - (run - (FA.stockMoveQty . fst) current)
       in if toUse == 0
          then (used, l)
-         else ( used ++ [ (run, current {stockMoveQty = toUse})]
-              , (run, current {stockMoveQty = FA.stockMoveQty current - toUse}):leftover
+          else ( used ++ [ (run, current & _1 . setQty    .~ toUse)]
+              -- , (run, current {stockMoveQty = FA.stockMoveQty current - toUse}):leftover
+              , (run, current & _1 . setQty -~ toUse):leftover
               )
     r ->  r
   in
@@ -386,18 +394,18 @@ partitionDeliveriesFIFO (These moves' qoh) = let
 
 -- | Creates an input map (category:value) to be given as preset category
 -- needed to compute item batch category
-mkItemDeliveryInput :: [Map Text DeliveryCategoryRule] -> ([String], [FA.StockMove] -> [(String, String)])
+mkItemDeliveryInput :: [Map Text DeliveryCategoryRule] -> ([String], [StockMove'Batch] -> [(String, String)])
 mkItemDeliveryInput ruleM = (inputKeys, fn) where
   inputKeys = ["trans_no", "location", "date", "reference", "type", "person", "stockId"]
-  fn moves = let
+  fn move'batchs = let
       value'qohs = case extractMainDeliveryRule ruleM of
-        Nothing -> map (liftA2 (,) source stockMoveQty) moves
+        Nothing -> map (liftA2 (,) source (stockMoveQty . fst)) move'batchs
         Just (ruleName, rules) -> let
           catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys <> map fst rules))
           in mapMaybe (\move -> lookup ruleName $ computeCategories catRegexCache rules (ruleInput move) (source move)
-                                <&> (,stockMoveQty move)
-                              )  moves
-      ruleInput FA.StockMove{..} = RuleInput (Map.fromList
+                                <&> (,stockMoveQty $ fst move)
+                              )  move'batchs
+      ruleInput (FA.StockMove{..}, batchm)  = RuleInput (Map.fromList
         [ ("trans_no", show stockMoveTransNo)
         , ("location", unpack stockMoveLocCode)
         , ("date", show stockMoveTranDate)
@@ -407,8 +415,9 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
         , ("person", maybe "" show stockMovePersonId)
         , ("quantity", show (floor stockMoveQty))
         , ("stockId", unpack stockMoveStockId)
+        , ("batch", maybe "" (unpack . unBatch') batchm)
         ]) Nothing
-      source FA.StockMove{..} = show stockMoveTranDate
+      source (FA.StockMove{..},_) = show stockMoveTranDate
                   <> " " <> showTransType (toEnum stockMoveType) -- full text 
                   <> " " <> show stockMoveType -- number for easier "selection"
                   <> "#" <>  show stockMoveTransNo
