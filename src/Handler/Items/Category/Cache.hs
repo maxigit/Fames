@@ -297,26 +297,34 @@ categoriesFor deliveryRules rules = let
 -- and what's been delivered.
 -- We cheat a bit and replace the reference with the Purchase order ref
 -- if possible
-loadItemDeliveryForSku :: Key StockMaster -> SqlHandler [StockMove]
+type StockMovePlus = StockMove -- (FA.StockMove, Maybe (Entity Packing List))
+loadItemDeliveryForSku :: Key StockMaster -> SqlHandler [StockMovePlus]
 loadItemDeliveryForSku (FA.StockMasterKey sku) = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
 -- Load transactions "creating"  new item, ie purchase order delivery  and postive adjustments
   let moveSql = "SELECT ??, IF(po.requisition_no='', concat('#', po.order_no) , po.requisition_no) "
-              <> "FROM 0_stock_moves "
+              <> ", ?? "
+              <> "FROM 0_stock_moves " 
               <> "LEFT JOIN 0_grn_batch AS b ON (b.id = trans_no and type =?) "
               <> "LEFT JOIN 0_purch_orders AS po ON (b.purch_order_no = po.order_no) "
-              <> "WHERE type IN (?,?) AND stock_id = ? AND qty >0 "
-              <> "ORDER BY stock_id, loc_code, tran_date DESC "
+              <> "LEFT JOIN 0_grn_items AS gi ON (gi.grn_batch_id = b.id AND gi.item_code = stock_id) "
+              <> "LEFT JOIN 0_supp_invoice_items as ii ON (ii.grn_item_id = gi.id ) "
+              <> "LEFT JOIN fames_transaction_map tm ON (fa_trans_type = ii.supp_trans_type AND fa_trans_no = ii.supp_trans_no AND event_type = ? ) "
+              <> "LEFT JOIN fames_packinglist ON (event_no = packinglist_id) "
+              <> "WHERE type IN (?,?) AND 0_stock_moves.stock_id = ? AND qty >0 "
+              <> "ORDER BY 0_stock_moves.stock_id, loc_code, tran_date DESC "
   
-  move'pos <- rawSql moveSql [ toPersistValue (fromEnum ST_SUPPRECEIVE)
+  move'pos'pl <- rawSql moveSql [ toPersistValue (fromEnum ST_SUPPRECEIVE)
+                          , toPersistValue PackingListInvoiceE
                           , toPersistValue (fromEnum ST_SUPPRECEIVE)
                           , toPersistValue (fromEnum ST_INVADJUST)
                           , toPersistValue sku
                           ]
-  let moves = map (\(Entity _ move, Single poRefM) -> case poRefM of
+  let _types = move'pos'pl :: [(Entity StockMove, Single (Maybe Text), Maybe (Entity PackingList)) ]
+  let moves = map (\(Entity _ move, Single poRefM, _plm) -> case poRefM of
                      Nothing -> move
                      Just ref -> move { stockMoveReference = "PO=" <> ref } -- stockMover reference should be null 
-                  ) move'pos
+                  ) $ traceShowId $ move'pos'pl
   -- [FA.StockMoveType <-. (map fromEnum [ST_SUPPRECEIVE, ST_INVADJUST]),  FA.StockMoveStockId ==. sku ]
   --           [Asc FA.StockMoveStockId, Asc FA.StockMoveLocCode, Asc FA.StockMoveTranDate]
   
