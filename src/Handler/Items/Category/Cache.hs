@@ -396,7 +396,7 @@ partitionDeliveriesFIFO (These moves' qoh) = let
 -- needed to compute item batch category
 mkItemDeliveryInput :: [Map Text DeliveryCategoryRule] -> ([String], [StockMove'Batch] -> [(String, String)])
 mkItemDeliveryInput ruleM = (inputKeys, fn) where
-  inputKeys = ["trans_no", "location", "date", "reference", "type", "person", "stockId"]
+  inputKeys = ["trans_no", "location", "date", "reference", "type", "person", "stockId", "pl-batch"]
   fn move'batchs = let
       value'qohs = case extractMainDeliveryRule ruleM of
         Nothing -> map (liftA2 (,) source (stockMoveQty . fst)) move'batchs
@@ -415,7 +415,7 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
         , ("person", maybe "" show stockMovePersonId)
         , ("quantity", show (floor stockMoveQty))
         , ("stockId", unpack stockMoveStockId)
-        , ("batch", maybe "" (unpack . unBatch') batchm)
+        , ("pl-batch", maybe "" (unpack . unBatch') batchm)
         ]) Nothing
       source (FA.StockMove{..},_) = show stockMoveTranDate
                   <> " " <> showTransType (toEnum stockMoveType) -- full text 
