@@ -324,7 +324,8 @@ fraudPreventionHeadersH HMRCProcessorParameters{..} = do
                    then "true" :: String
                    else "false"
       userAgent = decodeUtf8 <$> W.requestHeaderUserAgent request
-      (clientPublicIP, _:rPort) = break (==':') $ show (W.remoteHost request)
+      (_clientPublicIP, _:rPort) = break (==':') $ show (W.remoteHost request)
+      clientPublicIP = vendorPublicIP -- using IP from request returns a local IP 172... not a public one.
       vendorPublicIP = "87.102.31.114" :: String
       hops = "by=" <> vendorPublicIP <> "&for=" <> clientPublicIP
       version = "fames=" <> githash <> "&fames-front-end=" <> githash
