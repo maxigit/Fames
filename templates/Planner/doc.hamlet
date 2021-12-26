@@ -192,7 +192,7 @@ A planner file is made of different sections. Each section corresponds to an org
           Tags can be used to specify the styling of a shelves.
           Example
           <pre>
-            :SHELF_TAG:
+            :SHELF_TAGS:
             stock_id,tag
             A,tag -- tag all shelves containing A
             /S,tag -- tag shelves with name S
