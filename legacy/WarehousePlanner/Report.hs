@@ -31,7 +31,7 @@ import qualified Data.Map.Strict as Map'
 import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
 import qualified Data.List as List
-
+import Data.Text(breakOn)
 import Text.Tabular as Tabul
 import Data.Text(replace)
 
@@ -163,9 +163,8 @@ report shelf box = do
 -- | find the best shelf for a given style
 -- Doesn't take into account boxes already there.
 bestShelvesFor :: Text -> WH [Text]s
-bestShelvesFor style = do
-    boxes <- findBoxByNameSelector (matchName $ style) >>= mapM findBox
-    shelves <- toList <$> gets shelves >>= mapM findShelf
+bestShelvesFor style'shelf = do
+    (boxes, shelves) <- boxAndShelvesFor style'shelf
     or <- gets boxOrientations
 
     let box = headEx boxes
@@ -173,14 +172,23 @@ bestShelvesFor style = do
 
     mapM (flip report $ box) bests
 
+boxAndShelvesFor :: Text -> WH ([Box s], [Shelf s]) s
+boxAndShelvesFor style'shelf = do
+  let (style, shelfSelector) = case (breakOn "," style'shelf) of
+                                  (s,"") -> (s, "")
+                                  (box, shelf) -> (box, drop 1 shelf)
+                                  
+  boxes <- findBoxByNameSelector (matchName $ style) >>= mapM findBox
+  shelves <- findShelfBySelector (parseSelector shelfSelector) >>= mapM findShelf
+  return (boxes, shelves)
+
 -- | find the best shelf for a given style
 -- depends on what's already there.
 bestAvailableShelvesFor :: Text -> WH [Text] s
-bestAvailableShelvesFor style = do
-    boxes <- findBoxByNameSelector  (matchName $ style) >>= mapM findBox
+bestAvailableShelvesFor style'shelf = do
+    (boxes, shelves) <- boxAndShelvesFor style'shelf
     or <- gets boxOrientations
     let  box = headEx boxes
-    shelves <- toList <$> gets shelves >>= mapM findShelf
     -- sort is stable so by passing shelves in
     -- the best order we get at shelves sorted by
     -- n and then best order
