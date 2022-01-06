@@ -96,7 +96,12 @@ expand name = let
                   n  = length elements
               (e,i) <- zip (unpack elements) [1..n]
               (expanded, exTag) <- expand (drop 1 rest)
-              return (fix <> cons e expanded, exTag <|> if i == n then tag else Nothing)
+              let finalTag =
+                    case catMaybes [if i == n then tag else Nothing, exTag] of
+                      [] -> Nothing
+                      tags -> Just $ intercalate "#" tags
+                    
+              return (fix <> cons e expanded , finalTag)
     _ -> error "Should not happen" -- We've been breaking on [
 
 
