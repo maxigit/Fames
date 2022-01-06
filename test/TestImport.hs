@@ -10,7 +10,7 @@ module TestImport
 import Application           (makeFoundation, makeLogWare)
 import ClassyPrelude         as X hiding (delete, deleteBy, Handler)
 import Database.Persist      as X hiding (get)
-import Database.Persist.Sql  (SqlPersistM, runSqlPersistMPool, rawExecute, rawSql, unSingle, connEscapeName)
+import Database.Persist.Sql  (SqlPersistM, runSqlPersistMPool, rawExecute, rawSql, unSingle)
 import Foundation            as X
 import Model                 as X
 import Test.Hspec            as X
@@ -20,9 +20,10 @@ import Yesod.Core.Unsafe     (fakeHandlerGetLogger)
 import qualified Yesod.Persist.Core as Persist
 import Yesod.Auth (Route(LoginR))
 import Settings(appRoleFor)
-import Role(Role(Administrator), RoleFor(..))
+-- import Role(Role(Administrator), RoleFor(..))
 import System.IO.Temp (openTempFile)
 import Handler.Util               as X
+import Control.Monad.Fail
 
 -- Log as administrator, In theory gives access to every page
 logAsAdmin = do
@@ -83,8 +84,7 @@ keepAllTables _ = Keep
 wipeDB :: (Text -> KeepOrWipe) -> App -> IO ()
 wipeDB toKeep app = runDBWithApp app $ do
     tables <- filter ((== Wipe) . toKeep) <$> getTables
-    sqlBackend <- ask
-    let queries = map (\t -> "TRUNCATE TABLE " ++ connEscapeName sqlBackend (DBName t)) tables
+    let queries = map (\t -> "TRUNCATE TABLE " ++ t) tables
 
     -- In MySQL, a table cannot be truncated if another table references it via foreign key.
     -- Since we're wiping both the parent and child tables, though, it's safe
@@ -109,3 +109,5 @@ saveToTempFile content = liftIO $ do
   hClose handle
   return path
 
+instance MonadFail (YesodExample App) where
+  fail = error
