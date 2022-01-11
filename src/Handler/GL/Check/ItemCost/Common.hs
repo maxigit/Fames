@@ -367,15 +367,34 @@ loadUncollectables account = do
   sku'_s <- getItemFor account
   let skums = Nothing : map (Just . fst) sku'_s
   let ?collectMode = Uncollectables
-  fmap catMaybes $ forM skums $ \skum -> do
+  voideds <- loadVoided account
+  modifieds <- fmap catMaybes $ forM skums $ \skum -> do
     lastm <- either id entityVal <$$> loadInitialSummary account (\_ -> return Nothing ) skum
     case lastm of
       Just last_ -> do
         -- load transactions not collected before the summary
         trans <- loadMovesAndTransactions lastm (Just $ (-1) `addDays`  itemCostSummaryDate last_) account skum
-        return $ headMay $ trans
+        return $ headMay trans
       _ -> return Nothing
+  return (voideds <> modifieds)
 
+-- | Load voided transaction
+loadVoided :: Account -> Handler [Matched]
+loadVoided (Account account) = do
+  let sql = " SELECT ??,?? "
+            <> " FROM check_item_cost_transaction "
+            <> " JOIN 0_voided ON (0_voided.type = fa_trans_type AND 0_voided.id = fa_trans_no)"
+            <> " LEFT JOIN 0_gl_trans ON (0_gl_trans.counter =gl_detail) "
+            <> " LEFT JOIN 0_stock_moves ON (0_stock_moves.trans_id = move_id) "
+            <> " WHERE check_item_cost_transaction.account = ? "
+            <> " AND fa_amount != 0 AND quantity != 0 " -- not voided
+      mkTrans (Just gl, Just mv) = Just (These mv gl, (0, Normal))
+      mkTrans (Just gl, Nothing) = Just (That gl , (0, Normal))
+      mkTrans (Nothing, Just mv) = Just (This mv, (0, Normal))
+      mkTrans _ = Nothing
+  rows <- runDB $ rawSql sql [toPersistValue account]
+  return $ mapMaybe mkTrans rows
+       
 -- ** Computing cost transaction 
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
