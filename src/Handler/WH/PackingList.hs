@@ -44,6 +44,7 @@ import qualified FA as FA
 import Formatting hiding(bytes)
 import Data.Align(align)
 import Handler.Items.Common(skuToStyleVarH, dutyForH)
+import Data.Char (isAlphaNum)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -663,7 +664,7 @@ stickerSource ::
 stickerSource today pl entities = do
   let sorted = sortBy (comparing cmp) entities
       cmp (Entity _ detail) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
-  yield "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,batch,a1Morse\n"
+  yield "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,batch,a1Morse,a1Space\n"
   yieldMany [ packingListDetailStyle detail
             <> "," <> (tshow $ fromMaybe today (packingListArriving pl) )
             <> "," <> (packingListDetailReference detail )
@@ -672,6 +673,7 @@ stickerSource today pl entities = do
             <> "," <> (intercalate "," (detailToStickerMarks detail))
             <> "," <> (fromMaybe "" $ packingListBatch pl)
             <> "," <> (toMorse . fromMaybe "" . headMay $ detailToStickerMarks detail)
+            <> "," <> (withSpace . fromMaybe "" . headMay $ detailToStickerMarks detail)
             <> "\n"
             | (Entity _ detail) <- sorted
             ]
@@ -1895,7 +1897,14 @@ toMorse =  intercalate "   " . map go . unpack . toUpper  where
     'Z' -> "ーー・・"
     c -> pack [c]
      
-
+-- | Replace special characters with space
+-- this is more suitable for morse reprensation
+-- because / or * take lots of spaces in morse
+withSpace :: Text -> Text
+withSpace = omap sub  where
+  sub c = if isAlphaNum c
+          then c
+          else ' '
 
 
 
