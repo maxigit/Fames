@@ -27,7 +27,7 @@ module WarehousePlanner.Base
 , findBoxByNameSelector
 , shelfBoxes
 , orTrue
-, howMany
+, howMany, howManyWithDiagonal
 , filterBoxByTag
 , filterShelfByTag
 , buildWarehouse
@@ -334,7 +334,7 @@ defaultBoxOrientations box shelf =
                                     ors -> ors
             FilterOrientations orientations_ -> boxBoxOrientations box List.\\ orientations_
             AddOrientations lefts_ rights_ -> lefts_ `List.union` boxBoxOrientations box `List.union` rights_
-    in map (\o -> (o,0,1)) orientations
+    in map (\o -> OrientationStrategy o 0 1 True) orientations
 
 defaultBoxStyling = BoxStyling{..} where
   foreground = black
@@ -515,13 +515,15 @@ deleteBoxes boxIds = do
 
 -- | find the best way to arrange some boxes within the given space
 -- For the same number of boxes. use the biggest diagonal first, then  the smallest shelf
-bestArrangement :: Show a => [(Orientation, Int, Int)] -> [(Dimension, a)] -> Dimension -> (Orientation, Int, Int, Int, a)
+bestArrangement :: Show a => [OrientationStrategy] -> [(Dimension, a)] -> Dimension -> (Orientation, Bool, Int, Int, Int, a)
 bestArrangement orientations shelves box = let
-    options = [ (o, extra, (nl, max minW (min nw maxW), nh), sl*sw*sh)
-              | (o, minW, maxW) <-   orientations
+    options = [ (o, diag, extra, (nl, max minW (min nw maxW), nh), sl*sw*sh)
+              | (OrientationStrategy o  minW  maxW diag) <-   orientations
               , (shelf, extra) <- shelves
               , let Dimension sl sw sh =  shelf
-              , let (nl, nw, nh) = howMany shelf (rotate o box)
+              , let (nl, nw, nh) = if diag
+                                   then  howManyWithDiagonal shelf (rotate o box)
+                                   else howMany shelf (rotate o box)
               ]
 
     bests = sortBy (compare `on` fst)
@@ -529,10 +531,10 @@ bestArrangement orientations shelves box = let
                     , bh*bh*fromIntegral(nh*nh)+bl*bl*fromIntegral(nl*nl)
                     , vol
                     )
-                  , (ori, nl, nw, nh, extra)
+                  , (ori, diag, nl, nw, nh, extra)
 
                   )
-                 | (ori, extra, (nl, nw, nh), vol ) <- options
+                 | (ori, diag, extra, (nl, nw, nh), vol ) <- options
                  , let Dimension bl bh _bw = rotate ori box
                  ]
     in
@@ -558,6 +560,54 @@ howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
                                                  , fit h hb
                                                  ) where
         fit d db = floor (max 0 (d-0) /(db+0))
+
+-- | Find how many boxes fits using a "diagnal trick", when one box is rotated the other along a diagoral.
+-- For example
+--    1477
+--    14 8
+--    2558
+--    2 69
+--    3369
+--  3, 5 and 7 box are rotated down allowing f
+howManyWithDiagonal :: Dimension -> Dimension -> (Int, Int, Int)
+howManyWithDiagonal outer@(Dimension l _ h) inner@(Dimension lb _ hb) | hb > lb =   
+  let (ln, wn, hn) = howMany outer inner
+      -- normal without diagonal
+      lGap = l - fromIntegral ln * lb 
+      hGap = h - fromIntegral hn * hb
+      diff = hb - lb
+      -- Check if turnig a box down will allow one more row
+      -- for that we need the gap left on l
+      -- to be greater than 
+      -- if that's the case, 
+      -- we extend the width by (lb-wb) as many times as diagonals or squares
+      squareN = ((ln-1) `div` (hn+1)) +1
+      --              ^               ^ so that wn=3 ln3 => 1
+      --                                and wn=4 ln=3 => 2
+      r  = if  hGap >= lb && lGap >= fromIntegral squareN * diff 
+      then
+        (ln, wn, hn+1)
+      else
+        (ln, wn, hn)
+  in -- traceShow ("lGap", lGap, "hGap", hGap, "ln", ln, "hn", hn, "squareN", squareN, diff, fromIntegral squareN*diff-lGap) 
+     r
+howManyWithDiagonal outer inner = howMany outer inner
+
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 type SimilarBoxes s = SimilarBy Dimension (Box s)
@@ -592,7 +642,7 @@ fillShelf exitMode  s simBoxes0 = do
       _ -> do
         boxo <- gets boxOrientations
         let orientations = boxo box shelf
-        let (bestO, nl_, nw, nh, (lused', hused')) =
+        let (bestO, diag, nl_, nw, nh, (lused', hused')) =
                             bestArrangement orientations
                                               [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
                                               | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
@@ -600,8 +650,7 @@ fillShelf exitMode  s simBoxes0 = do
                                               , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
                                               ] dim
             nl = if exitMode == ExitLeft then nl_ else min 1 nl_
-            Dimension l' w' h' = rotate bestO dim
-
+            rotated@(Dimension l' w' h') = rotate bestO dim
             offsets = [Dimension (lused' + l'*fromIntegral il)
                                 (w'* fromIntegral iw)
                                 (hused' + h'*fromIntegral ih)
@@ -625,11 +674,25 @@ fillShelf exitMode  s simBoxes0 = do
                        -- if modified modify assignOffsetWithBreaks accordingly
                       ]
             -- but within the box potentially move 
-            box'Offsets = assignOffsetWithBreaks (shelfFillingStrategy shelf) Nothing boxes offsets
+            box'Offsets0 = assignOffsetWithBreaks (shelfFillingStrategy shelf) Nothing boxes offsets
+            box''Offset'Diags = if diag
+                              then map adjustDiagonal box'Offsets0
+                              else map (,bestO) box'Offsets0
+            adjustDiagonal (box, offset) =
+              let trans = Dimension lused' 0 hused'
+                  indices = offsetToIndex trans rotated offset
+                  (new, turned) = indexToOffsetDiag trans rotated nh indices
+                  newOrientation = if turned 
+                                   then rotateO bestO
+                                   else bestO
+              in ((box, new), newOrientation)
+                  
+                                
+
         -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
-        mapM_ (uncurry $ shiftBox bestO) box'Offsets
-        let leftm = dropSimilar (length box'Offsets) simBoxes
-        case (box'Offsets, exitMode) of
+        mapM_ (\((box, offset), ori) -> shiftBox ori box offset) box''Offset'Diags
+        let leftm = dropSimilar (length box'Offsets0) simBoxes
+        case (box'Offsets0, exitMode) of
             ([], _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
             (_ , ExitOnTop) -> return (leftm, Just shelf) --  ^ exit on top, we stop there, but the shelf is not full
             (_, ExitLeft) -> return (leftm, Nothing)  --  ^ pretends the shelf is full
@@ -641,6 +704,62 @@ fillShelf exitMode  s simBoxes0 = do
             assignShelf (Just s) box'
           -- fillShelfm x s Nothing = return (Nothing, Just s)
           -- fillShelfm x s (Just lefts_) = fillShelf x s lefts_
+            
+
+-- ^ Transform a position to a index given a translation and a box dimension
+offsetToIndex :: Dimension -> Dimension -> Dimension -> (Int, Int, Int)
+offsetToIndex (Dimension tl tw th) (Dimension l w h) (Dimension ol ow oh) =
+  ( round ((ol - tl) / l)
+  , round ((ow - tw) / w)
+  , round ((oh - th) / h)
+  )
+
+_not_used_indexToOffset :: Dimension -> Dimension -> (Int, Int, Int) -> Dimension
+_not_used_indexToOffset (Dimension tl tw th) (Dimension l w h) (il, iw, ih) =
+  Dimension (fromIntegral il * l + tl)
+            (fromIntegral iw * w + tw)
+            (fromIntegral ih * h + th)
+
+-- | Computes position and orientation of a box within a "Diagonal" pattern
+-- see `howManyWithDiagonal`
+indexToOffsetDiag :: Dimension -> Dimension -> Int -> (Int, Int, Int) -> (Dimension, Bool)
+indexToOffsetDiag (Dimension tl tw th) box@(Dimension l _ h) maxH (il, iw, ih) | il > maxH =
+  indexToOffsetDiag (Dimension (tl + fromIntegral (il-1) * l + h) tw th)
+                    box maxH (il-maxH,iw,ih)
+indexToOffsetDiag (Dimension tl tw th) (Dimension l w h) _ (il, iw, ih) =
+  if ih < il 
+  then -- left of diagonal
+    (Dimension (tl + fromIntegral (il-1) * l + h)
+               (tw + fromIntegral iw * w)
+               (th + fromIntegral ih * h)
+    , False
+    )
+  else if ih == il -- diagonal
+  then
+    (Dimension (tl + fromIntegral il * l)
+               (tw + fromIntegral iw * w)
+               (th + fromIntegral ih * h)
+    , True
+    )
+  else -- right diagonal
+    (Dimension (tl + fromIntegral il * l)
+               (tw + fromIntegral iw * w)
+               (th + fromIntegral (ih-1) * h + l)
+    , False
+    )
+
+-- | Rotate an Orientation by 90 facing the depth
+rotateO :: Orientation -> Orientation
+rotateO (Orientation{..}) =
+  case top of
+    Depth -> Orientation top (rot front)
+    _ -> Orientation (rot top) front
+  where 
+    rot Vertical = Horizontal
+    rot Horizontal = Vertical
+    rot Depth = Depth
+
+                    
 
 
 -- |  Assign offset to boxes so they can be moved

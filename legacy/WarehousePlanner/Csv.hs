@@ -509,7 +509,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
 
 
 -- * read orientation rules 
-readOrientationRules :: [Orientation] -> FilePath -> IO (Box s -> Shelf s -> Maybe [(Orientation, Int, Int)])
+readOrientationRules :: [Orientation] -> FilePath -> IO (Box s -> Shelf s -> Maybe [OrientationStrategy])
 readOrientationRules defOrs filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
@@ -563,7 +563,7 @@ setOrientationRules defOrs filename = do
 -- example:
 -- 9 -- max 9
 -- 1:9 -- min 1
-parseOrientationRule:: [Orientation] -> Text -> [(Orientation, Int, Int)]
+parseOrientationRule:: [Orientation] -> Text -> [OrientationStrategy]
 parseOrientationRule defOrs cs = let
   (ns, cs') = span (isDigit) cs
   Just n0 = readMay ns
@@ -576,9 +576,10 @@ parseOrientationRule defOrs cs = let
     Nothing -> (0, n0)
     Just Nothing -> (n0, n0)
     Just (Just n) -> (n0, n)
+  diag = False
 
   ors = case cs'' of
     "" -> defOrs
     s -> readOrientations defOrs s
-  in [(o, min_, max_) | o <- ors ]
+  in [(OrientationStrategy o  min_  max_ diag) | o <- ors ]
   

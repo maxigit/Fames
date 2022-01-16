@@ -64,7 +64,7 @@ bestBoxesFor shelf = do
     let s  = headEx shelves
         tries = [ (-((fromIntegral (n*k*m))*(boxVolume box / boxHeight box / shelfVolume s * shelfHeight s)), box)
             | (box, ors) <- bors
-            , let (_,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
+            , let (_,_,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
             ]
 
         bests = sortBy (compare `on` fst) tries
@@ -86,7 +86,7 @@ bestHeightForShelf shelf = do
     let s  = headEx shelves
         tries = [ (-((fromIntegral (n*k*m))*boxVolume box / shelfVolume s), (box, or, (n,k,m)))
             | (box, ors) <- bors
-            , let (or,n,k,m,_) = bestArrangement' (ors s) [(maxDim s, s)] (_boxDim box)
+            , let (or,_,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
             ]
 
         bests = sortBy (compare `on` fst) tries
@@ -115,37 +115,11 @@ bestHeightForShelf shelf = do
     ios <- mapM (reportHeight s) (map snd bests)
     return $ sequence_ ios
 
--- | Like best arrangement but only take the
-bestArrangement' :: Show a => [(Orientation, Int, Int)] -> [(Dimension, a)] -> Dimension -> (Orientation, Int, Int, Int, a)
-bestArrangement' orientations shelves box = let
-    options = [ (o, extra, (nl, max minW (min nw maxW), 1), sl*sw*sh)
-              | (o, minW, maxW) <-   orientations
-              , (shelf, extra) <- shelves
-              , let Dimension sl sw sh =  shelf
-              , let (nl, nw, _nh) = howMany shelf (rotate o box)
-              ]
-
-    bests = sortBy (compare `on` fst)
-                [ ( ( -nl*nh*nw
-                    , bh*bh*fromIntegral(nh*nh)+bl*bl*fromIntegral(nl*nl)
-                    , vol
-                    )
-                  , (ori, nl, nw, nh, extra)
-
-                  )
-                 | (ori, extra, (nl, nw, nh), vol ) <- options
-                 , let Dimension bl bh _bw = rotate ori box
-                 ]
-    in
-        -- trace ({-tshow shelves <> tshow box <>-}  tshow bests) $
-        (snd . headEx) bests
-
-
 report :: Shelf s -> Box s -> WH Text s
 report shelf box = do
     getOr <- gets boxOrientations
     similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
-    let (or,n,k,m,_) = bestArrangement (getOr box shelf) [(maxDim shelf, shelf)] (_boxDim box)
+    let (or,_,n,k,m,_) = bestArrangement (getOr box shelf) [(maxDim shelf, shelf)] (_boxDim box)
         ratio = boxVolume box * fromIntegral (n * k * m) / shelfVolume shelf
         numberOfBoxes = length similarBoxes
         shelvesNeeded = fromIntegral numberOfBoxes / fromIntegral (n*m*k)
@@ -604,11 +578,11 @@ rVolumeLeftForAllFull r = rVolumeLeftForFull r * (fromIntegral $ rUsedShelves r)
 -- | Define Ord for residuals so that "best" residuals are first
 -- best minimize the wasted space
 
-findResidual :: [(Orientation, Int, Int)] -> Shelf s -> Box s -> Int -> Int -> Maybe (Residual s)
+findResidual :: [OrientationStrategy] -> Shelf s -> Box s -> Int -> Int -> Maybe (Residual s)
 findResidual orientations shelf box qty nbOfShelf = let
   sdim = maxDim shelf
   bdim = _boxDim box
-  (or, nl, nw, nh, ()) = bestArrangement orientations [(sdim, ())] bdim
+  (or,_, nl, nw, nh, ()) = bestArrangement orientations [(sdim, ())] bdim
   in case nl*nw*nh of
     0 -> Nothing
     nbPerShelf -> let

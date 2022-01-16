@@ -46,6 +46,16 @@ data BoxNumberSelector = BoxNumberSelector
 -- | How something is oriented. It indicates  the direction of
 -- the normal of the given face.
 data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
+
+
+-- | Possible orientations plus min max depth
+data OrientationStrategy  = OrientationStrategy
+  { osOrientations :: Orientation
+  , osMinDepth :: Int
+  , osMaxDepth :: Int
+  , osUseDiagonal :: Bool -- ^ see `howManyWithDiagonal`
+  } deriving (Show, Eq, Ord)
+
 -- | Every box belongs to a shelf.
 -- Non placed boxes belongs to the special default shelf
 newtype BoxId s = BoxId (STRef s (Box s)) deriving (Eq)
@@ -111,7 +121,7 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , shelfGroup :: ShelfGroup s
                            , boxStyling :: Box s -> BoxStyling
                            , shelfStyling :: Shelf s -> ShelfStyling
-                           , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int, Int)]
+                           , boxOrientations :: Box s -> Shelf s -> [OrientationStrategy]
                            , whCacheM :: Maybe (STRef s (OperationCache s))
                            , whDay :: Day -- Today usefull to compute date operation
                            -- \^ a cache. We use maybe to that an empty warehouse can be created "purely"

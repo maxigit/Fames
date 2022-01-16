@@ -9,15 +9,15 @@ import Control.Monad.State
 
 -- | find shelves allowing the less waste
 -- if it were filled with the same box
-bestShelves :: Box s -> (Shelf s -> [(Orientation, Int, Int)]) -> [Shelf s] ->  [Shelf s]
+bestShelves :: Box s -> (Shelf s -> [OrientationStrategy]) -> [Shelf s] ->  [Shelf s]
 bestShelves box ors ss  = let
     tries = [ (-((fromIntegral (n*k*m))*boxVolume box / shelfVolume s), s)
             | s <- ss
-            , let (_,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
+            , let (_,_,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
             ]
     in map snd $ sortBy (compare `on` fst) tries
 
-fillBest :: (Box s -> [(Orientation, Int, Int)] -> [Shelf s] -> [Shelf s])
+fillBest :: (Box s -> [OrientationStrategy] -> [Shelf s] -> [Shelf s])
           -> [Box s] 
           -> [Shelf s]
           -> WH [Box s] s
@@ -25,7 +25,7 @@ fillBest  fit boxes shelves = do
     aroundArrangement (fillBest' fit) boxes shelves
 
 fillBest' :: Shelf' shelf =>
-             (Box s -> [(Orientation, Int, Int)] -> t -> [shelf s])
+             (Box s -> [OrientationStrategy] -> t -> [shelf s])
           -> [Box s] -> t -> WH [Box s] s
 fillBest' fit boxes shelves = do
         boxo <- gets boxOrientations
@@ -43,16 +43,3 @@ fillBest' fit boxes shelves = do
 
     
     
-
-
-
-
-
-
-
-
-
-
-
-
-

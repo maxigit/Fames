@@ -262,13 +262,16 @@ displayBox outer innerm   = let
 -- | Calculate 
 innerBoxes :: Dimension -> Dimension -> [PDimension]
 innerBoxes outer inner =
-  let orientations = zip3 allOrientations (repeat 0) (repeat 6)
+  let orientations = zipWith3 (\o minW maxW -> OrientationStrategy o minW maxW False)
+                              allOrientations
+                              (repeat 0)
+                              (repeat 6)
       -- try with shrunk box by 1 cm first
       best0 = bestArrangement orientations [(outer, ())] inner
       shrink (Dimension x y z) = Dimension (x-1) (y-1) (z-1)
       best = bestArrangement orientations [(shrink outer, ())] inner
-      (ori, nl, nw, nh, _) = case best of
-         (__ori, nl_, nw_, nh_, _) | nl_*nw_*nh_ > 0 -> best
+      (ori,_,  nl, nw, nh, _) = case best of
+         (__ori, _, nl_, nw_, nh_, _) | nl_*nw_*nh_ > 0 -> best
          _ -> best0
       (Dimension l w h) = W.rotate ori inner
   in reverse $ [ PDimension (Dimension l0 w0 h0) inner ori
