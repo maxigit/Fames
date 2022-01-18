@@ -47,6 +47,7 @@ module WarehousePlanner.Base
 , module WarehousePlanner.Type
 , clearCache
 , boxCoordinate
+, indexToOffsetDiag, d0, r
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix)
@@ -591,6 +592,10 @@ howManyWithDiagonal outer@(Dimension l _ h) inner@(Dimension lb _ hb) | hb > lb 
         (ln, wn, hn)
   in -- traceShow ("lGap", lGap, "hGap", hGap, "ln", ln, "hn", hn, "squareN", squareN, diff, fromIntegral squareN*diff-lGap) 
      r
+howManyWithDiagonal (Dimension l w h) (Dimension lb wb hb) | hb < lb =   
+  let (nl, nw, nh) = howManyWithDiagonal (Dimension h w l)
+                                         (Dimension hb wb lb)
+  in (nh, nw, nl)
 howManyWithDiagonal outer inner = howMany outer inner
 
 
@@ -681,7 +686,7 @@ fillShelf exitMode  s simBoxes0 = do
             adjustDiagonal (box, offset) =
               let trans = Dimension lused' 0 hused'
                   indices = offsetToIndex trans rotated offset
-                  (new, turned) = indexToOffsetDiag trans rotated nh indices
+                  (new, turned) = indexToOffsetDiag trans rotated (min nl nh) indices
                   newOrientation = if turned 
                                    then rotateO bestO
                                    else bestO
@@ -720,33 +725,45 @@ _not_used_indexToOffset (Dimension tl tw th) (Dimension l w h) (il, iw, ih) =
             (fromIntegral iw * w + tw)
             (fromIntegral ih * h + th)
 
+d0, r :: Dimension
+d0 = Dimension 0 0 0
+r = Dimension 13 1 10
 -- | Computes position and orientation of a box within a "Diagonal" pattern
 -- see `howManyWithDiagonal`
 indexToOffsetDiag :: Dimension -> Dimension -> Int -> (Int, Int, Int) -> (Dimension, Bool)
-indexToOffsetDiag (Dimension tl tw th) box@(Dimension l _ h) maxH (il, iw, ih) | il > maxH =
-  indexToOffsetDiag (Dimension (tl + fromIntegral (il-1) * l + h) tw th)
-                    box maxH (il-maxH,iw,ih)
-indexToOffsetDiag (Dimension tl tw th) (Dimension l w h) _ (il, iw, ih) =
-  if ih < il 
-  then -- left of diagonal
-    (Dimension (tl + fromIntegral (il-1) * l + h)
-               (tw + fromIntegral iw * w)
-               (th + fromIntegral ih * h)
-    , False
-    )
-  else if ih == il -- diagonal
-  then
-    (Dimension (tl + fromIntegral il * l)
-               (tw + fromIntegral iw * w)
-               (th + fromIntegral ih * h)
-    , True
-    )
-  else -- right diagonal
-    (Dimension (tl + fromIntegral il * l)
-               (tw + fromIntegral iw * w)
-               (th + fromIntegral (ih-1) * h + l)
-    , False
-    )
+indexToOffsetDiag (Dimension tl tw th) (Dimension l w h) diagSize (il, iw, ih) =
+  let (lq, lr) = il `divMod`  diagSize
+      (hq, hr) = ih `divMod` diagSize
+      --    
+      --    b   X|    X
+      --      X  |  X c
+      --    X   a|X  
+      -- lq  0    1     2
+      --    
+      -- X) turned
+      -- a) (il, ih) = (2,0)
+      --    (lq, lr) = (0,2) 1 before
+      --    (hq, hr) = (0,0) 0 below
+      --    
+      --
+      -- c) (il, ih) = (5,1)
+      --    (lq, lr) = (1,2) 2 before
+      --    (hq, hr) = (0,1) 0 below
+      (turnedBefore, turnedBelow, turned) =
+        if lr > hr
+        then -- left of the diagonal turnedBelow +1
+          (lq+1, hq, False)
+        else if lr ==  hr -- on the diagnoal
+        then
+          (lq, hq, True)
+        else -- right of diagonal
+          (lq, hq+1, False)
+  in  (Dimension (tl + fromIntegral (il-turnedBefore) * l + fromIntegral turnedBefore*h)
+                 (tw + fromIntegral iw * w)
+                 (th + fromIntegral (ih - turnedBelow) * h + fromIntegral turnedBelow*l)
+      , turned
+      )
+          
 
 -- | Rotate an Orientation by 90 facing the depth
 rotateO :: Orientation -> Orientation
