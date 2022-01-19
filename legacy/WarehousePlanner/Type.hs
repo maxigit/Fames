@@ -48,6 +48,17 @@ data BoxNumberSelector = BoxNumberSelector
 data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
 
 
+-- | Size of the square to repeat
+-- in Diagonal configuration
+-- example
+--     - - |
+--     - | -
+--     | - -
+-- 0 (or 1) means no diagonal
+newtype Diagonal = Diagonal Int deriving (Eq, Show, Ord)
+isDiagonal :: Diagonal -> Bool
+isDiagonal (Diagonal n) = n > 2
+
 -- | Possible orientations plus min max depth
 data OrientationStrategy  = OrientationStrategy
   { osOrientations :: Orientation

@@ -516,15 +516,15 @@ deleteBoxes boxIds = do
 
 -- | find the best way to arrange some boxes within the given space
 -- For the same number of boxes. use the biggest diagonal first, then  the smallest shelf
-bestArrangement :: Show a => [OrientationStrategy] -> [(Dimension, a)] -> Dimension -> (Orientation, Bool, Int, Int, Int, a)
+bestArrangement :: Show a => [OrientationStrategy] -> [(Dimension, a)] -> Dimension -> (Orientation, Diagonal, Int, Int, Int, a)
 bestArrangement orientations shelves box = let
     options = [ (o, diag, extra, (nl, max minW (min nw maxW), nh), sl*sw*sh)
-              | (OrientationStrategy o  minW  maxW diag) <-   orientations
+              | (OrientationStrategy o  minW  maxW useDiag) <-   orientations
               , (shelf, extra) <- shelves
               , let Dimension sl sw sh =  shelf
-              , let (nl, nw, nh) = if diag
+              , let ((nl, nw, nh),diag) = if useDiag
                                    then  howManyWithDiagonal shelf (rotate o box)
-                                   else howMany shelf (rotate o box)
+                                   else (howMany shelf (rotate o box), Diagonal 0)
               ]
 
     bests = sortBy (compare `on` fst)
@@ -570,33 +570,26 @@ howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
 --    2 69
 --    3369
 --  3, 5 and 7 box are rotated down allowing f
-howManyWithDiagonal :: Dimension -> Dimension -> (Int, Int, Int)
-howManyWithDiagonal outer@(Dimension l _ h) inner@(Dimension lb _ hb) | hb > lb =   
-  let (ln, wn, hn) = howMany outer inner
-      -- normal without diagonal
-      lGap = l - fromIntegral ln * lb 
-      hGap = h - fromIntegral hn * hb
-      diff = hb - lb
-      -- Check if turnig a box down will allow one more row
-      -- for that we need the gap left on l
-      -- to be greater than 
-      -- if that's the case, 
-      -- we extend the width by (lb-wb) as many times as diagonals or squares
-      squareN = ((ln-1) `div` (hn+1)) +1
-      --              ^               ^ so that wn=3 ln3 => 1
-      --                                and wn=4 ln=3 => 2
-      r  = if  hGap >= lb && lGap >= fromIntegral squareN * diff 
-      then
-        (ln, wn, hn+1)
-      else
-        (ln, wn, hn)
-  in -- traceShow ("lGap", lGap, "hGap", hGap, "ln", ln, "hn", hn, "squareN", squareN, diff, fromIntegral squareN*diff-lGap) 
-     r
-howManyWithDiagonal (Dimension l w h) (Dimension lb wb hb) | hb < lb =   
-  let (nl, nw, nh) = howManyWithDiagonal (Dimension h w l)
-                                         (Dimension hb wb lb)
-  in (nh, nw, nl)
-howManyWithDiagonal outer inner = howMany outer inner
+howManyWithDiagonal :: Dimension -> Dimension -> ((Int, Int, Int), Diagonal)
+howManyWithDiagonal outer@(Dimension l _ h) inner@(Dimension lb _ hb) =
+  let normal@(_ln, wn, _hn) = howMany outer inner
+      fit d db = floor (max 0 (d-0) /(db+0))
+      -- how many feet for a given size of a square
+      nForDiag n =
+         --  | = = | = =
+         --  = = | = = |     1 square x 2
+         --  = | = = | =
+         --  | = = | = =
+         let squareL = fromIntegral (n-1)*lb+hb
+             squareH = fromIntegral (n-1)*hb+lb
+         in ((fit l squareL * n, wn, fit h squareH * n), Diagonal n)
+      options = [nForDiag i | i <- [3]] -- [2.. (1 + min ln hn)] ]
+      bests = sortOn (\((nl', nw', nh'), _diag) -> (-nl'*nw'*nh', -nl'))
+                     $ traceShowId
+                     $ (normal, Diagonal 0): options
+  in case bests of
+      [] -> error "Shouldn't happen"
+      (best:_) -> best
 
 
         
@@ -680,13 +673,13 @@ fillShelf exitMode  s simBoxes0 = do
                       ]
             -- but within the box potentially move 
             box'Offsets0 = assignOffsetWithBreaks (shelfFillingStrategy shelf) Nothing boxes offsets
-            box''Offset'Diags = if diag
+            box''Offset'Diags = if isDiagonal diag
                               then map adjustDiagonal box'Offsets0
                               else map (,bestO) box'Offsets0
             adjustDiagonal (box, offset) =
               let trans = Dimension lused' 0 hused'
                   indices = offsetToIndex trans rotated offset
-                  (new, turned) = indexToOffsetDiag trans rotated (min nl nh) indices
+                  (new, turned) = indexToOffsetDiag trans rotated diag indices
                   newOrientation = if turned 
                                    then rotateO bestO
                                    else bestO
@@ -730,8 +723,8 @@ d0 = Dimension 0 0 0
 r = Dimension 13 1 10
 -- | Computes position and orientation of a box within a "Diagonal" pattern
 -- see `howManyWithDiagonal`
-indexToOffsetDiag :: Dimension -> Dimension -> Int -> (Int, Int, Int) -> (Dimension, Bool)
-indexToOffsetDiag (Dimension tl tw th) (Dimension l w h) diagSize (il, iw, ih) =
+indexToOffsetDiag :: Dimension -> Dimension -> Diagonal -> (Int, Int, Int) -> (Dimension, Bool)
+indexToOffsetDiag (Dimension tl tw th) (Dimension l w h) (Diagonal diagSize) (il, iw, ih) =
   let (lq, lr) = il `divMod`  diagSize
       (hq, hr) = ih `divMod` diagSize
       --    
