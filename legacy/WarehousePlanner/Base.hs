@@ -779,10 +779,7 @@ indexToOffsetDiag (Dimension tl tw th) (Dimension l w h) (Diagonal diagSize) (il
 
 -- | Rotate an Orientation by 90 facing the depth
 rotateO :: Orientation -> Orientation
-rotateO (Orientation{..}) =
-  case top of
-    Depth -> Orientation top (rot front)
-    _ -> Orientation (rot top) front
+rotateO (Orientation{..}) = Orientation (rot top) (rot front)
   where 
     rot Vertical = Horizontal
     rot Horizontal = Vertical
