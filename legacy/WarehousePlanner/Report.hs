@@ -84,13 +84,13 @@ bestHeightForShelf shelf = do
     let bors = map (\b -> (b, getOr b)) boxes
 
     let s  = headEx shelves
-        tries = [ (-((fromIntegral (n*k*m))*boxVolume box / shelfVolume s), (box, or, (n,k,m)))
+        tries = [ (-((fromIntegral (n*k*m))*boxVolume box / shelfVolume s), (box, or, diag, (n,k,m)))
             | (box, ors) <- bors
-            , let (or,_,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
+            , let (or,diag,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
             ]
 
         bests = sortBy (compare `on` fst) tries
-        reportHeight shelf_  (box, or, (n,k,__m)) = do
+        reportHeight shelf_  (box, or, diag, (n,k,__m)) = do
           similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
           let box' = box { orientation = or }
           let lengthRatio = ( dLength (boxDim box') * (fromIntegral n)
@@ -106,7 +106,7 @@ bestHeightForShelf shelf = do
 
           return $ putStrLn $ "box: " <> boxStyle box
             <> ", height: " <> (pack $ printf " %0.2f (%0.2f)" recommendedHeight height)
-            <> " " <> showOrientation or
+            <> " " <> showOrientationWithDiag or diag
             <> (pack $ printf " %dx%dx%d" n k (floor (recommendedHeight/height) :: Int))
             <> (pack $ printf " H:%0.1f%%" (100*lengthRatio))
             <> (pack $ printf " (%0.1f%%)" (100*lengthRatio*widthRatio))
@@ -119,12 +119,12 @@ report :: Shelf s -> Box s -> WH Text s
 report shelf box = do
     getOr <- gets boxOrientations
     similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
-    let (or,_,n,k,m,_) = bestArrangement (getOr box shelf) [(maxDim shelf, shelf)] (_boxDim box)
+    let (or,diag,n,k,m,_) = bestArrangement (getOr box shelf) [(maxDim shelf, shelf)] (_boxDim box)
         ratio = boxVolume box * fromIntegral (n * k * m) / shelfVolume shelf
         numberOfBoxes = length similarBoxes
         shelvesNeeded = fromIntegral numberOfBoxes / fromIntegral (n*m*k)
     return $ "box: " <> boxStyle box <> ", shelf: " <> shelfName shelf
-                        <> " " <> showOrientation or
+                        <> " " <> showOrientationWithDiag or diag
                         <> (pack $ printf " %0.1f%%" (ratio*100))
                         <> (pack $ printf " %dx%dx%d" n k m)
                         <> (pack $ printf " (%d)" (n*m*k))
@@ -316,8 +316,8 @@ boxesReport = do
 
   where -- report_ :: Box s -> WH (IO ()) s
         report_ (shelf, box) = do
-          let (nl, nw, nh) = howMany (maxDim shelf) (boxDim box)
-          return $ printf "%s,%s,%s,%s,%dx%dx%d\n" (boxStyle box) (boxContent box) (shelfName shelf) (showOrientation (orientation box)) nl nw nh
+          let ((nl, nw, nh), diag) = howManyWithDiagonal (maxDim shelf) (boxDim box)
+          return $ printf "%s,%s,%s,%s,%dx%dx%d\n" (boxStyle box) (boxContent box) (shelfName shelf) (showOrientationWithDiag (orientation box) diag) nl nw nh
   
 -- * Compatible with warehouse planner input 
 -- | Generates moves from actual styles positions, ie find all shelves

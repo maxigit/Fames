@@ -559,14 +559,19 @@ setOrientationRules defOrs filename = do
 
   
 -- | Orientation rules follow this syntax
--- [min : ][max] [or1] [or2] ...
+-- [!] [min : ][max] [or1] [or2] ...
 -- example:
 -- 9 -- max 9
 -- 1:9 -- min 1
+-- ! don't use diagonal mode
 parseOrientationRule:: [Orientation] -> Text -> [OrientationStrategy]
-parseOrientationRule defOrs cs = let
+parseOrientationRule defOrs cs0 = let
+  (diag,cs) = case uncons cs0 of
+                Just ('!', s) -> (False, s)
+                _ -> (True, cs0)
+
   (ns, cs') = span (isDigit) cs
-  Just n0 = readMay ns
+  n0 = fromMaybe 1 $ readMay ns
   (nM, cs'') = case uncons cs' of
                   Just (':', s) -> let (ns', leftover) = span (isDigit) s
                              in (Just ( readMay ns' :: Maybe Int), leftover)
@@ -576,10 +581,9 @@ parseOrientationRule defOrs cs = let
     Nothing -> (0, n0)
     Just Nothing -> (n0, n0)
     Just (Just n) -> (n0, n)
-  diag = False
 
   ors = case cs'' of
     "" -> defOrs
     s -> readOrientations defOrs s
-  in [(OrientationStrategy o  min_  max_ diag) | o <- ors ]
+  in [(OrientationStrategy o  min_  max_ (rotateO o `elem` ors && diag)) | o <- ors ]
   

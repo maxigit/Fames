@@ -777,17 +777,6 @@ indexToOffsetDiag (Dimension tl tw th) (Dimension l w h) (Diagonal diagSize) (il
       )
           
 
--- | Rotate an Orientation by 90 facing the depth
-rotateO :: Orientation -> Orientation
-rotateO (Orientation{..}) = Orientation (rot top) (rot front)
-  where 
-    rot Vertical = Horizontal
-    rot Horizontal = Vertical
-    rot Depth = Depth
-
-                    
-
-
 -- |  Assign offset to boxes so they can be moved
 -- taking  boxBreak into account. Basically a zip but can skip some offset or break
 assignOffsetWithBreaks :: FillingStrategy -> Maybe Dimension ->   [Box s] -> [Dimension] -> [(Box s, Dimension)]

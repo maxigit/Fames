@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
 module WarehousePlanner.Type where
 import Prelude
 import Control.Monad.State
@@ -57,7 +58,14 @@ data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriv
 -- 0 (or 1) means no diagonal
 newtype Diagonal = Diagonal Int deriving (Eq, Show, Ord)
 isDiagonal :: Diagonal -> Bool
-isDiagonal (Diagonal n) = n > 2
+isDiagonal (Diagonal n) = n >= 2
+
+showOrientationWithDiag :: Orientation -> Diagonal -> Text
+showOrientationWithDiag or diag@(Diagonal n) | isDiagonal diag =
+  "[" <> show_ (rotateO or) <> Data.Text.replicate (n-1) (show_ or) <> "]"
+  where show_ = dropEnd 1 . showOrientation
+showOrientationWithDiag or _ =
+  showOrientation or
 
 -- | Possible orientations plus min max depth
 data OrientationStrategy  = OrientationStrategy
@@ -320,6 +328,15 @@ rotate o (Dimension l w h)
     | o == rotatedUp    =  Dimension w l h
     | o == rotatedSide    =  Dimension h l w
     | True  = error $ "Unexpected rotation" <> show o
+
+-- | Rotate an Orientation by 90 facing the depth
+rotateO :: Orientation -> Orientation
+rotateO (Orientation{..}) = Orientation (rot top) (rot front)
+  where 
+    rot Vertical = Horizontal
+    rot Horizontal = Vertical
+    rot Depth = Depth
+
 
 -- ** Boxes 
 boxKey :: Box s -> Text
