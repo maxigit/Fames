@@ -529,14 +529,15 @@ bestArrangement orientations shelves box = let
 
     bests = sortBy (compare `on` fst)
                 [ ( ( -nl*nh*nw
-                    , bh*bh*fromIntegral(nh*nh)+bl*bl*fromIntegral(nl*nl)
+                    , nl -- ^ minimize length
+                    -- , bh*bh*fromIntegral(nh*nh)+bl*bl*fromIntegral(nl*nl)
                     , vol
                     )
                   , (ori, diag, nl, nw, nh, extra)
 
                   )
                  | (ori, diag, extra, (nl, nw, nh), vol ) <- options
-                 , let Dimension bl bh _bw = rotate ori box
+                 -- , let Dimension bl bh _bw = rotate ori box
                  ]
     in
         -- trace ({-show shelves ++ show box ++-}  show bests) $
@@ -572,7 +573,7 @@ howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
 --  3, 5 and 7 box are rotated down allowing f
 howManyWithDiagonal :: Dimension -> Dimension -> ((Int, Int, Int), Diagonal)
 howManyWithDiagonal outer@(Dimension l _ h) inner@(Dimension lb _ hb) =
-  let normal@(_ln, wn, _hn) = howMany outer inner
+  let normal@(ln, wn, hn) = howMany outer inner
       fit d db = floor (max 0 (d-0) /(db+0))
       -- how many feet for a given size of a square
       nForDiag n =
@@ -582,10 +583,28 @@ howManyWithDiagonal outer@(Dimension l _ h) inner@(Dimension lb _ hb) =
          --  | = = | = =
          let squareL = fromIntegral (n-1)*lb+hb
              squareH = fromIntegral (n-1)*hb+lb
-         in ((fit l squareL * n, wn, fit h squareH * n), Diagonal n)
-      options = [nForDiag i | i <- [3]] -- [2.. (1 + min ln hn)] ]
-      bests = sortOn (\((nl', nw', nh'), _diag) -> (-nl'*nw'*nh', -nl'))
-                     $ traceShowId
+             sqNL = fit l squareL
+             sqNH = fit h squareH
+             leftL = l - squareL * fromIntegral sqNL
+             leftH = h - squareH * fromIntegral sqNH
+             mb = max lb hb
+             -- find how many row/column can we use
+             -- in a partial square
+             -- We use mb because the first row/column
+             -- will use both orientation for one of the box
+             leftOver remaining b =
+              if remaining < mb
+              then 0
+              else -- traceShow ("Remainiing", remaining, remaining-mb, "b" , b)
+                   -- $ traceShowId
+                   fit (remaining -  mb) b +1
+              
+         in ((sqNL * n + leftOver leftL lb
+             , wn
+             , sqNH * n + leftOver leftH hb
+             ) , Diagonal n)
+      options = [nForDiag i | i <- [2.. (1 + min ln hn)] ]
+      bests = sortOn (\((nl', nw', nh'), _diag) -> (-nl'*nw'*nh', nl'))
                      $ (normal, Diagonal 0): options
   in case bests of
       [] -> error "Shouldn't happen"
