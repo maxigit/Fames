@@ -287,14 +287,14 @@ A planner file is made of different sections. Each section corresponds to an org
           in the box selector. This is a CSV with the following header:
           <code>stock_id,orientation
 
-          Orientation must have the following format <code>min-depth : max-depth  orientations</code>
+          Orientation must have the following format <code>no-diagonal min-depth : max-depth  orientations</code>
           Example:
           <pre>
             TSHIRT/#top,^
-            TSHIRT,=
+            TSHIRT,!|=
 
           All T-shirt on top shelves (with the tag <code>top</code>) are up, whereas T-shirt in other shelves
-          are being laid on the side.
+          are being laid on the side or the other with no diagonal allowed.
           <h4> Orientations
           <pre>
             * all 
