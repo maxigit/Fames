@@ -375,7 +375,7 @@ newShelf name tagm minD maxD bottom boxOrientator fillStrat = do
         lift $ writeSTRef ref shelf
 
         put warehouse { shelves = shelves warehouse  |> ShelfId ref }
-        return shelf
+        updateShelfTags [] shelf
 
 newBox :: Shelf' shelf => Text -> Text ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [Text] -> WH (Box s) s
 newBox style content dim or_ shelf ors tagTexts = do
@@ -940,8 +940,25 @@ updateShelfTags' :: [Tag'Operation] -> Shelf s -> Shelf s
 updateShelfTags' [] shelf = shelf -- no needed but faster, because we don't have to destruct and 
 updateShelfTags' tag'ops shelf = case modifyTags tag'ops (shelfTag shelf) of
   Nothing -> shelf
-  Just new -> shelf { shelfTag = new
-                                    }
+  Just new -> updateCeiling $ shelf { shelfTag = new }
+  where updateCeiling s =
+          let heightMax  = dHeight (maxDim s)
+              reduce extra dim = if dHeight dim <= extra
+                                 then -- too small, we can't set the height to 0
+                                      -- so we need to set width to 0 to make it
+                                      -- unusable
+                                    dim { dWidth = 0, dHeight = 1 }
+                                 else
+                                    dim {dHeight = dHeight dim - extra }
+          in case getTagValuem s "ceiling" >>= readMay of 
+              Just ceiling | ceiling < heightMax + bottomOffset s
+                    ->   let extra  = heightMax + bottomOffset s - ceiling
+                         in  s { shelfTag = Map.insert "tooHigh" mempty (shelfTag s) 
+                               , maxDim = reduce extra $ maxDim s
+                               , minDim = reduce extra $ minDim s
+                               }
+              _ -> s
+
 -- | Update the value associateda to a tag operation. Return Nothing if the tag needs to be destroyed
 applyTagOperation :: TagOperation -> (Set Text) -> Maybe (Set Text)
 applyTagOperation RemoveTag _ = Nothing 

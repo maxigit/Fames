@@ -277,7 +277,7 @@ shelvesReport = do
   ss <- toList <$> gets shelves >>= mapM findShelf
   ls <- mapM  report_ ss
 
-  return $ ("name,comment,length,width,height,depthLeft,usedRatio,bottom") : ls
+  return $ ("name,comment,length,width,height,depthLeft,usedRatio,bottom,top") : ls
 
   where report_ :: Shelf s -> WH Text s
         report_ shelf = do
@@ -286,13 +286,14 @@ shelvesReport = do
           let left = w - depth
 
           -- find max depth
-          return $ pack $ printf "%s,%s,%0.2f,%0.2f,%0.2f,%0.2f,%.0f%%,%0.2f\n"
+          return $ pack $ printf "%s,%s,%0.2f,%0.2f,%0.2f,%0.2f,%.0f%%,%0.2f,%0.2f\n"
                     (shelfNameTag shelf)
                     (pack $ printf "%s (%0.2f)" name depth :: Text)
                     l w h
                     left
                     (depth/w*100)
                     (bottomOffset shelf)
+                    (bottomOffset shelf + dHeight (maxDim shelf))
 
 
 -- returns the lis

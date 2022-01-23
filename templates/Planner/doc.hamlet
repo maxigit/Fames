@@ -21,7 +21,12 @@ A planner file is made of different sections. Each section corresponds to an org
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-shelves"> Shelves (Mandatory)
         <div.pre.collapse :expanded:.in id=info-section-shelves>
             Describes set of shelves. Should be a CSV with the following header :
-            <pre>name,comment,length,width,height,type
+            <pre>name,comment,length,width,height,type[,bottom]
+            <code>bottom</code> is optional. It represents the height of where the usable part of shelf
+            starts (taking the thickness of the shelf itself into accoun). This is used
+            to determine if a shelf sticks out of the ceiling (when the <code>ceiling</code> tag is set).
+            When using formula, the value taken from the refered shelf will be the top of the shelf (not the bottom). This is to allow the calculation of stacked shelves using the <pre>{%-}+10</pre> formula (10 there is the thickness of the shelf)
+
             <h4> Special shelves
             The two first declared shelves have a special meaning.
             The first one is the <code>error</code> shelf and the second one is the <code>pending</code> shelf.
@@ -78,6 +83,12 @@ A planner file is made of different sections. Each section corresponds to an org
             and floor space. Also, shelves with the <code>sep</code> tag are seen as separator : shelves
             present for layout purpose only and are excluded from the summary as well as being displayed
               differently.
+            <h4> Special Tag: Ceiling
+            The special attribute <code>ceiling=</code> set the height of the ceiling.
+            If the total height + bottom offset is greater than the ceiling value, the shelf is 
+            considered to high. It will be tagged with <code>tooHigh</code>, and the height of the shelf
+            will be truncated accordingly to fit the given ceiling.
+
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-layout"> Layout (Mandatory)
