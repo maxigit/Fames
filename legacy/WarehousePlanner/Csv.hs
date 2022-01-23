@@ -9,7 +9,7 @@ import qualified Data.Vector as Vec
 import Control.Monad hiding(mapM_,foldM)
 -- import Data.List.Split (splitOn)
 import qualified Data.List as List
-import Data.Char(isDigit)
+import Data.Char(isDigit,ord,chr)
 import ClassyPrelude hiding(readFile)
 import Text.Read(readMaybe)
 import qualified Text.Parsec as P
@@ -136,6 +136,7 @@ data Expr = AddE Expr Expr
           | ValE Double
           | RefE Text (ShelfDimension -> Double)
 
+
 parseExpr :: (ShelfDimension -> Double) -> Text -> Expr
 parseExpr defaultAccessor s =  case P.parse (parseExpr' defaultAccessor <* P.eof) (unpack s) s of
   Left err -> error (show err)
@@ -225,6 +226,13 @@ transformRef'  :: String -> String -> String
 transformRef'  "" ref = ref
 transformRef' origin "%" = origin
 transformRef' os ('\\':c:cs) = c:transformRef' os cs
+-- symetry in the given range
+-- ex [24] : 2 -> 4 3->3 4 -> 2
+transformRef' (o:os) ('[':c:d:']':cs) = chr ni : transformRef' os cs where
+  ci = ord(c)
+  di = ord(d)
+  oi = ord(o)
+  ni = ci + di - oi
 transformRef' (o:os) (c:cs) = case c of
   '_' -> o:transformRef' os cs
   '+' -> (succ o):transformRef' os cs

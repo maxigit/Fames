@@ -51,6 +51,8 @@ A planner file is made of different sections. Each section corresponds to an org
             leftover between a shelf and wall. Basic arithmetic can be performed and the the same dimension of another
             shelf can be referenced using <code>{...}</code>.  Wildcard (<code>_</code>,<code>+</code> and <code>-</code>) can be used to modify the corresponding character of the current shelf itsef.
             <code>%</code> can be used to match all left characters
+            <code>[</code>..<code>]</code> mirror the correspoding character within the range.
+
             Example
             <pre>
               name,comment,length,width,height,type
@@ -59,8 +61,10 @@ A planner file is made of different sections. Each section corresponds to an org
               B1,,200-{A_},-- length 200 - length of A1
               B2,,200-{A_},-- length 200 - length of A2
               B20,,200-{A%},-- length 200 - length of A20
+              C1,,200-{[AC]1},-- length 200 - length of A1
             For A2, <code>_</code> refers to the first character of the current shelf, i.e, <code>A</code> and <code>-</code> refers to the second character (<code>2</code>)  minus 1 -> <code>1</code>
-            For A3, the <code>_</code> is in the second position and therefore correspond to the second character of <code>B1</code> : <code>1</code>.
+            For B1, the <code>_</code> is in the second position and therefore correspond to the second character of <code>B1</code> : <code>1</code>.
+            For C1, the <code>[AC]</code> is transform into <code>A</code> (C->A, B->B, A->C)
             <h4>shelf types
             The shelf type determines the default boxes orientation and filling strategy. The current shelf style are
             <ul>
