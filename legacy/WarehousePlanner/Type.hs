@@ -113,6 +113,7 @@ data Shelf s = Shelf { _shelfId  :: !(ShelfId s)
                    , flow      :: !Flow
                    , shelfBoxOrientator :: !BoxOrientator
                    , shelfFillingStrategy :: !FillingStrategy
+                   , bottomOffset :: !Double -- ^ "altitute" of where the usable part of the shelf starts
                    } deriving (Show, Eq)
 -- | Gives orientation to a box
 data BoxOrientator = DefaultOrientation

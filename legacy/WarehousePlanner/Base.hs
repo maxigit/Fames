@@ -363,15 +363,15 @@ emptyWarehouse today = Warehouse mempty mempty mempty
                                  (const defaultShelfStyling)
                                  defaultBoxOrientations Nothing today
 
-newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
-newShelf name tagm minD maxD boxOrientator fillStrat = do
+newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> Double -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
+newShelf name tagm minD maxD bottom boxOrientator fillStrat = do
         let tags = case splitOn "#" <$> tagm of
               Nothing -> mempty
               Just [""] -> mempty
               Just tags' -> fromMaybe mempty $ modifyTags (map parseTagOperation tags') mempty
         warehouse <- get
         ref <- lift (newSTRef (error "should never been called. Base.hs:327"))
-        let shelf = Shelf (ShelfId ref) [] name tags minD maxD LeftToRight boxOrientator fillStrat
+        let shelf = Shelf (ShelfId ref) [] name tags minD maxD LeftToRight boxOrientator fillStrat bottom
         lift $ writeSTRef ref shelf
 
         put warehouse { shelves = shelves warehouse  |> ShelfId ref }

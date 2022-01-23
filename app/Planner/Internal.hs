@@ -41,7 +41,7 @@ warehouseExamble :: WH (ShelfGroup s) s
 warehouseExamble  = do
   let dim0 = Dimension 270 80 145
   let dim1 = Dimension 31 34 72
-  shelves <- mapM (  \i -> newShelf ("A1" <> tshow i) Nothing dim0  dim0 DefaultOrientation ColumnFirst ) [1..50]
+  shelves <- mapM (  \i -> newShelf ("A1" <> tshow i) Nothing dim0  dim0 0 DefaultOrientation ColumnFirst) [1..50]
   let shelfid = shelfId (headEx shelves)
   boxes <- mapM (\i -> newBox "style" (tshow i) dim1 up shelfid [up] []) [1..300]
   _ <- moveBoxes ExitLeft boxes shelves

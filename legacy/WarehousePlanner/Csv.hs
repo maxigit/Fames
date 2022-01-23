@@ -20,6 +20,20 @@ import qualified Text.Regex.Base.RegexLike as Rg
 import Data.Text(splitOn)
 import Data.Text.IO(readFile)
 
+-- | Dimension info to construct a Shelf
+data ShelfDimension = ShelfDimension
+  { sMinD :: Dimension
+  , sMaxD :: Dimension
+  , sBottomOffset :: Double -- 
+  }
+  deriving (Show)
+
+-- | Offset ("altitude") of the top of a shelf
+sTopOffset :: ShelfDimension -> Double
+sTopOffset s = dHeight (sMaxD s) + sBottomOffset s
+
+shelfDimension :: Shelf s -> ShelfDimension
+shelfDimension shelf = ShelfDimension (minDim  shelf) (maxDim shelf) (bottomOffset  shelf)
 readShelves :: FilePath-> IO (WH [Shelf s] s)
 readShelves filename = do
     csvData <- BL.readFile filename
@@ -34,7 +48,7 @@ readShelves filename = do
                             _types = (first_, description) :: (Int, Text)
                         in forM [first_..last'] $ \i ->
                                         let shelfName = name <> "." <> tshow i
-                                        in newShelf shelfName mempty dim dim' DefaultOrientation ColumnFirst
+                                        in newShelf shelfName mempty dim dim' 0 DefaultOrientation ColumnFirst
 
             concat `fmap` (Vec.toList `fmap` v)
 
@@ -51,11 +65,19 @@ readShelves filename = do
 readShelves2 :: BoxOrientator -> FilePath-> IO (WH [Shelf s] s)
 readShelves2 defaultOrientator filename = do
     csvData <- BL.readFile filename
+    -- Call Csv.decode but add default value to bottom if not present in header
+    let decode = asum
+          [ Csv.decode Csv.HasHeader csvData
+          , fmap (Vec.map (\(name, description, l, w, h, shelfType) ->
+                   (name, description, l, w, h, shelfType, "0"))
+                 )
+                 (Csv.decode Csv.HasHeader csvData)
+          ]
 
-    case Csv.decode  Csv.HasHeader csvData of
+    case decode of 
         Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
-            v <- Vec.forM rows $ \(name, description, l, w, h, shelfType) ->
+            v <- Vec.forM rows $ \(name, description, l, w, h, shelfType, bottom) ->
                         let dim = (,,) l w h
                             dim' = (,,) l w h
                             _types = description :: Text
@@ -68,6 +90,7 @@ readShelves2 defaultOrientator filename = do
                         in mapM (\(n, tag) -> newShelfWithFormula
                                     (dimToFormula n dim)
                                     (dimToFormula n dim')
+                                    (bottomToFormula n bottom)
                                     defaultOrientator
                                     fillStrat
                                     n
@@ -111,18 +134,18 @@ data Expr = AddE Expr Expr
           | MulE Expr Expr
           | DivE Expr Expr
           | ValE Double
-          | RefE Text (Dimension -> Double)
+          | RefE Text (ShelfDimension -> Double)
 
-parseExpr :: (Dimension -> Double) -> Text -> Expr
+parseExpr :: (ShelfDimension -> Double) -> Text -> Expr
 parseExpr defaultAccessor s =  case P.parse (parseExpr' defaultAccessor <* P.eof) (unpack s) s of
   Left err -> error (show err)
   Right  expr -> expr
 
-parseExpr' :: (Dimension -> Double) -> P.Parser Expr
+parseExpr' :: (ShelfDimension -> Double) -> P.Parser Expr
 parseExpr' accessor = (P.try (parseOp accessor))
                     <|> parseTerminalExpr accessor
 
-parseTerminalExpr :: (Dimension -> Double) -> P.Parser Expr
+parseTerminalExpr :: (ShelfDimension -> Double) -> P.Parser Expr
 parseTerminalExpr accessor = parseVal <|> parseRef accessor
 parseVal :: P.Parser Expr
 parseVal = do
@@ -133,7 +156,7 @@ parseVal = do
                   Nothing -> error $ "Can't parse [" ++ s ++ "]"
                   Just v -> ValE v
 
-parseOp :: (Dimension -> Double) -> P.ParsecT Text () Identity Expr
+parseOp :: (ShelfDimension -> Double) -> P.ParsecT Text () Identity Expr
 parseOp accessor = do
   e1 <- parseTerminalExpr accessor
   P.spaces
@@ -150,7 +173,7 @@ parseOp accessor = do
 
   return $ c e1 e2
 
-parseRef :: (Dimension -> Double) -> P.Parser Expr
+parseRef :: (ShelfDimension -> Double) -> P.Parser Expr
 parseRef accessor = do
   _ <- P.char '{'
   ref <- P.many1 (P.alphaNum <|> P.oneOf ".+-%_\\")
@@ -158,11 +181,16 @@ parseRef accessor = do
   _ <- P.char '}'
   return $ RefE (pack ref) acc
 
-parseAccessor :: P.Stream s m Char => P.ParsecT s u m (Dimension -> Double)
+parseAccessor :: P.Stream s m Char => P.ParsecT s u m (ShelfDimension -> Double)
 parseAccessor = P.choice $ map  (\(s ,a) -> P.string s >> return a)
-                [ ("length", dLength)
-                , ("width", dWidth  )
-                , ("height", dHeight)
+                [ ("length", dLength . sMinD)
+                , ("width", dWidth   . sMinD)
+                , ("height", dHeight . sMinD)
+                , ("Length", dLength . sMaxD)
+                , ("Width", dWidth   . sMaxD)
+                , ("Height", dHeight . sMaxD)
+                , ("bottom", sBottomOffset)
+                , ("top", sTopOffset)
                 ]
 
 
@@ -188,7 +216,7 @@ evalExpr shelfName (RefE ref accessor) = do
               [] -> error $ "Can't find shelf " ++ unpack refName ++ " when evaluating formula"
               [id_] ->  findShelf id_
               _ -> error $ "Find multiple shelves for " ++ unpack shelfName ++ "when evaluating formula."
-  return $ (accessor.minDim) shelf
+  return $ accessor . shelfDimension $ shelf
 
 
 transformRef :: Text -> Text -> Text
@@ -209,21 +237,24 @@ transformRef' _ [] = []
 
 dimToFormula :: Text -> (Text, Text, Text) -> WH Dimension s
 dimToFormula name (ls, ws, hs) = do
-  l <- eval dLength ls
-  w <- eval dWidth ws
-  h <- eval dHeight hs
+  l <- eval (dLength . sMinD) ls
+  w <- eval (dWidth . sMinD) ws
+  h <- eval (dWidth . sMinD) hs
   return $ Dimension l w h
-  where eval :: (Dimension -> Double) -> Text -> WH Double s
+  where eval :: (ShelfDimension -> Double) -> Text -> WH Double s
         eval accessor s = evalExpr name (parseExpr accessor s)
 
 
+bottomToFormula :: Text -> Text -> WH Double s
+bottomToFormula name bs = evalExpr name  (parseExpr sTopOffset bs)
 -- | Create a new shelf using formula
-newShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> BoxOrientator -> FillingStrategy -> Text -> Maybe Text ->  WH (Shelf s) s
+newShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> (WH Double s) -> BoxOrientator -> FillingStrategy -> Text -> Maybe Text ->  WH (Shelf s) s
 
-newShelfWithFormula dimW dimW' boxo strategy name tags = do
+newShelfWithFormula dimW dimW' bottomW boxo strategy name tags = do
   dim <- dimW
   dim' <- dimW'
-  newShelf name tags dim dim' boxo strategy
+  bottom <- bottomW
+  newShelf name tags dim dim' bottom boxo strategy
 
 -- | Read a csv described a list of box with no location
 -- boxes are put in the default location and tagged with the new tag

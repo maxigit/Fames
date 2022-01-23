@@ -97,7 +97,7 @@ copyShelf sId = do
   boxes <- findBoxByShelf sId
   buildBoxFnsM <- mapM copyBox boxes
   return $ do
-    nshelf <- (newShelf shelfName (Just $ intercalate "#" $ flattenTags $ shelfTag) minDim maxDim shelfBoxOrientator shelfFillingStrategy)
+    nshelf <- (newShelf shelfName (Just $ intercalate "#" $ flattenTags $ shelfTag) minDim maxDim bottomOffset shelfBoxOrientator shelfFillingStrategy)
     let nId = shelfId nshelf
     let _n = map ($ nId) buildBoxFnsM
     sequence _n
