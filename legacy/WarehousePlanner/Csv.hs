@@ -77,7 +77,7 @@ readShelves2 defaultOrientator filename = do
     case decode of 
         Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
-            v <- Vec.forM rows $ \(name, description, l, w, h, shelfType, bottom) ->
+            v <- Vec.forM rows $ \(name, description, l, w, h, shelfType, bottom) -> do
                         let dim = (,,) l w h
                             dim' = (,,) l w h
                             _types = description :: Text
@@ -86,11 +86,20 @@ readShelves2 defaultOrientator filename = do
                                 "shelf" -> (ForceOrientations [tiltedForward, tiltedFR], ColumnFirst)
                                 _ -> (defaultOrientator, ColumnFirst)
 
-                            name'tagS = expand =<< splitOn "|" name
-                            go = if toLower shelfType == "update"
-                                 then updateShelfWithFormula
-                                 else newShelfWithFormula
-                        in mapM (\(n, tag) -> go
+                        (name'tagS, go) <-
+                            if toLower shelfType == "update"
+                            then do
+                              let (BoxSelector boxSel shelfSel _) = parseBoxSelector name
+                                  selector = ShelfSelector boxSel shelfSel
+                              shelfIds <- findShelvesByBoxNameAndNames selector
+                              shelves <- mapM findShelf shelfIds
+                              let names  = map shelfName shelves
+                              return ( map (,Nothing) names , updateShelfWithFormula)
+                            else
+                              return ( expand =<< splitOn "|" name
+                                     , newShelfWithFormula
+                                     )
+                        mapM (\(n, tag) -> go
                                     (dimToFormula n dim)
                                     (dimToFormula n dim')
                                     (bottomToFormula n bottom)

@@ -81,6 +81,7 @@ A planner file is made of different sections. Each section corresponds to an org
             Shelves can be updated by redefining it and setting the type to <code>Update</code>.
             Formulas can use the value of the shelf itself. This feature allow to tweak a shelf
             previously defined within a group.
+            Note that for update, the shelf name is not expanded but filtered using the normal selector syntax (<i>box</i><code>/</code><i>shelf</i>).
             <h4> Tag
             Tags can be used to select shelf when doing box moves, but is also used to
             group shelves when displaying the summary. Shelves are grouped using the <code>summary</code> property.
