@@ -86,7 +86,7 @@ A planner file is made of different sections. Each section corresponds to an org
             <h4> Special Tag: Ceiling
             The special attribute <code>ceiling=</code> set the height of the ceiling.
             If the total height + bottom offset is greater than the ceiling value, the shelf is 
-            considered to high. It will be tagged with <code>tooHigh</code>, and the height of the shelf
+            considered to high. It will be tagged with <code>'tooHigh</code>, and the height of the shelf
             will be truncated accordingly to fit the given ceiling.
 
       <li>

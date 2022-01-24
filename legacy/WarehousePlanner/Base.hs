@@ -953,7 +953,7 @@ updateShelfTags' tag'ops shelf = case modifyTags tag'ops (shelfTag shelf) of
           in case getTagValuem s "ceiling" >>= readMay of 
               Just ceiling | ceiling < heightMax + bottomOffset s
                     ->   let extra  = heightMax + bottomOffset s - ceiling
-                         in  s { shelfTag = Map.insert "tooHigh" mempty (shelfTag s) 
+                         in  s { shelfTag = Map.insert "'tooHigh" mempty (shelfTag s) 
                                , maxDim = reduce extra $ maxDim s
                                , minDim = reduce extra $ minDim s
                                }
