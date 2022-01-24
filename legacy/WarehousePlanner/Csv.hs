@@ -87,7 +87,10 @@ readShelves2 defaultOrientator filename = do
                                 _ -> (defaultOrientator, ColumnFirst)
 
                             name'tagS = expand =<< splitOn "|" name
-                        in mapM (\(n, tag) -> newShelfWithFormula
+                            go = if toLower shelfType == "update"
+                                 then updateShelfWithFormula
+                                 else newShelfWithFormula
+                        in mapM (\(n, tag) -> go
                                     (dimToFormula n dim)
                                     (dimToFormula n dim')
                                     (bottomToFormula n bottom)
@@ -257,12 +260,25 @@ bottomToFormula :: Text -> Text -> WH Double s
 bottomToFormula name bs = evalExpr name  (parseExpr sTopOffset bs)
 -- | Create a new shelf using formula
 newShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> (WH Double s) -> BoxOrientator -> FillingStrategy -> Text -> Maybe Text ->  WH (Shelf s) s
-
 newShelfWithFormula dimW dimW' bottomW boxo strategy name tags = do
   dim <- dimW
   dim' <- dimW'
   bottom <- bottomW
   newShelf name tags dim dim' bottom boxo strategy
+
+-- | Update an existing shelf
+updateShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> (WH Double s) -> BoxOrientator -> FillingStrategy -> Text -> Maybe Text ->  WH (Shelf s) s
+updateShelfWithFormula dimW dimW' bottomW _boxo _strategy name _tags = do
+  shelfIds <- findShelfBySelector (Selector (NameMatches [MatchFull name]) [])
+  case shelfIds of
+    [shelfId] -> do
+        shelf <- findShelf shelfId
+        dim <- dimW
+        dim' <- dimW'
+        bottom <- bottomW
+        updateShelf (\s -> s { minDim = dim, maxDim = dim', bottomOffset = bottom }) shelf
+    [] -> error $ "Shelf " <> unpack name <> " not found. Can't update it"
+    _ -> error $ "To many shelves named " <> unpack name <> " not found. Can't update it"
 
 -- | Read a csv described a list of box with no location
 -- boxes are put in the default location and tagged with the new tag

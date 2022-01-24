@@ -75,7 +75,12 @@ A planner file is made of different sections. Each section corresponds to an org
             <ul>
               <li> Shelf (normal first) : tilted row first
               <li> deadzone : allow up column first
+              <li> Update allows to update an existing shelf (tags will be ignored)
               <li> other, column first
+            <h4> Update
+            Shelves can be updated by redefining it and setting the type to <code>Update</code>.
+            Formulas can use the value of the shelf itself. This feature allow to tweak a shelf
+            previously defined within a group.
             <h4> Tag
             Tags can be used to select shelf when doing box moves, but is also used to
             group shelves when displaying the summary. Shelves are grouped using the <code>summary</code> property.
