@@ -259,7 +259,7 @@ dimToFormula :: Text -> (Text, Text, Text) -> WH Dimension s
 dimToFormula name (ls, ws, hs) = do
   l <- eval (dLength . sMinD) ls
   w <- eval (dWidth . sMinD) ws
-  h <- eval (dWidth . sMinD) hs
+  h <- eval (dHeight . sMinD) hs
   return $ Dimension l w h
   where eval :: (ShelfDimension -> Double) -> Text -> WH Double s
         eval accessor s = evalExpr name (parseExpr accessor s)
