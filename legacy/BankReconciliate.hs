@@ -43,7 +43,7 @@ import Data.Text.Encoding (decodeUtf8', decodeLatin1)
 import System.FilePath.Glob (glob)
 import System.Directory(getModificationTime)
 import Data.Decimal
-import Data.List (sortBy, sortOn, minimumBy, mapAccumL, dropWhileEnd)
+import Data.List (sortBy, sortOn, minimumBy, mapAccumL, dropWhileEnd, partition)
 import Data.Ord (comparing)
 import Data.String
 import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays, UTCTime)
@@ -378,31 +378,44 @@ parseAttribute field = do
 -- This happens when a customer makes two payments of the same amount the same day.
 -- Instead filter by date, if statement 1 cover the 10th to 13th
 -- and statment 2 covers  from 12th to 14th. We will only use the transaction from 10 to 11
--- from statement 1. (We then start from latest statement to the oldest). However
--- official statement works the other way.
+-- from statement 1. However, official statement works the other way.
 --
 mergeTrans :: [HSBCTransactions] -> [[HSBCDaily]] -> [HSBCTransactions]
 mergeTrans [] dailyss = concat $ map (map dailyToHTrans) dailyss 
-mergeTrans transs dailyss = let
+mergeTrans transs dailyss0 = let
   lastHDate = maximum (fmap _hDate transs)
-  -- list of pair, statement and it starting date
-  datedStatement :: [([HSBCDaily], Maybe Day)]
-  datedStatement = zip dailyss (map (\vs -> Just (minimum (fmap _hsDate vs))) dailyss)
+  dailyss = filter (not . null) $ map (filter ((> lastHDate) . _hsDate)) dailyss0
+  -- list of pair, statement and it starting and last date
+  -- the last date is only used to so that if two statement start
+  -- at the same date, the oldest statement is first
+  -- This happens, because the bank statement doesnt' show the last n days
+  -- but the last n transaction. Therefore two statement for different days can start
+  -- on the same day (but not the same transaction)
+  -- We also need to count how many transactions are on the first day
+  -- so that we only exclude this number (from the end) from the previous transaction
+  datedStatement :: [([HSBCDaily], Maybe (Day, Int, Day))]
+  datedStatement = zip dailyss (map (\vs -> let dates = fmap _hsDate vs
+                                                firstDate = minimum dates
+                                                count = length $ filter (==firstDate) dates
+                                            in Just (firstDate, count,  maximum dates)
+                                    ) dailyss)
 
-  orderedStatements = (sortBy (comparing snd) datedStatement)
+  orderedStatements = sortBy (comparing snd) $  datedStatement
 
   filteredStatements :: [[HSBCDaily]]
   filteredStatements =
-    zipWith (\(ss,_) (_,d) -> filter (\s -> filterStatement s d
-                                              && _hsDate s > lastHDate
-                                       )
-                              ss
-                              )
+    zipWith (\(ss,_) (_,d) -> filterStatement ss d)
             orderedStatements
             (tail orderedStatements ++ [(error "Shoudn't be evaluated", Nothing)])
-  filterStatement :: HSBCDaily -> Maybe Day -> Bool
-  filterStatement _ Nothing = True
-  filterStatement s (Just d) = _hsDate s < d
+  -- | Take all transaction before the minDate + the ones on the day
+  -- minus the count
+  filterStatement :: [HSBCDaily] -> Maybe (Day, Int, Day)  -> [HSBCDaily]
+  filterStatement ss Nothing = ss
+  filterStatement ss (Just (firstDate, count, _lastDate)) = let
+    (onDay, before) = partition ((== firstDate) ._hsDate)
+                    $ filter ((<= firstDate) . _hsDate) ss
+
+    in before ++ take (length onDay - count) onDay
 
 
   filteredTransaction = map (map dailyToHTrans) filteredStatements
