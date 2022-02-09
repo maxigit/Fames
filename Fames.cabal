@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 337df811d0067926f75cee7ddef67b66fcf5a52873af5757a84fff5d573cc358
 
 name:           Fames
 version:        0.0.1
@@ -225,6 +223,7 @@ library
     , mtl ==2.2.*
     , mysql
     , mysql-simple
+    , network >=3.1.1.1 && <3.2
     , one-liner >=1.0 && <2
     , palette ==0.3.*
     , parsec ==3.1.*
@@ -272,7 +271,7 @@ library
     ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -Wno-missing-local-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
-    ghc-options: -W -fwarn-tabs -Wno-type-defaults -O2 -j6
+    ghc-options: -W -fwarn-tabs -Wno-type-defaults -Wno-partial-type-signatures -O2 -j6
   default-language: Haskell2010
 
 executable DPDDump
@@ -352,6 +351,7 @@ executable DPDDump
     , mtl ==2.2.*
     , mysql
     , mysql-simple
+    , network >=3.1.1.1 && <3.2
     , one-liner >=1.0 && <2
     , palette ==0.3.*
     , parsec ==3.1.*
@@ -476,6 +476,7 @@ executable DPDImport
     , mtl ==2.2.*
     , mysql
     , mysql-simple
+    , network >=3.1.1.1 && <3.2
     , one-liner >=1.0 && <2
     , palette ==0.3.*
     , parsec ==3.1.*
@@ -596,6 +597,7 @@ executable FAGenerator
     , mtl ==2.2.*
     , mysql
     , mysql-simple
+    , network >=3.1.1.1 && <3.2
     , one-liner >=1.0 && <2
     , palette ==0.3.*
     , parsec ==3.1.*
@@ -745,6 +747,7 @@ executable Fames
     , mtl ==2.2.*
     , mysql
     , mysql-simple
+    , network >=3.1.1.1 && <3.2
     , one-liner >=1.0 && <2
     , palette ==0.3.*
     , parsec ==3.1.*
@@ -819,6 +822,7 @@ test-suite test
       Items.InternalSpec
       Legacy.BankReconciliateSpec
       Planner.InternalSpec
+      Planner.WarehouseSpec
       RoleSpec
       TestImport
       Util.CacheSpec
@@ -903,6 +907,7 @@ test-suite test
     , mtl ==2.2.*
     , mysql
     , mysql-simple
+    , network >=3.1.1.1 && <3.2
     , one-liner >=1.0 && <2
     , palette ==0.3.*
     , parsec ==3.1.*
@@ -974,6 +979,7 @@ test-suite zghicd
       Items.InternalSpec
       Legacy.BankReconciliateSpec
       Planner.InternalSpec
+      Planner.WarehouseSpec
       RoleSpec
       TestImport
       Util.CacheSpec
@@ -1186,6 +1192,7 @@ test-suite zghicd
     , mtl ==2.2.*
     , mysql
     , mysql-simple
+    , network >=3.1.1.1 && <3.2
     , one-liner >=1.0 && <2
     , palette ==0.3.*
     , parsec ==3.1.*

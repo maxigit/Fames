@@ -42,6 +42,8 @@ import Data.Maybe
 import qualified Data.Text as Text
 import Util.Cache
 import Control.Monad.Fail 
+import Network.Socket(SockAddr(..), hostAddressToTuple)
+import Network.Wai (remoteHost)
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -142,9 +144,16 @@ currentRole = do
        -- replaces user by masqueraded if needed 
        masqueradeM <- masqueradeUser
        -- we only masquerade if we are logged in
-       let userM = case (userIdent . entityVal <$> mu, masqueradeM) of
-             (Nothing, _) -> Nothing
-             (u@(Just _), _ ) -> masqueradeM <|> u
+       -- Special user for anonymous on local address (for cron)
+       wrequest <- waiRequest
+
+       let userM = case (userIdent . entityVal <$> mu) of
+             Nothing -> localUser <|> Nothing
+             u@(Just _) -> masqueradeM <|> u
+           localUser = case remoteHost wrequest of
+                (SockAddrInet _ host) | (127, 0, 0, 1) <- hostAddressToTuple host -> 
+                  Just "@localhost"
+                _ -> Nothing
 
          
        -- traceShowM ("Mask", masqueradeM, masqueradeM <|> (userIdent . entityVal <$> mu))
