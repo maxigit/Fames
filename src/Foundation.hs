@@ -44,6 +44,7 @@ import Util.Cache
 import Control.Monad.Fail 
 import Network.Socket(SockAddr(..), hostAddressToTuple)
 import Network.Wai (remoteHost)
+import Data.Bits((.&.))
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -151,8 +152,13 @@ currentRole = do
              Nothing -> localUser <|> Nothing
              u@(Just _) -> masqueradeM <|> u
            localUser = case remoteHost wrequest of
-                (SockAddrInet _ host) | (127, 0, 0, 1) <- hostAddressToTuple host -> 
-                  Just "@localhost"
+                (SockAddrInet _ host) | (127, 0, 0, 1) <- hostAddressToTuple host
+                                      -> Just "@localhost"
+                (SockAddrInet _ host) | (172, w2, _, _) <- hostAddressToTuple host
+                                      , w2 .&. 0xF0 == 0x10
+                                      -> Just "@docker"
+                (SockAddrInet _ host) | (192, 168, _, _) <- hostAddressToTuple host
+                                      -> Just "@private"
                 _ -> Nothing
 
          
