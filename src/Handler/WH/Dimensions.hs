@@ -218,7 +218,7 @@ loadBoxForStyles style =  do
 parseBoxList :: Text -> [(Text, Dimension, Maybe Dimension)]
 parseBoxList text = mapMaybe go (lines text)
   where go line =
-          chooseInner <$> case split (`elem` (",xX\t" :: [Char])) (strip line) of
+          chooseInner <$> case split (`elem` (",x\t" :: [Char])) (strip line) of
             [l,w,h] -> Just ("", mkDim0 line l w h, Nothing)
             [s,l,w,h] -> Just (s, mkDim0 line l w h, Nothing)
             [s,l,w,h,""] -> Just (s, mkDim0 line l w h, Nothing)
