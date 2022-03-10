@@ -222,7 +222,9 @@ parseBoxList text = mapMaybe go (lines text)
             [l,w,h] -> Just ("", mkDim0 line l w h, Nothing)
             [s,l,w,h] -> Just (s, mkDim0 line l w h, Nothing)
             [s,l,w,h,""] -> Just (s, mkDim0 line l w h, Nothing)
+            ["","","", il, iw, ih] -> Just ("", (mkDim0 line il iw ih), Nothing)
             [l,w,h, il, iw, ih] -> Just ("", mkDim0 line l w h, (mkDimM il iw ih))
+            [s, "","","", il, iw, ih] -> Just (s, (mkDim0 line il iw ih), Nothing)
             [s,l,w,h, il, iw, ih] -> Just (s, mkDim0 line l w h, (mkDimM il iw ih))
             _ -> Nothing
         c = readMay . (stripSuffix' "cm") . toLower :: Text -> Maybe Double
