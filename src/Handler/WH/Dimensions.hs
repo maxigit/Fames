@@ -154,24 +154,34 @@ renderBoxes boxes = [whamlet|
         <th> Image
     <tbody>
       $forall (style, outer, inner) <- boxes
-        <tr>
-          <td> #{style}
-          <td> #{formatDouble (dLength outer)}
-             $maybe il <- fmap dLength inner
-               <br>
-               #{formatDouble il}
-          <td> #{formatDouble (dWidth outer)}
-             $maybe iw <- fmap dWidth inner
-               <br>
-               #{formatDouble iw}
-          <td> #{formatDouble (dHeight outer)}
-             $maybe ih <- fmap dHeight inner
-               <br>
-               #{formatDouble ih}
-          <td> #{formatVolume (volume outer / 1000000)}
-             $maybe i <- inner
-               <br> #{formatVolume (volume i / 1000000)}
-          <td><a href="@{routeFor outer inner}" ><img src=@?{(routeFor outer inner, [("width", "128")])}>
+        $with  gapm <- fmap (snd . innerBoxes outer) inner
+            <tr>
+              <td> #{style}
+              <td> #{formatDouble (dLength outer)}
+                 $maybe il <- fmap dLength inner
+                   <br>
+                   #{formatDouble il}
+                 $maybe gap <- gapm
+                   <br>
+                   (+#{formatDouble (dLength gap)})
+              <td> #{formatDouble (dWidth outer)}
+                 $maybe iw <- fmap dWidth inner
+                   <br>
+                   #{formatDouble iw}
+                 $maybe gap <- gapm
+                   <br>
+                   (+#{formatDouble (dWidth gap)})
+              <td> #{formatDouble (dHeight outer)}
+                 $maybe ih <- fmap dHeight inner
+                   <br>
+                   #{formatDouble ih}
+                 $maybe gap <- gapm
+                   <br>
+                   (+#{formatDouble (dHeight gap)})
+              <td> #{formatVolume (volume outer / 1000000)}
+                 $maybe i <- inner
+                   <br> #{formatVolume (volume i / 1000000)}
+              <td><a href="@{routeFor outer inner}" ><img src=@?{(routeFor outer inner, [("width", "128")])}>
 |]
   
 
@@ -251,7 +261,7 @@ displayBox outer innerm   = let
              Just inner -> let
                background = outerBoxToFacets outer
                foreground = outerBoxToFacets' outer
-               inners = innerBoxes outer inner
+               (inners, _) = innerBoxes outer inner
                middle = mconcat $ map innerPToFacets inners
                in (foreground , middle <> background)
   d = mconcat $ (disp fg_  # lc (blend 0.5 outerColourNY black) # dashing [13, 5] 0 )
@@ -262,8 +272,8 @@ displayBox outer innerm   = let
   in d <> (mconcat $ map stroke z) # lc red
 
 -- | Calculate 
-innerBoxes :: Dimension -> Dimension -> [PDimension]
-innerBoxes outer inner =
+innerBoxes :: Dimension -> Dimension -> ([PDimension], Dimension) -- ^ (dimension+offset, gaps)
+innerBoxes outer@(Dimension lo wo ho) inner =
   let orientations = zipWith3 (\o minW maxW -> OrientationStrategy o minW maxW False)
                               allOrientations
                               (repeat 0)
@@ -276,12 +286,15 @@ innerBoxes outer inner =
          (__ori, _, nl_, nw_, nh_, _) | nl_*nw_*nh_ > 0 -> best
          _ -> best0
       (Dimension l w h) = W.rotate ori inner
-  in reverse $ [ PDimension (Dimension l0 w0 h0) inner ori
+      gap = Dimension (lo - fromIntegral nl*l) (wo - fromIntegral nw * w) ( ho - fromIntegral nh * h)
+  in (reverse $ [ PDimension (Dimension l0 w0 h0) inner ori
                | iw <- [1..nw]
                , ih <- [1..nh]
                , il <- [1..nl]
                , let [l0, w0, h0] = zipWith (\d i -> d* fromIntegral (i-1)) [l,w,h] [il, iw, ih]
                ]
+     , gap
+     )
 
 
 outerBoxToFacets :: Dimension -> [Facet]
