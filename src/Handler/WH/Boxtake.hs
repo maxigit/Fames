@@ -19,7 +19,6 @@ import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import Data.List(nub)
 import qualified Data.Map.Strict as Map
-import Text.Printf(printf)
 import Handler.WH.Boxtake.Common
 import Handler.WH.Boxtake.Upload
 import Handler.WH.Boxtake.Adjustment
@@ -655,9 +654,6 @@ opName opMap key = maybe "" operatorNickname (lookup key opMap)
 
 boxtakeVolume :: Boxtake -> Double
 boxtakeVolume Boxtake{..} = boxtakeLength * boxtakeWidth * boxtakeHeight / 1e6
-
-formatVolume :: Double -> String
-formatVolume v = printf "%0.3f" v
 
 summary :: [Entity Boxtake] -> (Int, Double)
 summary bs = (length bs, sum (map (boxtakeVolume . entityVal) bs))

@@ -17,6 +17,7 @@ module Import.NoFoundation
     , formatAmount
     , formatDouble
     , formatQuantity
+    , formatVolume
     , formatHours
     , formatTime0
     , showTransType
@@ -140,6 +141,8 @@ formatDouble = (\t -> t :: String) .  printf "%0.2f"
 formatQuantity :: Double -> String
 formatQuantity = strip0 . (\t -> t :: String) .  printf "%0.2f" where
   strip0 s = fromMaybe s (stripSuffix ".00" s)
+formatVolume :: Double -> String
+formatVolume = printf "%0.3f"
 
 formatHours :: Double -> Text
 formatHours duration = let

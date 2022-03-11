@@ -168,9 +168,9 @@ renderBoxes boxes = [whamlet|
              $maybe ih <- fmap dHeight inner
                <br>
                #{formatDouble ih}
-          <td> #{formatDouble (volume outer / 1000000)}
+          <td> #{formatVolume (volume outer / 1000000)}
              $maybe i <- inner
-               <br> #{formatDouble (volume i / 1000000)}
+               <br> #{formatVolume (volume i / 1000000)}
           <td><a href="@{routeFor outer inner}" ><img src=@?{(routeFor outer inner, [("width", "128")])}>
 |]
   
