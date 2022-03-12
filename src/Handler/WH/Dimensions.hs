@@ -100,18 +100,18 @@ renderDimensionR = do
 
 
   defaultLayout [whamlet|
-<div.well>
-  <form#get-dimensions role=form method=get action=@{WarehouseR WHDimensionR} enctype=#{encType}>
+<form#get-dimensions role=form method=get action=@{WarehouseR WHDimensionR} enctype=#{encType}>
+  <div.well>
     ^{form}
     <button.btn.btn-default type="submit" name> Process
-<div.well>
-  ^{renderBoxes boxes}
+  <div.well>
+    ^{renderBoxes boxes}
 |]
 
 {-# NOINLINE getWHDimensionBulkR #-}
 getWHDimensionBulkR :: Handler Html
 getWHDimensionBulkR = do
-  renderBulk Nothing
+  renderBulk []
 
 
 {-# NOINLINE postWHDimensionBulkR #-}
@@ -124,20 +124,21 @@ postWHDimensionBulkR = do
       setError $ "FormFailure:" >> mapM_ toHtml a
       sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess text -> do
-      renderBulk (Just text)
+      actionM <- lookupPostParam "action"
+      let boxes = rotateBox actionM $ parseBoxList text
+      renderBulk boxes
      
   
-renderBulk :: Maybe Text -> Handler Html
-renderBulk text = do
-  (form, encType) <- generateFormPost (bulkForm text)
-  let boxes = maybe [] parseBoxList text
+renderBulk :: [(Text, Dimension, Maybe Dimension)] -> Handler Html
+renderBulk boxes = do
+  (form, encType) <- generateFormPost (bulkForm $ Just $ boxesToText boxes)
   defaultLayout [whamlet|
-<div.well>
-  <form#get-dimensions role=form method=POST action=@{WarehouseR WHDimensionBulkR} enctype=#{encType}>
+<form#get-dimensions role=form method=POST action=@{WarehouseR WHDimensionBulkR} enctype=#{encType}>
+  <div.well>
     ^{form}
     <button.btn.btn-default type="submit" name> Process
-<div.well>
-  ^{renderBoxes boxes}
+  <div.well>
+    ^{renderBoxes boxes}
 |]
 
 renderBoxes :: [(Text, Dimension, Maybe Dimension)] -> Widget
@@ -153,28 +154,31 @@ renderBoxes boxes = [whamlet|
         <th> Volume
         <th> Image
     <tbody>
-      $forall (style, outer, inner) <- boxes
+      $forall (index, (style, outer, inner)) <- zip ns boxes
         $with  gapm <- fmap (snd . innerBoxes outer) inner
             <tr>
               <td> #{style}
-              <td> #{formatDouble (dLength outer)}
+              <td> 
+                 <button.btn.btn-transparent type=submit name=action value="ol/#{index}"> #{formatDouble (dLength outer)}
                  $maybe il <- fmap dLength inner
                    <br>
-                   #{formatDouble il}
+                   <button.btn.btn-transparent type=submit name=action value="il/#{index}"> #{formatDouble il}
                  $maybe gap <- gapm
                    <br>
                    (+#{formatDouble (dLength gap)})
-              <td> #{formatDouble (dWidth outer)}
+              <td>
+                 <button.btn.btn-transparent type=submit name=action value="ow/#{index}">#{formatDouble (dWidth outer)}
                  $maybe iw <- fmap dWidth inner
                    <br>
-                   #{formatDouble iw}
+                   <button.btn.btn-transparent type=submit name=action value="iw/#{index}"> #{formatDouble iw}
                  $maybe gap <- gapm
                    <br>
                    (+#{formatDouble (dWidth gap)})
-              <td> #{formatDouble (dHeight outer)}
+              <td>
+                 <button.btn.btn-transparent type=submit name=action value="oh/#{index}">#{formatDouble (dHeight outer)}
                  $maybe ih <- fmap dHeight inner
                    <br>
-                   #{formatDouble ih}
+                   <button.btn.btn-transparent type=submit name=action value="ih/#{index}"> #{formatDouble ih}
                  $maybe gap <- gapm
                    <br>
                    (+#{formatDouble (dHeight gap)})
@@ -182,7 +186,7 @@ renderBoxes boxes = [whamlet|
                  $maybe i <- inner
                    <br> #{formatVolume (volume i / 1000000)}
               <td><a href="@{routeFor outer inner}" ><img src=@?{(routeFor outer inner, [("width", "128")])}>
-|]
+|] where ns = [0 :: Int ..]
   
 
 -- * Misc 
@@ -245,6 +249,35 @@ parseBoxList text = mapMaybe go (lines text)
         chooseInner (style, b1, Just b2) | volume b1 < volume b2 = (style, b2, Just b1)
         chooseInner x                                            = x
                     
+boxesToText :: [(Text, Dimension, Maybe Dimension)] -> Text
+boxesToText = unlines . map go where
+  go (style, outer, innerm) = intercalate "\t" 
+                                          $ style : dimToTexts outer ++ maybe [] dimToTexts innerm
+  dimToTexts (Dimension l w h) = map (pack . formatDouble) [l, w, h]
+
+
+rotateBox :: Maybe Text -> [(Text, Dimension, Maybe Dimension)] -> [(Text, Dimension, Maybe Dimension)] 
+rotateBox Nothing boxes = boxes
+rotateBox (Just action) boxes = let
+  (what, lineS) = splitAt 3 action
+  process (style, outer@(Dimension l w h), innerm) =
+      case what of
+        "ol/" -> -- turn 
+          (style, dimension w h l, innerm)
+        "ow/" -> -- set widh to top
+          (style, dimension h l w, innerm)
+        _ | Just (Dimension li wi hi) <- innerm ->
+          case what of
+          "il/" -> (style, outer, Just $ dimension hi wi li)
+          "iw/" -> (style, outer, Just $ dimension hi li wi)
+          _ -> (style, outer, innerm)
+        _ -> (style, outer, innerm)
+  -- create a Dimension where length is bigger that width
+  dimension l0 w0 h = Dimension l w h where [w,l] = sort [l0, w0]
+  in case readMay lineS of
+      Just line | (before, box:after) <- splitAt line boxes -> before ++ [process box] ++ after
+      _ -> boxes
+
 
 routeFor (Dimension l w h) Nothing = WarehouseR $ WHDimensionOuterR ((fromIntegral.round) l) (round w) (round h)
 routeFor (Dimension l w h) (Just (Dimension il iw ih))

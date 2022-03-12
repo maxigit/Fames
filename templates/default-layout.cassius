@@ -79,3 +79,8 @@ table.table-striped
    content: "("
   &:after
    content: ")"
+
+
+.btn.btn-transparent
+  all: unset
+  cursor: pointer
