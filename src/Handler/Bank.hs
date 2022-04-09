@@ -1208,7 +1208,7 @@ receiptHeader="date,template,counterparty,bank account,comment,total,gl account,
 mkReceipt :: Text -> B.Transaction -> Text
 mkReceipt account B.Transaction{..} = F.sformat (F.string F.% ",,"  F.%F.string % "," F.% F.stext% ",,\"" F.% commasDecimal F.% "\",,,,,,,")
     (formatTime defaultTimeLocale "%F" _sDate) 
-    _sDescription
+    (show _sDescription)
     account
     (- _sAmount)
 
