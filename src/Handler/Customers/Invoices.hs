@@ -416,7 +416,7 @@ fillShippingForm info customerInfo detailKeyM = do
 customerCountryInfo :: CustomerInfo -> (Maybe CountryCode, Bool, ServiceCode)
 customerCountryInfo CustomerInfo{..} = 
   case FA.areaDescription custBranchArea of 
-    "UK" -> (Just GB, False, ParcelNextDay)
+    "UK" -> (Just GB, False, Parcel12AM)
     "Northern Ireland" -> (Just GB, False, ParcelTwoDay)
     "Rep. of Ireland" -> (Just IE, True, ParcelTwoDay)
     "Europe" -> -- extract the code from the VAT
