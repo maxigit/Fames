@@ -62,6 +62,7 @@ data Delivery = Delivery
 data YesNo = Y | N deriving (Show, Read, Eq)
 data ServiceCode = ParcelTwoDay
                  | ParcelNextDay
+                 | Parcel12AM
                  | ExpressPak1NextDay
                  | ExpressPak5NextDay
                  | InternationalClassic
@@ -96,6 +97,7 @@ instance ToField ServiceCode where
   toField sc = "2^" ++ case sc of
     ParcelTwoDay -> "11"
     ParcelNextDay -> "12"
+    Parcel12AM -> "13"
     ExpressPak1NextDay -> "68"
     ExpressPak5NextDay ->  "32"
     InternationalClassic -> "19"
