@@ -421,7 +421,7 @@ customerCountryInfo CustomerInfo{..} =
     "Rep. of Ireland" -> (Just IE, True, ParcelTwoDay)
     "Europe" -> -- extract the code from the VAT
       case lookup (take 2 $ FA.debtorsMasterTaxId cuDebtor) countryMap of
-        code@(Just JE) -> ( Just GB, True, ParcelTwoDay)
+        _code@(Just JE) -> ( Just GB, True, ParcelTwoDay)
         code -> ( code
                 , True
                 , InternationalClassic
