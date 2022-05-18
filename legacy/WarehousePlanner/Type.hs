@@ -72,6 +72,8 @@ data OrientationStrategy  = OrientationStrategy
   { osOrientations :: Orientation
   , osMinDepth :: Int
   , osMaxDepth :: Int
+  , osMaxLenght:: Maybe Int
+  , osMaxHeight :: Maybe Int
   , osUseDiagonal :: Bool -- ^ see `howManyWithDiagonal`
   } deriving (Show, Eq, Ord)
 

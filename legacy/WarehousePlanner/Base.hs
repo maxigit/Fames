@@ -335,7 +335,7 @@ defaultBoxOrientations box shelf =
                                     ors -> ors
             FilterOrientations orientations_ -> boxBoxOrientations box List.\\ orientations_
             AddOrientations lefts_ rights_ -> lefts_ `List.union` boxBoxOrientations box `List.union` rights_
-    in map (\o -> OrientationStrategy o 0 1 True) orientations
+    in map (\o -> OrientationStrategy o 0 1 Nothing Nothing True) orientations
 
 defaultBoxStyling = BoxStyling{..} where
   foreground = black
@@ -518,8 +518,9 @@ deleteBoxes boxIds = do
 -- For the same number of boxes. use the biggest diagonal first, then  the smallest shelf
 bestArrangement :: Show a => [OrientationStrategy] -> [(Dimension, a)] -> Dimension -> (Orientation, Diagonal, Int, Int, Int, a)
 bestArrangement orientations shelves box = let
-    options = [ (o, diag, extra, (nl, max minW (min nw maxW), nh), sl*sw*sh)
-              | (OrientationStrategy o  minW  maxW useDiag) <-   orientations
+    minMaybe minm x = fromMaybe x  $ fmap (min x) minm
+    options = [ (o, diag, extra, (minMaybe maxLM nl, max minW (min nw maxW), minMaybe maxHM nh), sl*sw*sh)
+              | (OrientationStrategy o  minW  maxW maxLM maxHM useDiag) <-   orientations
               , (shelf, extra) <- shelves
               , let Dimension sl sw sh =  shelf
               , let ((nl, nw, nh),diag) = if useDiag

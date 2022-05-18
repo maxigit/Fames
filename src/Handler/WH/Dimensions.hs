@@ -307,7 +307,7 @@ displayBox outer innerm   = let
 -- | Calculate 
 innerBoxes :: Dimension -> Dimension -> ([PDimension], Dimension) -- ^ (dimension+offset, gaps)
 innerBoxes outer@(Dimension lo wo ho) inner =
-  let orientations = zipWith3 (\o minW maxW -> OrientationStrategy o minW maxW False)
+  let orientations = zipWith3 (\o minW maxW -> OrientationStrategy o minW maxW Nothing Nothing False)
                               allOrientations
                               (repeat 0)
                               (repeat 6)

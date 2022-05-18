@@ -630,9 +630,10 @@ setOrientationRules defOrs filename = do
 -- ! don't use diagonal mode
 parseOrientationRule:: [Orientation] -> Text -> [OrientationStrategy]
 parseOrientationRule defOrs cs0 = let
-  (diag,cs) = case uncons cs0 of
+  (diag,csToSplit) = case uncons cs0 of
                 Just ('!', s) -> (False, s)
                 _ -> (True, cs0)
+  (cs: h: l:_) = splitOn "x" csToSplit ++ ["", ""]
 
   (ns, cs') = span (isDigit) cs
   n0 = fromMaybe 1 $ readMay ns
@@ -645,9 +646,11 @@ parseOrientationRule defOrs cs0 = let
     Nothing -> (0, n0)
     Just Nothing -> (n0, n0)
     Just (Just n) -> (n0, n)
+  minHM = readMay h
+  minLM = readMay l
 
   ors = case cs'' of
     "" -> defOrs
     s -> readOrientations defOrs s
-  in [(OrientationStrategy o  min_  max_ (rotateO o `elem` ors && diag)) | o <- ors ]
+  in [(OrientationStrategy o  min_  max_ minLM minHM (rotateO o `elem` ors && diag)) | o <- ors ]
   
