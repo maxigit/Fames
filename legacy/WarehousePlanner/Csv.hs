@@ -630,17 +630,21 @@ setOrientationRules defOrs filename = do
 -- ! don't use diagonal mode
 parseOrientationRule:: [Orientation] -> Text -> [OrientationStrategy]
 parseOrientationRule defOrs cs0 = let
-  (diag,csToSplit) = case uncons cs0 of
+  (diag,limitsOrs) = case uncons cs0 of
                 Just ('!', s) -> (False, s)
                 _ -> (True, cs0)
-  (cs: h: l:_) = splitOn "x" csToSplit ++ ["", ""]
+  (limits, orsS) = span (\c -> c `elem`( "0123456789:x" :: String)) limitsOrs
+  (l, cs, h) = case splitOn "x" limits of
+            [w] -> ("", w, "")
+            [w,h] -> ("", w, h)
+            (l:w:h:_) -> (l, w , h)
+            [] -> ("","","")
 
   (ns, cs') = span (isDigit) cs
   n0 = fromMaybe 1 $ readMay ns
-  (nM, cs'') = case uncons cs' of
-                  Just (':', s) -> let (ns', leftover) = span (isDigit) s
-                             in (Just ( readMay ns' :: Maybe Int), leftover)
-                  _ -> (Nothing, cs')
+  nM = case uncons cs' of
+                  Just (':', s) -> Just ( readMay s :: Maybe Int)
+                  _ -> Nothing
   -- if only one number, use it as the maximum
   (min_, max_) = case nM of
     Nothing -> (0, n0)
@@ -649,7 +653,7 @@ parseOrientationRule defOrs cs0 = let
   minHM = readMay h
   minLM = readMay l
 
-  ors = case cs'' of
+  ors = case orsS of
     "" -> defOrs
     s -> readOrientations defOrs s
   in [(OrientationStrategy o  min_  max_ minLM minHM (rotateO o `elem` ors && diag)) | o <- ors ]

@@ -308,7 +308,7 @@ A planner file is made of different sections. Each section corresponds to an org
           in the box selector. This is a CSV with the following header:
           <code>stock_id,orientation
 
-          Orientation must have the following format <code>no-diagonal min-depth : max-depth  orientations</code>
+          Orientation must have the following format <code>no-diagonal stackin-limitg orientations</code>
           Example:
           <pre>
             TSHIRT/#top,^
@@ -326,17 +326,23 @@ A planner file is made of different sections. Each section corresponds to an org
             | tilted forward & right
             ' rotated up
             @ rotated side
-          <h4> Depth, Width and Height specification
+          <h4> max stacking specification
           By default, boxes are stacked using only one level of depth. This way, no boxes hide behind others and so all boxes are visible.
           To enable the use of multiple depth and allow boxes to hide each other, a minimum and max depth can set (before)
+          A maximumn limit for height and width (actual bay length) can be specified (but no minum).
+          Some or all of the limit can be specified as follow <code> depth | depth x height | lenght x depth x height</code>
+
+          Example 
+
           <pre>
             ,1:4 -- allow up to 4 depth level
             ,1: -- use a mininum of 2
             ,4 -- similar to 1:4
             ,4^ -- up to 4 levels, stacking boxes up
             ,1x2 -- max depth 1, max height 2
-            ,1x2x3 -- max depth 1, max height 2, max width 3
-            ,xx3 -- max width 3
+            ,1x2x3 -- max depth 2, max height 1, max width 3
+            ,xx3 -- max height 3
+
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-import"> Import

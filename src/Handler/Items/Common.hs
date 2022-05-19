@@ -3,7 +3,6 @@ module Handler.Items.Common where
 import Import
 import Items
 import Data.Text(splitOn)
-import qualified FA
 import Handler.Items.Category.Cache
 
 -- * Style names conversion 
@@ -13,16 +12,8 @@ import Handler.Items.Category.Cache
 -- construct the function depending on the category setting
 skuToStyleVarH :: Handler (Text -> (Text, Text))
 skuToStyleVarH = do
-  [styleFn, varFn] <- mapM categoryFinderCached ["style", "colour"]
-  categories <- categoriesH
-  -- check style and colour categories exists
-  let style = "style"
-      var = "colour"
-  when (style `notElem` categories) $
-    setWarning "Style category not set. Please contact your Administrator."
-  when (var `notElem` categories) $
-    setWarning "Variation category not set. Please contact your Administrator."
-  return $ (,) <$> (\sku -> fromMaybe sku $ styleFn (FA.StockMasterKey sku)) <*> (fromMaybe "" . varFn . FA.StockMasterKey)
+  let f sku = (take 8 sku, drop 9 sku)
+  return f
 
 
 
