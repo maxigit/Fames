@@ -810,8 +810,9 @@ moveBoxes :: (Box' box , Shelf' shelf) => ExitMode -> [box s] -> [shelf s] -> WH
 
 moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
-  let layers = groupBy ((==)  `on` boxGlobalRank) $ sortBy (comparing boxGlobalRank) boxes
+  let layers = groupBy ((==)  `on` boxBreak) $ sortBy (comparing boxGlobalRank) boxes
       boxGlobalRank box = (boxGlobalPriority box, boxStyle box, boxStylePriority box,  _boxDim box)
+      boxBreak box = (boxStyle box, _boxDim box)
       -- \^ we need to regroup box by style and size
       -- However we take into the account priority within the style before the dimension
       -- so that we can set the priority
