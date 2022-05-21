@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.5.
 --
 -- see: https://github.com/sol/hpack
 
@@ -116,6 +116,7 @@ library
       WarehousePlanner.Display
       WarehousePlanner.Optimum
       WarehousePlanner.Report
+      WarehousePlanner.ShelfOp
       WarehousePlanner.SimilarBy
       WarehousePlanner.Type
       Curl
@@ -992,6 +993,7 @@ test-suite zghicd
       WarehousePlanner.Display
       WarehousePlanner.Optimum
       WarehousePlanner.Report
+      WarehousePlanner.ShelfOp
       WarehousePlanner.SimilarBy
       WarehousePlanner.Type
       SharedStockAdjustment

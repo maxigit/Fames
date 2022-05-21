@@ -3,6 +3,7 @@
 module WarehousePlanner.Csv where
 
 import WarehousePlanner.Base
+import WarehousePlanner.ShelfOp
 import qualified Data.Csv as Csv
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as Vec
@@ -99,9 +100,11 @@ readShelves2 defaultOrientator filename = do
                               return ( expand =<< splitOn "|" name
                                      , newShelfWithFormula
                                      )
-                        mapM (\(n, tag) -> go
-                                    (dimToFormula n dim)
-                                    (dimToFormula n dim')
+                        mapM (\(n, tag) ->
+                            let r = dimFromRef n
+                            in go
+                                    (dimToFormula r dim)
+                                    (dimToFormula r dim')
                                     (bottomToFormula n bottom)
                                     defaultOrientator
                                     fillStrat
@@ -189,7 +192,7 @@ parseOp accessor = do
 parseRef :: (ShelfDimension -> Double) -> P.Parser Expr
 parseRef accessor = do
   _ <- P.char '{'
-  ref <- P.many1 (P.alphaNum <|> P.oneOf ".+-%_\\")
+  ref <- P.many (P.noneOf ":}") --  (P.alphaNum <|> P.oneOf ".+-%_\\")
   acc <- P.option accessor $ P.char ':' *> parseAccessor
   _ <- P.char '}'
   return $ RefE (pack ref) acc
@@ -207,30 +210,37 @@ parseAccessor = P.choice $ map  (\(s ,a) -> P.string s >> return a)
                 ]
 
 
-evalOperator :: Text -> (Double -> Double -> Double) -> Expr -> Expr -> WH Double s
-evalOperator shelfName op e1 e2 = do
-    v1 <- evalExpr shelfName e1
-    v2 <- evalExpr shelfName e2
+type RefToSDim s = Text -> WH ShelfDimension s
+evalOperator :: RefToSDim s -> (Double -> Double -> Double) -> Expr -> Expr -> WH Double s
+evalOperator refToDim op e1 e2 = do
+    v1 <- evalExpr refToDim e1
+    v2 <- evalExpr refToDim e2
     return (v1 `op` v2)
 
-evalExpr :: Text -> Expr -> WH Double s
-evalExpr shelfName (AddE e1 e2) = evalOperator shelfName (+) e1 e2
-evalExpr shelfName (SubE e1 e2) = evalOperator shelfName (-) e1 e2
-evalExpr shelfName (MulE e1 e2) = evalOperator shelfName (*) e1 e2
-evalExpr shelfName (DivE e1 e2) = evalOperator shelfName (/) e1 e2
+evalExpr :: RefToSDim s -> Expr -> WH Double s
+evalExpr refToDim (AddE e1 e2) = evalOperator refToDim (+) e1 e2
+evalExpr refToDim (SubE e1 e2) = evalOperator refToDim (-) e1 e2
+evalExpr refToDim (MulE e1 e2) = evalOperator refToDim (*) e1 e2
+evalExpr refToDim (DivE e1 e2) = evalOperator refToDim (/) e1 e2
 
 
 evalExpr _ (ValE v) = return v
 
-evalExpr shelfName (RefE ref accessor) = do
+evalExpr refToSDim (RefE ref accessor) = do
+  fmap accessor (refToSDim ref)
+
+dimFromRef :: Text -> Text -> WH ShelfDimension s
+dimFromRef shelfName ref = do
   let refName = transformRef shelfName ref
   ids <- findShelfBySelector (Selector (NameMatches [MatchFull refName]) [])
   shelf <- case ids of
               [] -> error $ "Can't find shelf " ++ unpack refName ++ " when evaluating formula"
               [id_] ->  findShelf id_
               _ -> error $ "Find multiple shelves for " ++ unpack shelfName ++ "when evaluating formula."
-  return $ accessor . shelfDimension $ shelf
+  return $ shelfDimension $ shelf
 
+evalExprFromShelf :: Text -> Expr -> WH Double s
+evalExprFromShelf shelfname = evalExpr (dimFromRef shelfname)
 
 transformRef :: Text -> Text -> Text
 transformRef a b = pack (transformRef' (unpack a) (unpack b))
@@ -255,18 +265,18 @@ transformRef' _ [] = []
 -- transformRef os cs = error $ "Non-exhaustive patterns catch "
 --    ++ "\n\t[" ++ os ++ "]\n\t[" ++ cs  ++ "]"
 
-dimToFormula :: Text -> (Text, Text, Text) -> WH Dimension s
-dimToFormula name (ls, ws, hs) = do
+dimToFormula :: RefToSDim s -> (Text, Text, Text) -> WH Dimension s
+dimToFormula refToDim (ls, ws, hs) = do
   l <- eval (dLength . sMinD) ls
   w <- eval (dWidth . sMinD) ws
   h <- eval (dHeight . sMinD) hs
   return $ Dimension l w h
-  where eval :: (ShelfDimension -> Double) -> Text -> WH Double s
-        eval accessor s = evalExpr name (parseExpr accessor s)
+  where -- eval :: (ShelfDimension -> Double) -> Text -> WH Double s
+        eval accessor s = evalExpr refToDim (parseExpr accessor s)
 
 
 bottomToFormula :: Text -> Text -> WH Double s
-bottomToFormula name bs = evalExpr name  (parseExpr sTopOffset bs)
+bottomToFormula name bs = evalExprFromShelf name  (parseExpr sTopOffset bs)
 -- | Create a new shelf using formula
 newShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> (WH Double s) -> BoxOrientator -> FillingStrategy -> Text -> Maybe Text ->  WH (Shelf s) s
 newShelfWithFormula dimW dimW' bottomW boxo strategy name tags = do
@@ -288,6 +298,60 @@ updateShelfWithFormula dimW dimW' bottomW _boxo _strategy name _tags = do
         updateShelf (\s -> s { minDim = dim, maxDim = dim', bottomOffset = bottom }) shelf
     [] -> error $ "Shelf " <> unpack name <> " not found. Can't update it"
     _ -> error $ "To many shelves named " <> unpack name <> " not found. Can't update it"
+
+-- | Read a csv describing how to split a shelf
+-- The user basically gives a new length, width, and depth
+-- This create a new shelf with the given dimensions
+-- and cut it out (using guillotin cut) of the existing shelf
+-- If a set of box is used, the dimension of the first box
+-- can be used in formula
+readShelfSplit :: FilePath -> IO (WH [Shelf s] s)
+readShelfSplit = readFromRecordWith go where
+  go (style, location, l, w, h) = do
+    let locations = splitOn "|" location
+    boxes <- findBoxByNameAndShelfNames style >>= mapM findBox
+    shelfIds <- findShelfBySelectors (map parseSelector locations)
+    shelves <- mapM findShelf shelfIds
+    let boxm = headMay boxes
+        withD s = if null s then "{}" else s :: Text
+    concat `fmap` mapM (\shelf -> do
+      dim <- dimToFormula (dimForSplit boxm shelf) (withD l, withD w, withD h)
+      splitShelf shelf dim
+      ) shelves
+
+-- | Resolves expr ref given a box and a shelf
+-- Empty ref = shelf itself
+-- orientation, the box according to the given orientation
+-- content 
+dimForSplit :: Maybe (Box s) -> Shelf s -> Text -> WH ShelfDimension s
+dimForSplit boxm shelf ref = 
+  case unpack ref of
+    "" -> return $ shelfDimension shelf
+    "%" -> return $ shelfDimension shelf
+    "shelf" -> return $ shelfDimension shelf
+    "self" -> return $ shelfDimension shelf
+    "content" -> do
+      dim <- maxUsedOffset shelf
+      return $ toSDim dim
+    "*" | Just box <- boxm -> do -- use box/shelf orientation
+      getOrientations <- gets boxOrientations
+      let (o:_) = map osOrientations (getOrientations box shelf) ++ [tiltedForward] -- ^ default
+      return $ toSDim (rotate o (_boxDim box))
+    [c] | Just box <- boxm ->
+      return $ toSDim (rotate (readOrientation c) (_boxDim box))
+    _ -> dimFromRef (shelfName shelf) ref
+  where toSDim (Dimension l w h) = let
+                dim = Dimension (l - 1e-6) (w - 1e-6) (h - 1e-6)
+                in ShelfDimension dim dim 0
+
+-- | Join shelves which have been previously split.
+readShelfJoin :: FilePath -> IO (WH [Shelf s] s)
+readShelfJoin = readFromRecordWith go where
+  go (Csv.Only location) = do
+    let locations = splitOn "|" location
+    shelves <- findShelfBySelectors (map parseSelector locations) >>= mapM findShelf
+    mapM unSplitShelf shelves
+
 
 -- | Read a csv described a list of box with no location
 -- boxes are put in the default location and tagged with the new tag

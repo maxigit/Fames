@@ -26,6 +26,8 @@ data Dimension = Dimension { dLength :: !Double
                            , dHeight :: !Double
                            } deriving (Show, Eq, Ord)
 
+invert :: Dimension -> Dimension
+invert (Dimension l w h) = Dimension (negate l) (negate w) (negate h)
 
 data Direction = Vertical | Depth | Horizontal deriving (Show, Eq, Ord, Enum)
 data Flow = LeftToRight | RightToLeft deriving (Show, Eq, Ord, Enum)

@@ -6,7 +6,9 @@
 module WarehousePlanner.Base
 ( newShelf
 , newBox
+, assignShelf
 , deleteBoxes
+, deleteShelf
 , moveBoxes
 , updateBoxTags
 , updateBox
@@ -48,6 +50,7 @@ module WarehousePlanner.Base
 , clearCache
 , boxCoordinate
 , indexToOffsetDiag, d0, r
+, maxUsedOffset
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix)
@@ -92,17 +95,13 @@ type Tag'Operation = (Text, TagOperation)
 -- | Computes the max length or height used within a shelf
 -- | by all the boxes. Should be able to be cached.
 -- maxUsedOffset :: (Dimension -> Double) -> Shelf -> WH
-maxUsedOffset :: (Dimension -> Double) -> Shelf s -> WH Double s
-maxUsedOffset proj shelf = do
+maxUsedOffset ::  Shelf s -> WH Dimension s
+maxUsedOffset shelf = do
     boxes <- findBoxByShelf shelf
-    return $ foldr (\box r -> max r ((proj.boxOffset') box)) 0 boxes
-
-lengthUsed, widthUsed, heightUsed :: Shelf s -> WH Double s
-lengthUsed = maxUsedOffset dLength
-widthUsed = maxUsedOffset dWidth
-heightUsed = maxUsedOffset dHeight
-
-
+    let [l, w, h] = map (\proj -> 
+                     foldr (\box r -> max r ((proj.boxOffset') box)) 0 boxes
+                    ) [dLength, dWidth, dHeight]
+    return $ Dimension l w h
 
 -- | Nested groups of shelves, used for display
 
@@ -510,8 +509,11 @@ deleteBoxes boxIds = do
     
 
 
-
-
+deleteShelf :: ShelfId s -> WH () s
+deleteShelf shelfId = do
+  findBoxByShelf shelfId >>= deleteBoxes . map boxId
+  warehouse <- get
+  put warehouse { shelves = filter (/= shelfId) $ shelves warehouse }
   
 
 -- | find the best way to arrange some boxes within the given space
@@ -652,9 +654,7 @@ fillShelf exitMode  s simBoxes0 = do
     shelf <- findShelf s
     let boxes = box : bs
     -- first we need to find how much space is left
-    lused <- lengthUsed shelf
-    hused <- heightUsed shelf
-    wused <- widthUsed shelf
+    Dimension lused wused hused <- maxUsedOffset shelf
     case  (boxBreak box, lused*hused*wused > 0) of
       (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
       _ -> do

@@ -38,6 +38,8 @@ data HeaderType
   | TagsH 
   | MovesAndTagsH [Text] -- not needed but to be compatible with Moves
   | ShelfTagsH
+  | ShelfSplitH
+  | ShelfJoinH
   | OrientationsH 
   | TransformTagsH
   | ClonesH [Text]
