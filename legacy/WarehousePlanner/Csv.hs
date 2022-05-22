@@ -315,8 +315,13 @@ readShelfSplit = readFromRecordWith go where
     let boxm = headMay boxes
         withD s = if null s then "{}" else s :: Text
     concat `fmap` mapM (\shelf -> do
-      dim <- dimToFormula (dimForSplit boxm shelf) (withD l, withD w, withD h)
-      splitShelf shelf dim
+      [ls, ws, hs] <- zipWithM (\xtext f -> 
+                            mapM (\x -> do
+                              evalExpr (dimForSplit boxm shelf)
+                                       (parseExpr (f . sMinD)  $ withD x)
+                              ) (splitOn " " xtext)
+                            ) [l, w, h] ds
+      splitShelf shelf ls ws hs
       ) shelves
 
 -- | Resolves expr ref given a box and a shelf

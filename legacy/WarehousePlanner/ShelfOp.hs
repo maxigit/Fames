@@ -1,6 +1,7 @@
 module WarehousePlanner.ShelfOp 
 ( splitShelf
 , unSplitShelf
+, ds
 
 , splitTo
 , generateGrid
@@ -11,10 +12,9 @@ import Data.List (scanl')
 import Data.Char (chr)
 
 -- | Split a shelf into 2, 4 or 8 subshelves
-splitShelf :: Shelf s -> Dimension ->  WH [Shelf s] s
-splitShelf shelf@Shelf{..} dim = do
-  let Dimension l w h = dim
-      splits = generateGrid minDim [l] [w] [h]
+splitShelf :: Shelf s -> [Double] -> [Double] -> [Double] ->  WH [Shelf s] s
+splitShelf shelf@Shelf{..} ls ws hs = do
+  let splits = generateGrid minDim ls ws hs
       adjustMax last accessor gDim = 
         if last -- last elemen of a gree the max need to be increased
         then 

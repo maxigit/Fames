@@ -50,7 +50,7 @@ A planner file is made of different sections. Each section corresponds to an org
             Example
             <pre>
               [ABC][123] => A1 A2 A3 B1 B2 B3 C1 C2 C3
-            <h4> dimension formula 
+            <h4#dimension-formula> dimension formula 
             Shelf dimension depending on the dimension on another shelf can be expressed using shelf dimension.
             This can be useful when shelf are back to back or one shelf is not physically a shelf but the space
             leftover between a shelf and wall. Basic arithmetic can be performed and the the same dimension of another
@@ -70,6 +70,20 @@ A planner file is made of different sections. Each section corresponds to an org
             For A2, <code>_</code> refers to the first character of the current shelf, i.e, <code>A</code> and <code>-</code> refers to the second character (<code>2</code>)  minus 1 -> <code>1</code>
             For B1, the <code>_</code> is in the second position and therefore correspond to the second character of <code>B1</code> : <code>1</code>.
             For C1, the <code>[AC]</code> is transform into <code>A</code> (C->A, B->B, A->C)
+
+            An accessor can be added to a reference to select a particular dimension of the refered object.
+            This is done with <code>{</code>ref<code>:</code>accessor<code>}</code>, where accessor can be
+
+               <ul>
+                <li><code>length</code> min length
+                <li><code>width</code>  min width
+                <li><code>height</code> min height
+                <li><code>Length</code> max length
+                <li><code>Width</code>  max width
+                <li><code>Height</code> max height
+                <li><code>bottom</code> bottom (height from the ground)
+                <li><code>top</code>  top (height from the ground)
+
             <h4>shelf types
             The shelf type determines the default boxes orientation and filling strategy. The current shelf style are
             <ul>
@@ -77,6 +91,7 @@ A planner file is made of different sections. Each section corresponds to an org
               <li> deadzone : allow up column first
               <li> Update allows to update an existing shelf (tags will be ignored)
               <li> other, column first
+
             <h4> Update
             Shelves can be updated by redefining it and setting the type to <code>Update</code>.
             Formulas can use the value of the shelf itself. This feature allow to tweak a shelf
@@ -219,6 +234,48 @@ A planner file is made of different sections. Each section corresponds to an org
             /S,tag -- tag shelves with name S
             /#sep,fg=blue -- set the foreground of all shelves having the `sep` tag
             #new/#top,tag -- tag all 'top' shelves containing a items with the new tag
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-shelf-split"> SHELF_JOIN (shelf split)
+        <div.pre.collapse :expanded:.in id=info-section-shelf-split>
+          Split a shelf performing guillotine cut. The dimension columns specify the dimension to cut.
+          it can be any formula with reference another shelf or objet.
+          For each object the dimension corresponding to the column will be used, unless accessor is specified (see <a href=#dimension-formula>dimension formula</a>)
+          If a box selector is specified, the dimension of the first box found 
+          can be used.
+
+          Extra object
+          <ul>
+              <li><code>{}</code> or <code>{%}</code> or <code>{shelf}</code> the shelf itself
+              <li><code>{content}</code> dimension of bounding box of box inside the shelf
+              <li><code>{=}</code> or <code>{|}</code> etc box with the given orientation
+              <li><code>{*}</code> box with first possible orientation
+
+          The split shelf is resized and the created ones have the same name
+          with a 3 letter suffix separated with <code>/</code> index added.
+          Example
+          <pre>
+            :SHELF_SPLIT:
+            stock_id,location,length,width,height
+            ,A, {%}/2, , -- cut A in 2 of half the length : A A/baa
+            ,A, {%}/4 {%}/2, 50, 10 -- cut A in 12 3x2x2 A A/baa A/caa A/bba A/cba ...
+            ,A, {B:height},, -- cut length using shelf B height
+            box,A,{|}*2,, cut at two time the lenght of box with <code>|</code> orientation
+
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-shelf-join"> SHELF_SPLIT (shelf join)
+        <div.pre.collapse :expanded:.in id=info-section-shelf-join>
+          Shelves which have been split can be join back together. The selector must refer to the base shelf (not the split ones)
+
+          <pre>
+            :SHELF_SPLIT:
+            stock_id,location,length,width,height
+            ,A, {%}/2,{%}/2, -- create A/ba A/bb A/ab
+            :END:
+            :SHELF JOIN:
+            location
+            A -- join A/ba A/bb and A/ab to A
+            :END:
+
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-clone"> Cloning and Deleting
