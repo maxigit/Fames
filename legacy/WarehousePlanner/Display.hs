@@ -76,7 +76,10 @@ renderBoxes shelf = let
         boxes <- findBoxByShelf shelf
         z'diags <-  mapM (renderBox shelf) boxes
         let zMap = Map.fromListWith atop (concat z'diags)
-        return $ foldl' atop mempty (Map.elems zMap)
+        return $ foldl' atop (rect 0 0 ) (Map.elems zMap)
+        --                   ^ necessary so to force the envelope to include (0,0)
+        --                   so that the offset of boxes is not cancelled
+        --                   when align diagrams
 
 depthBar :: ShelfStyling -> Double -> Double -> Diagram B
 depthBar ShelfStyling{..} w used = let
