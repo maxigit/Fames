@@ -3,6 +3,7 @@ module Handler.Planner.View
 , postPViewR
 , getPImageR
 , getPDocR
+, getPScenarioImageR
 )
 
 where
@@ -88,6 +89,13 @@ getPDocR = do
   --  <div.well>
   --    ^{plannerDoc'}
   --                       |]
+{-# NOINLINE getPScenarioImageR #-}
+getPScenarioImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
+getPScenarioImageR path i width = do
+  Right scenario <-  readScenarioFromPath importFamesDispatch $ unpack path
+  (sha, _) <- cacheScenarioIn scenario
+  getPImageR sha i width
+  
 
 -- * Form 
 
@@ -177,6 +185,10 @@ renderView param0 = do
   modeS <- lookupPostParam "mode"
   let mode = modeS >>=readMay
       vmode = pViewMode param0
+      imageRoute = case (pPlannerPath param0, fullOrgfile param0) of
+        (Just path, Nothing) -> \_ -> PScenarioImageR $ pack path
+        _ -> \sha -> PImageR sha
+              
   scenarioFromFileEM <-  forM (pPlannerPath param0) (readScenarioFromPath importFamesDispatch) 
   scenarioEM <- forM (fullOrgfile param0) (readScenario importFamesDispatch)
   Right extra <- readScenario importFamesDispatch "* Best Available shelves for"
@@ -190,8 +202,8 @@ renderView param0 = do
           let param = param0 {pDisplayMode = mode}
           w <- case fromMaybe PlannerSummaryView (pViewMode param) of
               PlannerSummaryView-> renderSummaryReport scenario
-              PlannerGraphicCompactView-> renderGraphicCompactView scenario
-              PlannerGraphicBigView-> renderGraphicBigView scenario
+              PlannerGraphicCompactView-> renderGraphicCompactView imageRoute scenario
+              PlannerGraphicBigView-> renderGraphicBigView imageRoute scenario
               PlannerShelvesReport-> renderShelvesReport scenario
               PlannerShelvesGroupReport-> renderShelvesGroupReport scenario
               PlannerAllReport -> renderConsoleReport reportAll scenario
@@ -259,10 +271,10 @@ sendResponseDiag width diag =  do
   M.renderContent (M.SizedDiagram size diag)
 
 -- ** Graphical View 
-renderGraphicCompactView :: Scenario -> Handler Widget
-renderGraphicCompactView scenario = do
+renderGraphicCompactView :: (Text -> _) ->  Scenario -> Handler Widget
+renderGraphicCompactView imageRoute scenario = do
   (sha, layoutSize) <- cacheScenarioIn scenario
-  let imgRoute i width = PlannerR (PImageR (sha) i width)
+  let imgRoute i width = PlannerR (imageRoute sha i width)
       is = [0..fromIntegral (layoutSize-1)]
   return [whamlet|
 <div>
@@ -270,10 +282,10 @@ renderGraphicCompactView scenario = do
     <tr><td><a href="@{imgRoute i 8000}" ><img src=@{imgRoute i 350} style="width:800;">
 |]
 
-renderGraphicBigView :: Scenario -> Handler Widget
-renderGraphicBigView scenario = do
+renderGraphicBigView :: (Text-> _) -> Scenario -> Handler Widget
+renderGraphicBigView imageRoute scenario = do
   (sha, layoutSize) <- cacheScenarioIn scenario
-  let imgRoute i width = PlannerR (PImageR (sha) i width)
+  let imgRoute i width = PlannerR (imageRoute sha i width)
       is = [0..fromIntegral (layoutSize-1)]
   return [whamlet|
 <table>
