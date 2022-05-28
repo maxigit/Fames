@@ -149,7 +149,7 @@ slice box zone = let
   bDim = boxDimension box
   zDim = freeZoneDimension zone
   n = boxNumber box
-  in case howMany zDim bDim  of
+  in case howMany zDim zDim bDim  of
       (lmax, wmax, hmax) | lmax >0, wmax >0, hmax >0 -> let
                           -- we fill boxes verticaly first, then the depth,
                           -- to end with the length, so that we keep length minimal

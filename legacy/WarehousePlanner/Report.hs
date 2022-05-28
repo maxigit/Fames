@@ -64,7 +64,7 @@ bestBoxesFor shelf = do
     let s  = headEx shelves
         tries = [ (-((fromIntegral (n*k*m))*(boxVolume box / boxHeight box / shelfVolume s * shelfHeight s)), box)
             | (box, ors) <- bors
-            , let (_,_,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
+            , let (_,_,n,k,m,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
             ]
 
         bests = sortBy (compare `on` fst) tries
@@ -86,7 +86,7 @@ bestHeightForShelf shelf = do
     let s  = headEx shelves
         tries = [ (-((fromIntegral (n*k*m))*boxVolume box / shelfVolume s), (box, or, diag, (n,k,m)))
             | (box, ors) <- bors
-            , let (or,diag,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
+            , let (or,diag,n,k,m,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
             ]
 
         bests = sortBy (compare `on` fst) tries
@@ -119,7 +119,7 @@ report :: Shelf s -> Box s -> WH Text s
 report shelf box = do
     getOr <- gets boxOrientations
     similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
-    let (or,diag,n,k,m,_) = bestArrangement (getOr box shelf) [(maxDim shelf, shelf)] (_boxDim box)
+    let (or,diag,n,k,m,_) = bestArrangement (getOr box shelf) [(minDim shelf, maxDim shelf, shelf)] (_boxDim box)
         ratio = boxVolume box * fromIntegral (n * k * m) / shelfVolume shelf
         numberOfBoxes = length similarBoxes
         shelvesNeeded = fromIntegral numberOfBoxes / fromIntegral (n*m*k)
@@ -318,7 +318,7 @@ boxesReport = do
 
   where -- report_ :: Box s -> WH (IO ()) s
         report_ (shelf, box) = do
-          let ((nl, nw, nh), diag) = howManyWithDiagonal (maxDim shelf) (boxDim box)
+          let ((nl, nw, nh), diag) = howManyWithDiagonal (minDim shelf) (maxDim shelf) (boxDim box)
           return $ printf "%s,%s,%s,%s,%dx%dx%d\n" (boxStyle box) (boxContent box) (shelfName shelf) (showOrientationWithDiag (orientation box) diag) nl nw nh
   
 -- * Compatible with warehouse planner input 
@@ -584,7 +584,7 @@ findResidual :: [OrientationStrategy] -> Shelf s -> Box s -> Int -> Int -> Maybe
 findResidual orientations shelf box qty nbOfShelf = let
   sdim = maxDim shelf
   bdim = _boxDim box
-  (or,_, nl, nw, nh, ()) = bestArrangement orientations [(sdim, ())] bdim
+  (or,_, nl, nw, nh, ()) = bestArrangement orientations [(minDim shelf, sdim, ())] bdim
   in case nl*nw*nh of
     0 -> Nothing
     nbPerShelf -> let

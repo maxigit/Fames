@@ -312,9 +312,9 @@ innerBoxes outer@(Dimension lo wo ho) inner =
                               (repeat 0)
                               (repeat 6)
       -- try with shrunk box by 1 cm first
-      best0 = bestArrangement orientations [(outer, ())] inner
+      best0 = bestArrangement orientations [(outer, outer, ())] inner
       shrink (Dimension x y z) = Dimension (x-1) (y-1) (z-1)
-      best = bestArrangement orientations [(shrink outer, ())] inner
+      best = bestArrangement orientations [(shrink outer, shrink outer, ())] inner
       (ori,_,  nl, nw, nh, _) = case best of
          (__ori, _, nl_, nw_, nh_, _) | nl_*nw_*nh_ > 0 -> best
          _ -> best0

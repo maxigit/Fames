@@ -13,7 +13,7 @@ bestShelves :: Box s -> (Shelf s -> [OrientationStrategy]) -> [Shelf s] ->  [She
 bestShelves box ors ss  = let
     tries = [ (-((fromIntegral (n*k*m))*boxVolume box / shelfVolume s), s)
             | s <- ss
-            , let (_,_,n,k,m,_) = bestArrangement (ors s) [(maxDim s, s)] (_boxDim box)
+            , let (_,_,n,k,m,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
             ]
     in map snd $ sortBy (compare `on` fst) tries
 

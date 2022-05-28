@@ -518,16 +518,16 @@ deleteShelf shelfId = do
 
 -- | find the best way to arrange some boxes within the given space
 -- For the same number of boxes. use the biggest diagonal first, then  the smallest shelf
-bestArrangement :: Show a => [OrientationStrategy] -> [(Dimension, a)] -> Dimension -> (Orientation, Diagonal, Int, Int, Int, a)
+bestArrangement :: Show a => [OrientationStrategy] -> [(Dimension, Dimension, a)] -> Dimension -> (Orientation, Diagonal, Int, Int, Int, a)
 bestArrangement orientations shelves box = let
     minMaybe minm x = fromMaybe x  $ fmap (min x) minm
     options = [ (o, diag, extra, (minMaybe maxLM nl, max minW (min nw maxW), minMaybe maxHM nh), sl*sw*sh)
               | (OrientationStrategy o  minW  maxW maxLM maxHM useDiag) <-   orientations
-              , (shelf, extra) <- shelves
+              , (minShelf, shelf, extra) <- shelves
               , let Dimension sl sw sh =  shelf
               , let ((nl, nw, nh),diag) = if useDiag
-                                   then  howManyWithDiagonal shelf (rotate o box)
-                                   else (howMany shelf (rotate o box), Diagonal 0)
+                                   then  howManyWithDiagonal minShelf shelf (rotate o box)
+                                   else (howMany minShelf shelf (rotate o box), Diagonal 0)
               ]
 
     bests = sortBy (compare `on` fst)
@@ -557,14 +557,34 @@ os = [tiltedForward, tiltedFR]
 
 
 -- | How many inner rectangle can fit in the outer one ?
-howMany :: Dimension --  ^ Outer
+-- The outer min corresponds to the maximum of the n-1 box
+-- This allows to set for example a maximum height for the bottom the last box
+-- this is the maximum height a operator can reach the box
+-- and the actual height of the shelf or ceiling, the physical limit.
+--
+--   max ----------------------
+--           2    X   
+--           2    X
+--   min ____2____2___________
+--           1    2
+--           1    1
+--           1    1
+--
+-- X is accepted even though it fit within max
+-- but starts after min
+--
+howMany :: Dimension --  ^ Outer min
+        -> Dimension -- ^ Out max
         -> Dimension --  ^ Inner
         -> (Int, Int, Int)
-howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
-                                                 , fit w wb
-                                                 , fit h hb
+howMany (Dimension l0 w0 h0) (Dimension l w h) (Dimension lb wb hb) = ( fit l0 l lb
+                                                 , fit w0 w wb
+                                                 , fit h0 h hb
                                                  ) where
-        fit d db = floor (max 0 (d-0) /(db+0))
+        fit d0 d1 db = 
+          let d = min (d0+db) d1
+          in floor (max 0 (d-0) /(db+0))
+
 
 -- | Find how many boxes fits using a "diagnal trick", when one box is rotated the other along a diagoral.
 -- For example
@@ -574,9 +594,9 @@ howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
 --    2 69
 --    3369
 --  3, 5 and 7 box are rotated down allowing f
-howManyWithDiagonal :: Dimension -> Dimension -> ((Int, Int, Int), Diagonal)
-howManyWithDiagonal outer@(Dimension l _ h) inner@(Dimension lb _ hb) =
-  let normal@(ln, wn, hn) = howMany outer inner
+howManyWithDiagonal :: Dimension -> Dimension -> Dimension -> ((Int, Int, Int), Diagonal)
+howManyWithDiagonal minOuter outer@(Dimension l _ h) inner@(Dimension lb _ hb) =
+  let normal@(ln, wn, hn) = howMany minOuter outer inner
       fit d db = floor (max 0 (d-0) /(db+0))
       -- how many feet for a given size of a square
       nForDiag n =
@@ -609,7 +629,9 @@ howManyWithDiagonal outer@(Dimension l _ h) inner@(Dimension lb _ hb) =
       options = [nForDiag i | i <- [2.. (1 + min ln hn)] ]
       bests = sortOn (\((nl', nw', nh'), _diag) -> (-nl'*nw'*nh', nl'))
                      $ (normal, Diagonal 0): options
-  in case bests of
+  in if outer /= minOuter
+     then (normal, Diagonal 0)
+     else case bests of
       [] -> error "Shouldn't happen"
       (best:_) -> best
 
@@ -662,10 +684,12 @@ fillShelf exitMode  s simBoxes0 = do
         let orientations = boxo box shelf
         let (bestO, diag, nl_, nw, nh, (lused', hused')) =
                             bestArrangement orientations
-                                              [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
-                                              | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
+                                              [( minDim shelf <> used, maxDim shelf <> used, (l,h))
+                                              -- [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
+                                              -- | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
                                             -- try min and max. Choose min if  possible
-                                              , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
+                                              | (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
+                                              , let used = Dimension (max 0 (0-l)) 0 (max 0 (0-h))
                                               ] dim
             nl = if exitMode == ExitLeft then nl_ else min 1 nl_
             rotated@(Dimension l' w' h') = rotate bestO dim
