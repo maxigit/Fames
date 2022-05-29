@@ -16,7 +16,7 @@ splitShelf :: Shelf s -> [Double] -> [Double] -> [Double] ->  WH [Shelf s] s
 splitShelf shelf@Shelf{..} ls ws hs = do
   let splits = generateGrid minDim ls ws hs
       adjustMax last accessor gDim = 
-        if last -- last elemen of a gree the max need to be increased
+        if last -- last elemen of a grid the max need to be increased
         then 
           accessor gDim + accessor maxDim - accessor minDim
         else
