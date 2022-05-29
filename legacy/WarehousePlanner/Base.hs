@@ -689,7 +689,7 @@ fillShelf exitMode  s simBoxes0 = do
                                               -- | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
                                             -- try min and max. Choose min if  possible
                                               | (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
-                                              , let used = Dimension (max 0 (0-l)) 0 (max 0 (0-h))
+                                              , let used = Dimension (min 0 (0-l)) 0 (min 0 (0-h))
                                               ] dim
             nl = if exitMode == ExitLeft then nl_ else min 1 nl_
             rotated@(Dimension l' w' h') = rotate bestO dim
