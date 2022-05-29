@@ -168,7 +168,7 @@ parseExpr defaultAccessor s =  case P.parse (parseExpr' defaultAccessor <* P.eof
   Right  expr -> expr
 
 parseExpr' :: (ShelfDimension -> Double) -> P.Parser Expr
-parseExpr' accessor = (P.try (parseOp accessor))
+parseExpr' accessor = (P.try (parseMMOp accessor))
                     <|> parseTerminalExpr accessor
 
 parseTerminalExpr :: (ShelfDimension -> Double) -> P.Parser Expr
@@ -185,28 +185,53 @@ parseVal = do
 parseGroup :: (ShelfDimension -> Double) -> P.Parser Expr
 parseGroup accessor = do
   _ <- P.char '('
+    P.spaces
   e <- parseExpr' accessor
+    P.spaces
   _ <- P.char ')'
   return e
 
-parseOp :: (ShelfDimension -> Double) -> P.ParsecT Text () Identity Expr
-parseOp accessor = do
-  e1 <- parseTerminalExpr accessor
-  P.spaces
-  op <- P.oneOf "+-*/|&"
-  P.spaces
-  e2 <- parseExpr' accessor
-  let c = case op of
-          '+' -> AddE
-          '-' -> SubE
-          '*' -> MulE
-          '/' -> DivE
-          '&' -> MinE
-          '|' -> MaxE
-          _ -> error "should not happen"
+parseMulOp :: (ShelfDimension -> Double) -> P.ParsecT Text () Identity Expr
+parseMulOp accessor = P.try p <|> parseTerminalExpr accessor where
+  p = do
+    e1 <- parseTerminalExpr accessor
+    P.spaces
+    op <- P.oneOf "*/"
+    P.spaces
+    e2 <- parseTerminalExpr accessor
+    let c = case op of
+            '*' -> MulE
+            '/' -> DivE
+            _ -> error "should not happen"
+    return $ c e1 e2
 
+parseMMOp :: (ShelfDimension -> Double) -> P.ParsecT Text () Identity Expr
+parseMMOp accessor = P.try p <|> parseAddOp accessor where
+  p = do
+    e1 <- parseAddOp accessor
+    P.spaces
+    op <- P.oneOf "|&"
+    P.spaces
+    e2 <- parseAddOp accessor
+    let c = case op of
+            '&' -> MinE
+            '|' -> MaxE
+            _ -> error "should not happen"
+    return $ c e1 e2
 
-  return $ c e1 e2
+parseAddOp :: (ShelfDimension -> Double) -> P.ParsecT Text () Identity Expr
+parseAddOp accessor = P.try p <|> parseMulOp accessor  where
+  p = do
+    e1 <- parseMulOp accessor
+    P.spaces
+    op <- P.oneOf "+-"
+    P.spaces
+    e2 <- parseMulOp accessor
+    let c = case op of
+            '+' -> AddE
+            '-' -> SubE
+            _ -> error "should not happen"
+    return $ c e1 e2
 
 parseRef :: (ShelfDimension -> Double) -> P.Parser Expr
 parseRef accessor = do
