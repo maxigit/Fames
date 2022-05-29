@@ -22,6 +22,13 @@ A planner file is made of different sections. Each section corresponds to an org
         <div.pre.collapse :expanded:.in id=info-section-shelves>
             Describes set of shelves. Should be a CSV with the following header :
             <pre>name,comment,length,width,height,type[,bottom]
+            For <code>lenght</code>, <code>width</code> and <code>height</code> a mix and a max can be specified as follow <i>min</i><code>;</code><i>max</i>.
+            If <code>;</code> is not present the same formula will be used for both dimensions. When update both _min_ and _max_ or optional.
+            The max of a dimension represents the physical maximum that can be use and the min the maximum that a box can be used after.
+            For example when stacking boxes on the floor, the maximum height will be the ceiling (all box stacks have to fit under the ceiling)
+            whereas the minimum height will the be maximum height reachable to handle the box. In other word the last box can stick out over
+            min height, but no box will be stacked above the minimum height even though it will fit under the maximum height.
+
             <code>bottom</code> is optional. It represents the height of where the usable part of shelf
             starts (taking the thickness of the shelf itself into accoun). This is used
             to determine if a shelf sticks out of the ceiling (when the <code>ceiling</code> tag is set).

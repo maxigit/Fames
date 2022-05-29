@@ -79,8 +79,15 @@ readShelves2 defaultOrientator filename = do
         Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
             v <- Vec.forM rows $ \(name, description, l, w, h, shelfType, bottom) -> do
-                        let dim = (,,) l w h
-                            dim' = (,,) l w h
+                        let dim = (,,) lmin wmin hmin
+                            dim' = (,,) lmax wmax hmax
+                            -- a dimension can represent either the one from minDim, maxDim or both
+                            -- syntax is minDim;maxDim  if ; not present use it for both
+                            [(lmin, lmax), (wmin,wmax), (hmin,hmax)] = map toMinMax [l, w, h]
+                            toMinMax d = case splitOn ";" d of
+                                              dmin: dmax: _ -> (dmin, dmax)
+                                              _ -> (d, d)
+
                             _types = description :: Text
                             (_shelfO, fillStrat) = case toLower (shelfType :: Text) of
                                 "deadzone" ->  (AddOrientations [] [up, rotatedUp ], RowFirst)
@@ -153,6 +160,7 @@ data Expr = AddE Expr Expr
 
 
 parseExpr :: (ShelfDimension -> Double) -> Text -> Expr
+parseExpr defaultAccessor "" =  RefE "%" defaultAccessor
 parseExpr defaultAccessor s =  case P.parse (parseExpr' defaultAccessor <* P.eof) (unpack s) s of
   Left err -> error (show err)
   Right  expr -> expr
