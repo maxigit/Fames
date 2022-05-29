@@ -185,9 +185,9 @@ parseVal = do
 parseGroup :: (ShelfDimension -> Double) -> P.Parser Expr
 parseGroup accessor = do
   _ <- P.char '('
-    P.spaces
+  P.spaces
   e <- parseExpr' accessor
-    P.spaces
+  P.spaces
   _ <- P.char ')'
   return e
 

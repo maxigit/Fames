@@ -62,6 +62,7 @@ A planner file is made of different sections. Each section corresponds to an org
             This can be useful when shelf are back to back or one shelf is not physically a shelf but the space
             leftover between a shelf and wall. Basic arithmetic can be performed and the the same dimension of another
             shelf can be referenced using <code>{...}</code>.  Wildcard (<code>_</code>,<code>+</code> and <code>-</code>) can be used to modify the corresponding character of the current shelf itsef.
+            The minimum and maximum of two values can be computed using the <code>&</code> and <code>|</code> operators.
             <code>%</code> can be used to match all left characters
             <code>[</code>..<code>]</code> mirror the correspoding character within the range.
 
