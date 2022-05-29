@@ -155,6 +155,8 @@ data Expr = AddE Expr Expr
           | SubE Expr Expr
           | MulE Expr Expr
           | DivE Expr Expr
+          | MinE Expr Expr
+          | MaxE Expr Expr
           | ValE Double
           | RefE Text (ShelfDimension -> Double)
 
@@ -170,7 +172,7 @@ parseExpr' accessor = (P.try (parseOp accessor))
                     <|> parseTerminalExpr accessor
 
 parseTerminalExpr :: (ShelfDimension -> Double) -> P.Parser Expr
-parseTerminalExpr accessor = parseVal <|> parseRef accessor
+parseTerminalExpr accessor = parseVal <|> parseRef accessor <|> parseGroup accessor
 parseVal :: P.Parser Expr
 parseVal = do
       n <- P.many1 P.digit
@@ -180,11 +182,18 @@ parseVal = do
                   Nothing -> error $ "Can't parse [" ++ s ++ "]"
                   Just v -> ValE v
 
+parseGroup :: (ShelfDimension -> Double) -> P.Parser Expr
+parseGroup accessor = do
+  _ <- P.char '('
+  e <- parseExpr' accessor
+  _ <- P.char ')'
+  return e
+
 parseOp :: (ShelfDimension -> Double) -> P.ParsecT Text () Identity Expr
 parseOp accessor = do
   e1 <- parseTerminalExpr accessor
   P.spaces
-  op <- P.oneOf "+-*/"
+  op <- P.oneOf "+-*/|&"
   P.spaces
   e2 <- parseExpr' accessor
   let c = case op of
@@ -192,6 +201,8 @@ parseOp accessor = do
           '-' -> SubE
           '*' -> MulE
           '/' -> DivE
+          '&' -> MinE
+          '|' -> MaxE
           _ -> error "should not happen"
 
 
@@ -230,6 +241,8 @@ evalExpr refToDim (AddE e1 e2) = evalOperator refToDim (+) e1 e2
 evalExpr refToDim (SubE e1 e2) = evalOperator refToDim (-) e1 e2
 evalExpr refToDim (MulE e1 e2) = evalOperator refToDim (*) e1 e2
 evalExpr refToDim (DivE e1 e2) = evalOperator refToDim (/) e1 e2
+evalExpr refToDim (MinE e1 e2) = evalOperator refToDim min e1 e2
+evalExpr refToDim (MaxE e1 e2) = evalOperator refToDim max e1 e2
 
 
 evalExpr _ (ValE v) = return v
