@@ -172,3 +172,4 @@
   /mainFull DMainFullR GET !title=Sales_Full
   /custom/#Text/#Int64/#Int64 DCustomR GET
   /year DYearR GET !title=sales_year
+  /all-year DAllYearR GET !title=sales_all_years

@@ -4,6 +4,7 @@ module Handler.Dashboard
 , getDMainFullR
 , getDCustomR
 , getDYearR
+, getDAllYearR
 )
 where
 
@@ -216,14 +217,16 @@ getDCustomR reportName width height = do
 --  deriving (Show, Eq, Enum, Bounded)
 -- | Display full year (fiscal and las 52 weeks)
 {-# NOINLINE getDYearR #-}
-getDYearR :: Handler Html
-getDYearR = do
+getDYearR, getDAllYearR :: Handler Html
+getDYearR = getDYearR' ""
+getDAllYearR = getDYearR' "20"
+getDYearR' suffix = do
   now <- liftIO $ getCurrentTime
   -- refactor
-  slidingFull <- reportDiv "salesSlidingYearFull" 
-  slidingBack <- reportDiv "salesSlidingYearFullBackward" 
-  currentFull <- reportDiv "salesCurrentYearFull" 
-  fiscalFull <- reportDiv "salesCurrentFiscalFull"
+  slidingFull <- reportDiv $ "salesSlidingYearFull" ++ suffix
+  slidingBack <- reportDiv $ "salesSlidingYearFullBackward" ++ suffix
+  currentFull <- reportDiv $ "salesCurrentYearFull" ++ suffix
+  fiscalFull <- reportDiv $ "salesCurrentFiscalFull"++ suffix
 
   cacheSeconds (3600*23)
   defaultLayout $ do
@@ -282,6 +285,11 @@ dispatchReport reportName __width __height = do
         "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd) reportName
         "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd) reportName
         "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5, rpDataParam2 = emptyTrace}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd) reportName
+        "salesCurrentMonthFull20" -> salesCurrentMonth (rep20 . salesCurrentUp) reportName 
+        "salesCurrentYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum beginJanuary endDecember) reportName 
+        "salesSlidingYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum slidingYear slidingYearEnd) reportName
+        "salesSlidingYearFullBackward20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSumBack slidingYear slidingYearEnd) reportName
+        "salesCurrentFiscalFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd) reportName
         "top20ItemMonthFull" -> top20ItemMonth top20FullUp slidingMonth skuColumn
         "top20StyleMonthFull" -> top20ItemMonth top20FullUp slidingMonth styleColumn
         "top20ColourMonthFull" -> top20ItemMonth top20FullUp slidingMonth variationColumn
@@ -289,6 +297,7 @@ dispatchReport reportName __width __height = do
         "top20StyleJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary styleColumn
         "top20ColourJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary variationColumn
         _ -> fail $ "undefined report "  <> unpack reportName
+      rep20 param = param { rpNumberOfPeriods = Just 20 }
   report <- reportMaker
   return (Right report)
 
