@@ -12,6 +12,9 @@
   /save_receipts_sheet GLSaveReceiptSheetToFAR POST !gl-save 
   /receipt_templates GLReceiptTemplatesR GET !gl !title=Receipt_Template
 
+  /tools/forms GLToolsR GET !gl !title=Tools !tool
+  /tools/supplier_mirrored GLSupplierMirroredR POST !gl-save !supplier !tool
+
   /payroll GLPayrollR GET !payroll !group=Payroll !title=Payroll
   /payroll/validate GLPayrollValidateR POST !payroll
   /payroll/save GLPayrollSaveR POST !payroll

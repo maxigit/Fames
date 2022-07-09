@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
 module FA (module X) where 
 import FAxx59 as X
 import FAxx43 as X
@@ -97,3 +98,22 @@ import FAxx79 as X
 import FAxx31 as X
 import FAxx69 as X
 import FAxx95 as X
+
+import ClassyPrelude.Yesod
+import qualified Language.Haskell.TH as TH
+
+$(do
+  dss <- mapM
+    (\eName -> do
+       let eType  = return $ TH.ConT eName
+           keyname = TH.nameBase eName ++ "Key"
+       Just keyCon <- TH.lookupValueName $ keyname
+       Just keyUn <- TH.lookupValueName $ "un" ++ keyname
+       [d| instance ToBackendKey SqlBackend $eType where
+            toBackendKey =  toEnum . $(return $ TH.VarE keyUn)
+            fromBackendKey =  $(return $ TH.ConE keyCon) . fromEnum
+         |])
+    [''Supplier
+    ]
+  return $ concat dss
+  )

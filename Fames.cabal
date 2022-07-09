@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.5.
+-- This file has been generated from package.yaml by hpack version 0.34.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -63,6 +63,7 @@ library
       Handler.GL.TaxReport.HMRC
       Handler.GL.TaxReport.Processor
       Handler.GL.TaxReport.Types
+      Handler.GL.Tools
       Handler.Home
       Handler.Items
       Handler.Items.Batches
@@ -1040,6 +1041,7 @@ test-suite zghicd
       Handler.GL.TaxReport.HMRC
       Handler.GL.TaxReport.Processor
       Handler.GL.TaxReport.Types
+      Handler.GL.Tools
       Handler.Home
       Handler.Items
       Handler.Items.Batches
