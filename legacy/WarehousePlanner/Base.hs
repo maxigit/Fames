@@ -666,12 +666,13 @@ type SimilarBoxes s = SimilarBy Dimension (Box s)
 -- return the shelf itself if not empty
 fillShelf :: (Shelf' shelf)
           => ExitMode
+          -> PartitionMode
           -> shelf s
           -> SimilarBoxes s
           -> WH ( Maybe (SimilarBoxes s)
                 , Maybe (Shelf s)
                 )  s
-fillShelf exitMode  s simBoxes0 = do
+fillShelf exitMode partitionMode s simBoxes0 = do
     let simBoxes@(SimilarBy dim box bs) = sortSimilarOn boxRank simBoxes0
     shelf <- findShelf s
     let boxes = box : bs
@@ -688,7 +689,10 @@ fillShelf exitMode  s simBoxes0 = do
                                               -- [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
                                               -- | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
                                             -- try min and max. Choose min if  possible
-                                              | (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
+                                              | (l,h) <- case partitionMode of
+                                                            PQuick -> [(lused,0), (0,hused)] -- simplified algorithm
+                                                            PAboveOnly -> [(0,hused)]
+                                                            PRightOnly -> [(lused, 0)]
                                               , let used = Dimension (min 0 (0-l)) 0 (min 0 (0-h))
                                               ] dim
             nl = if exitMode == ExitLeft then nl_ else min 1 nl_
@@ -830,9 +834,9 @@ assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(__offset:_) = case b
 -- Boxes are move in sequence and and try to fill shelve
 -- in sequence. If they are not enough space the left boxes
 -- are returned.
-moveBoxes :: (Box' box , Shelf' shelf) => ExitMode -> [box s] -> [shelf s] -> WH [Box s] s
+moveBoxes :: (Box' box , Shelf' shelf) => ExitMode -> PartitionMode -> [box s] -> [shelf s] -> WH [Box s] s
 
-moveBoxes exitMode bs ss = do
+moveBoxes exitMode partitionMode bs ss = do
   boxes <- mapM findBox bs
   let layers = groupBy ((==)  `on` boxBreak) $ sortBy (comparing boxGlobalRank) boxes
       boxGlobalRank box = (boxGlobalPriority box, boxStyle box, boxStylePriority box,  _boxDim box)
@@ -845,7 +849,7 @@ moveBoxes exitMode bs ss = do
     let groups = groupSimilar _boxDim layer
     -- forM groups $ \(SimilarBy dim _ boxes) -> traceShowM ("  GROUP", dim, 1 + length boxes)
     -- traceShowM ("GRoups", length groups, map (\(SimilarBy dim g1 g ) -> (show $ length g + 1, show . _roundDim $ dim )) groups)
-    lefts' <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
+    lefts' <- mapM (\g -> moveSimilarBoxes exitMode partitionMode g ss) groups
     return $ concatMap unSimilar $ catMaybes lefts'
   return $ concat lefts_
 
@@ -854,20 +858,20 @@ _roundDim (Dimension l w h) = map (round . (*100)) [l,w,h]
 
  
 -- | Move boxes of similar size to the given shelf if possible
-moveSimilarBoxes :: (Shelf' shelf) => ExitMode -> SimilarBoxes s -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
-moveSimilarBoxes exitMode bs ss = moveSimilarBoxesAndRetry exitMode bs ss []
+moveSimilarBoxes :: (Shelf' shelf) => ExitMode -> PartitionMode -> SimilarBoxes s -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
+moveSimilarBoxes exitMode partitionMode bs ss = moveSimilarBoxesAndRetry exitMode partitionMode bs ss []
 
 -- | moves boxes into give shelf and retry nonfull shelves until all necessary
 -- useful to fill selves using ExitONTop strategy
-moveSimilarBoxesAndRetry :: (Shelf' shelf) => ExitMode -> SimilarBoxes s -> [shelf s] -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
-moveSimilarBoxesAndRetry _ boxes [] [] = return (Just boxes)
-moveSimilarBoxesAndRetry exitMode bs [] trieds = moveSimilarBoxesAndRetry exitMode bs (reverse trieds) [] -- can loop but normally ss is null
-moveSimilarBoxesAndRetry exitMode boxes  (s:ss') trieds = do
-    left <- fillShelf exitMode s boxes
+moveSimilarBoxesAndRetry :: (Shelf' shelf) => ExitMode -> PartitionMode -> SimilarBoxes s -> [shelf s] -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
+moveSimilarBoxesAndRetry _ _ boxes [] [] = return (Just boxes)
+moveSimilarBoxesAndRetry exitMode partitionMode bs [] trieds = moveSimilarBoxesAndRetry exitMode partitionMode bs (reverse trieds) [] -- can loop but normally ss is null
+moveSimilarBoxesAndRetry exitMode partitionMode boxes  (s:ss') trieds = do
+    left <- fillShelf exitMode partitionMode s boxes
     case left of
         (Nothing , _) -> return Nothing
-        (Just bs', Nothing)  -> moveSimilarBoxesAndRetry exitMode bs' (ss') trieds -- discard current Shelf
-        (Just bs', Just _)  -> moveSimilarBoxesAndRetry exitMode bs' ss' (s:trieds)
+        (Just bs', Nothing)  -> moveSimilarBoxesAndRetry exitMode partitionMode bs' (ss') trieds -- discard current Shelf
+        (Just bs', Just _)  -> moveSimilarBoxesAndRetry exitMode partitionMode bs' ss' (s:trieds)
 
 
 boxRank :: Box s -> (Text, Int, Text, Int)
@@ -895,7 +899,7 @@ rearrangeShelves ss = do
     boxes <- concat `fmap` mapM findBoxByShelf ss
     let nothing = headEx $ Nothing: map Just ss -- trick to force type
     mapM_ (\box -> assignShelf  nothing box ) boxes
-    left <- moveBoxes ExitLeft boxes ss
+    left <- moveBoxes ExitLeft PQuick boxes ss
     s0 <- defaultShelf
     mapM_ (assignShelf (Just s0)) left
 

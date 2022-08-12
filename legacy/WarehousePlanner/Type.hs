@@ -154,6 +154,14 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
              } -- deriving Show
 type WH a s = StateT  (Warehouse s) (ST s) a
 data ExitMode = ExitOnTop | ExitLeft deriving (Show, Eq, Ord, Enum)
+-- | Strategry to find available rectangle to fill in
+data PartitionMode
+  = PQuick -- ^ fast algorithm, best between above or right only
+           -- results in shadoweb free block
+  | PAboveOnly -- ^ max used height only
+  | PRightOnly -- ^ max used weight only
+  -- | PBestEffort -- ^ try to find all available rectangles
+  deriving (Show, Eq, Ord, Enum)
 
 -- | Misc data to speed up warehouse operations
 -- depending on the value, it should be setup by the caller or the callee

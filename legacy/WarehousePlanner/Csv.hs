@@ -520,14 +520,12 @@ processMovesAndTags (style, tags, locationM) = do
   boxes0 <- findBoxByNameAndShelfNames style
   boxes <- mapM findBox boxes0
   leftoverss <- forM locationM $ \location' -> do
-    let (location, exitMode) = case uncons location' of
-                                  Just ('^', loc) -> (loc, ExitOnTop)
-                                  _ -> (location', ExitLeft)
+    let (location, (exitMode, partitionMode)) = extractModes location'
     let locationss = map (splitOn "|") (splitOn " " location)
     -- reuse leftover of previous locations between " " same syntax as Layout
     foldM (\boxes locations -> do
                shelves <- findShelfBySelectors (map parseSelector locations)
-               aroundArrangement (moveBoxes exitMode) boxes shelves
+               aroundArrangement (moveBoxes exitMode partitionMode) boxes shelves
           ) boxes locationss
   case tags of
     [] -> return boxes
@@ -538,6 +536,18 @@ processMovesAndTags (style, tags, locationM) = do
       -- traceShowM("UNTAG", untagOps, length $ concat leftoverss)
       _ <- mapM (updateBoxTags untagOps) (concat leftoverss)
       return new
+
+extractModes :: Text -> (Text, (ExitMode, PartitionMode))
+extractModes modeLoc = 
+  let (modes, location) = break (`notElem` ("-|^" :: String)) $ unpack modeLoc
+      exitM = if '^' `elem` modes
+              then ExitOnTop
+              else ExitLeft
+      partitioM = case () of
+                    _ | '-' `elem` modes -> PAboveOnly
+                    _ | '|' `elem` modes -> PRightOnly
+                    _ -> PQuick
+  in (pack location, (exitM, partitioM))
 
 -- | read a file assigning tags to styles
 -- returns left boxes
@@ -666,7 +676,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
                                    (defaultTags ++ tags)
                         let boxes = concat boxesS
                         shelves <- (mapM findShelf) =<< findShelfBySelector (Selector (NameMatches [MatchFull shelf]) [])
-                        leftOvers <- moveBoxes ExitLeft boxes shelves
+                        leftOvers <- moveBoxes ExitLeft PQuick boxes shelves
 
                         let errs = if not (null leftOvers)
                                       then map (\b -> "ERROR: box " <> tshow b <> " doesn't fit in " <> shelf) leftOvers

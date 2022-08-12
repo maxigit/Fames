@@ -168,7 +168,7 @@ bestAvailableShelvesFor style'shelf = do
     -- n and then best order
     let bests = bestShelves box (or box) shelves
     let   getInfo shelf = do
-            boxesLeft <- moveBoxes ExitLeft boxes [shelf]
+            boxesLeft <- moveBoxes ExitLeft PQuick boxes [shelf]
             return (shelf, length boxes - length boxesLeft)
     shelfInfos <- mapM getInfo bests
     let go (shelf, n) = do
@@ -649,8 +649,8 @@ newPair wh res (Just res') =
           shelf <- addShelf (rShelf res)
           boxes <- addBoxes res def
           boxes' <- addBoxes res' def
-          left <- moveBoxes ExitOnTop boxes [shelf]
-          left' <- moveBoxes ExitOnTop boxes' [shelf]
+          left <- moveBoxes ExitOnTop PQuick boxes [shelf]
+          left' <- moveBoxes ExitOnTop PQuick boxes' [shelf]
           -- shelfR <- findShelf shelf
 
           -- traceShowM ("RES", length boxes, length left, length boxes', length left')

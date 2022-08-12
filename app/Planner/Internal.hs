@@ -44,7 +44,7 @@ warehouseExamble  = do
   shelves <- mapM (  \i -> newShelf ("A1" <> tshow i) Nothing dim0  dim0 0 DefaultOrientation ColumnFirst) [1..50]
   let shelfid = shelfId (headEx shelves)
   boxes <- mapM (\i -> newBox "style" (tshow i) dim1 up shelfid [up] []) [1..300]
-  _ <- moveBoxes ExitLeft boxes shelves
+  _ <- moveBoxes ExitLeft PQuick boxes shelves
   -- rearrangeShelves [shelf, shelf2]
   
   return $ ShelfGroup (map (ShelfProxy .shelfId) shelves) Vertical

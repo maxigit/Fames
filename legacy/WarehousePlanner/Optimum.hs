@@ -36,7 +36,7 @@ fillBest' fit boxes shelves = do
                 ors = boxo example (error "need one shelf and only one")
                 example = head bs
                 -- in moveBoxes [example] shelvesInOrder
-                in moveBoxes ExitLeft bs shelvesInOrder
+                in moveBoxes ExitLeft PQuick bs shelvesInOrder
                 ) (sortBy (compare `on` (\g -> - (length g))) (map snd groups))
 
         return $ concat boxess
