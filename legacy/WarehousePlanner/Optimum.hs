@@ -1,5 +1,7 @@
 -- | Function to find (or at least) optimal  arrangement
-module WarehousePlanner.Optimum where
+module WarehousePlanner.Optimum 
+(bestShelves)
+where
 import Prelude
 import WarehousePlanner.Base
 import Data.List(sortBy)
@@ -17,17 +19,18 @@ bestShelves box ors ss  = let
             ]
     in map snd $ sortBy (compare `on` fst) tries
 
-fillBest :: (Box s -> [OrientationStrategy] -> [Shelf s] -> [Shelf s])
+_fillBest :: PartitionMode -> (Box s -> [OrientationStrategy] -> [Shelf s] -> [Shelf s])
           -> [Box s] 
           -> [Shelf s]
           -> WH [Box s] s
-fillBest  fit boxes shelves = do
-    aroundArrangement (fillBest' fit) boxes shelves
+_fillBest  pmode fit boxes shelves = do
+    aroundArrangement Nothing (fillBest' pmode fit) boxes shelves
 
 fillBest' :: Shelf' shelf =>
+             PartitionMode ->
              (Box s -> [OrientationStrategy] -> t -> [shelf s])
           -> [Box s] -> t -> WH [Box s] s
-fillBest' fit boxes shelves = do
+fillBest' pmode fit boxes shelves = do
         boxo <- gets boxOrientations
         let groups = reverse . Map'.toList $ Map'.fromListWith (++) tuples
             tuples = [((_boxDim b, boxStyle b), [b]) | b <- boxes]
@@ -36,7 +39,7 @@ fillBest' fit boxes shelves = do
                 ors = boxo example (error "need one shelf and only one")
                 example = head bs
                 -- in moveBoxes [example] shelvesInOrder
-                in moveBoxes ExitLeft PQuick bs shelvesInOrder
+                in moveBoxes ExitLeft pmode bs shelvesInOrder
                 ) (sortBy (compare `on` (\g -> - (length g))) (map snd groups))
 
         return $ concat boxess

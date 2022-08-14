@@ -190,6 +190,39 @@ A planner file is made of different sections. Each section corresponds to an org
           The code above, will fill the first columen in shelf A, then a column in B and then restart
           in A and so on until there is not column left in A and B. It will then start filling up C.
           (This syntax is similar to the syntax of the <b>Layout</b> section).
+          <h4> Partition Mode
+          When filling a shelf with boxes, the default strategy is to use to either fill the shelf on the right of the
+          existing boxes or the top (which ever gives the best result). This works fine most of the time but might result
+          in available spaces beeing "shadowed" by existing corner.
+          In the following configuration, <code>#</code> represents existing boxes.
+          <pre>
+            |     .
+            |a A  . B
+            |##.......
+            |##   . 
+            |## C . D
+            |######_d___
+
+
+          The default strategy will fill either d,D and B (filling at the right) or a,A and B (filling on top).
+          The C zone is shadowed. To put a box in C, will requires to try every available rectangles which will 
+          makes the planner very slow. However, if needed, the partition mode (which parts of the shelf needs to be filled) can be specified before the shelf name (as with "exit on top").
+
+          One or more partition mode can be specified as follow:
+          - <code>~</code> Above only (in the example above: a A B)
+          - <code>:</code> Right only (in the example above: d D B)
+          - <code>%</code> Best effort (excluding above corners a and d) C A D B
+          
+          Not specifying anything is equivalent to <code>~:</code>
+
+          Example
+          <pre>
+           :Moves:
+           stock_id,location
+           ,%:~A -- tries a A B, A C B D and d D B
+           ,A -- equivalent to ,~:A. Tries  a A B and d D B
+           ,%:A -- tries A B C D and d D B
+
 
           <h4> Tagging
           Tags provided as section parameter will be applied to the boxes <b>successfully</b> moved

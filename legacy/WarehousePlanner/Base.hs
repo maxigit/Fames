@@ -51,6 +51,8 @@ module WarehousePlanner.Base
 , boxCoordinate
 , indexToOffsetDiag, d0, r
 , maxUsedOffset
+, cornerHull
+, stairsFromCorners
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix)
@@ -678,6 +680,7 @@ fillShelf exitMode partitionMode s simBoxes0 = do
     let boxes = box : bs
     -- first we need to find how much space is left
     Dimension lused wused hused <- maxUsedOffset shelf
+    boxesInShelf <- findBoxByShelf shelf
     case  (boxBreak box, lused*hused*wused > 0) of
       (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
       _ -> do
@@ -689,10 +692,16 @@ fillShelf exitMode partitionMode s simBoxes0 = do
                                               -- [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
                                               -- | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
                                             -- try min and max. Choose min if  possible
-                                              | (l,h) <- case partitionMode of
-                                                            PQuick -> [(lused,0), (0,hused)] -- simplified algorithm
-                                                            PAboveOnly -> [(0,hused)]
-                                                            PRightOnly -> [(lused, 0)]
+                                              | (l,h) <- let go pmode =
+                                                                case pmode of
+                                                                  PAboveOnly -> [(0,hused)]
+                                                                  PRightOnly -> [(lused, 0)]
+                                                                  PBestEffort -> case bestEffort boxesInShelf of
+                                                                                  -- remove corners if more than 3 options
+                                                                                  xs@(_:_:_:_) -> drop 1 $ dropEnd 1 $ xs
+                                                                                  xs -> xs
+                                                                  POr m1 m2 -> go m1 ++ go m2
+                                                         in go partitionMode
                                               , let used = Dimension (min 0 (0-l)) 0 (min 0 (0-h))
                                               ] dim
             nl = if exitMode == ExitLeft then nl_ else min 1 nl_
@@ -893,13 +902,13 @@ boxGlobalPriority  box = p where (p, _, _) = boxPriorities box
 
 -- | Rearrange boxes within their own shelves
 -- left over are put back to 0
-rearrangeShelves :: Shelf' shelf => [shelf s] -> WH [Box s] s
-rearrangeShelves ss = do
+rearrangeShelves :: PartitionMode -> Shelf' shelf => [shelf s] -> WH [Box s] s
+rearrangeShelves pmode ss = do
     -- first we need to remove the boxes from their current location
     boxes <- concat `fmap` mapM findBoxByShelf ss
     let nothing = headEx $ Nothing: map Just ss -- trick to force type
     mapM_ (\box -> assignShelf  nothing box ) boxes
-    left <- moveBoxes ExitLeft PQuick boxes ss
+    left <- moveBoxes ExitLeft pmode boxes ss
     s0 <- defaultShelf
     mapM_ (assignShelf (Just s0)) left
 
@@ -909,9 +918,10 @@ rearrangeShelves ss = do
 -- shelves before doing any move
 -- aroundArrangement  :: WH a -> WH a
 aroundArrangement :: (Shelf' shelf, Box' box, Box' box2)
-                  => ([box s] -> [shelf s] -> WH [box2 s] s)
+                  => Maybe PartitionMode
+                  -> ([box s] -> [shelf s] -> WH [box2 s] s)
                   -> [box s] -> [shelf s] -> WH [box2 s] s
-aroundArrangement arrangement boxes shelves = do
+aroundArrangement pmodeM arrangement boxes shelves = do
     let shelfIds = map shelfId shelves
     oldShelveIds <- findShelvesByBoxes boxes
     -- remove all boxes from their actuall shelf
@@ -922,7 +932,9 @@ aroundArrangement arrangement boxes shelves = do
     let os = List.nub $ oldShelveIds ++ shelfIds
 
 
-    mapM_ (\s -> rearrangeShelves s >> return ()) (map (:[]) os)
+    mapM_ (\pmode -> 
+      mapM_ (\s -> rearrangeShelves pmode s >> return ()) (map (:[]) os)
+          ) pmodeM
 
     left <- arrangement boxes shelves
     s0 <- defaultShelf
@@ -1509,3 +1521,49 @@ __getBoxTagMap prop = do
                                  , value <- getTagValues box prop
                                  ]
 
+-- * Find  the corners of the boxes which are enough
+-- to describe the "stair" hull of all of the top right corner
+-- of the given boxes.
+-- For example
+--
+--       B
+--    A
+--            C
+--            D
+--
+-- Will return B nd C
+cornerHull :: [(Double, Double)] -> [(Double, Double)]
+cornerHull corners = let
+  -- allCorners = map boxCorner boxes
+  -- boxCorner box = boxDim box <> boxOffset box
+  -- we sort them in reverse order
+  -- in exapmle C D B A
+  sorted = sortOn Down corners
+  go corner [] = [corner]
+  go (x, y)  s@((x0,y0):_) = 
+    if y > y0 && x < x0
+    then ((x, y): s)
+    else s
+  in List.foldl (flip go) [] sorted
+
+
+-- | Creates the "inner" corners of a "stairs"
+--  (the Xs fro the '.')
+-- X   .
+--     X     .
+--
+--           X     .
+--                 X
+stairsFromCorners :: [(Double, Double)] -> [(Double, Double)]
+stairsFromCorners corners =
+  let (xs, ys) = unzip corners
+  in zipWith (,) (0:xs) (ys ++ [0]) 
+
+
+bestEffort :: [Box s] -> [(Double, Double)]
+bestEffort boxes = let
+  allCorners = map boxCorner boxes
+  boxCorner box = let (Dimension x _ y ) = boxDim box <> boxOffset box
+                  in (x,y)
+  in stairsFromCorners $ cornerHull allCorners
+  

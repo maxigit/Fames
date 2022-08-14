@@ -158,8 +158,8 @@ boxAndShelvesFor style'shelf = do
 
 -- | find the best shelf for a given style
 -- depends on what's already there.
-bestAvailableShelvesFor :: Text -> WH [Text] s
-bestAvailableShelvesFor style'shelf = do
+bestAvailableShelvesFor :: PartitionMode ->Text -> WH [Text] s
+bestAvailableShelvesFor pmode style'shelf = do
     (boxes, shelves) <- boxAndShelvesFor style'shelf
     or <- gets boxOrientations
     let  box = headEx boxes
@@ -168,7 +168,7 @@ bestAvailableShelvesFor style'shelf = do
     -- n and then best order
     let bests = bestShelves box (or box) shelves
     let   getInfo shelf = do
-            boxesLeft <- moveBoxes ExitLeft PQuick boxes [shelf]
+            boxesLeft <- moveBoxes ExitLeft pmode boxes [shelf]
             return (shelf, length boxes - length boxesLeft)
     shelfInfos <- mapM getInfo bests
     let go (shelf, n) = do
@@ -649,8 +649,8 @@ newPair wh res (Just res') =
           shelf <- addShelf (rShelf res)
           boxes <- addBoxes res def
           boxes' <- addBoxes res' def
-          left <- moveBoxes ExitOnTop PQuick boxes [shelf]
-          left' <- moveBoxes ExitOnTop PQuick boxes' [shelf]
+          left <- moveBoxes ExitOnTop PRightOnly boxes [shelf]
+          left' <- moveBoxes ExitOnTop PRightOnly boxes' [shelf]
           -- shelfR <- findShelf shelf
 
           -- traceShowM ("RES", length boxes, length left, length boxes', length left')

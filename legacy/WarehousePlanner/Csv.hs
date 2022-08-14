@@ -522,10 +522,14 @@ processMovesAndTags (style, tags, locationM) = do
   leftoverss <- forM locationM $ \location' -> do
     let (location, (exitMode, partitionMode)) = extractModes location'
     let locationss = map (splitOn "|") (splitOn " " location)
+        -- don't rearrange mode unless there is no boxes
+        aroundMode = case boxes of
+                       [] -> Just partitionMode
+                       _ -> Nothing
     -- reuse leftover of previous locations between " " same syntax as Layout
     foldM (\boxes locations -> do
                shelves <- findShelfBySelectors (map parseSelector locations)
-               aroundArrangement (moveBoxes exitMode partitionMode) boxes shelves
+               aroundArrangement aroundMode (moveBoxes exitMode partitionMode) boxes shelves
           ) boxes locationss
   case tags of
     [] -> return boxes
@@ -539,15 +543,20 @@ processMovesAndTags (style, tags, locationM) = do
 
 extractModes :: Text -> (Text, (ExitMode, PartitionMode))
 extractModes modeLoc = 
-  let (modes, location) = break (`notElem` ("-|^" :: String)) $ unpack modeLoc
-      exitM = if '^' `elem` modes
-              then ExitOnTop
-              else ExitLeft
-      partitioM = case () of
-                    _ | '-' `elem` modes -> PAboveOnly
-                    _ | '|' `elem` modes -> PRightOnly
-                    _ -> PQuick
-  in (pack location, (exitM, partitioM))
+  let (modes, location) = break (`notElem` ("%~:^" :: String)) $ unpack modeLoc
+      (exits, parModes) = partition (== '^') modes 
+      exitM = case exits of
+                 '^':_ -> ExitOnTop
+                 _     -> ExitLeft
+      readMode m = case m of 
+                    '~' -> PAboveOnly
+                    ':' -> PRightOnly
+                    '%' -> PBestEffort
+                    _   -> error $ "The impossible happended: " ++ [m] ++ " not a valid partition mode."
+      partitionM = case map readMode parModes of
+                    [] -> POr PAboveOnly PRightOnly
+                    m:ms -> foldr POr m ms
+  in traceShow (modeLoc, location, partitionM) (pack location, (exitM, partitionM))
 
 -- | read a file assigning tags to styles
 -- returns left boxes
@@ -675,8 +684,9 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
                                    boxOrs -- create box in the "ERROR self)
                                    (defaultTags ++ tags)
                         let boxes = concat boxesS
+                            pmode = POr PAboveOnly PRightOnly
                         shelves <- (mapM findShelf) =<< findShelfBySelector (Selector (NameMatches [MatchFull shelf]) [])
-                        leftOvers <- moveBoxes ExitLeft PQuick boxes shelves
+                        leftOvers <- moveBoxes ExitLeft pmode boxes shelves
 
                         let errs = if not (null leftOvers)
                                       then map (\b -> "ERROR: box " <> tshow b <> " doesn't fit in " <> shelf) leftOvers

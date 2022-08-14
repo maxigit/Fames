@@ -19,6 +19,7 @@ import Planner.Types
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import Util.Cache
 import WarehousePlanner.Base
+import WarehousePlanner.Csv (extractModes)
 import WarehousePlanner.Report hiding(report)
 import Yesod.Form.Bootstrap3 (bfs)
 import qualified Yesod.Media.Simple as M
@@ -212,7 +213,8 @@ renderView param0 = do
               PlannerBestAvailableShelvesFor -> let
                 -- needed to use a different key to cache the warehouse
                 -- as this report modify the warehouse. We don't want it to modify the cached one
-                in renderConsoleReport (bestAvailableShelvesFor (fromMaybe "" (pParameter param))) (scenario `mappend` extra)
+                (styles, (_, pmode)) = extractModes $ fromMaybe "" (pParameter param)
+                in renderConsoleReport (bestAvailableShelvesFor pmode styles) (scenario `mappend` extra)
 
               PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
