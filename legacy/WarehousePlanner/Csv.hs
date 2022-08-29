@@ -556,7 +556,7 @@ extractModes modeLoc =
       partitionM = case map readMode parModes of
                     [] -> POr PAboveOnly PRightOnly
                     m:ms -> foldr POr m ms
-  in traceShow (modeLoc, location, partitionM) (pack location, (exitM, partitionM))
+  in (pack location, (exitM, partitionM))
 
 -- | read a file assigning tags to styles
 -- returns left boxes
