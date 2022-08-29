@@ -254,8 +254,7 @@ postWHStockAdjustmentR = do
           <td.lost data-original=#{qlost qties}>#{qlost qties}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
           <td.comment_move>#{fromMaybe "" (tshow <$> (preComment pre))}
-          $forall move <- mainLocationMoves
-            $with before <- moveDate move <= takeDate pre
+          $forall (move, before) <- detectBefores (takeDate pre) (preComment pre) mainLocationMoves
               $with after <- not before
                 <tr :before:.bg-info class="move sku-#{encodedSku pre}" style="display:none">
                   <td> <select name="#{sku pre}">
@@ -277,6 +276,38 @@ postWHStockAdjustmentR = do
   <button type="submit" name="action" value="reject" .btn.btn-warning>Reject
   ^{response}
 |]
+
+-- | Moves are "before" the stock take
+-- if the date is before the take date and not after (in order)
+-- the customer associated to the stocktake
+--
+--      AAAAABBBBCCC
+--             ^
+--             + customer
+--  returns (B is today)
+--      AAAAABB
+--
+--      AAAAABBBBCCC
+--         ^
+--         + customer
+--  returns (B is today)
+--      AAAA
+--
+--      AAAAABBBBCCC
+--                ^
+--                + customer
+--  returns (B is today)
+--      AAAAA     C
+detectBefores :: Day -> Maybe Text -> [MoveInfo] -> [(MoveInfo, Bool)]
+detectBefores takeDay commentm moves = zip moves (map (const True) befores ++ repeat False) where
+  (beforeCustomers, others)  = List.break (isCustomer) moves
+  isBefore move = takeDay >= moveDate move
+  befores = filter isBefore beforeCustomers ++ take 1 others
+  isCustomer move =
+    case commentm of
+      Nothing -> False
+      Just withCust -> moveCustomerName move `Text.isInfixOf` withCust
+
 
 -- | Escape sku to be JQuery friendly
 encodedSku :: PreAdjust -> Text
@@ -585,7 +616,6 @@ loadTakeSummary docKey = do
           <> " from fames_stocktake "
           <> " where document_key_id = ?  and `index` = 1  "
   results <- rawSql sql [toPersistValue docKey]
-  traceShowM (sql, results)
   return $ case results of 
     [(Single total, Single (fromMaybe 0 -> quick), Single (fromMaybe 0 -> mop))] -> (total -quick-mop, quick , mop)
     [] -> (0,0,0)
@@ -747,7 +777,7 @@ postWHStockAdjustmentRejectR adjId = do
 badgeSpan' :: Int -> Maybe Text -> Text -> Widget
 badgeSpan' qty bgM klass = toWidget $ badgeSpan badgeWidth qty bgM klass
 
-preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo , before) where
+preToOriginal modulo pre = (OriginalQuantities qtake (qoh-beforeAll) qlost modulo , before) where
   m = mainLocation pre
   qtake = quantityTake0 m
   qoh = quantityAt m
@@ -755,10 +785,11 @@ preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo ,
   day = takeDate pre
     -- Move picked before the stock take have been taken into account
     -- in the QOH. We need to remove them to get the quantity excluding ALL moves
-  before = sum [ movePickedQty move
-              | move <- movesAt m
-              , moveDate move <= day
-              ]
+  move'befores = detectBefores day (preComment pre) (movesAt m)
+  (befores, afters) = partition (\(_,bef) -> bef) move'befores
+  sumQty m'b = sum (map movePickedQty $ fst $ unzip m'b)
+  before = sumQty befores
+  beforeAll = before + sumQty afters
   -- -| We want to pass the original quantities (without move) to the data- in html
   -- however the badges needs to be computed as if
   -- the "before" select boxes needs have been selected
