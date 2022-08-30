@@ -1427,16 +1427,18 @@ collectFromMOP = do
                <> "      FROM mop.action "
                <> "      WHERE typeId = 1 GROUP BY detailId"
                <> "      ) maxaction USING (id) "
+      lastPick = "SELECT MAX(id) AS id FROM 0_topick "
+                <> " WHERE `type` IN ('lost', 'stocktake')"
+                <> " GROUP BY base, variation "
   let sql = "SELECT 0_topick.base, 0_topick.variation, MAX(IF(type = 'lost', 0, 0_topick.quantity)) "
             <> " , CONCAT(0_topick.location, ' (', IF(type='lost', MAX(0_topick.quantity), 'partial'), ')') "
             <> " , op.operator_id, GROUP_CONCAT(nickname), MAX(session.date)"
             <> " FROM 0_topick "
+            <> " JOIN (" <> lastPick <> ") p using(id)"
             <> " LEFT JOIN (" <> action <> ") action ON (detailId = detail_id AND typeId = 1)" -- picking only
             <> " LEFT JOIN mop.session ON (groupId = actionGroupId)"
             <> " LEFT JOIN mop.operator mop ON (operatorId = mop.id)"
             <> " LEFT JOIN fames_operator op ON (op.nickname = mop.name)" 
-            <> " WHERE `type` IN ('lost', 'stocktake')"
-            <> " GROUP BY base, variation "
   losts <- runDB $ rawSql sql []
   -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
   if null losts
