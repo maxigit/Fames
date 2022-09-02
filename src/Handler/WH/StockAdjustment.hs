@@ -401,12 +401,13 @@ quantitiesFor loc (minDateM, maxDateM) (Single sku, Single take_, Single date, S
                    <> " JOIN mop.session ON (groupId = actionGroupId)"
                    <> " JOIN mop.operator ON (operatorId = operator.id)"
                    <> " WHERE typeId = 1"
+                   <> " AND sku = ? "
                    <> " GROUP BY orderId, sku"
       toMove (Single date_, Single debtor, Single operators_, Single qty) = MoveInfo date_ debtor operators_ qty
                     
   (results, moves) <- runDB $ do
     results <- rawSql sql [PersistText sku, PersistDay date, PersistText loc]
-    moves <- rawSql sqlForMoves [PersistText sku, PersistDay minDate, PersistDay maxDate, PersistText loc]
+    moves <- rawSql sqlForMoves [PersistText sku, PersistText sku, PersistDay minDate, PersistDay maxDate, PersistText loc]
     return (results , moves)
 
 
