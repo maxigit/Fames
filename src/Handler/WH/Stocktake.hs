@@ -1439,6 +1439,7 @@ collectFromMOP = do
             <> " LEFT JOIN mop.session ON (groupId = actionGroupId)"
             <> " LEFT JOIN mop.operator mop ON (operatorId = mop.id)"
             <> " LEFT JOIN fames_operator op ON (op.nickname = mop.name)" 
+            <> " GROUP BY base, variation "
   losts <- runDB $ rawSql sql []
   -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
   if null losts
