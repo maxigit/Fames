@@ -222,7 +222,7 @@ importVariationStatus which skuLike = do
   skuToStyleVar <- I.skuToStyleVarH
   let ?skuToStyleVar = skuToStyleVar
   itemGroups <- I.loadVariations cache indexParam  {I.ipMode = ItemFAStatusView }
-                                                   {I.ipShowInactive = which == AllBoxes}
+                                                   {I.ipShowInactive = whichToActive which}
                                                    {I.ipSKU = Just $ LikeFilter skuLike }
   
   let rows  = [(style, var, runningStatus)
@@ -238,6 +238,9 @@ importVariationStatus which skuLike = do
 
   return $ Section TagsH (Right $ "selector,tags" : content) ("* FA status")
   
+whichToActive which = case which of
+  AllBoxes -> I.ShowAll
+  _ -> I.ShowActive
 -- | Clone boxes each variation and tag them with the FA status
 cloneVariationStatus :: WhichBoxes -> Text -> Text -> [Text] -> Handler Section
 cloneVariationStatus which skuLike toClonem tags = do
@@ -246,7 +249,7 @@ cloneVariationStatus which skuLike toClonem tags = do
   skuToStyleVar <- I.skuToStyleVarH
   let ?skuToStyleVar = skuToStyleVar
   itemGroups <- I.loadVariations cache indexParam  {I.ipMode = ItemFAStatusView }
-                                                   {I.ipShowInactive = which == AllBoxes}
+                                                   {I.ipShowInactive = whichToActive which}
                                                    {I.ipSKU = Just $ LikeFilter skuLike }
   
   let rows  = [(style, var, runningStatus)
@@ -296,7 +299,7 @@ indexParam = I.IndexParam{..} where
   ipCategoryFilter = Nothing
   ipVariationsF = Nothing
   ipVariationGroup = Nothing
-  ipShowInactive = True
+  ipShowInactive = I.ShowAll
   ipShowExtra = False
   ipBases = mempty
   ipChecked = []

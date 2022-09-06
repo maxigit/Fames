@@ -7,6 +7,7 @@ module Handler.Items.Index
 , loadVariations
 , fillIndexCache
 , IndexParam(..)
+, ShowInactive(..)
 )
 where
 
@@ -41,7 +42,7 @@ data IndexParam = IndexParam
   , ipCategoryFilter :: Maybe FilterExpression
   , ipVariationsF :: Maybe FilterExpression
   , ipVariationGroup :: Maybe Text -- ^ Alternative to variations
-  , ipShowInactive :: Bool
+  , ipShowInactive :: ShowInactive
   , ipShowExtra :: Bool
   , ipBases :: Map Text Text -- ^ style -> selected base
   , ipChecked :: [Text] -- ^ styles to act upon
@@ -62,6 +63,9 @@ ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
 ipVariations param = case (ipVariationsF param, ipVariationGroup param) of
         (Just var, Nothing) -> Left var
         (_, group_) -> Right group_
+
+data ShowInactive = ShowActive | ShowInactive | ShowAll
+  deriving (Eq, Show, Read, Bounded, Enum)
 
 data IndexColumn = GLColumn Text
             | PriceColumn Int
@@ -176,7 +180,7 @@ cacheDelay = cacheMinute 15
 paramDef :: Maybe ItemViewMode -> IndexParam
 paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
                            Nothing Nothing -- variation
-                           False True
+                           ShowActive True
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
                            False --  ^ clear c
@@ -214,7 +218,7 @@ indexForm categories groups param extra = do
           <*> (aopt filterEField (bfs' "variations") (Just $ ipVariationsF param))
           <*> (aopt (selectFieldList groups') (bfs' "variation group_") (Just $ ipVariationGroup param))
         form2' f = f
-          <*> (areq boolField (bfs' "Show Inactive") (Just $ ipShowInactive param))
+          <*> (areq (selectField optionsEnum) (bfs' "Show Inactive") (Just $ ipShowInactive param))
           <*> (areq boolField (bfs' "Show Extra") (Just $ ipShowExtra param))
         form3 f = f
           <*> pure (ipBases param)
@@ -293,9 +297,10 @@ styleQuery IndexParam{..} =
                        _ -> ("", [], [])
       makeWhere [] = ""
       makeWhere ws = " WHERE " <> intercalate " AND " ws
-      activeWhere = if ipShowInactive
-                    then []
-                    else [" 0_stock_master.inactive = 0 "]
+      activeWhere = case ipShowInactive of
+                      ShowActive -> [" 0_stock_master.inactive = 0 "]
+                      ShowInactive -> [" 0_stock_master.inactive = 1 "]
+                      ShowAll -> []
 
   in case (filter (not . null) $ (where0 : where1)) of
     [] -> Left "Please enter a styles or category filter expression (SQL like expression or regexp starting with '/'')"
@@ -488,9 +493,9 @@ loadVariations cache param = do
   let itemStyles = filterActive $ mergeInfoSources ( map stockItemMasterToItem styles
                                                    : infoSources
                                                    ) 
-      filterActive = if ipShowInactive param
-                     then id
-                     else  (List.filter (maybe False (not . runIdentity . smfInactive) . (impMaster . iiInfo)))
+      filterActive = case ipShowInactive param of
+                     ShowActive ->   (List.filter (maybe False (not . runIdentity . smfInactive) . (impMaster . iiInfo)))
+                     _ -> id
                      -- \^ only keep active variations
                      -- impMaster not present, means the variations hasn't been loaded (ie filtered)
                      -- so we are not showing it
@@ -616,9 +621,10 @@ loadSalesPrices param = do
             <> " ORDER BY stock_id"
            (fKeyword, p) = filterEKeyword styleF
            stockF = "stock_id " <> fKeyword <> "?"
-           inactive =  if ipShowInactive param
-                       then ""
-                       else " AND inactive = 0"
+           inactive = case ipShowInactive param of
+                        ShowActive -> " AND inactive = 0"
+                        ShowInactive -> " AND inactive = 1"
+                        ShowAll -> ""
        do
            prices <- rawSql sql [PersistText p]
 
@@ -660,9 +666,10 @@ loadPurchasePrices param = do
             <> " ORDER BY stock_id"
            (fKeyword, p) = filterEKeyword styleF
            stockF = "stock_id " <> fKeyword <> "?"
-           inactive =  if ipShowInactive param
-                       then ""
-                       else " AND inactive = 0"
+           inactive = case ipShowInactive param of
+                        ShowActive -> " AND inactive = 0"
+                        ShowInactive -> " AND inactive = 1"
+                        ShowAll -> ""
        do
            prices <- rawSql sql [PersistText p]
 
@@ -725,9 +732,10 @@ loadStatus param = do
               <> " WHERE stock_id " <> fKeyword <> "?"
               <> inactive
           (fKeyword, p) = filterEKeyword styleF
-          inactive =  if ipShowInactive param
-                       then ""
-                       else " AND inactive = 0"
+          inactive = case ipShowInactive param of
+                        ShowActive -> " AND inactive = 0"
+                        ShowInactive -> " AND inactive = 1"
+                        ShowAll -> ""
       rows <- rawSql sql [PersistText p]
       return [ ItemInfo style var master
              | (Single sku, Single qoh, Single allQoh
@@ -1151,7 +1159,7 @@ renderButton param bclass button = case buttonStatus param button of
 -- some of them. Creating missing items only works if we are sure that
 -- we are displaying the item.
 areVariationsComplete :: IndexParam -> Bool
-areVariationsComplete IndexParam{..} = ipShowInactive && null ipFAStatusFilter && null ipWebStatusFilter && null ipCategoryFilter
+areVariationsComplete IndexParam{..} = (ipShowInactive == ShowAll) && null ipFAStatusFilter && null ipWebStatusFilter && null ipCategoryFilter
 buttonStatus :: IndexParam -> Button -> ButtonStatus
 buttonStatus param CreateMissingBtn = case (ipMode param, areVariationsComplete param) of
   (ItemGLView, False) -> BtnInactive "Please show inactive item before creating items. This is to avoid trying to create disabled items."
@@ -1373,7 +1381,7 @@ createGLMissings params = do
                   ItemGLView -> ItemAllView
                   mode -> mode
   cache <- fillIndexCache
-  itemGroups <- loadVariations cache (params {ipShowInactive = True, ipMode = newMode})
+  itemGroups <- loadVariations cache (params {ipShowInactive = ShowAll, ipMode = newMode})
   let toKeep = checkFilter params
 
       missings = [ (sku, iiInfo info)
@@ -1485,7 +1493,7 @@ createDCMissings params = do
   cache <- fillIndexCache
   basePl <- basePriceList
   -- timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty}) 
+  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = ShowAll, ipBases = mempty}) 
   -- we need to create everything which is missing in the correct order
   let go (baseInfo, group') = runDB $ do
         -- find items with no product information in DC
@@ -1520,7 +1528,7 @@ deleteDC params = do
   cache <- fillIndexCache
   -- basePl <- basePriceList
   -- timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty}) 
+  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = ShowAll, ipBases = mempty}) 
 
   let skus = [ iiSku info
              | (_, group_) <- itemGroups
@@ -2013,7 +2021,7 @@ changeActivation :: Bool -> IndexParam -> _ -> _ -> Handler ()
 changeActivation __activate param activeFilter updateFn =  runDB $ do
   -- we set ShowInactive to true to not filter anything yet using (StockMasterInactive)
   -- as it will be done before
-  entities <- case selectedItemsFilter param {ipMode = ItemGLView, ipShowInactive = True } of
+  entities <- case selectedItemsFilter param {ipMode = ItemGLView, ipShowInactive = ShowAll } of
     Left err -> error err >> return []
     Right filter_ ->  selectList ( activeFilter ++ filter_) []
   -- traceShowM ("ACTI", param, entities)
