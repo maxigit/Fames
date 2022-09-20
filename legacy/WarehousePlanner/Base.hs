@@ -448,9 +448,9 @@ extractDimensions dim tags = case (go "'l", go "'w", go "'h") of
                                 , dWidth = fromMaybe (dWidth dim) w
                                 , dHeight = fromMaybe (dHeight dim) h
                                 }
-  where go prefix = case maybe [] (Set.toList) (Map.lookup prefix tags) of
-          [value] -> (/100) `fmap` readMay value  
-          _ -> Nothing
+  where go prefix = case traverse readMay $ maybe [] (Set.toList) (Map.lookup prefix tags) of
+          Nothing -> Nothing
+          Just values -> Just $ sum values /100
 
 -- | Change the dimension of the box according to its tag
 updateDimFromTags :: Box s -> Box s

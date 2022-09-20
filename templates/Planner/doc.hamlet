@@ -674,6 +674,13 @@ A planner file is made of different sections. Each section corresponds to an org
       TShirt#'l3500 => all T-shirt with boxes with a length of 35cm.
       TShirt#'RED  => all red T-shirt (with a content of Red)
   Virtual tags can also be used to change the dimension of a box. Setting for example the tag <code>'h3400</code> will change the box size to 34 cm.
+  If more than one values is assign to a dimension, the sum of all is used. This can be used to add a subtract a value to dimension.
+
+  Example
+  <pre>
+    #'l3500,#'l=+50 => add 50 to the length
+    #'l3500,#'l=+-50 => subtract 50 to the length
+  Note that <code>=+-50</code> adds a value of -50  (see <a href="#info-section-property">Properties</a>) to the dimension.
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-property">
      Properties
