@@ -53,6 +53,7 @@ module WarehousePlanner.Base
 , maxUsedOffset
 , cornerHull
 , stairsFromCorners
+, boxRank
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix)

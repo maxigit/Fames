@@ -351,32 +351,51 @@ generateMoves boxName0 = generateMoves' (Just "stock_id,location") (Just . boxNa
      printGroup  boxName' _ shelves = boxName' <> "," <> intercalate "|" (groupNames $ shelvesToNames shelves)
 -- generateMoves' :: (Box s -> Text) -> (Box s -> [Text]) -> WH [Text] s
 generateMoves' :: (Ord k, Eq k)
-               => Maybe Text --  ^ Header
+               => Maybe t --  ^ Header
                -> (Box s -> Maybe k) --  ^ box key
-               ->  (k -> [Box s] -> [Shelf s]  -> Text) --  ^ string from key, boxes and unique shelfnames
-               -> WH [Text] s
+               ->  (k -> [Box s] -> [Shelf s]  -> t) --  ^ string from key, boxes and unique shelfnames
+               -> WH [t] s
 generateMoves' header boxKey0 printGroup = do
  s'bS <- shelfBoxes
  generateMovesFor header boxKey0 printGroup s'bS 
 generateMovesFor header boxKey0 printGroup box'shelfs = do
  let groups = Map'.fromListWith (<>) [ (key, [(b, s)])
-                                     | (s,b) <- box'shelfs
+                                     | (s,b) <- sortOn (Down . rank) box'shelfs
                                      , Just key <- [boxKey0 b]
                                      -- , "mop-exclude" `notElem` boxTags b
                                      ]
+     rank (_, box) = (boxKey0 box, boxRank box)
      printGroup' (key, box'shelves) = printGroup key boxes shelves where (boxes, shelves) = unzip box'shelves
  return $ maybe id   (:) header $  map printGroup' (Map'.toList groups)
   
 -- | Generates files compatible with MOP
+-- Boxes tagged with "mop-exception" will use their exact location instead of the group
+-- of all shelves for the same style.
+-- Boxes with different comment but without exception should display their content and comment
+-- but use the location as if they were part of the group.
+-- This this achieve by first running the report ignoring the comment (to computes the grouped locations)
+-- and doing a lookup to find the final location.
 generateMOPLocations :: WH [Text] s
-generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGroup where
+generateMOPLocations = do
+  locationMap <- Map'.fromList . concat <$> generateMoves' (Nothing) (boxName False)
+                                                  (\_ boxes shelves -> [ (boxStyleAndContent box, shelves)
+                                                                       | box <- boxes
+                                                                       ])
+
+  generateMoves' (Just "stock_id,location") (boxName True) (printGroup locationMap) where
   -- use box style unless the box is tagged as exception
-  boxName box = let comment = getTagValuem box "mop-comment"
-                    hasTag = tagIsPresent box
-                in case (hasTag "mop-exclude", hasTag "mop-exception") of
-                   (True, _) -> Nothing -- skipped
-                   (False, True) -> Just $ (boxStyleAndContent box, comment)
-                   (False, False) -> Just $ (boxStyle box, comment)
+  boxName checkComment box  = let comment = getTagValuem box "mop-comment"
+                                  hasTag = tagIsPresent box
+                              in case (hasTag "mop-exclude") of
+                                 True -> Nothing -- skipped
+                                 _ -> let get = if hasTag "mop-exception" 
+                                                || ( checkComment
+                                                   && not (null comment)
+                                                   && not (hasTag "mop-no-exception")
+                                                   )
+                                                then boxStyleAndContent
+                                                else boxStyle
+                                      in Just (get box)
  
   -- display shelf we pick from first. This is needed
   -- because the first displayed shelf is used to sort style by location
@@ -389,12 +408,19 @@ generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGr
    (x:y:_:_) -> intercalate "|" [name, x,y] <> " ..."
    xs -> intercalate "|" (name:xs)
   -- add comment from tag
-  printGroup (boxName_, boxComment) _ shelves = boxName_ <> "," <>
+  printGroup locationMap (boxName_) boxes shelves0 = boxName_ <> "," <>
     case (boxComment, sortShelves shelves) of
            (Nothing, name:names) -> groupNames2 name names 
            (Just comment, [name]) -> name <> " " <> comment
            (Just comment, name:names) -> (groupNames2 name names)  <> " " <> comment
            ( commentM, []) -> fromMaybe "" commentM
+    where shelves = Map'.findWithDefault shelves0 boxName_ locationMap 
+          boxComment = case boxes of
+                          [] -> Nothing
+                          box:_ -> getTagValuem box "mop-comment"
+
+
+
                                         
 -- | Generate a generic report using tags prefixed by the report param
 generateGenericReport :: Day -> Text -> WH [Text] s

@@ -605,7 +605,7 @@ A planner file is made of different sections. Each section corresponds to an org
       A glob pattern on the tag to select a shelf.
     <li>
       <h4> number restriction
-      The <code>^</code> symbol is used to select only a certain number of boxes per variation/content, per shelf, and in total
+      The <code>^</code> symbol is used to select only a certain number of boxes per variant/content, per shelf, and in total
       <pre>
          ^ content ^ shelf ^ total
 
@@ -841,7 +841,7 @@ A planner file is made of different sections. Each section corresponds to an org
 <div.pre.collapse :expanded:.in id=info-section-mop-export>
   The location of all the boxes can be exported to MOP (via the generateMOPLocation).
   By default, locations are given for each style (regardless of the content) in the form of the pattern matching all used shelves.
-  The location of a particular variation (style + content) can exported separately using the tag <code>mop-exception</code>.
+  The location of a particular variant (style + content) can exported separately using the tag <code>mop-exception</code>.
   Boxes can also be excluded using the tag <code>mop-exclude</code>. This is particularey usefull to exclude shelves which shoudn't be taken into account.
   Example, to exclude all shelves starting with <code>_</code> (shelves filtered from the summary report)
   <pre>
@@ -850,6 +850,11 @@ A planner file is made of different sections. Each section corresponds to an org
     /#_*,mop-exclude
     :END:
   Arbitrary comments can also be added to a box using the tag <code>mop-comment=<i>your comment</i></code>.
+  In that case, variant with comment will be exported separately (like with <code>mop-exception</code>) except the location
+  will be the location of all the box of the same style (instead of the exact location of the box itself).
+  To have a global comment (the same across all variant of the same style) without generating a line per variant, the tag <code>mop-no-exception</code> can be used.
+  In case many boxes of the same group have different comments, the one of the first box will be used.
+  To force a particula box to be used force, <code>@content</code> and <code>@style</code> can be used.
   Finaly, shelves with the tag <code>mop-priority</code> will be used first when deciding which shelf is to display first.
   Shelves with the tag <code>mop-excluded</code> will be excluded.
 <h3>
