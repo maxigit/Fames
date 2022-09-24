@@ -409,15 +409,18 @@ generateMOPLocations = do
    xs -> intercalate "|" (name:xs)
   -- add comment from tag
   printGroup locationMap (boxName_) boxes shelves0 = boxName_ <> "," <>
-    case (boxComment, sortShelves shelves) of
-           (Nothing, name:names) -> groupNames2 name names 
-           (Just comment, [name]) -> name <> " " <> comment
-           (Just comment, name:names) -> (groupNames2 name names)  <> " " <> comment
-           ( commentM, []) -> fromMaybe "" commentM
+                (encodeCsv $ case (boxComment, sortShelves shelves) of
+                       (Nothing, name:names) -> groupNames2 name names 
+                       (Just comment, [name]) -> name <> " " <> comment
+                       (Just comment, name:names) -> (groupNames2 name names)  <> " " <> comment
+                       ( commentM, []) -> fromMaybe "" commentM
+                )
     where shelves = Map'.findWithDefault shelves0 boxName_ locationMap 
           boxComment = case boxes of
                           [] -> Nothing
                           box:_ -> getTagValuem box "mop-comment"
+          -- put between double quotes and escape tem 
+          encodeCsv s = "\"" <> replace "\"" "\"\"" s <> "\""
 
 
 
