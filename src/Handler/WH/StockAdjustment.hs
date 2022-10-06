@@ -384,7 +384,7 @@ quantitiesFor loc (minDateM, maxDateM) (Single sku, Single take_, Single date, S
       maxDate = maximum $ maxDate0 `ncons` (toList  maxDateM)
 
   -- extract all relevant moves within the unsure range
-  let sqlForMoves = "SELECT moves.tran_date, COALESCE(debtor.name, '<>'), COALESCE(operators, 'no op'), SUM(moves.qty) "
+  let sqlForMoves = "SELECT moves.tran_date, COALESCE(debtor.debtor_ref, '<>'), COALESCE(operators, 'no op'), SUM(moves.qty) "
                    <> " FROM 0_stock_moves moves "
                    <> " LEFT JOIN 0_debtor_trans USING(trans_no, type)"
                    <> " LEFT JOIN 0_debtors_master debtor USING(debtor_no)"
@@ -406,7 +406,7 @@ quantitiesFor loc (minDateM, maxDateM) (Single sku, Single take_, Single date, S
       toMove (Single date_, Single debtor, Single operators_, Single qty) = MoveInfo date_ debtor operators_ qty
                     
   (results, moves) <- runDB $ do
-    results <- rawSql sql [PersistText sku, PersistDay date, PersistText loc]
+    results <- rawSql sql [PersistText sku, PersistDay maxDate, PersistText loc]
     moves <- rawSql sqlForMoves [PersistText sku, PersistText sku, PersistDay minDate, PersistDay maxDate, PersistText loc]
     return (results , moves)
 
