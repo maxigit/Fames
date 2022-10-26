@@ -26,6 +26,7 @@ data ShelfDimension = ShelfDimension
   { sMinD :: Dimension
   , sMaxD :: Dimension
   , sBottomOffset :: Double -- 
+  , sUsedD :: Dimension
   }
   deriving (Show)
 
@@ -33,8 +34,11 @@ data ShelfDimension = ShelfDimension
 sTopOffset :: ShelfDimension -> Double
 sTopOffset s = dHeight (sMaxD s) + sBottomOffset s
 
-shelfDimension :: Shelf s -> ShelfDimension
-shelfDimension shelf = ShelfDimension (minDim  shelf) (maxDim shelf) (bottomOffset  shelf)
+sAvailableD :: (ShelfDimension -> Dimension) -> ShelfDimension -> Dimension
+sAvailableD d s = d s <> invert ( sUsedD s)
+
+shelfDimension :: Shelf s -> WH ShelfDimension s
+shelfDimension shelf = ShelfDimension (minDim  shelf) (maxDim shelf) (bottomOffset  shelf) <$> maxUsedOffset shelf
 readShelves :: FilePath-> IO (WH [Shelf s] s)
 readShelves filename = do
     csvData <- BL.readFile filename
@@ -243,15 +247,26 @@ parseRef accessor = do
 
 parseAccessor :: P.Stream s m Char => P.ParsecT s u m (ShelfDimension -> Double)
 parseAccessor = P.choice $ map  (\(s ,a) -> P.string s >> return a)
-                [ ("length", dLength . sMinD)
-                , ("width", dWidth   . sMinD)
-                , ("height", dHeight . sMinD)
-                , ("Length", dLength . sMaxD)
-                , ("Width", dWidth   . sMaxD)
-                , ("Height", dHeight . sMaxD)
-                , ("bottom", sBottomOffset)
-                , ("top", sTopOffset)
+                $ concatMap pre
+                [ (["length", "l"], dLength . sMinD)
+                , (["width", "w"], dWidth   . sMinD)
+                , (["height", "h"], dHeight . sMinD)
+                , (["Length", "L"], dLength . sMaxD)
+                , (["Width", "W"],  dWidth   . sMaxD)
+                , (["Height", "H"], dHeight . sMaxD)
+                , (["bottom", "b"], sBottomOffset)
+                , (["top", "t"], sTopOffset)
+                , (["usedLength", "ul"], dLength . sUsedD)
+                , (["usedWidth", "uw"], dWidth   . sUsedD)
+                , (["usedHeight", "uh"], dHeight . sUsedD)
+                , (["availableLength", "al"], dLength . sAvailableD sMinD)
+                , (["availableWidth", "aw"], dWidth   . sAvailableD sMinD)
+                , (["availableheight", "ah"], dHeight . sAvailableD sMinD)
+                , (["AvailableLength", "AL"], dLength . sAvailableD sMaxD)
+                , (["AvailableWidth", "AW"], dWidth   . sAvailableD sMaxD)
+                , (["AvailableHeight", "AH"], dHeight . sAvailableD sMaxD)
                 ]
+  where pre (names, a) = [(name, a) | name <- names ]
 
 
 type RefToSDim s = Text -> WH ShelfDimension s
@@ -283,7 +298,7 @@ dimFromRef shelfName ref = do
               [] -> error $ "Can't find shelf " ++ unpack refName ++ " when evaluating formula"
               [id_] ->  findShelf id_
               _ -> error $ "Find multiple shelves for " ++ unpack shelfName ++ "when evaluating formula."
-  return $ shelfDimension $ shelf
+  shelfDimension $ shelf
 
 evalExprFromShelf :: Text -> Expr -> WH Double s
 evalExprFromShelf shelfname = evalExpr (dimFromRef shelfname)
@@ -377,10 +392,10 @@ readShelfSplit = readFromRecordWith go where
 dimForSplit :: Maybe (Box s) -> Shelf s -> Text -> WH ShelfDimension s
 dimForSplit boxm shelf ref = 
   case unpack ref of
-    "" -> return $ shelfDimension shelf
-    "%" -> return $ shelfDimension shelf
-    "shelf" -> return $ shelfDimension shelf
-    "self" -> return $ shelfDimension shelf
+    "" -> shelfDimension shelf
+    "%" -> shelfDimension shelf
+    "shelf" -> shelfDimension shelf
+    "self" -> shelfDimension shelf
     "content" -> do
       dim <- maxUsedOffset shelf
       return $ toSDim dim
@@ -393,7 +408,7 @@ dimForSplit boxm shelf ref =
     _ -> dimFromRef (shelfName shelf) ref
   where toSDim (Dimension l w h) = let
                 dim = Dimension (l - 1e-6) (w - 1e-6) (h - 1e-6)
-                in ShelfDimension dim dim 0
+                in ShelfDimension dim dim 0 dim
 
 -- | Join shelves which have been previously split.
 readShelfJoin :: FilePath -> IO (WH [Shelf s] s)

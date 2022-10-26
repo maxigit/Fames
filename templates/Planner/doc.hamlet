@@ -91,6 +91,17 @@ A planner file is made of different sections. Each section corresponds to an org
                 <li><code>Height</code> max height
                 <li><code>bottom</code> bottom (height from the ground)
                 <li><code>top</code>  top (height from the ground)
+                <li><code>usedLength</code> used length (depends on boxes within)
+                <li><code>usedWidth</code> used width 
+                <li><code>usedHeight</code> used heigth
+                <li><code>availableLength</code> (min length - used available)
+                <li><code>availableWidth</code> (min width - used available)
+                <li><code>availableHeight</code> (min height - used available)
+                <li><code>AvailableLength</code> (max length - used available)
+                <li><code>AvailableWidth</code> (max width - used available)
+                <li><code>AvailableHeight</code> (max height - used available)
+
+            Please note, that <code>l</code> can be used for <code>length</code>, <code>al</code> for <code>availableLength</code>, <code>AL</code> for <code>AvailableLength</code> etc ...
 
             <h4>shelf types
             The shelf type determines the default boxes orientation and filling strategy. The current shelf style are
