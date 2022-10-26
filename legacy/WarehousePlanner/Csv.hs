@@ -110,8 +110,8 @@ readShelves2 defaultOrientator filename = do
                         mapM (\(n, tag) ->
                             let r = dimFromRef n
                             in go
-                                    (dimToFormula r dim)
-                                    (dimToFormula r dim')
+                                    (dimToFormula sMinD r dim)
+                                    (dimToFormula sMaxD r dim')
                                     (bottomToFormula n bottom)
                                     defaultOrientator
                                     fillStrat
@@ -311,11 +311,11 @@ transformRef' _ [] = []
 -- transformRef os cs = error $ "Non-exhaustive patterns catch "
 --    ++ "\n\t[" ++ os ++ "]\n\t[" ++ cs  ++ "]"
 
-dimToFormula :: RefToSDim s -> (Text, Text, Text) -> WH Dimension s
-dimToFormula refToDim (ls, ws, hs) = do
-  l <- eval (dLength . sMinD) ls
-  w <- eval (dWidth . sMinD) ws
-  h <- eval (dHeight . sMinD) hs
+dimToFormula :: (ShelfDimension -> Dimension) -> RefToSDim s -> (Text, Text, Text) -> WH Dimension s
+dimToFormula sDim refToDim (ls, ws, hs) = do
+  l <- eval (dLength . sDim) ls
+  w <- eval (dWidth . sDim) ws
+  h <- eval (dHeight . sDim) hs
   return $ Dimension l w h
   where -- eval :: (ShelfDimension -> Double) -> Text -> WH Double s
         eval accessor s = evalExpr refToDim (parseExpr accessor s)
