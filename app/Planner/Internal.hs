@@ -380,7 +380,7 @@ executeStep (Step header sha _) =
         return (s >> clearCache)
   in case header of
           LayoutH -> return $ return ()
-          ShelvesH -> execute $ readShelves2 BoxOrientations path
+          ShelvesH -> execute $ readShelves BoxOrientations path
           InitialH -> return $ return ()
           StocktakeH tags -> execute $ readStockTake tags defaultOrientations splitStyle path
           BoxesH tags -> execute $ readBoxes tags defaultOrientations splitStyle path

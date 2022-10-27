@@ -1,6 +1,25 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | Miscelaneous functions to read and write shelves and boxes from csv
-module WarehousePlanner.Csv where
+module WarehousePlanner.Csv 
+( extractModes 
+, parseOrientationRule
+, readBoxes
+, readClones
+, readDeletes
+, readLayout
+, readMoves
+, readMovesAndTags
+, readShelfJoin
+, readShelfSplit
+, readShelfTags
+, readShelves
+, readStockTake
+, readTags
+, readTransformTags
+, readWarehouse
+, setOrientationRules
+) where
+
 
 import WarehousePlanner.Base
 import WarehousePlanner.ShelfOp
@@ -39,23 +58,6 @@ sAvailableD d s = d s <> invert ( sUsedD s)
 
 shelfDimension :: Shelf s -> WH ShelfDimension s
 shelfDimension shelf = ShelfDimension (minDim  shelf) (maxDim shelf) (bottomOffset  shelf) <$> maxUsedOffset shelf
-readShelves :: FilePath-> IO (WH [Shelf s] s)
-readShelves filename = do
-    csvData <- BL.readFile filename
-
-    case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
-        Right (rows) -> return $ do
-            let v = Vec.forM rows $ \(name, first_, last_, description, l, w, h) ->
-                        let dim = Dimension l w h
-                            dim' = Dimension l (w+10) h
-                            last' = maybe first_ id last_
-                            _types = (first_, description) :: (Int, Text)
-                        in forM [first_..last'] $ \i ->
-                                        let shelfName = name <> "." <> tshow i
-                                        in newShelf shelfName mempty dim dim' 0 DefaultOrientation ColumnFirst
-
-            concat `fmap` (Vec.toList `fmap` v)
 
 --  | Read shelves and allow formula between different shelves
 --  example A,,100,200,100,
@@ -67,8 +69,8 @@ readShelves filename = do
 --  example for A123
 --  {B%} -> B123
 --  {B_+-} -> B132
-readShelves2 :: BoxOrientator -> FilePath-> IO (WH [Shelf s] s)
-readShelves2 defaultOrientator filename = do
+readShelves :: BoxOrientator -> FilePath-> IO (WH [Shelf s] s)
+readShelves defaultOrientator filename = do
     csvData <- BL.readFile filename
     -- Call Csv.decode but add default value to bottom if not present in header
     let decode = asum
