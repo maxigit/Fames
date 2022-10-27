@@ -40,6 +40,7 @@ data HeaderType
   | ShelfTagsH
   | ShelfSplitH
   | ShelfJoinH
+  | UpdateShelvesH
   | OrientationsH 
   | TransformTagsH
   | ClonesH [Text]

@@ -16,6 +16,7 @@ module WarehousePlanner.Csv
 , readStockTake
 , readTags
 , readTransformTags
+, readUpdateShelves
 , readWarehouse
 , setOrientationRules
 ) where
@@ -85,30 +86,21 @@ readShelves defaultOrientator filename = do
         Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
             v <- Vec.forM rows $ \(name, description, l, w, h, shelfType, bottom) -> do
-                        let dim = (,,) lmin wmin hmin
-                            dim' = (,,) lmax wmax hmax
-                            -- a dimension can represent either the one from minDim, maxDim or both
-                            -- syntax is minDim;maxDim  if ; not present use it for both
-                            [(lmin, lmax), (wmin,wmax), (hmin,hmax)] = map toMinMax [l, w, h]
-                            toMinMax d = case splitOn ";" d of
-                                              dmin: dmax: _ -> (dmin, dmax)
-                                              _ -> (d, d)
-
+                        let (dim, dim') = dimsToMinMax l w h
                             _types = description :: Text
                             (_shelfO, fillStrat) = case toLower (shelfType :: Text) of
                                 "deadzone" ->  (AddOrientations [] [up, rotatedUp ], RowFirst)
                                 "shelf" -> (ForceOrientations [tiltedForward, tiltedFR], ColumnFirst)
                                 _ -> (defaultOrientator, ColumnFirst)
+                            updateShelfWithFormula' d d' bot _boxo _strat name tags=
+                              updateShelfWithFormula d d' bot name  tags
+                              
 
                         (name'tagS, go) <-
                             if toLower shelfType == "update"
                             then do
-                              let (BoxSelector boxSel shelfSel _) = parseBoxSelector name
-                                  selector = ShelfSelector boxSel shelfSel
-                              shelfIds <- findShelvesByBoxNameAndNames selector
-                              shelves <- mapM findShelf shelfIds
-                              let names  = map shelfName shelves
-                              return ( map (,Nothing) names , updateShelfWithFormula)
+                              names <- shelvesFromSelector name
+                              return ( map (,Nothing) names , updateShelfWithFormula')
                             else
                               return ( expand =<< splitOn "|" name
                                      , newShelfWithFormula
@@ -126,6 +118,62 @@ readShelves defaultOrientator filename = do
                                     ) name'tagS
 
             return $ concat (Vec.toList v)
+
+-- | a dimension can represent either the one from minDim, maxDim or both
+-- syntax is minDim;maxDim  if ; not present use it for both
+dimsToMinMax :: Text -> Text -> Text -> ((Text, Text, Text), (Text, Text, Text))
+dimsToMinMax l w h = 
+    let dim = (,,) lmin wmin hmin
+        dim' = (,,) lmax wmax hmax
+        [(lmin, lmax), (wmin,wmax), (hmin,hmax)] = map toMinMax [l, w, h]
+        toMinMax d = case splitOn ";" d of
+                         dmin: dmax: _ -> (dmin, dmax)
+                         _ -> (d, d)
+    in (dim, dim')
+
+shelvesFromSelector name = do
+    let (BoxSelector boxSel shelfSel _) = parseBoxSelector name
+        selector = ShelfSelector boxSel shelfSel
+    shelfIds <- findShelvesByBoxNameAndNames selector
+    shelves <- mapM findShelf shelfIds
+    return $ map shelfName shelves
+
+readUpdateShelves :: FilePath-> IO (WH [Shelf s] s)
+readUpdateShelves filename = do
+  csvData <- BL.readFile filename
+  let decode =  asum
+          [ Csv.decode Csv.HasHeader csvData
+          , fmap (Vec.map (\(name, l, w, h)->
+                     (name, l, w, h, "",Nothing))
+                 ) (Csv.decode Csv.HasHeader csvData)
+          , fmap (Vec.map (\(name, l, w, h,tag)->
+                     (name, l, w, h, "",tag))
+                 ) (Csv.decode Csv.HasHeader csvData)
+          ]
+
+  case decode of
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
+        Right (rows) -> return $ do
+          v <- Vec.forM rows $ \(name, l, w, h, bottom,tag) -> do
+            let (dim, dim') = dimsToMinMax (def l) (def w) (def h)
+                def "" = "{%}"
+                def t = t
+            names <- shelvesFromSelector name
+            mapM (\n -> 
+              let r = dimFromRef n
+              in 
+                updateShelfWithFormula 
+                  (dimToFormula sMinD r dim)
+                  (dimToFormula sMaxD r dim')
+                  (bottomToFormula n (def bottom))
+                  n 
+                  tag
+              ) names
+          return $ concat (Vec.toList v)
+              
+
+          
+
 
 -- | Expand chars between bracket to all possible string
 -- example:
@@ -349,8 +397,8 @@ newShelfWithFormula dimW dimW' bottomW boxo strategy name tags = do
   newShelf name tags dim dim' bottom boxo strategy
 
 -- | Update an existing shelf
-updateShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> (WH Double s) -> BoxOrientator -> FillingStrategy -> Text -> Maybe Text ->  WH (Shelf s) s
-updateShelfWithFormula dimW dimW' bottomW _boxo _strategy name _tags = do
+updateShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> (WH Double s) -> Text -> Maybe Text ->  WH (Shelf s) s
+updateShelfWithFormula dimW dimW' bottomW name tagm = do
   shelfIds <- findShelfBySelector (Selector (NameMatches [MatchFull name]) [])
   case shelfIds of
     [shelfId] -> do
@@ -358,7 +406,12 @@ updateShelfWithFormula dimW dimW' bottomW _boxo _strategy name _tags = do
         dim <- dimW
         dim' <- dimW'
         bottom <- bottomW
-        updateShelf (\s -> s { minDim = dim, maxDim = dim', bottomOffset = bottom }) shelf
+        new <- updateShelf (\s -> s { minDim = dim, maxDim = dim', bottomOffset = bottom }) shelf
+        case tagm of
+          Nothing -> return new
+          Just tag -> do
+              let tagOps = parseTagOperations tag
+              updateShelfTags tagOps new
     [] -> error $ "Shelf " <> unpack name <> " not found. Can't update it"
     _ -> error $ "To many shelves named " <> unpack name <> " not found. Can't update it"
 

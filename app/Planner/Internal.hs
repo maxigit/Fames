@@ -135,15 +135,20 @@ parseDrawer h = case splitOn "_" h of
     ("shelftags":[]) -> Right $ ShelfTagsH
     ("shelf":"tags":[]) -> Right $ ShelfTagsH
     ("tag shelves":[]) -> Right $ ShelfTagsH
+    ("tag":"shelves":[]) -> Right $ ShelfTagsH
     ("shelf":"split":[]) -> Right ShelfSplitH
     ("shelf split":[]) -> Right ShelfSplitH
     ("split shelves":[]) -> Right ShelfSplitH
+    ("split":"shelves":[]) -> Right ShelfSplitH
     ("splitshelves":[]) -> Right ShelfSplitH
     ("shelf":"join":[]) -> Right ShelfJoinH
     ("shelf join":[]) -> Right ShelfJoinH
     ("join shelves":[]) -> Right ShelfJoinH
+    ("update":"shelves":[]) -> Right UpdateShelvesH
+    ("updateshelves":[]) -> Right UpdateShelvesH
     ("transform":[]) -> Right TransformTagsH
     ("transform tags":[]) -> Right TransformTagsH
+    ("transform":"tags":[]) -> Right TransformTagsH
     ("orientations":[]) -> Right OrientationsH
     ("clone":tags) -> Right $ ClonesH tags
     ("clones":tags) -> Right $ ClonesH tags
@@ -390,6 +395,7 @@ executeStep (Step header sha _) =
           ShelfTagsH -> execute $ readShelfTags path
           ShelfSplitH -> execute $ readShelfSplit path
           ShelfJoinH -> execute $ readShelfJoin path
+          UpdateShelvesH -> execute $ readUpdateShelves path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
           TransformTagsH -> execute $ readTransformTags path
           ClonesH tags -> execute $ readClones (tags) path

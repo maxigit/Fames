@@ -246,7 +246,7 @@ A planner file is made of different sections. Each section corresponds to an org
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-tags"> Tags
         <div.pre.collapse :expanded:.in id=info-section-tags>
-          Tag allow boxes to be selected (via selector) to be either moved or tagged but also change their behavior (colour, priority, etc ...) via properties.
+          Tags allow boxes to be selected (via selector) to be either moved or tagged but also change their behavior (colour, priority, etc ...) via properties.
           A Tag can be removed by setting with <code>-</code>
           The body is a CSV with the following header
           <pre> stock_id,tag
@@ -286,6 +286,20 @@ A planner file is made of different sections. Each section corresponds to an org
             /S,tag -- tag shelves with name S
             /#sep,fg=blue -- set the foreground of all shelves having the `sep` tag
             #new/#top,tag -- tag all 'top' shelves containing a items with the new tag
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-update-shelves"> Update shelves
+        <div.pre.collapse :expanded:.in id=info-section-update-shelves>
+          Updates the dimensions of the shelves containing selected boxes. 
+          Can be used to readjust shelves and their neighbour according to the space
+          use by its content.
+          Example
+          <pre>
+            :UPDATE_SHELVES:
+            stock_id,l,w,h,bottom,tag
+            /A,{A}+{B:availableLength},, -- expands A with B free space
+            /B,{B:usedLength},, -- shrink B to its content
+
+          Expand A and shrink B by the same amount (so that A+B stays the same),
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-shelf-split"> SHELF_JOIN (shelf split)
         <div.pre.collapse :expanded:.in id=info-section-shelf-split>

@@ -18,6 +18,7 @@ module WarehousePlanner.Base
 , extractTag
 , extractTags
 , parseTagOperation
+, parseTagOperations
 , negateTagOperations
 , expandAttribute'
 , expandAttribute
@@ -367,10 +368,11 @@ emptyWarehouse today = Warehouse mempty mempty mempty
 
 newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> Double -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
 newShelf name tagm minD maxD bottom boxOrientator fillStrat = do
-        let tags = case splitOn "#" <$> tagm of
-              Nothing -> mempty
-              Just [""] -> mempty
-              Just tags' -> fromMaybe mempty $ modifyTags (map parseTagOperation tags') mempty
+        let -- tags = case splitOn "#" <$> tagm of
+            --   Nothing -> mempty
+            --   Just [""] -> mempty
+            --   Just tags' -> fromMaybe mempty $ modifyTags (map parseTagOperation tags') mempty
+            tags = fromMaybe mempty $ fmap parseTagOperations tagm >>= (flip modifyTags mempty)
         warehouse <- get
         ref <- lift (newSTRef (error "should never been called. Base.hs:327"))
         let shelf = Shelf (ShelfId ref) [] name tags minD maxD LeftToRight boxOrientator fillStrat bottom
@@ -419,6 +421,14 @@ parseTagOperation s =
     (tag, (uncons -> Just ('=', val)))          -> (tag, SetValues $ split val)
     (tag, val)              -> (tag <> val , SetTag)
   where split = splitOn ";"
+ 
+parseTagOperations :: Text -> [Tag'Operation]
+parseTagOperations tag =
+ case splitOn "#" tag of
+   [] -> []
+   [""] -> []
+   tags -> map parseTagOperation tags
+  
   
   
 negateTagOperations :: [Tag'Operation] -> [Tag'Operation]
