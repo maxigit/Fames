@@ -275,7 +275,9 @@ occupiedVolume s = do
 shelvesReport :: WH [Text] s
 shelvesReport = do
   ss <- toList <$> gets shelves >>= mapM findShelf
-  ls <- mapM  report_ ss
+  let sorted = sortOn shelfRank ss
+      shelfRank shelf = fromMaybe (shelfName shelf) $ getTagValuem shelf "@key"
+  ls <- mapM  report_ sorted
 
   return $ ("name,comment,length,width,height,depthLeft,usedRatio,bottom,top") : ls
 

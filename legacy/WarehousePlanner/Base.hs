@@ -4,57 +4,57 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RecordWildCards #-}
 module WarehousePlanner.Base
-( newShelf
-, newBox
+( applyNameSelector
+, applyTagSelectors
+, aroundArrangement 
 , assignShelf
+, bestArrangement
+, boxCoordinate
+, boxRank
+, boxStyleAndContent
+, buildWarehouse
+, clearCache
+, cornerHull
+, defaultShelf
 , deleteBoxes
 , deleteShelf
-, moveBoxes
-, updateBoxTags
-, updateBox
-, updateShelf
-, updateShelfTags
-, boxStyleAndContent
+, emptyWarehouse
+, expandAttribute
+, expandAttribute'
 , extractTag
 , extractTags
-, parseTagOperation
-, parseTagOperations
-, negateTagOperations
-, expandAttribute'
-, expandAttribute
+, filterBoxByTag
+, filterShelfByTag
+, findBoxByNameAndShelfNames
+, findBoxByNameSelector
+, findBoxByShelf
 , findShelfBySelector
 , findShelfBySelectors
 , findShelvesByBoxNameAndNames
-, findBoxByNameAndShelfNames
-, findBoxByShelf
-, findBoxByNameSelector
-, shelfBoxes
-, orTrue
 , howMany, howManyWithDiagonal
-, filterBoxByTag
-, filterShelfByTag
-, buildWarehouse
-, emptyWarehouse
-, defaultShelf
 , incomingShelf
-, aroundArrangement 
-, bestArrangement
-, usedDepth
-, printDim
-, parseSelector
-, parseBoxSelector
-, parseTagSelector
-, applyTagSelectors
-, applyNameSelector
-, matchName
-, module WarehousePlanner.Type
-, clearCache
-, boxCoordinate
 , indexToOffsetDiag, d0, r
+, matchName
 , maxUsedOffset
-, cornerHull
+, module WarehousePlanner.Type
+, moveBoxes
+, negateTagOperations
+, newBox
+, newShelf
+, orTrue
+, parseBoxSelector
+, parseSelector
+, parseTagOperation
+, parseTagOperations
+, parseTagSelector
+, printDim
+, shelfBoxes
 , stairsFromCorners
-, boxRank
+, updateBox
+, updateBoxTags
+, updateShelf
+, updateShelfTags
+, usedDepth
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix)
