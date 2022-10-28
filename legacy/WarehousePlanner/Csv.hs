@@ -407,10 +407,23 @@ updateShelfWithFormula dimW dimW' bottomW name tagm = do
         dim' <- dimW'
         bottom <- bottomW
         new <- updateShelf (\s -> s { minDim = dim, maxDim = dim', bottomOffset = bottom }) shelf
-        case tagm of
-          Nothing -> return new
-          Just tag -> do
-              let tagOps = parseTagOperations tag
+        let extraTags = (if minDim shelf /= dim
+                         then [ "'debug-minShelf=+" <> printDim (minDim shelf) ]
+                         else []
+                        ) ++
+                       ( if maxDim shelf /= dim'
+                         then ["'debug-maxShelf=+" <> printDim (maxDim shelf) ]
+                         else []
+                       ) ++
+                       ( if bottomOffset shelf /= bottom 
+                         then ["'debug-bottom=+" <> tshow (bottomOffset shelf) ]
+                         else []
+                       )
+        let tags = toList tagm <> (if tagIsPresent shelf "debug" then extraTags else [])
+        case tags of
+          [] -> return new
+          _ -> do
+              let tagOps = parseTagOperations =<< tags
               updateShelfTags tagOps new
     [] -> error $ "Shelf " <> unpack name <> " not found. Can't update it"
     _ -> error $ "To many shelves named " <> unpack name <> " not found. Can't update it"
