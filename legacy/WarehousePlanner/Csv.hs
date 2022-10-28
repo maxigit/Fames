@@ -296,7 +296,7 @@ parseRef accessor = do
   return $ RefE (pack ref) acc
 
 parseAccessor :: P.Stream s m Char => P.ParsecT s u m (ShelfDimension -> Double)
-parseAccessor = P.choice $ map  (\(s ,a) -> P.string s >> return a)
+parseAccessor = P.choice $ map  (\(s ,a) -> P.try (P.string s) >> return a)
                 $ concatMap pre
                 [ (["length", "l"], dLength . sMinD)
                 , (["width", "w"], dWidth   . sMinD)
