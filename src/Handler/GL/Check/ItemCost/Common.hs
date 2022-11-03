@@ -287,7 +287,7 @@ data CollectMode = Collectables | Uncollectables
 -- filterTransactionFromSummary :: Maybe a -> Maybe a1 -> a2 -> a2 -> (a2, [PersistValue])
 filterTransactionFromSummary maxId startDatem idField dateField =
         case (?collectMode, maxId, startDatem) of
-            (Uncollectables, Just id_, _) -> ( " AND " <> idField <> "> ? "
+            (Uncollectables, Just id_, _) -> ( " AND ( " <> idField <> " IS NULL OR " <> idField <> "> ? ) "
                                              , [ toPersistValue id_ ]
                                             )
             (Uncollectables, Nothing, _) -> ("" , [])
