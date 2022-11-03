@@ -59,9 +59,16 @@ getGLCheckItemCostR = do
           <tr>
             <th> Account
             <th> Collect Date
-            <th data-class-name="text-right"> GL Balance
-            <th data-class-name="text-right"> Out of Scope
-            <th data-class-name="text-right"> Correct Balance
+            <th data-class-name="text-right"
+                data-toggle="tooltip"
+                title="balance of the GL account on given date as it is on Front Accounting. Doesn't take item and checked status into consideration."
+                > GL Balance
+            <th data-class-name="text-right"
+                data-toggle="toolitp"
+                title="balasce of GL trans which seems to not be related to (configured) items. Should be  null ideally."> Out of Scope
+            <th data-class-name="text-right"
+                data-toggle="tooltip"
+                title="How much the balance should be according to the checked moves. Doesn't take into account unchecked moves."> Correct Balance
             <th data-class-name="text-right"> GL Balance - Correct 
             <th data-class-name="text-right"> Stock Valuation - Correct
             <th data-class-name="text-right"> Stock Valuation
@@ -183,12 +190,22 @@ getGLCheckItemCostAccountViewR account = do
         <th> Unchecked moves
         <th> Collect Date
         <th> Validated
-        <th data-class-name="text-right"> Gl - Correct
-        <th data-class-name="text-right"> Checked GL
-        <th data-class-name="text-right"> Checked Correct
-        <th data-class-name="text-right"> Correct Cost
+        <th data-class-name="text-right"
+            data-toggle="tooltip"
+            title="Checked GL - Checked Correct "> Gl - Correct
+        <th data-class-name="text-right"
+            data-toggle="tooltip"
+            title="Balance of GL transaction which have been checked so far.  Does'nt take into account unchecked moves." > Checked GL
+        <th data-class-name="text-right"
+            data-toggle="tooltip"
+            title="Expected value (GL balance and stock value) so far.  Doesn't take into account unchecked moves."> Checked Correct
+        <th data-class-name="text-right"
+            data-toggle="tooltip"
+            title="Correct cost ignorning unchecked moves."> Correct Cost
         <th data-class-name="text-right"> Current Cost
-        <th data-class-name="text-right"> Stock Balance
+        <th data-class-name="text-right"
+            data-toggle="tooltip"
+            title="Difference between checked stock valuation and current stock valuation."> Cur htock - Checked
         <th data-class-name="text-right"> QOH
       <tbody>
         $forall (sku, count, lastm) <- sku'count'lasts
