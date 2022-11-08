@@ -1,0 +1,27 @@
+select account, count(*)
+from check_item_cost_summary s
+left join (select max(move_id) mMid, max(gl_detail) mGid, sku
+      from check_item_cost_transaction
+      where item_cost_validation is not null
+      group by sku) t using (sku) -- on (s.sku = t.sku)
+where 1 -- sku = 'MLB1-AF1-BLK'
+and (mMid <=> move_id) = 0
+and move_id is null
+group by account
+!!&stag +unsafe
+!!^out
+
+select * from 
+
+update 
+check_item_cost_summary
+left join (select max(move_id) mMid, max(gl_detail) mGid, sku
+      from check_item_cost_transaction
+      where item_cost_validation is not null
+      group by sku) t using (sku) -- on (s.sku = t.sku)
+set move_id = mMid
+where 1 -- sku like 'ML13%'
+and (mMid <=> move_id) = 0
+and move_id is null
+!!&stag +unsafe
+!!^out
