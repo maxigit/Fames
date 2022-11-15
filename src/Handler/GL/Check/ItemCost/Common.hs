@@ -79,7 +79,11 @@ type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), (Int, Cancelling
 -- * Summaries 
 getStockAccounts :: Handler [Account]
 getStockAccounts = do
-  let sql0 = "SELECT DISTINCT(inventory_account) FROM 0_stock_master WHERE mb_flag <> 'D' "
+  let sql0 = "SELECT DISTINCT(inventory_account) FROM 0_stock_master "
+           ++  " JOIN 0_chart_master m  ON (inventory_account = m.account_code) "
+           ++  " JOIN 0_chart_types t ON (m.account_type = t.id) "
+           ++  " JOIN 0_chart_class cl ON (t.class_id = cl.cid) "
+           ++  " WHERE mb_flag <> 'D' AND cl.ctype = 1 "
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let (sql, params) =
         case settingsm of
