@@ -33,6 +33,7 @@ import qualified FA as FA
 import GL.Check.ItemCostSettings
 import Database.Persist.Sql  (fromSqlKey, toSqlKey, Single(..), rawSql)
 import Control.Monad (zipWithM_, zipWithM)
+import Data.List(scanl)
 
 import Yesod.Form.Bootstrap3
 
@@ -205,8 +206,8 @@ getGLCheckItemCostAccountViewR account = do
         <th data-class-name="text-right"> Current Cost
         <th data-class-name="text-right"
             data-toggle="tooltip"
-            title="Difference between checked stock valuation and current stock valuation."> Cur htock - Checked
-        <th data-class-name="text-right"> QOH
+            title="Difference between checked stock valuation and current stock valuation."> Cur stock - Checked
+        th data-class-name="text-right"> QOH
       <tbody>
         $forall (sku, count, lastm) <- sku'count'lasts
           <tr>
@@ -342,6 +343,12 @@ renderTransactions title costm trans = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
+      maxMoveIds = drop 1 $ scanl max Nothing $ map itemCostTransactionMoveId trans
+      maxGlIds = drop 1 $ scanl max Nothing $ map itemCostTransactionGlDetail trans
+      lesserM am bm = case (am, bm) of
+                       (Nothing, _) -> False
+                       (_, Nothing) -> True
+                       (a, b) -> a < b
   return $
     infoPanel title  [whamlet|
 
@@ -363,7 +370,7 @@ renderTransactions title costm trans = do
               <th data-class-name="text-right"> MovedId
               <th data-class-name="text-right"> GlDetail
         <tbody>
-          $forall (t@ItemCostTransaction{..},previousDate) <- zip trans (Nothing : map (Just . itemCostTransactionDate) trans)
+          $forall (t@ItemCostTransaction{..},previousDate,lastMoveId, lastGlId) <- zip4 trans (Nothing : map (Just . itemCostTransactionDate) trans) maxMoveIds maxGlIds
             $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku)
             <tr>
               $with inFuture <- Just itemCostTransactionDate < previousDate
@@ -374,7 +381,7 @@ renderTransactions title costm trans = do
                 <td.bg-success.text-success>
                   #{formatDouble itemCostTransactionFaAmount}
               $else
-                <td class="#{classFor 0.5 itemCostTransactionFaAmount itemCostTransactionCorrectAmount}" data-tople="tooltip"
+                <td class="#{classFor 0.5 itemCostTransactionFaAmount itemCostTransactionCorrectAmount}" data-toggle="tooltip"
                   title="diff: #{formatDouble $ itemCostTransactionFaAmount - itemCostTransactionCorrectAmount}">
                   <div> FA: #{formatDouble itemCostTransactionFaAmount}
                   <div> SB: #{formatDouble itemCostTransactionCorrectAmount}
@@ -410,8 +417,14 @@ renderTransactions title costm trans = do
               <td class="#{classForRel 0.25 itemCostTransactionCostBefore itemCostTransactionCostAfter}"> #{formatDouble' itemCostTransactionCostAfter}
               <td> #{itemCostTransactionComment}
               <td> #{maybe "" (tshow . fromSqlKey) itemCostTransactionItemCostValidation}
-              <td> #{tshowM itemCostTransactionMoveId}
-              <td> #{tshowM itemCostTransactionGlDetail}
+              $with inFuture <- lesserM itemCostTransactionMoveId lastMoveId && not (Just itemCostTransactionDate == previousDate)
+                <td :inFuture:.bg-danger :inFuture:.text-danger data-toggle="tooltip"
+                 title="Move id should be greater than previous move ##{tshowM lastMoveId}."
+                > #{tshowM itemCostTransactionMoveId}
+              $with inFuture <- lesserM itemCostTransactionGlDetail lastGlId 
+                <td :inFuture:.bg-danger :inFuture:.text-danger data-toggle="tooltip"
+                 title="GL detail id should be greater than previous detail ##{tshowM lastGlId}."
+                > #{tshowM itemCostTransactionGlDetail}
         <tfoot>
           <th>
           <th>
