@@ -631,6 +631,13 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, (_s
     -------------------------------- Location Tranfer ------------------------
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       ((makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped")) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN previous)  sm'gls
+    -------------------------------- Supplier Credit -------------------------
+    (ST_SUPPCREDIT, WithPrevious allowN previous) | Just quantity <- moveQuantityM 
+                                            , Just moveCost <- moveCostM
+                                            , Just faAmount <- faAmountM  ->
+      let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
+      in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN newSummary)  sm'gls
+
     -------------------------------- Sales with no invoices
     (ST_CUSTDELIVERY, _ ) | isNothing glM , isNothing behavior, cancelling /= Cancelling, Just cost <- moveCostM, cost /= 0  -> -- skip
         Left $ "No behavior defined for sales without invoice"  <> showForError sm'gl'seq
