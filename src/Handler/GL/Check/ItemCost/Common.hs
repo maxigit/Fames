@@ -291,8 +291,11 @@ data CollectMode = Collectables | Uncollectables
 -- filterTransactionFromSummary :: Maybe a -> Maybe a1 -> a2 -> a2 -> (a2, [PersistValue])
 filterTransactionFromSummary maxId startDatem idField dateField =
         case (?collectMode, maxId, startDatem) of
-            (Uncollectables, Just id_, _) -> ( " AND ( " <> idField <> " IS NULL OR " <> idField <> "> ? ) "
+            (Uncollectables, Just id_, _) -> ( " AND ( " <> idField <> " IS NULL OR " <> idField <> "> ? OR NOT ("
+                                                         <> idField <> " IN (SELECT " <> idFieldT <> " FROM check_item_cost_transaction  ) <=> 1)) "
                                              , [ toPersistValue id_ ]
+                                             -- for some reason in select return NULL if not present
+                                             -- so we need to make sure we get a bool as a result.
                                             )
             (Uncollectables, Nothing, _) -> ("" , [])
             (_, Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ? OR " <> dateField <> " is NULL)  " 
@@ -304,6 +307,10 @@ filterTransactionFromSummary maxId startDatem idField dateField =
             (_, _, Just startDate) ->  ( " AND (" <> dateField <> " > ? OR " <> dateField <> " is NULL )"
                                     ,  [toPersistValue startDate])
             _ -> ("", [])
+        where idFieldT = case idField of
+                              "0_gl_trans.counter" -> "gl_detail"
+                              "0_stock_moves.trans_id" -> "move_id"
+                              _ -> error $ unpack $ idField <> " Not recognized"
 
 loadTransactionsWithNoMoves' :: (?collectMode :: CollectMode) 
                              => (Maybe ItemCostSummary) -> (Maybe Day) -> Account -> (Maybe Text) -> Handler [Matched]
