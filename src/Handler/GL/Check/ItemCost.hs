@@ -207,7 +207,7 @@ getGLCheckItemCostAccountViewR account = do
         <th data-class-name="text-right"
             data-toggle="tooltip"
             title="Difference between checked stock valuation and current stock valuation."> Cur stock - Checked
-        th data-class-name="text-right"> QOH
+        <th data-class-name="text-right"> QOH
       <tbody>
         $forall (sku, count, lastm) <- sku'count'lasts
           <tr>
@@ -251,7 +251,7 @@ getGLCheckItemCostAccountViewR account = do
                     $else
                       <td."#{classFor 0.01 stock (itemCostSummaryStockValue last)}"> #{formatAbs stock (itemCostSummaryStockValue last)}
                     <td> #{formatDouble qoh}
-              $of (Just (qoh, cost), Nothing ) 
+              $of (Just (cost, qoh), Nothing ) 
                 <td>
                 <td> #{formatDouble' cost}
                 <td> 
