@@ -294,8 +294,6 @@ filterTransactionFromSummary maxId startDatem idField dateField =
             (Uncollectables, Just id_, _) -> ( " AND ( " <> idField <> " IS NULL OR " <> idField <> "> ? OR NOT ("
                                                          <> idField <> " IN (SELECT " <> idFieldT <> " FROM check_item_cost_transaction  ) <=> 1)) "
                                              , [ toPersistValue id_ ]
-                                             -- for some reason in select return NULL if not present
-                                             -- so we need to make sure we get a bool as a result.
                                             )
             (Uncollectables, Nothing, _) -> ("" , [])
             (_, Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ? OR " <> dateField <> " is NULL)  " 
@@ -394,11 +392,13 @@ loadVoided :: Account -> Handler [Matched]
 loadVoided (Account account) = do
   let sql = " SELECT ??,?? "
             <> " FROM check_item_cost_transaction "
-            <> " JOIN 0_voided ON (0_voided.type = fa_trans_type AND 0_voided.id = fa_trans_no)"
+            <> " LEFT JOIN 0_voided ON (0_voided.type = fa_trans_type AND 0_voided.id = fa_trans_no)"
             <> " LEFT JOIN 0_gl_trans ON (0_gl_trans.counter =gl_detail) "
             <> " LEFT JOIN 0_stock_moves ON (0_stock_moves.trans_id = move_id) "
             <> " WHERE check_item_cost_transaction.account = ? "
-            <> " AND fa_amount != 0 AND quantity != 0 " -- not voided
+            <> " AND ((0_voided.type is NOT NULL AND (fa_amount != 0 AND quantity != 0))" -- not voided
+            <> "     OR  (move_id is NOT NULL AND 0_stock_moves.trans_id is NULL)"
+            <> "     )"
       mkTrans (Just gl, Just mv) = Just (These mv gl, (0, Normal))
       mkTrans (Just gl, Nothing) = Just (That gl , (0, Normal))
       mkTrans (Nothing, Just mv) = Just (This mv, (0, Normal))
