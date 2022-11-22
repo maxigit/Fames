@@ -175,13 +175,16 @@ readUpdateShelves filename = do
           
 
 
--- | Expand chars between bracket to all possible string
+-- | Expand chars (or words) between bracket to all possible string
 -- example:
 --    A[135] => A1 A3 A5
+--    A[13 5] => A13 A5
 -- if a tag is present at the end
 -- will be added to the last element
 -- example:
 --   A[123#top] => A1 A2 A3#top
+-- If the string contains some spaces, the string will
+-- be using (space separated) words instead of chars
 expand :: Text -> [(Text, Maybe Text)]
 expand name = let
   (fix, vars0) = break (=='[') name
@@ -191,16 +194,19 @@ expand name = let
         (_,"") -> error $ "unbalanced brackets in " ++ unpack name
         (elements'tag, rest) -> do
               -- check if there is any tag at the end
-              let (elements, tag) = extractTag elements'tag
+              let (elements0, tag) = extractTag elements'tag
+                  elements = case words elements0 of
+                               [_] -> toList elements
+                               wds -> wds
                   n  = length elements
-              (e,i) <- zip (unpack elements) [1..n]
+              (e,i) <- zip elements [1..n]
               (expanded, exTag) <- expand (drop 1 rest)
               let finalTag =
                     case catMaybes [if i == n then tag else Nothing, exTag] of
                       [] -> Nothing
                       tags -> Just $ intercalate "#" tags
                     
-              return (fix <> cons e expanded , finalTag)
+              return (fix <> e <> expanded , finalTag)
     _ -> error "Should not happen" -- We've been breaking on [
 
 

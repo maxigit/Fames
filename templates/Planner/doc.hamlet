@@ -46,12 +46,13 @@ A planner file is made of different sections. Each section corresponds to an org
             <h4> Name expansion
             Groups of similar shelves can be created in one line using name expansion. Before creating a shelf,
             the name is expanded into one or many shelf names. One shelf will be created of each of the resulting name.
-            Shelf name are split with the <code>|</code> separator, then when encountering <code>[..]</code>, name will be expanded by generating a name for each character within the bracket.
+            Shelf name are split with the <code>|</code> separator, then when encountering <code>[..]</code>, name will be expanded by generating a name for each character (or word) within the bracket.
             Example
             <pre>
               A|B => A B
               A[01] => A0 A1
               A[ABx]X => AAX ABX AxX
+              A[A Bx]X => AAX ABxX
 
             More than one ranges can be provided, in this case all combinations will be generated.
             Example
