@@ -196,7 +196,7 @@ expand name = let
               -- check if there is any tag at the end
               let (elements0, tag) = extractTag elements'tag
                   elements = case words elements0 of
-                               [_] -> toList elements0
+                               [_] -> map singleton $ toList elements0
                                wds -> wds
                   n  = length elements
               (e,i) <- zip elements [1..n]
