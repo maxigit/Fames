@@ -42,7 +42,7 @@ renderShelf :: Shelf s -> WH (Diagram B) s
 renderShelf shelf = do            
     (_, used) <- usedDepth shelf
     styling@ShelfStyling{..} <- gets shelfStyling <*> return shelf
-    let (Dimension l __w h) = maxDim shelf
+    let (Dimension (max 20 -> l) __w (max 20 -> h)) = maxDim shelf
         (Dimension ln wn hn) = minDim shelf
         rmax = rect l h # lc border # lwL 2 -- # fc white
         rmin = rect ln hn # fc background
@@ -183,7 +183,7 @@ renderBoxBarBg shelf = gaugeBar yn
 scaledText :: Double -> Double-> Text -> Diagram B
 scaledText x y s =  let
     (x0, y0) = (10,3) 
-    (sX, sY) =  (x/x0, y/y0)
+    (sX, sY) =  ((max 1 x)/x0, (max 1 y)/y0)
     in text (unpack s) & scale (min sX sY)
 
 
