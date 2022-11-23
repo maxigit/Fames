@@ -170,8 +170,9 @@ A planner file is made of different sections. Each section corresponds to an org
           and use the optimal orientation. If all boxes can't fit the given shelves, the excedendatary boxes will
           be moved to the <b>error</b> shelf.
           It is CSV with the following header:
-          <pre>stock_id,location
+          <pre>stock_id,location[,orientations]
           Please not the stock_id and location are in fact boxes and shelves selectors (see selectors sections).
+          An orientation can be given optionnaly.
           <h4> Filling order, Exit on top
           When moves boxes to a new set of shelves, shelves are filled by alphabetical order. For example
           the command
@@ -267,6 +268,7 @@ A planner file is made of different sections. Each section corresponds to an org
         <div.pre.collapse :expanded:.in id=info-section-movesandtags>
           Allows to move and tag at the same time a set of boxes. This can be faster and less verbose than creating a move and
           a tag section. Tags needs to start with a <code>#</code> and location CAN start with <code>/</code>
+          <pre>stock_id,location#tag[,orientations]
           Example
           <pre>
             :MAT:
@@ -464,7 +466,7 @@ A planner file is made of different sections. Each section corresponds to an org
             ,4 -- similar to 1:4
             ,4^ -- up to 4 levels, stacking boxes up
             ,1x2 -- max depth 1, max height 2
-            ,1x2x3 -- max depth 2, max height 1, max width 3
+            ,1x2x3 -- max width 1, max depth 2, max height 3
             ,xx3 -- max height 3
 
       <li>

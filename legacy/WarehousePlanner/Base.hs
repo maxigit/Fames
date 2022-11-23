@@ -55,13 +55,14 @@ module WarehousePlanner.Base
 , updateShelf
 , updateShelfTags
 , usedDepth
+, withBoxOrientations
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix)
 import Text.Printf(printf)
 import qualified Data.Map.Strict as Map'
 import qualified Data.Map.Lazy as Map
-import Control.Monad.State(gets, get, put)
+import Control.Monad.State(gets, get, put, modify)
 import Data.Map.Merge.Lazy(merge, preserveMissing, mapMaybeMissing, zipWithMaybeMatched)
 -- import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix, partition)
 import Data.List(cycle)
@@ -1338,6 +1339,17 @@ extractTag name = let (prefix, suffix) = break (=='#') name
 extractTags :: Text -> (Text, [Text])
 extractTags name = (style, maybe [] (splitOn "#") tagM) where
   (style, tagM) = extractTag name
+
+
+withBoxOrientations :: [OrientationStrategy] -> WH a s -> WH a s
+withBoxOrientations [] action =  action
+withBoxOrientations strategies action =  do
+  oldStrategy <- gets boxOrientations
+  let newStrategy _ _ = strategies
+  modify (\wh -> wh { boxOrientations = newStrategy })
+  result <- action
+  modify (\wh -> wh { boxOrientations = oldStrategy })
+  return result
 
 -- * Selectors 
 -- ** Applying 

@@ -575,8 +575,15 @@ readWarehouse filename = buildWarehouse `fmap` readLayout filename
 -- | read a file assigning styles to locations
 -- returns left boxes
 readMoves :: [Text] -> FilePath -> IO ( WH [Box s] s)
-readMoves tags = readFromRecordWith (\(style, location) -> processMovesAndTags (style, tags, Just location))
+readMoves tags = readFromRecordWith (\(Moves style location orientations) -> processMovesAndTags (style, tags, Just location, orientations))
 
+-- | Hack to allow different csv format
+data Moves s = Moves (BoxSelector s) Text [OrientationStrategy]
+instance Csv.FromRecord (Moves s) where
+        parseRecord v = (\(style, location) -> Moves style location []) <$> Csv.parseRecord v
+                        <|>
+                        (\(style, location, orientations) -> Moves style location $ parseOrientationRule [tiltedForward, tiltedFR] orientations) <$> Csv.parseRecord v
+         
 
 readFromRecordWith :: Csv.FromRecord r => (r -> WH [a s] s) -> FilePath -> IO (WH [a s] s)
 readFromRecordWith  rowProcessor filename = do
@@ -604,8 +611,8 @@ readFromRecordWith  rowProcessor filename = do
 -- example ^A|B|C|D will exit on top of B  and fill C (even though
 -- there might be space left to create a new column in A)
 -- \^A|B C|D will exit B to A  until A and B are full
-processMovesAndTags :: (BoxSelector s, [Text], Maybe Text ) -> WH [Box s] s
-processMovesAndTags (style, tags, locationM) = do
+processMovesAndTags :: (BoxSelector s, [Text], Maybe Text, [OrientationStrategy]) -> WH [Box s] s
+processMovesAndTags (style, tags, locationM, orientations) = withBoxOrientations orientations $ do
   boxes0 <- findBoxByNameAndShelfNames style
   boxes <- mapM findBox boxes0
   leftoverss <- forM locationM $ \location' -> do
@@ -650,7 +657,14 @@ extractModes modeLoc =
 -- | read a file assigning tags to styles
 -- returns left boxes
 readTags :: FilePath -> IO ( WH [Box s] s)
-readTags = readFromRecordWith (\(style, tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing))
+readTags = readFromRecordWith (\(style, tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing, []))
+
+-- | Hack to allow different csv format
+data ForMovesAndTags s = ForMovesAndTags (BoxSelector s) Text [OrientationStrategy]
+instance Csv.FromRecord (ForMovesAndTags s) where
+        parseRecord v = (\(style, tag) -> ForMovesAndTags style tag []) <$> Csv.parseRecord v
+                        <|>
+                        (\(style, tag, orientations) -> ForMovesAndTags style tag $ parseOrientationRule [tiltedForward, tiltedFR] orientations) <$> Csv.parseRecord v
 
 -- | Read tags or moves. Normally we could consider
 -- that by default, we have a location, unless we start with '#'
@@ -664,9 +678,9 @@ readTags = readFromRecordWith (\(style, tag) -> processMovesAndTags (style, spli
 -- location,tag
 readMovesAndTags :: [Text] -> FilePath -> IO (WH [Box s] s)
 readMovesAndTags tags0 = readFromRecordWith go where
-  go (style, tag'location) =
+  go (ForMovesAndTags style tag'location orientations) =
     let (tags, locM) = splitTagsAndLocation tag'location
-    in processMovesAndTags (style, tags0 <> tags, locM)
+    in processMovesAndTags (style, tags0 <> tags, locM, orientations)
 
 splitTagsAndLocation :: Text -> ([Text], Maybe Text)
 splitTagsAndLocation tag'locations
