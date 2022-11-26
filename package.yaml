@@ -92,6 +92,7 @@ dependencies:
 - comonad
 - tagged
 - iso3166-country-codes
+- ghc
 default-extensions:
 - TemplateHaskell
 - QuasiQuotes

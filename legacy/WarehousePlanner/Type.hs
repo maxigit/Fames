@@ -433,7 +433,8 @@ data Selector a  = Selector
 
 
 pattern SelectAnything :: Selector a
-pattern SelectAnything <- Selector (matchAnyNames -> True) []
+pattern SelectAnything <- Selector (matchAnyNames -> True) [] where
+        SelectAnything = Selector (NameMatches []) []
 
 
 matchAnyNames :: NameSelector a -> Bool
@@ -450,10 +451,14 @@ data BoxSelector s = BoxSelector
   } deriving (Show)
 
 data ShelfSelector s = ShelfSelector
-  { boxSelectors :: !(Selector (Box s))
-  , shelfSelectors :: !(Selector (Shelf s))
+  { sBoxSelectors :: !(Selector (Box s))
+  , sShelfSelectors :: !(Selector (Shelf s))
   } deriving (Show)
 
+selectAllBoxes :: BoxSelector s
+selectAllBoxes = BoxSelector SelectAnything
+                             SelectAnything
+                             (BoxNumberSelector Nothing Nothing Nothing)
 
 -- ** Warehouse 
 

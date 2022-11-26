@@ -690,6 +690,36 @@ A planner file is made of different sections. Each section corresponds to an org
         <li> B-Black # @style=100 @content=100
 
       The content priority could be used for example, to select which one of the B-Black boxes to get first.
+    <li>
+      <h4> Set and use reference
+      Part (or all) of a selector can be used as reference to be reused in the following lines.
+      A reference can be set by enclosing it with <code>&</code>. It will be  used as a base selector
+      for all the subsequent lines of the same sections.
+      
+      This is somehow equivalent to select thoses boxes and then apply subsequent filter to the "selection".
+      
+      <pre>
+        &A&,action   -- set A as reference and apply action to all As.
+        #tag,action2 -- equivalent to A#tag,action2
+        &&,B,action3 -- reset the reference and apply action3 to all Bs
+        
+      The reference can only capture a part of the initial selector
+
+      <pre>
+        &A&#tag1,action   -- set A as reference and apply action to all As with tag1.
+        #tag2,action2 -- equivalent to A#tag2,action2
+        &A#tag1&,action   -- set A#tag1 as reference and apply action to all As with tag1.
+        #tag2,action2 -- equivalent to A#tag1#tag2,action2
+
+      If only one <code>&</code> is present, reference will set as follow
+      
+      <pre>
+        &A <=> &A&
+        A&  <=> &A&
+        A&extra  <=> &A&extra
+     
+      This at the moment only works for the box selectors of the section related to moving or tagging boxes.
+        
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-virtual-tags">
      Virtual tags

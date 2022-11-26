@@ -26,6 +26,7 @@ import WarehousePlanner.Base
 import WarehousePlanner.ShelfOp
 import qualified Data.Csv as Csv
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString as BS
 import qualified Data.Vector as Vec
 import Control.Monad hiding(mapM_,foldM)
 -- import Data.List.Split (splitOn)
@@ -40,6 +41,7 @@ import qualified Text.Regex as Rg
 import qualified Text.Regex.Base.RegexLike as Rg
 import Data.Text(splitOn)
 import Data.Text.IO(readFile)
+import MonadUtils (mapAccumLM)
 
 -- | Dimension info to construct a Shelf
 data ShelfDimension = ShelfDimension
@@ -575,14 +577,14 @@ readWarehouse filename = buildWarehouse `fmap` readLayout filename
 -- | read a file assigning styles to locations
 -- returns left boxes
 readMoves :: [Text] -> FilePath -> IO ( WH [Box s] s)
-readMoves tags = readFromRecordWith (\(Moves style location orientations) -> processMovesAndTags (style, tags, Just location, orientations))
+readMoves tags = readFromRecordWithPreviousStyle (\style (Moves location orientations) -> processMovesAndTags (style, tags, Just location, orientations))
 
 -- | Hack to allow different csv format
-data Moves s = Moves (BoxSelector s) Text [OrientationStrategy]
+data Moves s = Moves  Text [OrientationStrategy]
 instance Csv.FromRecord (Moves s) where
-        parseRecord v = (\(style, location) -> Moves style location []) <$> Csv.parseRecord v
+        parseRecord v = (\(Csv.Only location) -> Moves location []) <$> Csv.parseRecord v
                         <|>
-                        (\(style, location, orientations) -> Moves style location $ parseOrientationRule [tiltedForward, tiltedFR] orientations) <$> Csv.parseRecord v
+                        (\(location, orientations) -> Moves location $ parseOrientationRule [tiltedForward, tiltedFR] orientations) <$> Csv.parseRecord v
          
 
 readFromRecordWith :: Csv.FromRecord r => (r -> WH [a s] s) -> FilePath -> IO (WH [a s] s)
@@ -593,7 +595,58 @@ readFromRecordWith  rowProcessor filename = do
         Right (rows) -> return $ do
           v <- Vec.forM rows rowProcessor
           return $ concat (Vec.toList v)
+          
+data BoxSelectorPlus s r = SetPrevious (BoxSelector s) (BoxSelector s) r
+                       | UsePrevious (BoxSelector s) r
+     deriving (Show)
 
+instance Csv.FromRecord r => Csv.FromRecord (BoxSelectorPlus s r) where
+        parseRecord v = do
+            case uncons v of
+              Just (f, v') -> do
+                s <- Csv.parseField f
+                record <- Csv.parseRecord v'
+                boxp <- case BS.split (fromIntegral $ fromEnum '&') (s :: ByteString) of
+                      -- =before=after
+                      ["", before,after] -> SetPrevious <$> Csv.parseField before <*> Csv.parseField (before <> after) <*> return record
+                      -- =after
+                      ["",after] -> let selector = Csv.parseField after
+                                    in SetPrevious <$> selector <*> selector <*> return record
+                      -- before=
+                      [before,""] -> let selector = Csv.parseField before
+                                     in SetPrevious <$> selector <*> selector <*> return record
+                      -- before=after
+                      [before,after] -> SetPrevious <$> Csv.parseField before <*> Csv.parseField (before <> after) <*> return record
+                      [before,middle,after] -> SetPrevious <$> Csv.parseField middle <*> Csv.parseField (before <> middle <> after) <*> return record
+                      _ -> UsePrevious  <$> Csv.parseField s <*> return record
+                return boxp
+              Nothing -> fail "<not box selector plus>"
+                    
+-- | Like readFromRecocddWith  but allow the BoxSelector to
+-- be saved and reused in the next lines
+readFromRecordWithPreviousStyle :: Csv.FromRecord r => (BoxSelector s -> r -> WH [a s] s) -> FilePath -> IO (WH [a s] s)
+readFromRecordWithPreviousStyle rowProcessor filename = do
+    csvData <- BL.readFile filename
+    case Csv.decode Csv.HasHeader csvData of
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
+        Right rows -> return $ do
+          b'v <- mapAccumLM process selectAllBoxes (Vec.toList rows)
+          return $ concat $ snd b'v
+    where process previous  boxSelectorPlus =
+            let (next, sel, row) = case boxSelectorPlus of
+                 SetPrevious prev boxs row -> (prev, boxs, row)
+                 UsePrevious boxs row -> (previous, previous `merge` boxs, row)
+            in (next,) <$> rowProcessor sel row
+
+          merge previous sel =
+             BoxSelector (boxSelectors previous `merges` boxSelectors sel)
+                         (shelfSelectors previous `merges` shelfSelectors sel)
+                         (numberSelector previous `mergen` numberSelector sel)
+          merges (Selector namep tagsp) (Selector (matchAnyNames -> True) tags) = Selector namep (tagsp <> tags) 
+          merges (Selector _ tagsp) (Selector names tags) = Selector names (tagsp <> tags) 
+          mergen p (BoxNumberSelector Nothing Nothing Nothing) = p
+          mergen _ bn = bn
+            
 -- | Move and tag boxes.
 -- If a location (destination) is provided, only boxes which have been moved will be tagged -
 -- leftovers (boxes not fitting ) will be untagged boxes which haven't
@@ -657,14 +710,14 @@ extractModes modeLoc =
 -- | read a file assigning tags to styles
 -- returns left boxes
 readTags :: FilePath -> IO ( WH [Box s] s)
-readTags = readFromRecordWith (\(style, tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing, []))
+readTags = readFromRecordWithPreviousStyle (\style (Csv.Only tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing, []))
 
 -- | Hack to allow different csv format
-data ForMovesAndTags s = ForMovesAndTags (BoxSelector s) Text [OrientationStrategy]
+data ForMovesAndTags s = ForMovesAndTags  Text [OrientationStrategy]
 instance Csv.FromRecord (ForMovesAndTags s) where
-        parseRecord v = (\(style, tag) -> ForMovesAndTags style tag []) <$> Csv.parseRecord v
+        parseRecord v = (\(Csv.Only tag) -> ForMovesAndTags tag []) <$> Csv.parseRecord v
                         <|>
-                        (\(style, tag, orientations) -> ForMovesAndTags style tag $ parseOrientationRule [tiltedForward, tiltedFR] orientations) <$> Csv.parseRecord v
+                        (\(tag, orientations) -> ForMovesAndTags tag $ parseOrientationRule [tiltedForward, tiltedFR] orientations) <$> Csv.parseRecord v
 
 -- | Read tags or moves. Normally we could consider
 -- that by default, we have a location, unless we start with '#'
@@ -677,8 +730,8 @@ instance Csv.FromRecord (ForMovesAndTags s) where
 -- #tag/location
 -- location,tag
 readMovesAndTags :: [Text] -> FilePath -> IO (WH [Box s] s)
-readMovesAndTags tags0 = readFromRecordWith go where
-  go (ForMovesAndTags style tag'location orientations) =
+readMovesAndTags tags0 = readFromRecordWithPreviousStyle go where
+  go style (ForMovesAndTags tag'location orientations) =
     let (tags, locM) = splitTagsAndLocation tag'location
     in processMovesAndTags (style, tags0 <> tags, locM, orientations)
 
