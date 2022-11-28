@@ -1314,7 +1314,7 @@ generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..}
 generatePrefillCustomerPaymentLink __faURL __current __target __memo t@B.Transaction{..} = return $ toRec t
 
 -- | Create rules for supplier and customer based on previous payment
-fillAutoSettingsCached bankSettings = cache0 False (cacheDay 1) ("bank-settings/" <> tshow (bsBankAccount bankSettings)) $ do
+fillAutoSettingsCached bankSettings = cache0 False (cacheDay 1) ("bank-settings/" <> tshow bankSettings) $ do
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   let optionsm = mkRecOptions Nothing dbConf bankSettings
   recs <- case optionsm of
