@@ -42,14 +42,18 @@ renderShelf :: Shelf s -> WH (Diagram B) s
 renderShelf shelf = do            
     (_, used) <- usedDepth shelf
     styling@ShelfStyling{..} <- gets shelfStyling <*> return shelf
-    let (Dimension (max 20 -> l) __w (max 20 -> h)) = maxDim shelf
+    let (Dimension (max 1 -> l) __w (max 1 -> h)) = maxDim shelf
         (Dimension ln wn hn) = minDim shelf
-        rmax = rect l h # lc border # lwL 2 -- # fc white
-        rmin = rect ln hn # fc background
+        lborder = lc border # lwL 2
+        minborder = if (l,h) == (ln, hn)
+                                 then id
+                                 else lborder . dashingL [5, 2] 0
+        rmax = rect l h # fc maxBackground
+        rmin = rect ln hn # minborder # fc background
                           # lwL 0
                           # translate (r2 (- (l-ln)/2, -(h-hn)/2))
         -- r = rmin `atop` rmax
-        r = t' `atop` rmax`atop` rmin  
+        r = t' `atop` rect l h # lborder `atop` rmin`atop` rmax  
         shelfTitle = case title of
           [] -> shelfName shelf
           _ -> intercalate "\n" title
@@ -59,7 +63,7 @@ renderShelf shelf = do
         wn' = ln
         bar = if displayBarGauge then depthBar styling wn' (used*wn'/wn) else mempty
         bar' = (alignL bar # translateX 5) `atop` alignL t
-        t' = scaledText ln hn shelfTitle #fc foreground 
+        t' = scaledText l h shelfTitle #fc foreground 
         diagram = r -- t `atop` r
         align_ = case flow shelf of
                     LeftToRight -> alignBL

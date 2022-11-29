@@ -16,7 +16,7 @@ import Util.Cache
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (put,get)
 import Data.Colour (Colour,affineCombo)
-import Data.Colour.Names (readColourName,black,lightgray,white, wheat, darkorange, lightsteelblue, royalblue)
+import Data.Colour.Names (readColourName,black,lightgray,white, wheat, darkorange, lightsteelblue, royalblue, steelblue)
 import Data.Colour.SRGB(sRGB24read)
 import Data.Char(isHexDigit,toLower)
 
@@ -144,6 +144,7 @@ shelfStylingFromTags shelf = let
   isSeparator = tagIsPresent shelf "sep"
   foreground = black `fromMaybe` colorFromTag shelf "fg"
   background = (if isSeparator then white else lightsteelblue) `fromMaybe` colorFromTag shelf "bg"
+  maxBackground = steelblue `fromMaybe` colorFromTag shelf "BG"
   border = royalblue `fromMaybe` colorFromTag shelf "border"
   barBackground = (if isSeparator then lightgray else darkorange) `fromMaybe` colorFromTag shelf "bar-bg"
   barForeground = black `fromMaybe` colorFromTag shelf "bar-fg"

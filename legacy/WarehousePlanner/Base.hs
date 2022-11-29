@@ -73,7 +73,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy
-import Diagrams.Prelude(white, black, darkorange, royalblue)
+import Diagrams.Prelude(white, black, darkorange, royalblue, steelblue)
 import Data.Text (splitOn, uncons, stripPrefix)
 import Data.Char (isLetter)
 import Data.Time (diffDays)
@@ -355,6 +355,7 @@ defaultBoxStyling = BoxStyling{..} where
 defaultShelfStyling = ShelfStyling{..} where
   foreground = black
   background = white
+  maxBackground = steelblue
   barForeground = black
   barBackground = darkorange
   border = royalblue

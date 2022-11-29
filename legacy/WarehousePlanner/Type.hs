@@ -199,6 +199,7 @@ data BoxStyling = BoxStyling
 data ShelfStyling = ShelfStyling
   { foreground :: Colour Double --  ^ Text colour
   , background :: Colour Double -- ^ Background colour
+  , maxBackground :: Colour Double -- ^ Background colour
   , barForeground :: Colour Double -- ^ Text colour
   , barBackground :: Colour Double -- ^ Background colour
   , border :: (Colour Double)  -- ^ border colour 
