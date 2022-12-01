@@ -244,6 +244,11 @@ A planner file is made of different sections. Each section corresponds to an org
           are moved successfully, the two first boxes with see <code>moved</code> and <code>-error</code> applied (which result in adding the tag moved
           but remove the tag error, whilst the last box will see the <code>-moved</code> and <code>error</code> apply.
           As a result the two first boxes will have the tag <code>moved</code> and the last one the tag <code>error</code>.
+          
+          <h4> Empty selection
+          Sometimes, a selector doesn't select anything. This can be because of a typo or because a box is not present anymore in the warehouse.
+          To detect such cases setting the tag <code>@noEmpty</code> will raise an error (and stop) if there is nothing to moves.
+
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-tags"> Tags

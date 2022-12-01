@@ -665,8 +665,12 @@ readFromRecordWithPreviousStyle rowProcessor filename = do
 -- there might be space left to create a new column in A)
 -- \^A|B C|D will exit B to A  until A and B are full
 processMovesAndTags :: (BoxSelector s, [Text], Maybe Text, [OrientationStrategy]) -> WH [Box s] s
-processMovesAndTags (style, tags, locationM, orientations) = withBoxOrientations orientations $ do
+processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientations orientations $ do
+  let (noEmpty, tags) = partition (== "@noEmpty") tags_
   boxes0 <- findBoxByNameAndShelfNames style
+  case (boxes0, noEmpty) of
+       ([], _:_) -> error $ show style ++ " returns an empty set"
+       _         -> return ()
   boxes <- mapM findBox boxes0
   leftoverss <- forM locationM $ \location' -> do
     let (location, (exitMode, partitionMode)) = extractModes location'
