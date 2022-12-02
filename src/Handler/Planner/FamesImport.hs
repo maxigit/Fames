@@ -58,8 +58,8 @@ mkYesodSubData "FI" [parseRoutes|
   /stocktake/+[FilePath] StocktakeReport
 /variationStatus/active/#Text FIVariationStatusActive
 /variationStatus/all/#Text FIVariationStatusAll
-/cloneVariation/active/#Text/#Text FICloneVariationActive
-/cloneVariation/all/#Text/#Text FICloneVariationAll
+/cloneVariation/active/#Int/#Text/#Text FICloneVariationActive
+/cloneVariation/all/#Int/#Text/#Text FICloneVariationAll
 /stockStatus/active/#Text FIStockStatusActive
 /stockStatus/all/#Text FIStockStatusAll
 /colour/variations/#Text FIColourTransform
@@ -109,8 +109,8 @@ importFamesDispatch (Section ImportH (Right content) _) = do
               StocktakeReport path -> executeReport (StocktakeH tags) path reportParam
           FIVariationStatusActive skus -> ret $ importVariationStatus ActiveBoxes skus
           FIVariationStatusAll skus -> ret $ importVariationStatus AllBoxes skus
-          FICloneVariationActive skus toClone -> ret $ cloneVariationStatus ActiveBoxes skus toClone tags
-          FICloneVariationAll skus toClone -> ret $ cloneVariationStatus AllBoxes skus toClone tags
+          FICloneVariationActive qty skus toClone -> ret $ cloneVariationStatus ActiveBoxes qty skus toClone tags
+          FICloneVariationAll qty skus toClone -> ret $ cloneVariationStatus AllBoxes qty skus toClone tags
           FIStockStatusActive skus -> ret $ importStockStatus ActiveBoxes skus
           FIStockStatusAll skus -> ret $ importStockStatus AllBoxes skus
           FIColourTransform prop -> ret $ importColourDefinitions prop
@@ -242,8 +242,8 @@ whichToActive which = case which of
   AllBoxes -> I.ShowAll
   _ -> I.ShowActive
 -- | Clone boxes each variation and tag them with the FA status
-cloneVariationStatus :: WhichBoxes -> Text -> Text -> [Text] -> Handler Section
-cloneVariationStatus which skuLike toClonem tags = do
+cloneVariationStatus :: WhichBoxes -> Int -> Text -> Text -> [Text] -> Handler Section
+cloneVariationStatus which qty skuLike toClonem tags = do
   let toClone = if null toClonem then "create-model" else toClonem
   cache <- I.fillIndexCache
   skuToStyleVar <- I.skuToStyleVarH
@@ -257,7 +257,7 @@ cloneVariationStatus which skuLike toClonem tags = do
               , (__varStatus, (I.ItemInfo style  var  info)) <- vars
               , Just (_, runningStatus) <- [I.faRunningStatus <$> I.impFAStatus info]
               ]
-      content = [ style <> "#" <> toClone <> ",1," <> var <> "#fa-status=" <> tagFor status 
+      content = [ style <> "#" <> toClone <> "," <> tshow qty <> "," <> var <> "#fa-status=" <> tagFor status 
                 | (style, var, status) <- rows
                 ]
       tagFor = drop 2 . toLower . tshow
