@@ -218,9 +218,28 @@ parseBoxNumberSelector :: Text -> BoxNumberSelector
 parseBoxNumberSelector "" = BoxNumberSelector Nothing Nothing Nothing
 parseBoxNumberSelector s = let
   splits = splitOn "^" s
-  parsed = map readMay splits 
+  parsed = map parseLimit splits 
   [content, shelves, total] = take 3 $ parsed <> cycle [Nothing]
   in BoxNumberSelector content shelves total
+  
+-- | parse limit like [[[-]'['tag']'][start':']end]
+parseLimit :: Text -> Maybe Limit
+parseLimit "" = Nothing
+parseLimit (uncons  -> Just ('-', s)) = setReverse <$> parseLimit  s where
+           setReverse l = l { liReverse = True }
+parseLimit s = let
+   (tag, limitt) = case break (==']') s of
+                        (uncons -> Just ('[', tag), uncons -> Just (_, l)) -> (fst <$>unsnoc tag, l)
+                        _ -> (Nothing, s)
+   (start, end) = case map readMay $ splitOn ":" limitt of
+                    [Just end ] -> (1, end)
+                    [Nothing, Just end ] -> (end, end)
+                    [Just start, Nothing] -> (start, start)
+                    [Just start, Just end] ->  (start, end)
+                    _ -> error $ show s ++ " is not a valid box number selector"
+   in Just $ Limit start end tag False
+           
+           
 
 -- | TODO Should be true be seems to work like that
 -- this will mean, that we need a normal or 
@@ -295,20 +314,34 @@ findBoxByNameAndShelfNames (BoxSelector boxSel shelfSel numSel) = do
 
 -- | Limit a box selections by numbers
 limitByNumber :: BoxNumberSelector -> [(Box s, Text)] -> [(Box s, Text)]
-limitByNumber (BoxNumberSelector contentN shelfN totalN) boxes0 = let
-  sorted = sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes0
-  boxes1 = maybe id (limitBy (boxSku . fst)) contentN $ sorted
-  boxes2 = maybe id (limitBy snd) shelfN $ boxes1
-  boxes3 = maybe id take totalN $ sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes2
+limitByNumber selector boxes0 = let
+  sorted = sortBy (comparing  $ boxFinalPriority selector . fst ) boxes0
+  boxes1 = maybe id (limitBy (boxSku . fst)) (nsPerContent selector) $ sorted
+  boxes2 = maybe id (limitBy snd) (nsPerShelf selector) $ boxes1
+  boxes3 = maybe id take_ (nsTotal selector) $ sortBy (comparing  $ boxFinalPriority selector . fst ) boxes2
+  --                            -- ^ things might have been shuffle by previous sorting , so resort them                                                         
+  limitBy key n boxes = let
+    sorted = sortBy (comparing  $ boxFinalPriority selector . fst ) boxes
+    group_ = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
+    limited = fmap (take_ n . sortBy (comparing $ snd . boxFinalPriority selector . fst) ) group_
+    in concat (Map'.elems limited)
+  take_ sel = rev . drop (liStart sel -1) . take (liEnd sel) . rev
+    where rev = if liReverse sel then reverse else id
   in boxes3
 
 
 -- limitBy :: Ord k => (Box s -> k) -> Int -> [Box s] -> [a]
-limitBy key n boxes = let
-  sorted = sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes
-  group_ = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
-  limited = fmap (take n . sortBy (comparing $ boxRank . fst) ) group_
-  in concat (Map'.elems limited)
+  
+boxFinalPriority :: BoxNumberSelector -> Box s -> (Either Int Text , (Text, Either Int Text, Text , Either Int Text))
+boxFinalPriority BoxNumberSelector{..} box = let -- reader
+  with selm p = case selm >>= liOrderTag >>= getTagValuem box of
+                        Nothing -> Left $ p box
+                        Just v ->  maybe (Right v) Left (readMay v)
+  global = with nsTotal boxGlobalPriority
+  style = with nsPerShelf boxStylePriority
+  content = with nsPerContent boxContentPriority
+  in (global, (boxStyle box, style, boxContent box, content))
+
   
 -- | Use similar syntax to boxes but returns shelves instead
 findShelvesByBoxNameAndNames :: ShelfSelector s -> WH [Shelf s] s

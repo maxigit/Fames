@@ -40,11 +40,18 @@ defaultFlow = LeftToRight
 -- Filtering by content means only n boxes of the same style content will be selected.
 -- This is use full to for example only keep one box of each variations and move them on top
 data BoxNumberSelector = BoxNumberSelector
-   { nsPerContent :: !(Maybe Int)
-   , nsPerShelf :: !(Maybe Int)
-   , nsTotal :: !(Maybe Int)
+   { nsPerContent :: !(Maybe Limit)
+   , nsPerShelf :: !(Maybe Limit)
+   , nsTotal :: !(Maybe Limit)
    } deriving (Show, Read)
-           
+
+-- | How to take slice of a selection
+data Limit = Limit 
+  { liStart :: !Int -- ^ first box to take, starts a 1
+  , liEnd :: !Int -- ^ last box to take
+  , liOrderTag :: !(Maybe Text) -- ^ which tag to use to sort boxes
+  , liReverse :: !Bool -- ^ if true reverse the sorting order
+  } deriving (Show ,Read)
 
 -- | How something is oriented. It indicates  the direction of
 -- the normal of the given face.
