@@ -647,6 +647,17 @@ A planner file is made of different sections. Each section corresponds to an org
          TShirt^^^1 => the first box containing a t-shirt.
          ^1 => The first box of each variations (colour)
          ^2^3 =>  The two first boxes of each variations, with a maximum of 3 per shelves.
+         
+      Each number specification can also specify a starting number and a tag. If a tag is specified,
+      it will be used to sort the boxes before decidind which are the n first.
+      
+      Example
+      <pre>
+        TShirt^^^2:2 => The second box containg a t-shirt
+        TShirt^^^1:2 => The first, second box containg a t-shirt
+        TShirt^^^[price]1 => The box with the lowest price
+        TShirt^^^-[price]5 => the five box with hight price
+
     <li>
       <h4> Priority and selection order
       Boxes are selected in semi-arbitrary order which can be modified setting up priority.
@@ -659,7 +670,7 @@ A planner file is made of different sections. Each section corresponds to an org
         <li> style priority (priority within style)
         <li> content name
         <li> content priority (priority within content)
-      By default, all priorities  are set 100. Priorities can be modified by assigning the special tags
+      By default, all priorities  are set 100. Priorities can be modified by assigning the special tags, <code>@global</code>, <code>@style</code>, <code>@content</code> but also any other tag using the <code>^[tag]</code> notation (see number restriction). 
       <ul>
         <li> <code>@global</code> global priority. Can be used to move a box first. 
         <li> <code>@style</code> priority within the same style. Can be use to move a box at the beginning of a style.
@@ -695,6 +706,7 @@ A planner file is made of different sections. Each section corresponds to an org
         <li> B-Black # @style=100 @content=100
 
       The content priority could be used for example, to select which one of the B-Black boxes to get first.
+      
     <li>
       <h4> Set and use reference
       Part (or all) of a selector can be used as reference to be reused in the following lines.
