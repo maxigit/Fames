@@ -20,7 +20,7 @@ import qualified Items.Types as I
 import Database.Persist.Sql (toSqlKey)
 import Data.Conduit.List (consume, sourceList)
 import Data.Text(splitOn)
-import Data.List (nubBy)
+import Data.List (nubBy, nub)
 import System.FilePath.Glob(globDir1, compile, match)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import qualified Data.Map as Map
@@ -64,6 +64,7 @@ mkYesodSubData "FI" [parseRoutes|
 /stockStatus/all/#Text FIStockStatusAll
 /colour/variations/#Text FIColourTransform
 /category/#Text/+[Text] FICategory
+/sales/#Day/#Day/#Text FISalesBetween
 |]
 
 __avoid_unused_warning_for_resourcesFI = resourcesFI 
@@ -115,6 +116,7 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIStockStatusAll skus -> ret $ importStockStatus AllBoxes skus
           FIColourTransform prop -> ret $ importColourDefinitions prop
           FICategory skus categories -> ret $ importCategory skus categories
+          FISalesBetween start end skus -> ret $ importSales start end skus
   return $ (fmap concat) $  sequence sectionss
 importFamesDispatch section = return $ Right [section]
 
@@ -414,3 +416,33 @@ importCategory skus categories = do
                  ]
       mkTag (category, value) = "cat-" <> category <> "=" <> value
   return $ Section TagsH (Right $ "selector,tags" : content) ("* Categories " <> intercalate " " categories) 
+-- ** Sales
+-- | generates tags with the sales between the give date for each sku.
+importSales :: Day -> Day -> Text -> _
+importSales startDate endDate skus = do
+  skuToStyleVar <- I.skuToStyleVarH
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let sql = "SELECT stock_id, -sum(qty) sales  FROM 0_stock_moves WHERE tran_date BETWEEN ? AND ? "
+         <> " AND stock_id like ? AND type in (10, 13)"
+         <> " GROUP BY stock_id ORDER BY stock_id, sales DESC"
+  let skuLike = if skus == "" then stockLike else skus
+
+  raws <- runDB $ rawSql sql [ toPersistValue startDate, toPersistValue endDate
+                             , toPersistValue skuLike
+                             ]
+  let _types = raws :: [(Single Text, Single Double)]
+  let rows = [ (style, (var, qty))
+             | (Single sku, Single qty) <- raws
+             , let (style, var) = skuToStyleVar sku
+             ] 
+      maxRank = length rows
+
+  let content = [ style <> "#'" <> var <> ",fa-sales-rank=" <> tshow (rank :: Int )<> "#fa-sales=" <> tshow (round qty :: Int )
+                | group <- groupBy (on (==) fst) rows
+                , ((style, (var, qty)), rank) <- zip (sortOn (Down . snd . snd) group)  [1..]
+                ]
+      reset = [ style <>",#fa-sales-rank=" <> tshow maxRank <> "#fa-sales=0"
+              | style <- nub . sort $ map fst rows
+              ]
+
+  return $ Section TagsH (Right $ "selector, tags" : (reset ++ content)) ( "* Sales ")

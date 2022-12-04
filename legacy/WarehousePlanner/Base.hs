@@ -229,7 +229,7 @@ parseLimit (uncons  -> Just ('-', s)) = setReverse <$> parseLimit  s where
            setReverse l = l { liReverse = True }
 parseLimit s = let
    (tag, limitt) = case break (==']') s of
-                        (uncons -> Just ('[', tag), uncons -> Just (_, l)) -> (fst <$>unsnoc tag, l)
+                        (uncons -> Just ('[', tag), uncons -> Just (_, l)) -> (Just tag, l)
                         _ -> (Nothing, s)
    (start, end) = case map readMay $ splitOn ":" limitt of
                     [Just end ] -> (1, end)

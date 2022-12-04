@@ -544,7 +544,7 @@ A planner file is made of different sections. Each section corresponds to an org
             <li><code>variationStatus/all/</code>skus
                <p> Similar to <code>variationStatus/active</code> but get all variations even if they are inactive.
             <li><code>cloneVariationStatus/active/</code>skus<code>/</code>model-tag
-               <p> Clone one box for each active variations and each boxes of a style matching the model-tag or <code>create-model</code> if not provided.
+               <p> Clones one box for each active variations and each boxes of a style matching the model-tag or <code>create-model</code> if not provided.
             <li><code>cloneVariationStatus/all/</code>skus<code>/</code>model-tag
               <p> Similar to <code>cloneVariation</code> but act on all boxes (active and inactive).
             <li><code>stockStatus/active/</code>skus
@@ -552,7 +552,7 @@ A planner file is made of different sections. Each section corresponds to an org
             <li><code>stockStatus/all/</code>skus
                <p> Similar to <code>stockStatus/active</code> but get all variations even if they are inactive.
             <li><code>colour/variations/</code>#tag
-               <p> Replace for the given tag then name of colour (from the webiste) by is rgb value.
+               <p> Replaces for the given tag then name of colour (from the webiste) by is rgb value.
                    For example colour all boxes with the colour of their content can be achieved with the following
                    <pre>
                       :TAGS:
@@ -565,10 +565,13 @@ A planner file is made of different sections. Each section corresponds to an org
                       -- ^ replace the colour name in the tag bg by its value
                       :END:
             <li><code>category/</code>skus<code>/</code>categories
-              <p> Generate a tag file tagging each box with the corresponding Fames categories. Each category will use the tag <code>cat-</code> followed by the category name.
+              <p> Generates a tag file tagging each box with the corresponding Fames categories. Each category will use the tag <code>cat-</code> followed by the category name.
             Example
             <pre>
               category/%/batches/best-batch tags all boxes with the tags cat-batches and cat-best-batch
+            <li><code>sales/</code>startDate<code>/</code>endDate<code>/</code>skus
+              <p> Generates a tag file tagging each box with the quantity sold during the given period as well
+                  as the "rank" (starting from one). The generated tags are <code>fa-sales</code> and <code>fa-sales-rank</code>.
     <div>
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-selectors">
