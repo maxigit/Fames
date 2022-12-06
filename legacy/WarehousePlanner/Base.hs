@@ -202,7 +202,7 @@ filterBoxByTag :: [TagSelector (Box s)]-> Box s -> Bool
 filterBoxByTag selectors box =  applyTagSelectors selectors boxTags box
 
 -- | Compiles a match against a glob pattern if Necessary
-specials = "*?[]{}" :: String
+specials = "*?[]{}<>" :: String
 isGlob :: Text -> Bool
 isGlob s = case break (`List.elem` specials) s of
   (_, uncons -> Just _) -> True
