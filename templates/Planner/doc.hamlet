@@ -653,6 +653,7 @@ A planner file is made of different sections. Each section corresponds to an org
          
       Each number specification can also specify a starting number and a tag. If a tag is specified,
       it will be used to sort the boxes before decidind which are the n first.
+      If a "shelf" tag is specified the value of the tag will be used to group boxes instead of using the shelfname.
       
       Example
       <pre>

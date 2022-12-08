@@ -75,6 +75,7 @@ import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy
 import Diagrams.Prelude(white, black, darkorange, royalblue, steelblue)
 import Data.Text (splitOn, uncons, stripPrefix)
+import qualified Data.Text as T 
 import Data.Char (isLetter)
 import Data.Time (diffDays)
 
@@ -316,10 +317,12 @@ findBoxByNameAndShelfNames (BoxSelector boxSel shelfSel numSel) = do
 limitByNumber :: BoxNumberSelector -> [(Box s, Text)] -> [(Box s, Text)]
 limitByNumber selector boxes0 = let
   sorted = sortBy (comparing  $ boxFinalPriority selector . fst ) boxes0
+  sndOrSel (box, shelf) = keyFromLimitM (nsPerShelf selector) (Right shelf) box
   boxes1 = maybe id (limitBy (boxSku . fst)) (nsPerContent selector) $ sorted
-  boxes2 = maybe id (limitBy snd) (nsPerShelf selector) $ boxes1
+  boxes2 = maybe id (limitBy sndOrSel) (nsPerShelf selector) $ boxes1
   boxes3 = maybe id take_ (nsTotal selector) $ sortBy (comparing  $ boxFinalPriority selector . fst ) boxes2
   --                            -- ^ things might have been shuffle by previous sorting , so resort them                                                         
+  limitBy :: Ord  k => ((Box s, Text) -> k) -> Limit -> [(Box s, Text)] -> [(Box s, Text)]
   limitBy key n boxes = let
     sorted = sortBy (comparing  $ boxFinalPriority selector . fst ) boxes
     group_ = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
@@ -329,14 +332,19 @@ limitByNumber selector boxes0 = let
     where rev = if liReverse sel then reverse else id
   in boxes3
 
+keyFromLimitM limit p box =
+  case liOrderTag =<< limit of
+    Nothing -> p
+    Just t -> case getTagValuem box t of
+                   Nothing -> Right $ T.replicate 100 (singleton maxBound)
+                   Just v -> maybe (Right v) Left (readMay v) :: Either Int Text
+
 
 -- limitBy :: Ord k => (Box s -> k) -> Int -> [Box s] -> [a]
   
 boxFinalPriority :: BoxNumberSelector -> Box s -> (Either Int Text , (Text, Either Int Text, Text , Either Int Text))
 boxFinalPriority BoxNumberSelector{..} box = let -- reader
-  with selm p = case selm >>= liOrderTag >>= getTagValuem box of
-                        Nothing -> Left $ p box
-                        Just v ->  maybe (Right v) Left (readMay v)
+  with selm p = keyFromLimitM selm (Left $ p box) box
   global = with nsTotal boxGlobalPriority
   style = with nsPerShelf boxStylePriority
   content = with nsPerContent boxContentPriority
