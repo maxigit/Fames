@@ -1497,8 +1497,8 @@ parseMatchPattern pat = MatchFull pat
 
 parseBoxSelector :: Text -> BoxSelector s
 parseBoxSelector selector = let
-  (box'numbers, drop 1 -> location) = break (=='/') selector
-  (box, drop 1 ->numbers) = break (=='^') box'numbers
+  (box'location, drop 1 ->numbers) = break (=='^') selector
+  (box, drop 1 -> location) = break (=='/') box'location
   in BoxSelector (parseSelector box)
               (parseSelector location)
               (parseBoxNumberSelector numbers)
