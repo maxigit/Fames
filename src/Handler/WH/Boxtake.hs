@@ -24,6 +24,7 @@ import Handler.WH.Boxtake.Upload
 import Handler.WH.Boxtake.Adjustment
 import Data.Conduit.List(sourceList)
 import Database.Persist.Sql (fromSqlKey)
+import Handler.Items.Common(skuToStyleVarH)
 -- * Types 
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Read, Show, Enum, Bounded)
@@ -97,10 +98,10 @@ postWHBoxtakeSaveR = do
   actionM <- lookupPostParam "action"
   case actionM of
     Just "Planner" -> spreadSheetToCsv (\Session{..} box -> box {boxtakeLocation = sessionLocation}) renderPlannerCsv
-    Just "Stocktake" -> let adjust Session{..} box = box {boxtakeLocation = sessionLocation
-    , boxtakeOperator = entityKey sessionOperator
-    , boxtakeDate = sessionDate
-    }
+    Just "Stocktake" -> let adjust Session{..} box = box { boxtakeLocation = sessionLocation
+                                                         , boxtakeOperator = entityKey sessionOperator
+                                                         , boxtakeDate = sessionDate
+                                                         }
                         in spreadSheetToCsv adjust renderStocktakeCsv
     _ -> processBoxtakeSheet Save
 
@@ -118,13 +119,18 @@ renderPlannerCsv boxSources = do
   respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
 
 -- plannerSource :: _ => Source m Text
-plannerSource :: ConduitM () (Entity Boxtake) SqlHandler ()
-plannerSource = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc BoxtakeDescription]
-  -- yield "Bay No,Style,QTY,Length,Width,Height,Orientations\n"
-  -- boxes .| mapC toPlanner
+plannerSource :: ConduitM () (Entity Boxtake, [Text]) SqlHandler ()
+plannerSource = do
+    param <- liftHandler defaultAdjustmentParamH
+    skuToStyle <- liftHandler skuToStyleVarH
+    boxMap <- lift $ loadBoxForAdjustment param
+    sourceList  $ [ (boxE,  map (snd . skuToStyle . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake]))
+                | (boxE, stocktakes) <- concat $ Map.elems boxMap 
+                , boxtakeActive (entityVal boxE)
+                ]
   
-toPlanner :: (Entity Boxtake) -> Text
-toPlanner (Entity _ Boxtake{..}) = 
+toPlanner :: (Entity Boxtake, [Text]) -> Text
+toPlanner (Entity _ Boxtake{..}, colours) = 
   boxtakeLocation
   <> "," <> (fromMaybe "" boxtakeDescription) <> (mconcat $ map ("#" <>) tags )
   <> ",1"
@@ -136,7 +142,13 @@ toPlanner (Entity _ Boxtake{..}) =
   where tags= [ "barcode=" <> boxtakeBarcode 
               , "date=" <> tshow boxtakeDate
               , "location=" <> boxtakeLocation
-              ] ::  [Text]
+              ] ++ mixed ::  [Text]
+        mixed = case colours of
+                     (_:_:_) -> "mixed" : [ "content" <> tshow index <> "=" <> colour
+                                     |  (colour, index) <- zip colours [1..]
+                                     ]
+                     _ -> []
+                         
 
 boxSourceToSection today boxSources = do
   yield ("* Stocktake from Planner  [" <> tshow today <> "]\n")
@@ -144,7 +156,7 @@ boxSourceToSection today boxSources = do
   boxSourceToCsv boxSources
   yield (":END:\n")
 
-boxSourceToCsv :: Monad m => ConduitM i (Entity Boxtake) m () -> ConduitT i Text m ()
+boxSourceToCsv :: Monad m => ConduitM i (Entity Boxtake, [Text]) m () -> ConduitT i Text m ()
 boxSourceToCsv boxSources = do
   yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
   boxSources .| mapC toPlanner
@@ -157,7 +169,7 @@ spreadSheetToCsv adjust renderCsv = processBoxtakeSheet' Save go
         sessionBoxesWithNewLocation session = do -- []
                  row <- sessionRows session
                  Just (Entity bId box) <- return $ rowBoxtake row -- skip Nothing
-                 return $ Entity bId (adjust session box)
+                 return $ (Entity bId (adjust session box), [])
 
 -- * To Stocktake 
 renderStocktakeCsv boxSources = do
@@ -168,10 +180,10 @@ renderStocktakeCsv boxSources = do
   respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
 
 
-boxSourceToStocktake :: Monad m => (Map (Key Operator) Operator) -> ConduitM i (Entity Boxtake) m () -> ConduitT i Text m ()
+boxSourceToStocktake :: Monad m => (Map (Key Operator) Operator) -> ConduitM i (Entity Boxtake, [Text]) m () -> ConduitT i Text m ()
 boxSourceToStocktake opMap boxSources = do
   yield "Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment\n"
-  boxSources .| mapC (toStocktake opMap)
+  boxSources .| mapC (toStocktake opMap . fst)
 
 toStocktake :: (Map (Key Operator) Operator) -> (Entity Boxtake) -> Text
 toStocktake opMap (Entity _ Boxtake{..}) =

@@ -775,6 +775,11 @@ toPlanner withDetails PackingList{..} details = let
                                      <>  (maybe "" ("#pl-arriving=" <>) $ fmap tshow packingListArriving)
                                      <> ("#reference=" <> packingListDetailReference )
                                      <> ("#boxNumber=" <> tshow packingListDetailBoxNumber )
+                                     <> case Map.toList packingListDetailContent of
+                                         cols@(_:_:_) -> "#mixed" <> mconcat [ "#content" <> tshow i <> "=" <> col
+                                                                             | ((col, __qty), i) <- zip cols [1..]
+                                                                             ]
+                                         _ -> ""
                                  else ""
   content [] = ""
   content ((col,__qty):cs) = "-" <> col <> if null cs then "" else "*"

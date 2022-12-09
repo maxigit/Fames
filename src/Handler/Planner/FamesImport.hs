@@ -155,7 +155,7 @@ importBoxStatus whichBoxes prefix a_tags = do
   operators <- allOperators
   let source = case whichBoxes of
         AllBoxes -> selectSource [] []
-        ActiveBoxes -> Box.plannerSource
+        ActiveBoxes -> Box.plannerSource  .| mapC fst
       -- prefix = fromMaybe "" a_prefix
       getTags (Entity _ Boxtake{..}) = "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
               where
@@ -362,13 +362,16 @@ loadLiveSummaries todaym = do
 importActiveBoxtakesLive :: Maybe Day -> [Text] -> Handler Section
 importActiveBoxtakesLive todaym tags = do
   today <- maybe todayH return todaym
+  skuToStyleVar <- I.skuToStyleVarH
   summaries <- loadLiveSummaries todaym
-  let sameBarcode op (Entity _ a) (Entity _ b) = boxtakeBarcode a `op` boxtakeBarcode b
+  let sameBarcode op (Entity _ a, _) (Entity _ b, _) = boxtakeBarcode a `op` boxtakeBarcode b
   let boxes = nubBy (sameBarcode (==)). sortBy (sameBarcode compare) $
-              [ Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
+              [ ( Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
+                , map (snd . skuToStyleVar . stocktakeStockId . entityVal) stocktakes
+                )
               | summary <- summaries
               , statusbox <- Box.ssBoxes summary
-              , let (Entity boxKey boxtake, _) = Box.usedSubject statusbox
+              , let (Entity boxKey boxtake, stocktakes) = Box.usedSubject statusbox
               , Box.boxStatus statusbox /= Box.BoxInactive
               , let tags = [ "#live-status=" <> tshow (Box.boxStatus statusbox)
                        ]
