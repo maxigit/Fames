@@ -128,7 +128,7 @@ stylingFromTags :: Box s -> BoxStyling
 stylingFromTags box = let
   foreground = black `fromMaybe` colorFromTag box "fg"
   background = wheat `fromMaybe` colorFromTag box "bg"
-  background2 = colorFromTag box "circle"
+  circleBgs = mapMaybe (colorFromTag box) ["circle", "circle2", "circle3", "circle4"]
   border = colorFromTag box "border"
   title = getTagValues box "title"
   barTitle= case getTagValues box "bar-title" of

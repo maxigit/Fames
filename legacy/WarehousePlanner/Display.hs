@@ -4,7 +4,7 @@
 module WarehousePlanner.Display where
 
 import ClassyPrelude
-import WarehousePlanner.Base hiding(up)
+import WarehousePlanner.Base hiding(up, rotate)
 import Diagrams.Prelude hiding(Box,offset,direction)
 import Control.Monad.State(get, gets)
 import Diagrams.Backend.Cairo 
@@ -143,15 +143,13 @@ renderBox shelf box = do
                      _ -> unlines title  
                         
     let   r = (r' $ rect l h  # lc border' # fc background # lwL 2) #scale 0.95 # pad 1.05
-          r' = case background2 of
-                 Nothing -> id
-                 Just bg2 -> \r0 -> circle (min l h / 3) # fc bg2 #lwL 0 `atop` r0
+          r' r0 = pies (min l h / 3) circleBgs `atop` r0
           t = scaledText l h titles
               # fc foreground
           diagram_ = t `atop` r
           diagram = offsetBox True shelf box diagram_
 
-          boxBar =  renderBoxBar box barTitle foreground background border' background2
+          boxBar =  renderBoxBar box barTitle foreground background border' circleBgs
           backBag = if displayBarGauge
                     then renderBoxBarBg shelf
                     else mempty
@@ -166,14 +164,27 @@ renderBox shelf box = do
     return $ [(3, diagram),
               (2, offsetBar backBag),
               (1, offsetBar boxBar)]
+pies :: _radius -> [Colour Double] -> Diagram B 
+pies _ [] = mempty
+pies radius (col1:colours) = let
+  angle = 1  / fromIntegral (length colours + 1)
+  dir0 = rotate (5/8 @@ turn) xDir
+  ps = [ wedge radius dir (angle @@ turn) # fc col #lwL 0 
+            | (col, i) <- zip colours [0..]
+            , let dir = rotate (angle * i @@ turn) dir0
+            ]
+  base = circle radius # fc col1 # lwL 0
+  in mconcat (ps ++ [base])
+
+           
 
 renderBoxBar :: Box s -> Maybe Text
-             -> Colour Double -> Colour Double -> Colour Double -> Maybe (Colour Double)
+             -> Colour Double -> Colour Double -> Colour Double -> [Colour Double]
              -> Diagram B
-renderBoxBar box titlem foreground background border circlem =
+renderBoxBar box titlem foreground background border circleBgs =
   let Dimension _l w _h = boxDim box
       Dimension _ox oy _oz = boxOffset box
-      c = maybe mempty (\col -> circle (3/2) # lwL 0 # fc col ) circlem
+      c = pies (3/2) circleBgs
       t = maybe mempty (fc foreground . scaledText w w)  titlem  `atop` c
   in depthBar'' ((atop t) . (lwL 1 . lc $ blend 0.5  border background )) w oy (background)
   -- in depthBar'  w oy (background)

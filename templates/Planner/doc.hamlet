@@ -792,7 +792,7 @@ A planner file is made of different sections. Each section corresponds to an org
     <li> <code>fg</code> foreground (text) colour (shelves and boxes)
     <li> <code>BG</code> background colour of the maximum dimension (shelves)
     <li> <code>border</code> border colour (shelves and boxes)
-    <li> <code>circle</code> display a big circle of the given colour on the box. Ideal to mark boxes. (boxes only)
+    <li> <code>circle</code>..<code>circle4</code> display a big circle of the given colour(s) on the box. Ideal to mark boxes. (boxes only). Displays pies if more than one colour is given.
     <li> <code>title</code> text to display instead of the box or shelf name (shelves and boxes)
     <li> <code>bar-title</code> text to display in the box bar (for each depth) or shelf bar.
     <li> <code>bar-bg</code> colour of the shelf bar (shelf bar).
