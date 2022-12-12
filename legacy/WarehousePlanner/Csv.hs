@@ -526,13 +526,14 @@ readClones defaultTags filename = do
         Right rows -> return $ do  -- IO
           cloness <- forM (Vec.toList rows) $ \(selector, qty, content'tags) -> do -- WH
                 let (content0, tags) = extractTags content'tags
-                    content = if null content0 then Nothing else Just content0
+                    content1 = if null content0 then Nothing else Just content0
                 s0 <- incomingShelf
                 
                 boxIds <- findBoxByNameAndShelfNames selector
                 boxes <- mapM findBox boxIds
                 let box'qtys =  [(box, q) | box <- boxes , q <- [1..qty :: Int]] -- cross product
                 forM box'qtys  $ \(box, _) -> do
+                    content <- mapM (expandAttribute box) content1
                     newbox <- newBox (boxStyle box)
                             (fromMaybe (boxContent box) content) -- use provided content if possible
                             (_boxDim box)
@@ -542,6 +543,11 @@ readClones defaultTags filename = do
                             [] --  no tags, copy them later
                     updateBoxTags (map parseTagOperation $ defaultTags ++  tags)
                                   newbox  {boxTags = boxTags box} -- copy tags
+                                  -- note that those tags are only used
+                                  -- to expand attributes but are not 
+                                  -- acutally set in the box, because 
+                                  -- updateBoxTags update the tags of box found in the warehouse
+                                  -- boxTags is therefore only set temporarily
           return $ concat cloness
 
 readDeletes :: FilePath-> IO (WH [Box s] s)
