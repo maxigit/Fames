@@ -280,6 +280,7 @@ instance Shelf' ShelfId where
 
 instance HasTags (Box s) where getTags = boxTags
 instance HasTags (Shelf s) where getTags = shelfTag
+instance HasTags (Tags) where getTags = id
 
 instance Semigroup (ShelfGroup s) where
     sg@(ShelfGroup g d) <> sg'@(ShelfGroup g' d')

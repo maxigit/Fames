@@ -1027,9 +1027,16 @@ updateBoxTags' :: [Tag'Operation] -> Box s -> Box s
 updateBoxTags' [] box = box -- no needed but faster, because we don't have to destruct and 
 updateBoxTags' tag'ops box = case modifyTags tag'ops (boxTags box) of
   Nothing -> box
-  Just new -> updateDimFromTags box { boxTags = new
+  Just new -> let newContent = getTagValuem new "'content"
+                  -- replace the content virtual tag
+                  cleanTag = case newContent of
+                                  Just cont -> \t -> (Map.withoutKeys t (Set.fromList ["'content", "'" <> boxContent box]))
+                                              <> (Map.singleton ("'" <> cont) mempty)
+                                  Nothing -> id
+              in updateDimFromTags box { boxTags = cleanTag new
                                     , boxPriorities = extractPriorities new (boxPriorities box)
                                     , boxBreak = extractBoxBreak new
+                                    , boxContent = fromMaybe (boxContent box) newContent
                                     }
 
 updateShelfTags' :: [Tag'Operation] -> Shelf s -> Shelf s
@@ -1434,9 +1441,9 @@ applyTagSelector (TagHasValues valuePat) tags = let
 applyTagSelector (TagHasNotValues valuePat) tags = not $ applyTagSelector (TagHasValues valuePat) tags
 applyTagSelector (TagHasKeyAndNotValues key valuePat) tags = not (applyTagSelector (TagHasKeyAndValues key valuePat) tags)
 
-applyTagSelectors :: [TagSelector s] -> (s -> Tags) -> s -> Bool
+applyTagSelectors :: Show s => [TagSelector s] -> (s -> Tags) -> s -> Bool
 applyTagSelectors [] _ _ = True
-applyTagSelectors selectors tags o = all (flip applyTagSelector (tags o)) selectors
+applyTagSelectors selectors tags o =  all (flip applyTagSelector (tags o)) selectors
 
 -- | Check all pattern are matched and matches all values
 matchesAllAndAll :: [MatchPattern] -> Set Text -> Bool
