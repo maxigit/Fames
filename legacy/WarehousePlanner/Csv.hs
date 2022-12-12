@@ -526,21 +526,24 @@ readClones defaultTags filename = do
         Right rows -> return $ do  -- IO
           cloness <- forM (Vec.toList rows) $ \(selector, qty, content'tags) -> do -- WH
                 let (content0, tags) = extractTags content'tags
-                    content1 = if null content0 then Nothing else Just content0
+                    (copyTag, content1) = case stripPrefix "!" content0 of
+                                           Nothing -> (False, content0)
+                                           Just c  -> (True, c)
+                    content2 = if null content1 then Nothing else Just content1
                 s0 <- incomingShelf
                 
                 boxIds <- findBoxByNameAndShelfNames selector
                 boxes <- mapM findBox boxIds
                 let box'qtys =  [(box, q) | box <- boxes , q <- [1..qty :: Int]] -- cross product
                 forM box'qtys  $ \(box, _) -> do
-                    content <- mapM (expandAttribute box) content1
+                    content <- mapM (expandAttribute box) content2
                     newbox <- newBox (boxStyle box)
                             (fromMaybe (boxContent box) content) -- use provided content if possible
                             (_boxDim box)
                             (orientation box)
                             s0
                             (boxBoxOrientations box)
-                            [] --  no tags, copy them later
+                            (if copyTag then getTagList box else [])
                     updateBoxTags (map parseTagOperation $ defaultTags ++  tags)
                                   newbox  {boxTags = boxTags box} -- copy tags
                                   -- note that those tags are only used

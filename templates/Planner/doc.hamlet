@@ -359,14 +359,14 @@ A planner file is made of different sections. Each section corresponds to an org
           For example
           <pre>
             :Clones:
-            stock_id,quantity,tag
-            A^1,4,ghost
+            stock_id,quantity,content'tag
+            A^1,4,#ghost
           or  (note the position of the tag <code>ghost</code>
           <pre>
             :Clones-ghost:
             stock_id,quantity,tag
             A^1,4,
-          will create 4 boxes with the tag <code>ghost</code> for each colur of A.
+          will create 4 boxes with the tag <code>ghost</code> for each colour of A.
           <code>^1</code> makes sure we are doing the cloning operation once per colour. Without it, we will have 4 clones for every box.
 
           To create slots of for, we could move all As by 4 with
@@ -379,6 +379,27 @@ A planner file is made of different sections. Each section corresponds to an org
           <pre>
             :Delete:
             A#ghost
+            
+          The content of a new box can specified before the tag.
+          For example
+          <pre>
+             :Clones:
+             stock_id,quantity,content'tag
+             A#'BLK^1,4,RED#ghost
+             
+          Will create 4 red boxes for each BLK.
+          
+          By default only tags that are specified either as default tag or for each line will be applied to the box.
+          To copy a box and ALL its tags, start the content/tag specification with a <code>!</code>.
+          <pre>
+            :Clones:
+            stock_id,quantity,content'tag
+            A^1,4,!#ghost
+            A^1,4,!new-content
+            A^1,4,!new-content#ghost
+
+          
+
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-transformtags"> Transform (transform tags)
