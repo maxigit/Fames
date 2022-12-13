@@ -543,7 +543,7 @@ readClones defaultTags filename = do
                             (orientation box)
                             s0
                             (boxBoxOrientations box)
-                            (if copyTag then getTagList box else [])
+                            (if copyTag then filter (not . isPrefixOf "'") (getTagList box) else [])
                     updateBoxTags (map parseTagOperation $ defaultTags ++  tags)
                                   newbox  {boxTags = boxTags box} -- copy tags
                                   -- note that those tags are only used
