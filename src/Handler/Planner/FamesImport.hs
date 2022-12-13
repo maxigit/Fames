@@ -438,7 +438,7 @@ importSales startDate endDate skus = do
              | (Single sku, Single qty) <- raws
              , let (style, var) = skuToStyleVar sku
              ] 
-      maxRank = length rows
+      maxRank = length rows + 1
 
   let content = [ style <> "#'" <> var <> ",fa-sales-rank=" <> tshow (rank :: Int )<> "#fa-sales=" <> tshow (round qty :: Int )
                 | group <- groupBy (on (==) fst) rows
