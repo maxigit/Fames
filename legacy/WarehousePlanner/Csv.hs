@@ -676,6 +676,10 @@ readFromRecordWithPreviousStyle rowProcessor filename = do
 processMovesAndTags :: (BoxSelector s, [Text], Maybe Text, [OrientationStrategy]) -> WH [Box s] s
 processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientations orientations $ do
   let (noEmpty, tags) = partition (== "@noEmpty") tags_
+      -- don't resort boxes if a number selector has been set.
+      sortMode = case numberSelector style  of
+                      BoxNumberSelector Nothing Nothing Nothing -> SortBoxes
+                      _ -> DontSortBoxes
   boxes0 <- findBoxByNameAndShelfNames style
   case (boxes0, noEmpty) of
        ([], _:_) -> error $ show style ++ " returns an empty set"
@@ -691,7 +695,7 @@ processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientation
     -- reuse leftover of previous locations between " " same syntax as Layout
     foldM (\boxes locations -> do
                shelves <- findShelfBySelectors (map parseSelector locations)
-               aroundArrangement aroundMode (moveBoxes exitMode partitionMode) boxes shelves
+               aroundArrangement aroundMode sortMode (moveBoxes exitMode partitionMode sortMode) boxes shelves
           ) boxes locationss
   case tags of
     [] -> return boxes
@@ -855,7 +859,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
                         let boxes = concat boxesS
                             pmode = POr PAboveOnly PRightOnly
                         shelves <- (mapM findShelf) =<< findShelfBySelector (Selector (NameMatches [MatchFull shelf]) [])
-                        leftOvers <- moveBoxes ExitLeft pmode boxes shelves
+                        leftOvers <- moveBoxes ExitLeft pmode SortBoxes boxes shelves
 
                         let errs = if not (null leftOvers)
                                       then map (\b -> "ERROR: box " <> tshow b <> " doesn't fit in " <> shelf) leftOvers

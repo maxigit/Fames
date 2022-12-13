@@ -19,18 +19,19 @@ bestShelves box ors ss  = let
             ]
     in map snd $ sortBy (compare `on` fst) tries
 
-_fillBest :: PartitionMode -> (Box s -> [OrientationStrategy] -> [Shelf s] -> [Shelf s])
+_fillBest :: PartitionMode -> SortBoxes -> (Box s -> [OrientationStrategy] -> [Shelf s] -> [Shelf s])
           -> [Box s] 
           -> [Shelf s]
           -> WH [Box s] s
-_fillBest  pmode fit boxes shelves = do
-    aroundArrangement Nothing (fillBest' pmode fit) boxes shelves
+_fillBest  pmode smode fit boxes shelves = do
+    aroundArrangement Nothing smode (fillBest' pmode smode fit) boxes shelves
 
 fillBest' :: Shelf' shelf =>
              PartitionMode ->
+             SortBoxes -> 
              (Box s -> [OrientationStrategy] -> t -> [shelf s])
           -> [Box s] -> t -> WH [Box s] s
-fillBest' pmode fit boxes shelves = do
+fillBest' pmode smode fit boxes shelves = do
         boxo <- gets boxOrientations
         let groups = reverse . Map'.toList $ Map'.fromListWith (++) tuples
             tuples = [((_boxDim b, boxStyle b), [b]) | b <- boxes]
@@ -39,7 +40,7 @@ fillBest' pmode fit boxes shelves = do
                 ors = boxo example (error "need one shelf and only one")
                 example = head bs
                 -- in moveBoxes [example] shelvesInOrder
-                in moveBoxes ExitLeft pmode bs shelvesInOrder
+                in moveBoxes ExitLeft pmode smode bs shelvesInOrder
                 ) (sortBy (compare `on` (\g -> - (length g))) (map snd groups))
 
         return $ concat boxess

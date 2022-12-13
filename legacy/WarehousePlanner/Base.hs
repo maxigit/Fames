@@ -37,7 +37,7 @@ module WarehousePlanner.Base
 , matchName
 , maxUsedOffset
 , module WarehousePlanner.Type
-, moveBoxes
+, moveBoxes, SortBoxes(..)
 , negateTagOperations
 , newBox
 , newShelf
@@ -728,8 +728,8 @@ fillShelf :: (Shelf' shelf)
           -> WH ( Maybe (SimilarBoxes s)
                 , Maybe (Shelf s)
                 )  s
-fillShelf exitMode partitionMode s simBoxes0 = do
-    let simBoxes@(SimilarBy dim box bs) = sortSimilarOn boxRank simBoxes0
+fillShelf exitMode partitionMode s simBoxes = do
+    let SimilarBy dim box bs = simBoxes
     shelf <- findShelf s
     let boxes = box : bs
     -- first we need to find how much space is left
@@ -893,15 +893,19 @@ assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(__offset:_) = case b
 
 
 
+data SortBoxes = SortBoxes | DontSortBoxes
+     deriving (Eq, Ord, Read, Show)
 -- Try to Move a block of boxes  into a block of shelves.
 -- Boxes are move in sequence and and try to fill shelve
 -- in sequence. If they are not enough space the left boxes
 -- are returned.
-moveBoxes :: (Box' box , Shelf' shelf) => ExitMode -> PartitionMode -> [box s] -> [shelf s] -> WH [Box s] s
+moveBoxes :: (Box' box , Shelf' shelf) => ExitMode -> PartitionMode -> SortBoxes -> [box s] -> [shelf s] -> WH [Box s] s
 
-moveBoxes exitMode partitionMode bs ss = do
+moveBoxes exitMode partitionMode sortMode bs ss = do
   boxes <- mapM findBox bs
-  let layers = groupBy ((==)  `on` boxBreak) $ sortBy (comparing boxGlobalRank) boxes
+  let layers = groupBy ((==)  `on` boxBreak)
+               $ (if sortMode == SortBoxes then sortBy (comparing boxGlobalRank) else id)
+               $ boxes
       boxGlobalRank box = (boxGlobalPriority box, boxStyle box, boxStylePriority box,  _boxDim box)
       boxBreak box = (boxStyle box, _boxDim box)
       -- \^ we need to regroup box by style and size
@@ -956,26 +960,27 @@ boxGlobalPriority  box = p where (p, _, _) = boxPriorities box
 
 -- | Rearrange boxes within their own shelves
 -- left over are put back to 0
-rearrangeShelves :: PartitionMode -> Shelf' shelf => [shelf s] -> WH [Box s] s
-rearrangeShelves pmode ss = do
+rearrangeShelves :: PartitionMode -> Shelf' shelf => SortBoxes -> [shelf s] -> WH [Box s] s
+rearrangeShelves pmode smode ss = do
     -- first we need to remove the boxes from their current location
     boxes <- concat `fmap` mapM findBoxByShelf ss
     let nothing = headEx $ Nothing: map Just ss -- trick to force type
     mapM_ (\box -> assignShelf  nothing box ) boxes
-    left <- moveBoxes ExitLeft pmode boxes ss
+    left <- moveBoxes ExitLeft pmode smode boxes ss
     s0 <- defaultShelf
     mapM_ (assignShelf (Just s0)) left
 
     return left
 
--- | Remove boxes for shelvese and rearrange
+-- | Remove boxes for shelves and rearrange
 -- shelves before doing any move
 -- aroundArrangement  :: WH a -> WH a
 aroundArrangement :: (Shelf' shelf, Box' box, Box' box2)
                   => Maybe PartitionMode
+                  -> SortBoxes
                   -> ([box s] -> [shelf s] -> WH [box2 s] s)
                   -> [box s] -> [shelf s] -> WH [box2 s] s
-aroundArrangement pmodeM arrangement boxes shelves = do
+aroundArrangement pmodeM smode arrangement boxes shelves = do
     let shelfIds = map shelfId shelves
     oldShelveIds <- findShelvesByBoxes boxes
     -- remove all boxes from their actuall shelf
@@ -987,7 +992,7 @@ aroundArrangement pmodeM arrangement boxes shelves = do
 
 
     mapM_ (\pmode -> 
-      mapM_ (\s -> rearrangeShelves pmode s >> return ()) (map (:[]) os)
+      mapM_ (\s -> rearrangeShelves pmode smode s >> return ()) (map (:[]) os)
           ) pmodeM
 
     left <- arrangement boxes shelves
