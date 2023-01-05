@@ -49,7 +49,7 @@ reportAll = do
 
 -- | Find the box which fit a given shelf  the best
 bestBoxesFor :: Text -> WH [Text] s
-bestBoxesFor shelf = do
+bestBoxesFor (extractRanking -> (ranking, shelf)) = do
     boxIds <- toList <$> gets boxes
     boxes' <- mapM findBox boxIds
     shelves <- findShelfBySelector (Selector (matchName shelf) []) >>= mapM findShelf
@@ -58,18 +58,15 @@ bestBoxesFor shelf = do
     let groups  = Map'.fromList (map (\b -> ((boxDim b, boxStyle b), b)) boxes')
         boxes = Map'.elems groups
     let bors = map (\b -> (b, getOr b)) boxes
-        boxHeight = dHeight . boxDim
-        shelfHeight = dHeight . minDim
-
     let s  = headEx shelves
-        tries = [ (-((fromIntegral (n*k*m))*(boxVolume box / boxHeight box / shelfVolume s * shelfHeight s)), box)
+        tries = [ (-(usedRatio ranking box {orientation = or} s n k m), box)
             | (box, ors) <- bors
-            , let (_,_,n,k,m,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
+            , let (or,_,n,k,m,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
             ]
 
         bests = sortBy (compare `on` fst) tries
 
-    mapM (report s) (map snd bests)
+    mapM (report ranking s) (map snd bests)
 
 -- | Find best boxes ignoring the shelve height
 bestHeightForShelf :: Text -> WH (IO ()) s
@@ -115,12 +112,12 @@ bestHeightForShelf shelf = do
     ios <- mapM (reportHeight s) (map snd bests)
     return $ sequence_ ios
 
-report :: Shelf s -> Box s -> WH Text s
-report shelf box = do
+report :: Ranking -> Shelf s -> Box s -> WH Text s
+report ranking shelf box = do
     getOr <- gets boxOrientations
     similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
     let (or,diag,n,k,m,_) = bestArrangement (getOr box shelf) [(minDim shelf, maxDim shelf, shelf)] (_boxDim box)
-        ratio = boxVolume box * fromIntegral (n * k * m) / shelfVolume shelf
+        ratio = usedRatio ranking box {orientation = or} shelf n k m
         numberOfBoxes = length similarBoxes
         shelvesNeeded = fromIntegral numberOfBoxes / fromIntegral (n*m*k)
     return $ "box: " <> boxStyle box <> ", shelf: " <> shelfName shelf
@@ -134,17 +131,21 @@ report shelf box = do
 
 
 
+extractRanking :: Text -> (Ranking, Text)
+extractRanking s = case uncons s of
+                        Just ('!', after) -> (Rank2D, after)
+                        _ -> (Rank3D, s)
 -- | find the best shelf for a given style
 -- Doesn't take into account boxes already there.
 bestShelvesFor :: Text -> WH [Text]s
-bestShelvesFor style'shelf = do
+bestShelvesFor (extractRanking -> (ranking, style'shelf)) = do
     (boxes, shelves) <- boxAndShelvesFor style'shelf
     or <- gets boxOrientations
 
     let box = headEx boxes
-        bests = bestShelves box (or box) shelves
+        bests = bestShelves ranking box (or box) shelves
 
-    mapM (flip report $ box) bests
+    mapM (\shelf ->  report ranking shelf box) bests
 
 boxAndShelvesFor :: Text -> WH ([Box s], [Shelf s]) s
 boxAndShelvesFor style'shelf = do
@@ -159,20 +160,20 @@ boxAndShelvesFor style'shelf = do
 -- | find the best shelf for a given style
 -- depends on what's already there.
 bestAvailableShelvesFor :: PartitionMode ->Text -> WH [Text] s
-bestAvailableShelvesFor pmode style'shelf = do
+bestAvailableShelvesFor pmode (extractRanking -> (ranking, style'shelf)) = do
     (boxes, shelves) <- boxAndShelvesFor style'shelf
     or <- gets boxOrientations
     let  box = headEx boxes
     -- sort is stable so by passing shelves in
     -- the best order we get at shelves sorted by
     -- n and then best order
-    let bests = bestShelves box (or box) shelves
+    let bests = bestShelves ranking box (or box) shelves
     let   getInfo shelf = do
             boxesLeft <- moveBoxes ExitLeft pmode SortBoxes boxes [shelf]
             return (shelf, length boxes - length boxesLeft)
     shelfInfos <- mapM getInfo bests
     let go (shelf, n) = do
-            r <- report shelf  (headEx boxes)
+            r <- report ranking shelf  (headEx boxes)
             return $  (pack $ printf "%d/%d => " n (length boxes)) <> r
     mapM go ( sortBy (comparing (Down . snd))
                      (filter ((/=0).snd) shelfInfos)

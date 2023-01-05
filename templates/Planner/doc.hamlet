@@ -997,3 +997,17 @@ A planner file is made of different sections. Each section corresponds to an org
 
   Note the presence of quotes wich allow a comma to be used inside the tag field and the use of <code>$[report-key]</code> to display
   the barcode in the report
+
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-best-reports">
+     best reports
+<div.pre.collapse :expanded:.in id=info-section-best-reports>
+  Best boxes, best shelves and best available shelves computes respectivily the best boxes to go in a given shelf,
+  the best shelves to hold the given boxes. The boxes/shelves to analyses should be set in the parameter field.
+  If the field starts with <code>!</code> then depth of shelf and boxes is not used in displaying the used ratio.
+  Fol best shelf reports, a set of boxes and shelves can be given using the <code>boxSelector,shelfSelector</code> syntax.
+  In that case, only the given boxes and shelves will be taken into account for the report.
+
+
+
+
