@@ -64,8 +64,9 @@ A planner file is made of different sections. Each section corresponds to an org
             leftover between a shelf and wall. Basic arithmetic can be performed and the the same dimension of another
             shelf can be referenced using <code>{...}</code>.  Wildcard (<code>_</code>,<code>+</code> and <code>-</code>) can be used to modify the corresponding character of the current shelf itsef.
             The minimum and maximum of two values can be computed using the <code>&</code> and <code>|</code> operators.
-            <code>%</code> can be used to match all left characters
+            <code>%</code> can be used to match all characters (minus the number of character after it)
             <code>[</code>..<code>]</code> mirror the correspoding character within the range.
+            <code>*</code> matches all character up to the next
 
             Example
             <pre>
@@ -76,6 +77,9 @@ A planner file is made of different sections. Each section corresponds to an org
               B2,,200-{A_},-- length 200 - length of A2
               B20,,200-{A%},-- length 200 - length of A20
               C1,,200-{[AC]1},-- length 200 - length of A1
+              C2,,{%1}, -- length of C1
+              C3,,{%-}, -- length of C2
+              B21,,{*2-}, -- lengh of B20 (*2 matches B2)
             For A2, <code>_</code> refers to the first character of the current shelf, i.e, <code>A</code> and <code>-</code> refers to the second character (<code>2</code>)  minus 1 -> <code>1</code>
             For B1, the <code>_</code> is in the second position and therefore correspond to the second character of <code>B1</code> : <code>1</code>.
             For C1, the <code>[AC]</code> is transform into <code>A</code> (C->A, B->B, A->C)

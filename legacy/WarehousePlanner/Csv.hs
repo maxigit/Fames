@@ -365,7 +365,11 @@ transformRef :: Text -> Text -> Text
 transformRef a b = pack (transformRef' (unpack a) (unpack b))
 transformRef'  :: String -> String -> String
 transformRef'  "" ref = ref
-transformRef' origin "%" = origin
+transformRef' origin ('%': after) = take leftL origin ++ transformRef' (drop leftL origin) after
+            where leftL = length origin - length after 
+transformRef' origin ('*':after@(needle:_)) = 
+    let (a, b) =  List.break (==needle) origin
+                        in a <> transformRef' b after
 transformRef' os ('\\':c:cs) = c:transformRef' os cs
 -- symetry in the given range
 -- ex [24] : 2 -> 4 3->3 4 -> 2
