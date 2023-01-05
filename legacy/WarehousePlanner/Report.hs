@@ -22,6 +22,7 @@ module WarehousePlanner.Report
 
 import WarehousePlanner.Base
 import WarehousePlanner.Optimum
+import WarehousePlanner.Csv (parseOrientationRule)
 import ClassyPrelude hiding(or)
 import Control.Monad.ST.Unsafe(unsafeSTToIO)
 import System.IO.Unsafe(unsafePerformIO)
@@ -31,7 +32,7 @@ import qualified Data.Map.Strict as Map'
 import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
 import qualified Data.List as List
-import Data.Text(breakOn)
+import Data.Text(splitOn)
 import Text.Tabular as Tabul
 import Data.Text(replace)
 
@@ -139,30 +140,30 @@ extractRanking s = case uncons s of
 -- Doesn't take into account boxes already there.
 bestShelvesFor :: Text -> WH [Text]s
 bestShelvesFor (extractRanking -> (ranking, style'shelf)) = do
-    (boxes, shelves) <- boxAndShelvesFor style'shelf
-    or <- gets boxOrientations
+    (boxes, shelves, or) <- boxAndShelvesFor style'shelf
 
     let box = headEx boxes
         bests = bestShelves ranking box (or box) shelves
 
     mapM (\shelf ->  report ranking shelf box) bests
 
-boxAndShelvesFor :: Text -> WH ([Box s], [Shelf s]) s
-boxAndShelvesFor style'shelf = do
-  let (style, shelfSelector) = case (breakOn "," style'shelf) of
-                                  (s,"") -> (s, "")
-                                  (box, shelf) -> (box, drop 1 shelf)
+boxAndShelvesFor :: Text -> WH ([Box s], [Shelf s], Box s -> Shelf s -> [OrientationStrategy]) s
+boxAndShelvesFor style'shelf'ors = do
+  ors0 <- gets boxOrientations
+  let (style, shelfSelector, ors) = case (splitOn "," style'shelf'ors) of
+                                  [box, shelf] -> (box, shelf, ors0)
+                                  [box, shelf, rules] -> (box, shelf, \_ _ -> parseOrientationRule [] rules)
+                                  _ -> (style'shelf'ors, "", ors0)
                                   
   boxes <- findBoxByNameSelector (matchName $ style) >>= mapM findBox
   shelves <- findShelfBySelector (parseSelector shelfSelector) >>= mapM findShelf
-  return (boxes, shelves)
+  return (boxes, shelves, ors)
 
 -- | find the best shelf for a given style
 -- depends on what's already there.
 bestAvailableShelvesFor :: PartitionMode ->Text -> WH [Text] s
 bestAvailableShelvesFor pmode (extractRanking -> (ranking, style'shelf)) = do
-    (boxes, shelves) <- boxAndShelvesFor style'shelf
-    or <- gets boxOrientations
+    (boxes, shelves, or) <- boxAndShelvesFor style'shelf
     let  box = headEx boxes
     -- sort is stable so by passing shelves in
     -- the best order we get at shelves sorted by
