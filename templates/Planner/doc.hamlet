@@ -597,6 +597,9 @@ A planner file is made of different sections. Each section corresponds to an org
             <li><code>sales/</code>startDate<code>/</code>endDate<code>/</code>skus
               <p> Generates a tag file tagging each box with the quantity sold during the given period as well
                   as the "rank" (starting from one). The generated tags are <code>fa-sales</code> and <code>fa-sales-rank</code>.
+            <li><code>salesWithKey/</code>startDate<code>/</code>endDate<code>/</code>skus<code>/</code>key
+              <p> Generates a tag file tagging each box matching "key" with the quantity sold during the given period as well
+                  as the "rank" (starting from one). The generated tags are <code>fa-sales</code> and <code>fa-sales-rank</code>.
     <div>
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-selectors">

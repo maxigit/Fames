@@ -65,6 +65,7 @@ mkYesodSubData "FI" [parseRoutes|
 /colour/variations/#Text FIColourTransform
 /category/#Text/+[Text] FICategory
 /sales/#Day/#Day/#Text FISalesBetween
+/salesWithKey/#Day/#Day/#Text/#Text FISalesWithKeyBetween
 |]
 
 __avoid_unused_warning_for_resourcesFI = resourcesFI 
@@ -116,7 +117,8 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIStockStatusAll skus -> ret $ importStockStatus AllBoxes skus
           FIColourTransform prop -> ret $ importColourDefinitions prop
           FICategory skus categories -> ret $ importCategory skus categories
-          FISalesBetween start end skus -> ret $ importSales start end skus
+          FISalesBetween start end skus -> ret $ importSales start end skus Nothing
+          FISalesWithKeyBetween start end skus for -> ret $ importSales start end skus (Just for)
   return $ (fmap concat) $  sequence sectionss
 importFamesDispatch section = return $ Right [section]
 
@@ -421,8 +423,8 @@ importCategory skus categories = do
   return $ Section TagsH (Right $ "selector,tags" : content) ("* Categories " <> intercalate " " categories) 
 -- ** Sales
 -- | generates tags with the sales between the give date for each sku.
-importSales :: Day -> Day -> Text -> _
-importSales startDate endDate skus = do
+importSales :: Day -> Day -> Text -> Maybe Text  -> Handler _
+importSales startDate endDate skus forStyle = do
   skuToStyleVar <- I.skuToStyleVarH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let sql = "SELECT stock_id, -sum(qty) sales  FROM 0_stock_moves WHERE tran_date BETWEEN ? AND ? "
@@ -440,12 +442,14 @@ importSales startDate endDate skus = do
              ] 
       maxRank = length rows + 1
 
-  let content = [ style <> "#'" <> var <> ",fa-sales-rank=" <> tshow (rank :: Int )<> "#fa-sales=" <> tshow (round qty :: Int )
+  let content = [ key <> "#'" <> var <> ",fa-sales-rank=" <> tshow (rank :: Int )<> "#fa-sales=" <> tshow (round qty :: Int )
                 | group <- groupBy (on (==) fst) rows
                 , ((style, (var, qty)), rank) <- zip (sortOn (Down . snd . snd) group)  [1..]
+                , let key = fromMaybe style forStyle
                 ]
-      reset = [ style <>",#fa-sales-rank=" <> tshow maxRank <> "#fa-sales=0"
+      reset = [ key <>",#fa-sales-rank=" <> tshow maxRank <> "#fa-sales=0"
               | style <- nub . sort $ map fst rows
+              , let key = fromMaybe style forStyle
               ]
 
   return $ Section TagsH (Right $ "selector, tags" : (reset ++ content)) ( "* Sales ")
