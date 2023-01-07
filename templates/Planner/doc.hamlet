@@ -229,8 +229,13 @@ A planner file is made of different sections. Each section corresponds to an org
           - <code>~</code> Above only (in the example above: a A B)
           - <code>:</code> Right only (in the example above: d D B)
           - <code>%</code> Best effort (excluding above corners a and d) C A D B
-          
+
           Not specifying anything is equivalent to <code>~:</code>
+          
+          Another possibilty is to empty the shelf(ves) and fill the shelves with the existing boxes and the new ones.
+          In that case, we might want to resort all boxes (old and new) or keep them in the orignial order (old then new).
+          - <code>@</code> Sort old and new boxes
+          - <code>+</code> old then new boxes in original order
 
           Example
           <pre>
@@ -239,6 +244,7 @@ A planner file is made of different sections. Each section corresponds to an org
            ,%:~A -- tries a A B, A C B D and d D B
            ,A -- equivalent to ,~:A. Tries  a A B and d D B
            ,%:A -- tries A B C D and d D B
+           #!,@A -- resort content of shelf A
 
 
           <h4> Tagging

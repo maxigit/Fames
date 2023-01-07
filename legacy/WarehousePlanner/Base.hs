@@ -168,9 +168,6 @@ findShelfByBox box' = do
   box <- findBox box'
   return $ boxShelf box
 
-findShelvesByBoxes :: Box' box => [box s] -> WH ([ShelfId s]) s
-findShelvesByBoxes boxes = fmap catMaybes (mapM findShelfByBox boxes)
-
 -- | find shelf by name and tag
 findShelfBySelector :: Selector (Shelf s) -> WH [ShelfId s] s
 findShelfBySelector selector = map shelfId <$> findShelfBySelector' selector
@@ -906,7 +903,7 @@ moveBoxes exitMode partitionMode sortMode bs ss = do
   let layers = groupBy ((==)  `on` boxBreak)
                $ (if sortMode == SortBoxes then sortBy (comparing boxGlobalRank) else id)
                $ boxes
-      boxGlobalRank box = (boxGlobalPriority box, boxStyle box, boxStylePriority box,  _boxDim box)
+      boxGlobalRank box = (boxGlobalPriority box, boxStyle box, boxStylePriority box,  _boxDim box, boxContent box, boxContentPriority box)
       boxBreak box = (boxStyle box, _boxDim box)
       -- \^ we need to regroup box by style and size
       -- However we take into the account priority within the style before the dimension
@@ -958,42 +955,25 @@ boxGlobalPriority  :: Box s -> Int
 boxGlobalPriority  box = p where (p, _, _) = boxPriorities box
 
 
--- | Rearrange boxes within their own shelves
--- left over are put back to 0
-rearrangeShelves :: PartitionMode -> Shelf' shelf => SortBoxes -> [shelf s] -> WH [Box s] s
-rearrangeShelves pmode smode ss = do
-    -- first we need to remove the boxes from their current location
-    boxes <- concat `fmap` mapM findBoxByShelf ss
-    let nothing = headEx $ Nothing: map Just ss -- trick to force type
-    mapM_ (\box -> assignShelf  nothing box ) boxes
-    left <- moveBoxes ExitLeft pmode smode boxes ss
-    s0 <- defaultShelf
-    mapM_ (assignShelf (Just s0)) left
-
-    return left
-
 -- | Remove boxes for shelves and rearrange
 -- shelves before doing any move
 -- aroundArrangement  :: WH a -> WH a
 aroundArrangement :: (Shelf' shelf, Box' box, Box' box2)
-                  => Maybe PartitionMode
-                  -> SortBoxes
-                  -> ([box s] -> [shelf s] -> WH [box2 s] s)
-                  -> [box s] -> [shelf s] -> WH [box2 s] s
-aroundArrangement pmodeM smode arrangement boxes shelves = do
-    let shelfIds = map shelfId shelves
-    oldShelveIds <- findShelvesByBoxes boxes
-    -- remove all boxes from their actuall shelf
-    let nothing = headEx $ Nothing : map Just shelves -- trick to typecheck
+                  => AddOldBoxes 
+                  -> (forall b . Box' b =>  [b s] -> [shelf s] -> WH [box2 s] s)
+                -> [box s] -> [shelf s] -> WH [box2 s] s
+aroundArrangement useOld arrangement newBoxishs shelves = do
+    newBoxes <- mapM findBox newBoxishs
+    boxes <- case useOld of
+              NewBoxesOnly -> return newBoxes
+              AddOldBoxes -> do
+                          oldBoxes <- concatMap reverse `fmap` mapM findBoxByShelf shelves
+                          return $ oldBoxes ++ newBoxes
+
+    let nothing = Nothing `asTypeOf` headMay shelves -- trick to typecheck
     mapM_ (assignShelf nothing) boxes
     -- rearrange what's left in each individual space
     -- so that there is as much space left as possible
-    let os = List.nub $ oldShelveIds ++ shelfIds
-
-
-    mapM_ (\pmode -> 
-      mapM_ (\s -> rearrangeShelves pmode smode s >> return ()) (map (:[]) os)
-          ) pmodeM
 
     left <- arrangement boxes shelves
     s0 <- defaultShelf

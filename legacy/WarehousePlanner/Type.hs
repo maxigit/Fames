@@ -169,6 +169,9 @@ data PartitionMode
   | POr PartitionMode PartitionMode -- ^ combination
   deriving (Show, Eq, Ord)
 
+data AddOldBoxes = NewBoxesOnly | AddOldBoxes deriving (Show, Eq, Ord, Enum)
+
+
 -- | Misc data to speed up warehouse operations
 -- depending on the value, it should be setup by the caller or the callee
 data OperationCache s  = OperationCache

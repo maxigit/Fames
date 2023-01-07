@@ -690,16 +690,12 @@ processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientation
        _         -> return ()
   boxes <- mapM findBox boxes0
   leftoverss <- forM locationM $ \location' -> do
-    let (location, (exitMode, partitionMode)) = extractModes location'
+    let (location, (exitMode, partitionMode, addOldBoxes, sortModeM)) = extractModes location'
     let locationss = map (splitOn "|") (splitOn " " location)
-        -- don't rearrange mode unless there is no boxes
-        aroundMode = case boxes of
-                       [] -> Just partitionMode
-                       _ -> Nothing
     -- reuse leftover of previous locations between " " same syntax as Layout
     foldM (\boxes locations -> do
                shelves <- findShelfBySelectors (map parseSelector locations)
-               aroundArrangement aroundMode sortMode (moveBoxes exitMode partitionMode sortMode) boxes shelves
+               aroundArrangement addOldBoxes (moveBoxes exitMode partitionMode $ fromMaybe sortMode sortModeM) boxes shelves
           ) boxes locationss
   case tags of
     [] -> return boxes
@@ -711,13 +707,18 @@ processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientation
       _ <- mapM (updateBoxTags untagOps) (concat leftoverss)
       return new
 
-extractModes :: Text -> (Text, (ExitMode, PartitionMode))
+extractModes :: Text -> (Text, (ExitMode, PartitionMode, AddOldBoxes, Maybe SortBoxes))
 extractModes modeLoc = 
-  let (modes, location) = break (`notElem` ("%~:^" :: String)) $ unpack modeLoc
-      (exits, parModes) = partition (== '^') modes 
-      exitM = case exits of
-                 '^':_ -> ExitOnTop
-                 _     -> ExitLeft
+  let (modes, location) = break (`notElem` ("%~:^@+" :: String)) $ unpack modeLoc
+      (others, parModes) = partition (`notElem` ("%~:" :: String)) modes 
+      exitM = if '^' `elem` others
+              then ExitOnTop
+              else ExitLeft
+      (addOldBoxes, sortm) = if '@' `elem` others
+                             then (AddOldBoxes, Just SortBoxes)
+                             else if '+' `elem` others
+                                  then (AddOldBoxes, Just DontSortBoxes)
+                                  else (NewBoxesOnly, Nothing)
       readMode m = case m of 
                     '~' -> PAboveOnly
                     ':' -> PRightOnly
@@ -726,7 +727,7 @@ extractModes modeLoc =
       partitionM = case map readMode parModes of
                     [] -> POr PAboveOnly PRightOnly
                     m:ms -> foldr POr m ms
-  in (pack location, (exitM, partitionM))
+  in (pack location, (exitM, partitionM, addOldBoxes, sortm))
 
 -- | read a file assigning tags to styles
 -- returns left boxes
