@@ -690,13 +690,13 @@ processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientation
        _         -> return ()
   boxes <- mapM findBox boxes0
   leftoverss <- forM locationM $ \location' -> do
-    let (location, (exitMode, partitionMode, addOldBoxes, sortModeM)) = extractModes location'
-    let locationss = map (splitOn "|") (splitOn " " location)
     -- reuse leftover of previous locations between " " same syntax as Layout
     foldM (\boxes locations -> do
-               shelves <- findShelfBySelectors (map parseSelector locations)
+               let (location, (exitMode, partitionMode, addOldBoxes, sortModeM)) = extractModes locations
+               let locationss = splitOn "|" location
+               shelves <- findShelfBySelectors (map parseSelector locationss)
                aroundArrangement addOldBoxes (moveBoxes exitMode partitionMode $ fromMaybe sortMode sortModeM) boxes shelves
-          ) boxes locationss
+          ) boxes (splitOn " " location')
   case tags of
     [] -> return boxes
     _  -> do
