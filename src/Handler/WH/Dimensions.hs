@@ -314,10 +314,10 @@ innerBoxes outer@(Dimension lo wo ho) inner =
       -- try with shrunk box by 1 cm first
       best0 = bestArrangement orientations [(outer, outer, ())] inner
       shrink (Dimension x y z) = Dimension (x-1) (y-1) (z-1)
-      best = bestArrangement orientations [(shrink outer, shrink outer, ())] inner
-      (ori,_,  nl, nw, nh, _) = case best of
-         (__ori, _, nl_, nw_, nh_, _) | nl_*nw_*nh_ > 0 -> best
-         _ -> best0
+      best@(_,tilingMode,_) = bestArrangement orientations [(shrink outer, shrink outer, ())] inner
+      (ori, (Regular (HowMany _ nl nw nh)), _) = if tmTotal tilingMode > 0
+                                then best
+                                else best0
       (Dimension l w h) = W.rotate ori inner
       gap = Dimension (lo - fromIntegral nl*l) (wo - fromIntegral nw * w) ( ho - fromIntegral nh * h)
   in (reverse $ [ PDimension (Dimension l0 w0 h0) inner ori

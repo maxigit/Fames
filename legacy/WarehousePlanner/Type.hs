@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module WarehousePlanner.Type where
 import Prelude
+import Data.NonNull
 import Control.Monad.State
 import Diagrams.Prelude(Colour)
 import Data.STRef
@@ -57,24 +58,52 @@ data Limit = Limit
 -- the normal of the given face.
 data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
 
+data HowMany = HowMany 
+             { perShelf :: Int
+             , perLength :: Int
+             , perDepth :: Int
+             , perHeight :: Int
+             } deriving (Show) --  manual => , Eq, Ord)
+             
+instance Eq HowMany where a == b = perShelf a == perShelf b
+instance Ord HowMany where compare a b = compare (perShelf a) (perShelf b)
+         
+mkHowMany :: Int -> Int -> Int -> HowMany
+mkHowMany l w h = HowMany (l*w*h) l w h
 
--- | Size of the square to repeat
--- in Diagonal configuration
+
+-- | Way boxes are arranged.
+-- For Diagonal, Size of the square to repeat
+-- in diagonal configuration
 -- example
 --     - - |
 --     - | -
 --     | - -
 -- 0 (or 1) means no diagonal
-newtype Diagonal = Diagonal Int deriving (Eq, Show, Ord)
-isDiagonal :: Diagonal -> Bool
-isDiagonal (Diagonal n) = n >= 2
-
-showOrientationWithDiag :: Orientation -> Diagonal -> Text
-showOrientationWithDiag or diag@(Diagonal n) | isDiagonal diag =
-  "[" <> show_ (rotateO or) <> Data.Text.replicate (n-1) (show_ or) <> "]"
+data TilingMode = Regular HowMany
+                | Diagonal HowMany Int
+                | TilingCombo Direction TilingMode TilingMode
+                deriving (Eq, Show)
+                
+instance Ord TilingMode where
+         compare a b = case tmTotal b `compare` tmTotal a of
+                            EQ -> rank a `compare` (rank b :: Int)
+                            c -> c
+                       where rank Regular{} = 1 :: Int
+                             rank (TilingCombo _ m n) = rank m + rank n
+                             rank Diagonal{} = 3
+                
+showOrientationWithDiag :: Orientation -> TilingMode -> Text
+showOrientationWithDiag or tilingMode = 
+  case tilingMode of
+       (Regular _) -> show_ or
+       (Diagonal  _ n ) -> "[" <> show_ (rotateO or) <> Data.Text.replicate (n-1) (show_ or) <> "]"
+       (TilingCombo dir m1 m2) -> showOrientationWithDiag or m1 <> showD dir <> showOrientationWithDiag (rotateO or) m2
   where show_ = dropEnd 1 . showOrientation
-showOrientationWithDiag or _ =
-  showOrientation or
+        showD dir = case dir of
+                      Horizontal -> "→"
+                      Vertical -> "↑"
+                      Depth -> "⊙"
 
 -- | Possible orientations plus min max depth
 data OrientationStrategy  = OrientationStrategy
@@ -303,6 +332,35 @@ volume :: Dimension -> Double
 volume (Dimension l w h) = l*w*h
 floorSpace :: Dimension -> Double
 floorSpace (Dimension l w _) = l*w
+-- ** Tiling
+tmTotal :: TilingMode -> Int
+tmTotal (Regular hmany) = perShelf hmany
+tmTotal (Diagonal hmany _) = perShelf hmany
+tmTotal (TilingCombo _ t1 t2) = tmTotal t1 + tmTotal t2
+
+tmLength :: TilingMode -> Int
+tmLength (Regular hmany) = perLength hmany
+tmLength (Diagonal hmany _) = perLength hmany
+tmLength (TilingCombo Horizontal t1 t2) = tmLength t1 + tmLength t2
+tmLength (TilingCombo _ t1 t2) = tmLength t1 `max` tmLength t2
+
+tmDepth :: TilingMode -> Int
+tmDepth (Regular hmany) = perDepth hmany
+tmDepth (Diagonal hmany _) = perDepth hmany
+tmDepth (TilingCombo Depth t1 t2) = tmDepth t1 + tmDepth t2
+tmDepth (TilingCombo _ t1 t2) = tmDepth t1 `max` tmDepth t2
+
+tmHeight :: TilingMode -> Int
+tmHeight (Regular hmany) = perHeight hmany
+tmHeight (Diagonal hmany _) = perHeight hmany
+tmHeight (TilingCombo Vertical t1 t2) = tmHeight t1 + tmHeight t2
+tmHeight (TilingCombo _ t1 t2) = tmHeight t1 `max` tmHeight t2
+
+tmHowManys :: TilingMode -> NonNull [HowMany]
+tmHowManys (Regular hmany) = ncons hmany []
+tmHowManys (Diagonal hmany _) = ncons hmany []
+tmHowManys (TilingCombo _ m1 m2) = tmHowManys m1 <> tmHowManys m2
+
 -- ** Boxes 
 
 -- ** Orientations 

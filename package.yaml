@@ -93,6 +93,7 @@ dependencies:
 - tagged
 - iso3166-country-codes
 - ghc
+- mono-traversable
 default-extensions:
 - TemplateHaskell
 - QuasiQuotes

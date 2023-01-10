@@ -60,9 +60,9 @@ bestBoxesFor (extractRanking -> (ranking, shelf)) = do
         boxes = Map'.elems groups
     let bors = map (\b -> (b, getOr b)) boxes
     let s  = headEx shelves
-        tries = [ (-(usedRatio ranking box {orientation = or} s n k m), box)
+        tries = [ (-(usedRatio ranking box {orientation = or} s tilingMode), box)
             | (box, ors) <- bors
-            , let (or,_,n,k,m,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
+            , let (or, tilingMode,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
             ]
 
         bests = sortBy (compare `on` fst) tries
@@ -82,15 +82,17 @@ bestHeightForShelf shelf = do
     let bors = map (\b -> (b, getOr b)) boxes
 
     let s  = headEx shelves
-        tries = [ (-((fromIntegral (n*k*m))*boxVolume box / shelfVolume s), (box, or, diag, (n,k,m)))
-            | (box, ors) <- bors
-            , let (or,diag,n,k,m,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
-            ]
+        tries = [ (-((fromIntegral $ tmTotal tilingMode)*boxVolume box / shelfVolume s), (box, or, tilingMode))
+                | (box, ors) <- bors
+                , let (or,tilingMode,_) = bestArrangement (ors s) [(minDim s, maxDim s, s)] (_boxDim box)
+                ]
 
         bests = sortBy (compare `on` fst) tries
-        reportHeight shelf_  (box, or, diag, (n,k,__m)) = do
+        reportHeight shelf_  (box, or, tilingMode) = do
           similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
           let box' = box { orientation = or }
+              n = tmLength tilingMode
+              k = tmDepth tilingMode
           let lengthRatio = ( dLength (boxDim box') * (fromIntegral n)
                             / dLength (minDim shelf_)
                             )
@@ -104,7 +106,7 @@ bestHeightForShelf shelf = do
 
           return $ putStrLn $ "box: " <> boxStyle box
             <> ", height: " <> (pack $ printf " %0.2f (%0.2f)" recommendedHeight height)
-            <> " " <> showOrientationWithDiag or diag
+            <> " " <> showOrientationWithDiag or tilingMode
             <> (pack $ printf " %dx%dx%d" n k (floor (recommendedHeight/height) :: Int))
             <> (pack $ printf " H:%0.1f%%" (100*lengthRatio))
             <> (pack $ printf " (%0.1f%%)" (100*lengthRatio*widthRatio))
@@ -117,15 +119,15 @@ report :: Ranking -> Shelf s -> Box s -> WH Text s
 report ranking shelf box = do
     getOr <- gets boxOrientations
     similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
-    let (or,diag,n,k,m,_) = bestArrangement (getOr box shelf) [(minDim shelf, maxDim shelf, shelf)] (_boxDim box)
-        ratio = usedRatio ranking box {orientation = or} shelf n k m
+    let (or,tilingMode,_) = bestArrangement (getOr box shelf) [(minDim shelf, maxDim shelf, shelf)] (_boxDim box)
+        ratio = usedRatio ranking box {orientation = or} shelf tilingMode
         numberOfBoxes = length similarBoxes
-        shelvesNeeded = fromIntegral numberOfBoxes / fromIntegral (n*m*k)
+        shelvesNeeded = fromIntegral numberOfBoxes / fromIntegral (tmTotal tilingMode)
     return $ "box: " <> boxStyle box <> ", shelf: " <> shelfName shelf
-                        <> " " <> showOrientationWithDiag or diag
+                        <> " " <> showOrientationWithDiag or tilingMode
                         <> (pack $ printf " %0.1f%%" (ratio*100))
-                        <> (pack $ printf " %dx%dx%d" n k m)
-                        <> (pack $ printf " (%d)" (n*m*k))
+                        <> " " <> (showHowManysFor tilingMode)
+                        <> (pack $ printf " (%d)" (tmTotal tilingMode))
                         <> (pack $ printf " : %d b -> %0.1f s " numberOfBoxes (shelvesNeeded :: Double))
   
                         -- <> tshow (_boxDim box) <> tshow (maxDim shelf)
@@ -322,9 +324,18 @@ boxesReport = do
 
   where -- report_ :: Box s -> WH (IO ()) s
         report_ (shelf, box) = do
-          let ((nl, nw, nh), diag) = howManyWithDiagonal (minDim shelf) (maxDim shelf) (boxDim box)
-          return $ printf "%s,%s,%s,%s,%dx%dx%d\n" (boxStyle box) (boxContent box) (shelfName shelf) (showOrientationWithDiag (orientation box) diag) nl nw nh
+          let tilingMode = howManyWithDiagonal (minDim shelf) (maxDim shelf) (boxDim box)
+          return $ printf "%s,%s,%s,%s,%s\n" (boxStyle box) (boxContent box) (shelfName shelf) (showOrientationWithDiag (orientation box) tilingMode) (showHowManysFor tilingMode)
   
+showHowMany :: HowMany -> Text
+showHowMany (HowMany _ l w h) = intercalate "x" $ map tshow [l,w,h]
+
+showHowManys :: NonNull [HowMany] -> Text
+showHowManys hms = intercalate "|" $  map showHowMany (toList hms)
+
+showHowManysFor :: TilingMode -> Text
+showHowManysFor = showHowManys . tmHowManys
+
 -- * Compatible with warehouse planner input 
 -- | Generates moves from actual styles positions, ie find all shelves
 -- for  a given styles
@@ -617,8 +628,8 @@ findResidual :: [OrientationStrategy] -> Shelf s -> Box s -> Int -> Int -> Maybe
 findResidual orientations shelf box qty nbOfShelf = let
   sdim = maxDim shelf
   bdim = _boxDim box
-  (or,_, nl, nw, nh, ()) = bestArrangement orientations [(minDim shelf, sdim, ())] bdim
-  in case nl*nw*nh of
+  (or,tilingMode, ()) = bestArrangement orientations [(minDim shelf, sdim, ())] bdim
+  in case tmTotal tilingMode of
     0 -> Nothing
     nbPerShelf -> let
       (used, left) = qty `divMod` nbPerShelf
