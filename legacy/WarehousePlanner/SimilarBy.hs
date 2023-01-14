@@ -13,9 +13,10 @@ import Prelude
 import Data.List(groupBy, sortOn)
 import Data.Function(on)
 
-data SimilarBy k a = SimilarByPrivate k a [a]
+data SimilarBy k a = SimilarByPrivate k a [a] deriving Show
 
 
+{-# COMPLETE SimilarBy #-}
 pattern SimilarBy :: k -> a -> [a] -> SimilarBy k a
 pattern SimilarBy k x xs <- SimilarByPrivate k x xs
 

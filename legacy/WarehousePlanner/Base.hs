@@ -799,79 +799,42 @@ tmBoundingBox (TilingCombo dir m1 m2) box = let
 
 
 type SimilarBoxes s = SimilarBy Dimension (Box s)
--- Move "physicaly" a box into a shelf if there is enough space
--- Boxes are supposed to be the same size.
--- Sometime we want to arrange boxes in column across boxes
--- In that case, instead of filling the bottom shelf as much as we can
--- we need to fill only one column, go to the next shelves, then
--- start again with the bottom boxes with the remaining shelves.
--- This the purpose of the ExitOnTop mode.
--- | List of "similar" object. In case of boxes of the same dimension.
--- This type is just for information.
--- There is nothign to enforce the object similarity.
--- return the shelf itself if not empty
-fillShelf :: (Shelf' shelf)
-          => ExitMode
-          -> PartitionMode
-          -> shelf s
-          -> SimilarBoxes s
-          -> WH ( Maybe (SimilarBoxes s)
-                , Maybe (Shelf s)
-                )  s
-fillShelf exitMode partitionMode s simBoxes = do
-    let SimilarBy dim box bs = simBoxes
-    shelf <- findShelf s
-    let boxes = box : bs
-    -- first we need to find how much space is left
-    Dimension lused wused hused <- maxUsedOffset shelf
-    boxesInShelf <- findBoxByShelf shelf
-    case  (boxBreak box, lused*hused*wused > 0) of
-      (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
-      _ -> do
-        boxo <- gets boxOrientations
-        let orientations = boxo box shelf
-        let (bestO, tilingMode, (lused', hused')) =
-                            bestArrangement orientations
-                                              [( minDim shelf <> used, maxDim shelf <> used, (l,h))
-                                              -- [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
-                                              -- | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
-                                            -- try min and max. Choose min if  possible
-                                              | (l,h) <- let go pmode =
-                                                                case pmode of
-                                                                  PAboveOnly -> [(0,hused)]
-                                                                  PRightOnly -> [(lused, 0)]
-                                                                  PBestEffort -> case bestEffort boxesInShelf of
-                                                                                  -- remove corners if more than 3 options
-                                                                                  xs@(_:_:_:_) -> drop 1 $ dropEnd 1 $ xs
-                                                                                  xs -> xs
-                                                                  POr m1 m2 -> go m1 ++ go m2
-                                                         in go partitionMode
-                                              , let used = Dimension (min 0 (0-l)) 0 (min 0 (0-h))
-                                              ] dim
-            rotated = rotate bestO dim
-            base = Dimension lused' 0 hused'
-            offsets = map (fmap ( <> base)) $ generateOffsets exitMode (shelfFillingStrategy shelf) bestO rotated tilingMode
-            -- but within the box potentially move 
-            box'Offsets = assignOffsetWithBreaks snd (shelfFillingStrategy shelf) Nothing boxes offsets
-        -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
-        mapM_ (\(box, (ori, offset)) -> shiftBox ori box offset) box'Offsets
-        let leftm = dropSimilar (length box'Offsets) simBoxes
-        case (box'Offsets, exitMode) of
-            ([], _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
-            (_ , ExitOnTop) -> return (leftm, Just shelf) --  ^ exit on top, we stop there, but the shelf is not full
-            (_, ExitLeft) -> return (leftm, Nothing)  --  ^ pretends the shelf is full
-            -- _ ->  fillShelfm exitMode  shelf leftm --  ^ try to fit what's left in the same shelf
 
-    where shiftBox ori box' offset = do
-            _ <- updateBox (\box_ -> box_ { orientation = ori
-                               , boxOffset = offset}) box'
-            assignShelf (Just s) box'
-          -- fillShelfm x s Nothing = return (Nothing, Just s)
-          -- fillShelfm x s (Just lefts_) = fillShelf x s lefts_
-            
-generateIndices :: ExitMode -> FillingStrategy -> HowMany -> [(Int, Int, Int)]
-generateIndices exitMode fillingStrategy (HowMany {..}) = let
-  nl = if exitMode == ExitLeft then perLength else min 1 perLength
+-- | Find the  best box positions for similar boxes and a given shelf.
+-- This takes into account the boxes already present in the shelf and
+-- the possible orientation and shelf strategy.
+bestPositions :: PartitionMode -> Shelf s -> SimilarBoxes s -> WH [(Orientation, Dimension)] s
+bestPositions partitionMode shelf simBoxes = do
+  let SimilarBy dim box _ = simBoxes
+  Dimension lused _wused hused <- maxUsedOffset shelf
+  boxesInShelf <- findBoxByShelf shelf
+  boxo <- gets boxOrientations
+  let orientations = boxo box shelf
+      (bestO, tilingMode, (lused', hused')) =
+                      bestArrangement orientations
+                                        [( minDim shelf <> used, maxDim shelf <> used, (l,h))
+                                        -- [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
+                                        -- | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
+                                      -- try min and max. Choose min if  possible
+                                        | (l,h) <- let go pmode =
+                                                          case pmode of
+                                                            PAboveOnly -> [(0,hused)]
+                                                            PRightOnly -> [(lused, 0)]
+                                                            PBestEffort -> case bestEffort boxesInShelf of
+                                                                            -- remove corners if more than 3 options
+                                                                            xs@(_:_:_:_) -> drop 1 $ dropEnd 1 $ xs
+                                                                            xs -> xs
+                                                            POr m1 m2 -> go m1 ++ go m2
+                                                   in go partitionMode
+                                        , let used = Dimension (min 0 (0-l)) 0 (min 0 (0-h))
+                                        ] dim
+      rotated = rotate bestO dim
+      base = Dimension lused' 0 hused'
+  return $ map (fmap ( <> base)) $ generatePositions (shelfFillingStrategy shelf) bestO rotated tilingMode
+  
+generateIndices :: FillingStrategy -> HowMany -> [(Int, Int, Int)]
+generateIndices fillingStrategy (HowMany {..}) = let
+  nl = perLength
   nw = perDepth
   nh = perHeight
   in  case fillingStrategy of
@@ -893,31 +856,31 @@ generateIndices exitMode fillingStrategy (HowMany {..}) = let
        -- it seems a better solution
        -- if modified modify assignOffsetWithBreaks accordingly
 
-generateOffsets :: ExitMode -> FillingStrategy -> Orientation -> Dimension -> TilingMode -> [(Orientation, Dimension)]
-generateOffsets exitMode fillingStrategy ori (Dimension l' w' h') (Regular hmany) =
+generatePositions :: FillingStrategy -> Orientation -> Dimension -> TilingMode -> [(Orientation, Dimension)]
+generatePositions fillingStrategy ori (Dimension l' w' h') (Regular hmany) =
   [( ori
    , Dimension (l'*fromIntegral il)
                (w'* fromIntegral iw)
                (h'*fromIntegral ih)
    )
-  | (il, iw ,ih) <-  generateIndices exitMode fillingStrategy hmany
+  | (il, iw ,ih) <-  generateIndices fillingStrategy hmany
   ]
-generateOffsets exitMode fillingStrategy ori boxDim (Diagonal hmany diag) = let
+generatePositions fillingStrategy ori boxDim (Diagonal hmany diag) = let
   go indices =  let
      (dim, turned) = indexToOffsetDiag boxDim diag indices
      newOrientation = if turned then rotateO ori else ori
      in (newOrientation, dim)
-  in map go $ generateIndices exitMode fillingStrategy hmany
+  in map go $ generateIndices fillingStrategy hmany
 
-generateOffsets exitMode fillingStrategy ori boxDim (TilingCombo dir m1 m2) = let
-  offsets1 = generateOffsets exitMode fillingStrategy ori boxDim m1
-  offsets2 = generateOffsets exitMode fillingStrategy (rotateO ori) (rotate tiltedRight boxDim) m2
+generatePositions fillingStrategy ori boxDim (TilingCombo dir m1 m2) = let
+  positions1 = generatePositions fillingStrategy ori boxDim m1
+  positions2 = generatePositions fillingStrategy (rotateO ori) (rotate tiltedRight boxDim) m2
   Dimension l w h = tmBoundingBox m1 boxDim
   base2 = case ( dir) of
                Horizontal -> Dimension l 0 0 
                Depth -> Dimension 0 w 0
                Vertical -> Dimension 0 0 h
-  in offsets1 ++ map (fmap (base2<>)) offsets2
+  in positions1 ++ map (fmap (base2<>)) positions2
 
 
                
@@ -1034,20 +997,103 @@ _roundDim (Dimension l w h) = map (round . (*100)) [l,w,h]
  
 -- | Move boxes of similar size to the given shelf if possible
 moveSimilarBoxes :: (Shelf' shelf) => ExitMode -> PartitionMode -> SimilarBoxes s -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
-moveSimilarBoxes exitMode partitionMode bs ss = moveSimilarBoxesAndRetry exitMode partitionMode bs ss []
-
--- | moves boxes into give shelf and retry nonfull shelves until all necessary
--- useful to fill selves using ExitONTop strategy
-moveSimilarBoxesAndRetry :: (Shelf' shelf) => ExitMode -> PartitionMode -> SimilarBoxes s -> [shelf s] -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
-moveSimilarBoxesAndRetry _ _ boxes [] [] = return (Just boxes)
-moveSimilarBoxesAndRetry exitMode partitionMode bs [] trieds = moveSimilarBoxesAndRetry exitMode partitionMode bs (reverse trieds) [] -- can loop but normally ss is null
-moveSimilarBoxesAndRetry exitMode partitionMode boxes  (s:ss') trieds = do
-    left <- fillShelf exitMode partitionMode s boxes
-    case left of
-        (Nothing , _) -> return Nothing
-        (Just bs', Nothing)  -> moveSimilarBoxesAndRetry exitMode partitionMode bs' (ss') trieds -- discard current Shelf
-        (Just bs', Just _)  -> moveSimilarBoxesAndRetry exitMode partitionMode bs' ss' (s:trieds)
-
+moveSimilarBoxes exitMode partitionMode boxes shelves' = do
+  shelves <- mapM findShelf shelves'
+  positionss <- mapM (\s -> bestPositions partitionMode s boxes) shelves
+  let    positionsWithShelf = sortPositions  exitMode $ zip shelves positionss
+  assignBoxesToPositions positionsWithShelf boxes
+  
+-- | Sort positions (box offsets), so that they are in order to be assigned
+-- according to the 'exitmode' and filling strategy.
+--
+--      ExitLeft RowFirst  : shelf -> height
+--      7 8  | 9 
+--      -----+--
+--           | 6 
+--      4  5 |  
+--      1  2 | 3
+--
+--      ExitLeft ColumFirst  : length -> shelf
+--      7 8  | 9 
+--      -----+--
+--           | 6 
+--      2  4 |  
+--      1  3 | 5
+--
+--      ExitOnTop RowFirst : shelf -> height
+--      5 6  | 9 
+--      -----+--
+--           | 8 
+--      3  4 |  
+--      1  2 | 7
+--
+--      ExitOnTop ColumFirst : length -> shelf
+--      3 4  | 9 
+--      -----+--
+--           | 8 
+--      2  6 |  
+--      1  5 | 7
+--
+-- depending on exitMode and their filling strategy,
+-- consecutives shelves must be seen at one or not.
+-- The sorting can then be done by group of shelf with the same
+-- strategy.
+sortPositions ::ExitMode -> [(Shelf s , [(Orientation, Dimension)])] -> [(Shelf s, (Orientation, Dimension))]
+sortPositions exitMode shelf'positionss = concatMap sortGroup sameStrategy where
+  sameStrategy :: [SimilarBy FillingStrategy (_s ,[(Orientation, Dimension)])]
+  sameStrategy = groupSimilar (shelfFillingStrategy . fst) shelf'positionss
+  sortGroup :: SimilarBy FillingStrategy (_s, [(Orientation, Dimension)]) -> [(_s, (Orientation, Dimension))]
+  sortGroup (SimilarBy strategy s'p shelf'positions) = let
+    shelf'pos'i = [ (i, (shelf, pos))
+                  | ((shelf, poss), i) <- zip (s'p:shelf'positions) [1..]
+                  , pos <- poss
+                  ]
+    in map snd $ sortOn (rank strategy) shelf'pos'i
+  rank strategy (i, (_, (_,dim))) = case (exitMode, strategy) of
+                        (ExitLeft, RowFirst) -> (1, dHeight dim, i) -- height then shelf
+                        (ExitLeft, ColumnFirst) -> (i, dLength dim ,1) -- shelf then length
+                        (ExitOnTop, RowFirst) -> (i, dHeight dim, 1)
+                        (ExitOnTop, ColumnFirst) -> (1, dLength dim, i)
+  
+-- | Assign boxes to positions in order (like a zip) but with respect to box breaks.
+-- (skip to the next column if column break for example)
+assignBoxesToPositions :: [(Shelf s, (Orientation, Dimension))] -> SimilarBoxes s -> WH (Maybe (SimilarBoxes s)) s
+assignBoxesToPositions shelf'positions  simBoxes = do
+  let boxes = unSimilar simBoxes
+  let go _ [] = return []
+      go es_ allboxes@(box:boxes) =
+        case (boxBreak box, es_) of
+             (_, []) -> return $ allboxes
+             (Nothing, Right p's : es) -> shiftBox box p's >> go es boxes
+             (Nothing, Left break : es) -> go es allboxes
+             -- (Just bbreak, Left break' : es ) | bbreak <= break' -> go es boxes
+             -- (Just bbreak, Left _ : es ) -> go es boxes
+             (Just bbreak, _) -> go (dropUntil bbreak es_) allboxes
+      dropUntil _  [] = []
+      dropUntil bbreak (Left break : xs) | bbreak <= break = xs
+      dropUntil bbreak (x : xs) = dropUntil bbreak xs
+      shiftBox box (shelf, (orientation, offset)) = do
+            _ <- updateBox (\box_ -> box_ { orientation = orientation
+                                          , boxOffset = offset}) box
+            assignShelf (Just shelf) box
+  leftOver <- go (addBreakDelimiters shelf'positions) boxes 
+  return $ dropSimilar (length boxes - length leftOver) simBoxes
+  
+-- | Add BoxBreak, new slot, new shelf
+addBreakDelimiters :: [(Shelf s, (Orientation, Dimension))] -> [Either BoxBreak (Shelf s, (Orientation, Dimension))]
+addBreakDelimiters poss = concat $ zipWith go poss (Nothing: map Just poss)
+    where go pos Nothing = [Left StartNewShelf , Right pos ]
+          go pos (Just prev) = let
+             (s, (orientation, dimension)) = pos
+             (s', (orientation', dimension')) = prev
+             in case shelfFillingStrategy s of
+                  _ | s == s' -> [ Left StartNewShelf , Right pos ]
+                  -- we are guarantee that the strategy is the same
+                  ColumnFirst | dLength dimension /= dLength dimension' -> [ Left StartNewSlice , Right pos ]
+                  ColumnFirst | dHeight dimension /= dHeight dimension' -> [ Left StartNewSlot , Right pos ]
+                  RowFirst | dHeight dimension /= dHeight dimension' -> [ Left StartNewSlice , Right pos ]
+                  RowFirst | dLength dimension /= dLength dimension' -> [ Left StartNewSlot , Right pos ]
+                  _ -> [ Right pos ]
 
 boxRank :: Box s -> (Text, Int, Text, Int)
 boxRank box = ( boxStyle box , boxStylePriority box, boxContent box, boxContentPriority box)
