@@ -1045,15 +1045,20 @@ sortPositions exitMode shelf'positionss = concatMap sortGroup sameStrategy where
   sortGroup :: SimilarBy FillingStrategy (_s, [(Orientation, Dimension)]) -> [(_s, (Orientation, Dimension))]
   sortGroup (SimilarBy strategy s'p shelf'positions) = let
     shelf'pos'i = [ (i, (shelf, pos))
-                  | ((shelf, poss), i) <- zip (s'p:shelf'positions) [1..]
+                  | ((shelf, poss), i) <- zip (s'p:shelf'positions) [(1::Int)..]
                   , pos <- poss
                   ]
     in map snd $ sortOn (rank strategy) shelf'pos'i
-  rank strategy (i, (_, (_,dim))) = case (exitMode, strategy) of
-                        (ExitLeft, RowFirst) -> (1, dHeight dim, i) -- height then shelf
-                        (ExitLeft, ColumnFirst) -> (i, dLength dim ,1) -- shelf then length
-                        (ExitOnTop, RowFirst) -> (i, dHeight dim, 1)
-                        (ExitOnTop, ColumnFirst) -> (1, dLength dim, i)
+  rank strategy (i, (s, (_,dim))) = 
+                let offset x y = x dim + y dim * (fromIntegral i + x (maxDim s ) / x dim)
+                    -- trick to solve diagonal tiling across multiple shelf
+                    -- boxes are shifted of 1 width for each shelf
+                    -- and proportional to the height
+                in case (exitMode, strategy) of
+                        (ExitLeft, RowFirst) -> (1, offset dHeight dLength , i) -- height then shelf
+                        (ExitLeft, ColumnFirst) -> (i, offset dLength dHeight ,1) -- shelf then length
+                        (ExitOnTop, RowFirst) -> (i, offset dHeight dLength , 1)
+                        (ExitOnTop, ColumnFirst) -> (1, offset dLength dHeight, i)
   
 -- | Assign boxes to positions in order (like a zip) but with respect to box breaks.
 -- (skip to the next column if column break for example)
