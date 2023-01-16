@@ -799,11 +799,80 @@ tmBoundingBox (TilingCombo dir m1 m2) box = let
 
 
 type SimilarBoxes s = SimilarBy Dimension (Box s)
+data Position = Position
+              { pOffset :: Dimension
+              , pOrientation :: Orientation
+              }
+     deriving (Eq, Show, Ord)
+
+-- | An ordered list. Modifying it using fmap doesn't reorder it.
+-- It is so that we can work with infinite list.
+-- Therefore fmap should be used with caution and make sure
+-- the order is kept.
+newtype OrderedList a = OrderedList [a] deriving (Eq, Show, Foldable, Functor)
+
+newtype Slot k a = Slot (OrderedList (k, a))
+  deriving (Eq, Show, Functor)
+newtype Slice k a = Slice (OrderedList (k, Slot k a))
+  deriving (Eq, Show, Functor)
+-- | Everything within slices are supposed to be sorted according
+-- the k. When using fmap (etc) only monotone function should be used.
+newtype Slices k a = Slices (OrderedList (k, Slice k a))
+  deriving (Eq, Show, Functor)
+
+{-# COMPLETE SlotO #-}
+pattern SlotO xs = Slot (OrderedList xs)
+{-# COMPLETE SliceO #-}
+pattern SliceO xs  = Slice (OrderedList xs)
+{-# COMPLETE SlicesO #-}
+pattern SlicesO xs = Slices (OrderedList xs)
+  
+mergeWith :: Ord k => (a -> a -> [a]) -> OrderedList (k, a) -> OrderedList (k, a) -> OrderedList (k, a)
+mergeWith combine (OrderedList xs) (OrderedList ys) = OrderedList (go xs ys) where
+    go [] ys = ys
+    go xs [] = xs
+    go (x:xs) (y:ys) = 
+      case compare (fst x) (fst y) of
+        LT -> x : go xs (y:ys)
+        EQ -> (map (\v -> (fst x,v)) ( snd x `combine` snd y)) <> go xs ys
+        GT -> y : go (x:xs) ys
+
+
+instance Ord k => Semigroup (Slot k a) where
+  Slot xs <> Slot ys = Slot (mergeWith (\a b -> [a,b]) xs ys)
+  
+instance Ord k => Monoid (Slot k a) where
+  mempty = Slot (OrderedList [])
+  
+instance Ord k => Semigroup (Slice k a) where
+  Slice xs <> Slice ys = Slice (mergeWith (\a b -> [a <> b]) xs ys)
+  
+instance Ord k => Monoid (Slice k a) where
+  mempty = Slice (OrderedList [])
+  
+instance Ord k => Semigroup (Slices k a) where
+  Slices xs <> Slices ys = Slices (mergeWith (\a b -> [a <> b]) xs ys)
+  
+instance Ord k => Monoid (Slices k a) where
+  mempty = Slices (OrderedList [])
+  
+instance Bifunctor Slot where
+  bimap l r (Slot key'poss) = Slot $ fmap (bimap l r) key'poss
+  
+instance Bifunctor Slice where
+  bimap l r (Slice key'slots) = Slice $ fmap (bimap l (bimap l r)) key'slots
+  
+instance Bifunctor Slices where
+  bimap l r (Slices key'slices) = Slices $ fmap (bimap l (bimap l r)) key'slices
+  
+
+         
+
 
 -- | Find the  best box positions for similar boxes and a given shelf.
 -- This takes into account the boxes already present in the shelf and
 -- the possible orientation and shelf strategy.
-bestPositions :: PartitionMode -> Shelf s -> SimilarBoxes s -> WH [(Orientation, Dimension)] s
+bestPositions :: PartitionMode -> Shelf s -> SimilarBoxes s -> WH (Slices Double Position) s
 bestPositions partitionMode shelf simBoxes = do
   let SimilarBy dim box _ = simBoxes
   Dimension lused _wused hused <- maxUsedOffset shelf
@@ -830,75 +899,64 @@ bestPositions partitionMode shelf simBoxes = do
                                         ] dim
       rotated = rotate bestO dim
       base = Dimension lused' 0 hused'
-  return $ map (fmap ( <> base)) $ generatePositions (shelfFillingStrategy shelf) bestO rotated tilingMode
+  return $ generatePositions base (shelfFillingStrategy shelf) bestO rotated tilingMode
   
-generateIndices :: FillingStrategy -> HowMany -> [(Int, Int, Int)]
-generateIndices fillingStrategy (HowMany {..}) = let
-  nl = perLength
-  nw = perDepth
-  nh = perHeight
-  in  case fillingStrategy of
-                    ColumnFirst -> [(il, iw, ih)
-                        | il <- [0..nl-1]
-                        , ih <- [0..nh-1]
-                        , iw <- [0..nw-1]
-                        ]
-                    RowFirst -> [(il, iw, ih)
-                        | ih <- [0..nh-1]
-                        , il <- [0..nl-1]
-                        , iw <- [0..nw-1] -- width first
-                        ]
-       -- \^ with the current algorithm only looking
-       -- at the length and height used (and ignoring the depth )
-       -- we need to fill the depth (width) first, whichever filling row or column first
-       -- this might not be the expected Deadzone behavior but until we try
-       -- to find the biggest brick available (instead of the biggest 2d rectangle)
-       -- it seems a better solution
-       -- if modified modify assignOffsetWithBreaks accordingly
+buildSlices :: Int -> Int -> Int -> (Int -> k) -> (Int -> Int -> k) ->  (Int -> Int -> Int -> (k, a)) -> Slices k a
+buildSlices nbOfSlices nbOfSlots nbPerSlot mkSliceIndex mkSlotIndex mkPos = let
+  mkSlice sliceIndex = 
+    (mkSliceIndex sliceIndex, Slice . OrderedList $ map (mkSlot sliceIndex) [0..nbOfSlots - 1])
+  mkSlot sliceIndex slotIndex =
+    (mkSlotIndex sliceIndex slotIndex, Slot . OrderedList $ map (mkPos sliceIndex slotIndex ) [0..nbPerSlot - 1])
+  in Slices . OrderedList $ map mkSlice [0..nbOfSlices - 1]
 
-generatePositions :: FillingStrategy -> Orientation -> Dimension -> TilingMode -> [(Orientation, Dimension)]
-generatePositions fillingStrategy ori (Dimension l' w' h') (Regular hmany) =
-  [( ori
-   , Dimension (l'*fromIntegral il)
-               (w'* fromIntegral iw)
-               (h'*fromIntegral ih)
-   )
-  | (il, iw ,ih) <-  generateIndices fillingStrategy hmany
-  ]
-generatePositions fillingStrategy ori boxDim (Diagonal hmany diag) = let
-  go indices =  let
-     (dim, turned) = indexToOffsetDiag boxDim diag indices
-     newOrientation = if turned then rotateO ori else ori
-     in (newOrientation, dim)
-  in map go $ generateIndices fillingStrategy hmany
 
-generatePositions fillingStrategy ori boxDim (TilingCombo dir m1 m2) = let
-  positions1 = generatePositions fillingStrategy ori boxDim m1
-  positions2 = generatePositions fillingStrategy (rotateO ori) (rotate tiltedRight boxDim) m2
+generatePositions :: Dimension -> FillingStrategy -> Orientation -> Dimension -> TilingMode -> Slices Double Position
+generatePositions base fillingStrategy ori (Dimension l' w' h') (Regular HowMany{..}) = 
+  case fillingStrategy of
+    ColumnFirst -> let
+     mkPos il ih iw = (k2w iw, Position (mkDim (i2l il) (k2w iw) (j2h ih)) ori)
+     in buildSlices perLength perHeight perDepth i2l (\_ j -> j2h j) mkPos 
+    RowFirst -> let
+     mkPos ih il iw = (k2w iw, Position (mkDim (i2l il) (k2w iw) (j2h ih)) ori)
+     in buildSlices perHeight perLength perDepth j2h (\_ i -> i2l i) mkPos 
+  where
+     i2l i = l' * fromIntegral i + dLength base
+     j2h j = h' * fromIntegral j + dHeight base
+     k2w k = w' * fromIntegral k + dWidth base
+     mkDim l w h = Dimension l w h
+
+generatePositions base fillingStrategy ori boxDim (Diagonal HowMany{..} diag) =
+  case fillingStrategy of
+    ColumnFirst -> let
+     mkPos il ih iw = let 
+            (dim, turned) = mkOffset il iw ih
+            in (dWidth dim, Position dim $ newOrientation turned)
+     mkl i = dLength . fst $ mkOffset i 0 0
+     mkh i j = dHeight . fst $ mkOffset i j 0
+     in buildSlices perLength perHeight perDepth mkl mkh mkPos 
+    RowFirst -> let
+     mkPos ih il iw = let 
+            (dim, turned) = mkOffset il iw ih
+            in (dWidth dim, Position dim $ newOrientation turned)
+     mkl i j = dLength . fst $ mkOffset j i 0
+     mkh i = dHeight . fst $ mkOffset 0 i 0
+     in buildSlices perHeight perLength perDepth mkh mkl mkPos 
+  where newOrientation t = if t 
+                           then  (rotateO ori)
+                           else ori
+        mkOffset i j k = first (base <>) $ indexToOffsetDiag boxDim diag (i, j, k)
+
+generatePositions base fillingStrategy ori boxDim (TilingCombo dir m1 m2) = let
+  positions1 = generatePositions base fillingStrategy ori boxDim m1
+  positions2 = generatePositions base2 fillingStrategy (rotateO ori) (rotate tiltedRight boxDim) m2
   Dimension l w h = tmBoundingBox m1 boxDim
-  base2 = case ( dir) of
+  base2 = base <> case ( dir) of
                Horizontal -> Dimension l 0 0 
                Depth -> Dimension 0 w 0
                Vertical -> Dimension 0 0 h
-  in positions1 ++ map (fmap (base2<>)) positions2
+  in positions1 <> positions2
 
 
-               
-
-
--- ^ Transform a position to a index given a translation and a box dimension
-_not_used_offsetToIndex :: Dimension -> Dimension -> Dimension -> (Int, Int, Int)
-_not_used_offsetToIndex (Dimension tl tw th) (Dimension l w h) (Dimension ol ow oh) =
-  ( round ((ol - tl) / l)
-  , round ((ow - tw) / w)
-  , round ((oh - th) / h)
-  )
-
-_not_used_indexToOffset :: Dimension -> Dimension -> (Int, Int, Int) -> Dimension
-_not_used_indexToOffset (Dimension tl tw th) (Dimension l w h) (il, iw, ih) =
-  Dimension (fromIntegral il * l + tl)
-            (fromIntegral iw * w + tw)
-            (fromIntegral ih * h + th)
 
 d0, r :: Dimension
 d0 = Dimension 0 0 0
@@ -940,30 +998,6 @@ indexToOffsetDiag (Dimension l w h) diagSize (il, iw, ih) =
       )
           
 
--- |  Assign offset to boxes so they can be moved
--- taking  boxBreak into account. Basically a zip but can skip some offset or break
-assignOffsetWithBreaks :: (dim -> Dimension) -> FillingStrategy -> Maybe Dimension ->   [Box s] -> [dim] -> [(Box s, dim)]
-assignOffsetWithBreaks _ _ _ [] _  = []
-assignOffsetWithBreaks _ _ _ _ []  = []
-assignOffsetWithBreaks getDim strat Nothing (box:bs) (offset:os) =  (box, offset) : assignOffsetWithBreaks getDim strat (Just $ getDim offset) bs os -- ignore the first break
-assignOffsetWithBreaks getDim strat (Just previous) bs@(box:_) os@(__offset:_) = case boxBreak box of
-  Nothing -> assignOffsetWithBreaks getDim strat Nothing bs os
-  Just StartNewShelf -> [] -- break
-  Just StartNewSlice -> assignOffsetWithBreaks getDim strat Nothing bs (dropWhile sameRow os)
-  Just StartNewSlot -> assignOffsetWithBreaks getDim strat Nothing bs (dropWhile sameSlot os)
-  where sameSlot (getDim -> o) = case strat of
-          _ColumnFirst -> dHeight o <= dHeight previous  && dLength o <= dLength previous
-          -- RowFirst -> dHeight o <= dHeight previous  && dWidth o <= dWidth previous
-        sameRow (getDim -> o) =  case strat of
-          ColumnFirst -> dLength o <= dLength previous -- -|| dWidth o <= dWidth previous
-          RowFirst -> dHeight o <= dHeight previous -- -|| dWidth o <= dWidth previous
-
-
-
-
-
-
-
 data SortBoxes = SortBoxes | DontSortBoxes
      deriving (Eq, Ord, Read, Show)
 -- Try to Move a block of boxes  into a block of shelves.
@@ -1000,7 +1034,7 @@ moveSimilarBoxes :: (Shelf' shelf) => ExitMode -> PartitionMode -> SimilarBoxes 
 moveSimilarBoxes exitMode partitionMode boxes shelves' = do
   shelves <- mapM findShelf shelves'
   positionss <- mapM (\s -> bestPositions partitionMode s boxes) shelves
-  let    positionsWithShelf = sortPositions  exitMode $ zip shelves positionss
+  let    positionsWithShelf = combineSlices exitMode $ zip shelves positionss
   assignBoxesToPositions positionsWithShelf boxes
   
 -- | Sort positions (box offsets), so that they are in order to be assigned
@@ -1038,67 +1072,110 @@ moveSimilarBoxes exitMode partitionMode boxes shelves' = do
 -- consecutives shelves must be seen at one or not.
 -- The sorting can then be done by group of shelf with the same
 -- strategy.
-sortPositions ::ExitMode -> [(Shelf s , [(Orientation, Dimension)])] -> [(Shelf s, (Orientation, Dimension))]
-sortPositions exitMode shelf'positionss = concatMap sortGroup sameStrategy where
-  sameStrategy :: [SimilarBy FillingStrategy (_s ,[(Orientation, Dimension)])]
-  sameStrategy = groupSimilar (shelfFillingStrategy . fst) shelf'positionss
-  sortGroup :: SimilarBy FillingStrategy (_s, [(Orientation, Dimension)]) -> [(_s, (Orientation, Dimension))]
-  sortGroup (SimilarBy strategy s'p shelf'positions) = let
-    shelf'pos'i = [ (i, (shelf, pos))
-                  | ((shelf, poss), i) <- zip (s'p:shelf'positions) [(1::Int)..]
-                  , pos <- poss
-                  ]
-    in map snd $ sortOn (rank strategy) shelf'pos'i
-  rank strategy (i, (s, (_,dim))) = 
-                let offset x y = x dim + y dim * (fromIntegral i + x (maxDim s ) / x dim)
-                    -- trick to solve diagonal tiling across multiple shelf
-                    -- boxes are shifted of 1 width for each shelf
-                    -- and proportional to the height
-                in case (exitMode, strategy) of
-                        (ExitLeft, RowFirst) -> (1, offset dHeight dLength , i) -- height then shelf
-                        (ExitLeft, ColumnFirst) -> (i, offset dLength dHeight ,1) -- shelf then length
-                        (ExitOnTop, RowFirst) -> (i, offset dHeight dLength , 1)
-                        (ExitOnTop, ColumnFirst) -> (1, offset dLength dHeight, i)
+combineSlices :: ExitMode -> [(Shelf s, Slices Double Position)] -> Slices (Int, Double, Int) (Shelf s, Position)
+combineSlices exitMode shelf'slicess = let
+  -- assign a number for each shelf and then
+  -- reuse the same number within a group if needed.
+  -- This way 1 2 3 4 5 will become 1 2 3 4 5 
+  -- if shelves 3 and 4 are need to be filled togother
+  withN = zipWith (\s i -> first (i,) s) shelf'slicess [(1::Int)..]
+  sameStrategy = groupSimilar (shelfFillingStrategy . snd . fst) withN
+  withGroupN = map adjustN sameStrategy
+  -- adjustN :: SimilarBy FillingStrategy (_Shelf, Slices Double Position) -> Slices (Int, Double) (_Shelf, Position)
+  adjustN (SimilarBy strategy s'is1 s'i'slices) = 
+    let firstI = fst (fst s'is1)
+        adjust i d = if (exitMode, strategy) `elem` [(ExitOnTop, ColumnFirst), (ExitLeft, RowFirst)]
+                   then (firstI, d, i) -- sames "group" , within a group fill slice then go to the next shelf
+                   else (i, d, i) -- fill shelf first, then go to the next one
+    in [ bimap (adjust i) (shelf,) slices
+       | ((i, shelf), slices) <- s'is1 : s'i'slices
+       ]
+  in foldMap concat withGroupN
+  
+
+-- unconsSlicesTo :: Maybe BoxBreak -> Slices (Int, k) a -> Maybe (a, ((Int, k),(Int, k),(Int, k)), Slices (Int, k) a)
+unconsSlicesTo _ Nothing slices = unconsSlices slices
+unconsSlicesTo _ _ (Slices (OrderedList [])) = Nothing
+unconsSlicesTo Nothing (Just StartNewShelf) slices = unconsSlicesTo Nothing (Just StartNewSlice) slices
+unconsSlicesTo js@(Just prevShelf) (Just StartNewShelf) slices = 
+  -- try next slice until different shelf
+  case unconsSlicesTo Nothing (Just StartNewSlice) slices of
+    Nothing -> Nothing
+    Just new@((shelf, _), _, _) | shelf /= prevShelf -> Just new
+    Just (_, _, newSlices) -> 
+      unconsSlicesTo js (Just StartNewShelf) newSlices
+unconsSlicesTo _ (Just StartNewSlice) slices =
+  case unconsSlices slices of
+    Nothing -> Nothing
+    Just new@(_, (_,(0,_),_), _) -> Just new
+    --               ^
+    --               +-- new slices mean slot number = 0
+    _ -> unconsSlices (dropTillSlice slices)
+unconsSlicesTo _ (Just StartNewSlot) slices =
+  case unconsSlices slices of
+    Nothing -> Nothing
+    Just new@(_, (_,_,(0,_)), _) -> Just new
+    _ -> unconsSlices (dropTillSlot slices)
+
+dropTillSlice (SlicesO slices) = cleanSlices $ SlicesO (drop 1 slices)
+dropTillSlice :: Slices k a -> Slices k a
+dropTillSlot (SlicesO ((i, SliceO (_:slots)):slices)) = cleanSlices $ SlicesO (slice:slices) where
+  slice = (i, SliceO slots)
+dropTillSlot _ = SlicesO []
+
+cleanSlice (SliceO ((_, SlotO []):slots)) = cleanSlice $ SliceO slots
+cleanSlice slice = slice
+cleanSlices (SlicesO ((_, SliceO []):slices)) = cleanSlices $ SlicesO (map (second cleanSlice) slices)
+cleanSlices slices = slices
+
+-- | Remove empty sublists
+-- cleanSlices :: Slices k a -> Slices k a
   
 -- | Assign boxes to positions in order (like a zip) but with respect to box breaks.
 -- (skip to the next column if column break for example)
-assignBoxesToPositions :: [(Shelf s, (Orientation, Dimension))] -> SimilarBoxes s -> WH (Maybe (SimilarBoxes s)) s
-assignBoxesToPositions shelf'positions  simBoxes = do
+assignBoxesToPositions :: Slices _ (Shelf s, Position) -> SimilarBoxes s -> WH (Maybe (SimilarBoxes s)) s
+assignBoxesToPositions slices simBoxes = do
   let boxes = unSimilar simBoxes
-  let go _ [] = return []
-      go es_ allboxes@(box:boxes) =
-        case (boxBreak box, es_) of
-             (_, []) -> return $ allboxes
-             (Nothing, Right p's : es) -> shiftBox box p's >> go es boxes
-             (Nothing, Left break : es) -> go es allboxes
-             -- (Just bbreak, Left break' : es ) | bbreak <= break' -> go es boxes
-             -- (Just bbreak, Left _ : es ) -> go es boxes
-             (Just bbreak, _) -> go (dropUntil bbreak es_) allboxes
-      dropUntil _  [] = []
-      dropUntil bbreak (Left break : xs) | bbreak <= break = xs
-      dropUntil bbreak (x : xs) = dropUntil bbreak xs
-      shiftBox box (shelf, (orientation, offset)) = do
+  let go _ _ [] = return []
+      go prevShelf slices allboxes@(box:boxes) =
+        case (unconsSlicesTo prevShelf (boxBreak box) slices) of
+             Nothing -> return allboxes
+             Just ((shelf'pos), _, newSlices) ->
+              shiftBox box shelf'pos >> go (Just $ fst shelf'pos) newSlices boxes 
+      shiftBox box (shelf, Position offset orientation) = do
             _ <- updateBox (\box_ -> box_ { orientation = orientation
                                           , boxOffset = offset}) box
             assignShelf (Just shelf) box
-  leftOver <- go (addBreakDelimiters shelf'positions) boxes 
+  leftOver <- go Nothing (numSlices slices) boxes 
   return $ dropSimilar (length boxes - length leftOver) simBoxes
   
--- | Add BoxBreak, new slot, new shelf
-addBreakDelimiters :: [(Shelf s, (Orientation, Dimension))] -> [Either BoxBreak (Shelf s, (Orientation, Dimension))]
-addBreakDelimiters poss = concat $ zipWith go poss (Nothing: map Just poss)
-    where go pos Nothing = [Left StartNewShelf , Right pos ]
-          go pos (Just prev) = let
-             (s, (orientation, dimension)) = pos
-             (s', (orientation', dimension')) = prev
-             in case shelfFillingStrategy s of
-                  _ | s == s' -> [ Left StartNewShelf , Right pos ]
-                  -- we are guarantee that the strategy is the same
-                  ColumnFirst | dLength dimension /= dLength dimension' -> [ Left StartNewSlice , Right pos ]
-                  ColumnFirst | dHeight dimension /= dHeight dimension' -> [ Left StartNewSlot , Right pos ]
-                  RowFirst | dHeight dimension /= dHeight dimension' -> [ Left StartNewSlice , Right pos ]
-                  RowFirst | dLength dimension /= dLength dimension' -> [ Left StartNewSlot , Right pos ]
-                  _ -> [ Right pos ]
+numSlices (SlicesO slices) = SlicesO $ [bimap (i,) numSlice slice | (slice, i) <- zip slices [0..]]
+numSlice (SliceO slots) = SliceO $ [bimap (i,) numSlot slot | (slot, i) <- zip slots [0..]]
+numSlot (SlotO poss) = SlotO $ [bimap (i,) id pos | (pos, i) <- zip poss [0..]]
+unconsSlot :: Slot k a -> Maybe (a,k, Slot k a)
+unconsSlot (Slot (OrderedList key'poss)) =
+  case key'poss of
+    [] -> Nothing
+    ((key,pos):kps) -> Just (pos,key, Slot (OrderedList kps))
+    
+unconsSlice :: Slice k a -> Maybe (a,(k,k), Slice k a)
+unconsSlice (Slice (OrderedList key'slots)) =
+  case key'slots of
+    [] -> Nothing
+    ((key, slot0):kss) -> 
+      case unconsSlot slot0 of
+        Nothing -> unconsSlice (Slice $ OrderedList kss)
+        Just (pos, k1, slot) -> Just (pos, (key, k1), Slice (OrderedList $ (key, slot):kss))
+    
+unconsSlices :: Slices k a -> Maybe (a, (k,k,k), Slices k a)
+unconsSlices (Slices (OrderedList key'slices)) =
+  case key'slices of
+    [] -> Nothing
+    ((key, slice0):kss) ->
+      case unconsSlice slice0 of
+        Nothing -> unconsSlices (Slices $ OrderedList kss)
+        Just (pos, (k1,k2), slice) -> Just (pos, (key,k1,k2), Slices (OrderedList $ (key, slice):kss))
+
 
 boxRank :: Box s -> (Text, Int, Text, Int)
 boxRank box = ( boxStyle box , boxStylePriority box, boxContent box, boxContentPriority box)
