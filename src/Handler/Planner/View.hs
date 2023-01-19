@@ -281,7 +281,7 @@ renderGraphicCompactView imageRoute scenario = do
   return [whamlet|
 <div>
   $forall i <- is
-    <tr><td><a href="@{imgRoute i 8000}" ><img src=@{PlannerR $ PImageR sha i 350} style="width:800;">
+    <tr><td><a href="@{imgRoute i 4000}" ><img src=@{PlannerR $ PImageR sha i 350} style="width:800;">
 |]
 
 renderGraphicBigView :: (Text-> _) -> Scenario -> Handler Widget
@@ -292,7 +292,7 @@ renderGraphicBigView imageRoute scenario = do
   return [whamlet|
 <table>
   $forall i <- is
-    <tr><td><a href="@{imgRoute i 8000}" ><img src=@{PlannerR $ PImageR sha i 750} style="width:800;">
+    <tr><td><a href="@{imgRoute i 4000}" ><img src=@{PlannerR $ PImageR sha i 750} style="width:800;">
 |]
 
 -- ** Summary report 
