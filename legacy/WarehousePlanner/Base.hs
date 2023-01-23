@@ -736,7 +736,7 @@ howManyWithDiagonal minOuter outer@(Dimension l _ h) inner@(Dimension lb _ hb) =
 -- At the moment tries different diagonol layout.
 howManyWithSplitH :: Dimension -> Dimension -> Dimension -> TilingMode
 howManyWithSplitH minOuter outer inner =  let
-  tmode = howManyWithDiagonal minOuter outer inner 
+  tmode = Regular $ howMany minOuter outer inner 
   currentTotal = tmTotal tmode
   tries = [ TilingCombo Horizontal leftMode rightMode
           | i <- [tmLength tmode `div` 2 .. tmLength tmode ]
