@@ -326,7 +326,7 @@ limitByNumber selector boxes0 = let
     group_ = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
     limited = fmap (take_ n . sortBy (comparing $ snd . boxFinalPriority selector . fst) ) group_
     in concat (Map'.elems limited)
-  take_ sel = rev . drop (liStart sel -1) . take (liEnd sel) . rev
+  take_ sel = drop (liStart sel -1) . take (liEnd sel) . rev
     where rev = if liReverse sel then reverse else id
   in boxes3
 
