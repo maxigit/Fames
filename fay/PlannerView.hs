@@ -16,6 +16,7 @@ main :: Fay ()
 main = do
   main' -- redone after ajax update
   installNav'
+  syncUrl
   return ()
 
 main' :: Fay ()
@@ -37,7 +38,6 @@ installNav' = do
                    -- keep the actual tab
                    form <- select "#planner-view-form"
                    JQ.setAttr "action" url form
-                   -- setLocation (T.pack $ FT.unpack url)
                    return False
                            ) nav
             ) navs
@@ -50,4 +50,16 @@ ajaxReload url = do
                             JQ.setHtml html view
                             main'
                             )
+  replaceUrlInBar url
   return ()
+  
+syncUrl = do
+  forms <- select "form#planner-view-form"
+  jQueryMap (\_ el -> do
+    form <- select el
+    url' <- JQ.getAttr "action" form 
+    let Defined url = url'
+    replaceUrlInBar url
+    ) forms
+
+    

@@ -165,7 +165,7 @@
   /masquerade AMasqueradeR GET POST !group=Masquerade !title=Masquerade
 
 /planner PlannerR !planner:
-  /view/#Maybe-PlannerViewMode PViewR GET POST !group=Planner !title=View
+  /view/#Maybe-FilePath/#Maybe-PlannerViewMode PViewR GET POST !group=Planner !title=View
   /doc PDocR GET !title=Help
   /image/#Text/#Int64/#Int64 PImageR GET
   /scenario/#Text/image/#Int64/#Int64 PScenarioImageR GET

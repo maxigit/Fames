@@ -51,19 +51,19 @@ setInfoToDoc = do
   setInfo $ html
   
 {-# NOINLINE getPViewR #-}
-getPViewR :: Maybe PlannerViewMode -> Handler TypedContent
-getPViewR viewMode = do
+getPViewR :: Maybe FilePath -> Maybe PlannerViewMode -> Handler TypedContent
+getPViewR pathm viewMode = do
   setInfoToDoc
-  renderView defaultParam {pViewMode = viewMode}
+  renderView defaultParam {pViewMode = viewMode, pPlannerPath = pathm}
 
 {-# NOINLINE postPViewR #-}
-postPViewR :: Maybe PlannerViewMode -> Handler TypedContent
-postPViewR viewMode = do
+postPViewR :: Maybe FilePath -> Maybe PlannerViewMode -> Handler TypedContent
+postPViewR _ viewMode = do
   ((resp, _), _) <- runFormPost $ paramForm Nothing
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess param -> renderView param {pViewMode = viewMode <|> pViewMode param }
+    FormSuccess param -> renderView param { pViewMode = viewMode <|> pViewMode param }
 
 {-# NOINLINE getPImageR #-}
 getPImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
@@ -233,14 +233,14 @@ renderView param0 = do
       navClass nav = if vmode == Just nav then "active" else "" :: Html
       fay = $(fayFile "PlannerView") -- js to post form when tab change
       mainW = [whamlet|
-<form #planner-view-form role=form method=post action="@{PlannerR (PViewR (pViewMode param))}" encType="#{encType}">
+<form #planner-view-form role=form method=post action="@{PlannerR (PViewR (pPlannerPath param) (pViewMode param))}" encType="#{encType}">
   <div.well>
     ^{formW}
     <button type="submit" .btn .btn-default name="mode" value="NormalM">Submit
   <ul.nav.nav-tabs>
     $forall nav <- navs
       <li class="#{navClass nav}">
-        <a.view-mode href="#" data-url="@{PlannerR (PViewR (Just nav))}">#{splitSnake $ drop 7 (tshow nav)}
+        <a.view-mode href="#" data-url="@{PlannerR (PViewR (pPlannerPath param) (Just nav))}">#{splitSnake $ drop 7 (tshow nav)}
 <div#planner-view-view>
   ^{widget}
 |]

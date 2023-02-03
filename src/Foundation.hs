@@ -438,7 +438,7 @@ mainLinks = do
   let links= [ ("General Ledger", GLR $ GLBankR Nothing)
              , ("Items", ItemsR ItemsCategoryR)
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
-             , ("Planner", PlannerR (PViewR Nothing))
+             , ("Planner", PlannerR (PViewR Nothing Nothing))
              , ("Customers", CustomersR (CustInvoicesR))
              , ("Admin", AdministratorR AIndexR)
              , ("FA",  FA'R FADebtorsMasterR)
