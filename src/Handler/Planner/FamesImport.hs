@@ -9,6 +9,7 @@ import Import
 import Planner.Types
 import Planner.Internal
 import WarehousePlanner.Report
+import WarehousePlanner.Base (replaceSlashes)
 import qualified Handler.WH.PackingList as PL
 import qualified Handler.WH.Boxtake as Box
 import qualified Handler.WH.Boxtake.Adjustment as Box
@@ -442,7 +443,7 @@ importSales startDate endDate skus forStyle = do
              ] 
       maxRank = length rows + 1
 
-  let content = [ key <> "#'" <> var <> ",fa-sales-rank=" <> tshow (rank :: Int )<> "#fa-sales=" <> tshow (round qty :: Int )
+  let content = [ key <> "#'" <> replaceSlashes var <> ",fa-sales-rank=" <> tshow (rank :: Int )<> "#fa-sales=" <> tshow (round qty :: Int )
                 | group <- groupBy (on (==) fst) rows
                 , ((style, (var, qty)), rank) <- zip (sortOn (Down . snd . snd) group)  [1..]
                 , let key = fromMaybe style forStyle

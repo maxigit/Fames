@@ -48,6 +48,7 @@ module WarehousePlanner.Base
 , parseTagOperations
 , parseTagSelector
 , printDim
+, replaceSlashes
 , shelfBoxes
 , stairsFromCorners
 , updateBox
@@ -1323,7 +1324,6 @@ updateBoxTags tags0 box = do
   let tags = [ (replaceSlashes tag, fmap replaceSlashes values )
              | (tag, values) <- tags1
              ]
-      replaceSlashes = omap replaceSlash
   updateBox (updateBoxTags' tags) box
 
 updateShelfTags :: [Tag'Operation] -> Shelf s -> WH (Shelf s) s
@@ -1331,7 +1331,6 @@ updateShelfTags tags0 shelf =  do
   let tags = [ (replaceSlashes tag, fmap replaceSlashes values )
              | (tag, values) <- tags0
              ]
-      replaceSlashes = omap replaceSlash
   updateShelf (updateShelfTags' tags) shelf
 
 boxStyleAndContent :: Box s -> Text
@@ -1474,6 +1473,8 @@ expandStatistic fn arg box prop xs = do
 
 replaceSlash '/' = '\''
 replaceSlash c  = c
+replaceSlashes :: Text -> Text 
+replaceSlashes = omap replaceSlash
    
 defaultPriority :: Int
 defaultPriority = 100
