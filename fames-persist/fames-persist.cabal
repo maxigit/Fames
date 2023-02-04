@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ecb3933d09c62c01f1a04cfc438544943e5ccc3d780baf39a1871fee7a465310
+-- hash: 7c5788b01275f6df1e2e65bc0a9ac211b25a40dc058d0e2a93c1072013f6bb04
 
 name:           fames-persist
 version:        0.0.1
@@ -116,11 +116,6 @@ library
     , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-static >=1.4.0.3 && <1.6
-  if (flag(dev)) || (flag(library-only))
-    ghc-options: -w -fwarn-tabs -O0 -j6
-    cpp-options: -DDEVELOPMENT
-  else
-    ghc-options: -Wall -fwarn-tabs -Wno-type-defaults -O2 -j6
   exposed-modules:
       DC
       FA
@@ -543,3 +538,8 @@ library
   other-modules:
       Paths_fames_persist
   default-language: Haskell2010
+  if (flag(dev)) || (flag(library-only))
+    ghc-options: -w -fwarn-tabs -O0 -j6
+    cpp-options: -DDEVELOPMENT
+  else
+    ghc-options: -Wall -fwarn-tabs -Wno-type-defaults -O2 -j6

@@ -300,7 +300,7 @@ mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
   reasonForExport = Sale
   receiverVAT'PID'EORI = fromMaybe "" shTaxId
   
-data UsePPD = UsePPD | NoPPD deriving (Show, Read)
+data UsePPD = UsePPD | NoPPD deriving (Show)
    
 mkProductDetail :: (Text -> FA.StockMasterId -> Maybe Text) -> UsePPD -> FA.DebtorTransDetail -> ProductDetail
 mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = 

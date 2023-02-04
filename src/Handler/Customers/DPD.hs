@@ -57,21 +57,21 @@ data Delivery = Delivery
   , shipping'freightCost :: Double
   , reasonForExport :: ReasonForExport
   , receiverVAT'PID'EORI :: Text
-  } deriving (Show, Read)
+  } deriving (Show)
 
-data YesNo = Y | N deriving (Show, Read, Eq)
+data YesNo = Y | N deriving (Show, Eq)
 data ServiceCode = ParcelTwoDay
                  | ParcelNextDay
                  | Parcel12AM
                  | ExpressPak1NextDay
                  | ExpressPak5NextDay
                  | InternationalClassic
-                 deriving (Show, Read, Eq, Ord, Bounded, Enum)
+                 deriving (Show, Eq, Ord, Bounded, Enum)
 data ReasonForExport = Sale
-  deriving (Show, Read)
+  deriving (Show)
 
 data InvoiceType = Commercial -- vs Proforma
-  deriving (Show, Read)
+  deriving (Show)
 
 
 data ProductDetail = ProductDetail
@@ -85,9 +85,9 @@ data ProductDetail = ProductDetail
   , itemOrigin :: Text
   , quantity :: Int
   , unitValue :: Double
-  } deriving (Show, Read)
+  } deriving (Show)
 
-data PRD = PRD deriving (Show, Read)
+data PRD = PRD deriving (Show)
 
 -- * Instances 
 -- ** Fields 

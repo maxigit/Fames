@@ -57,7 +57,7 @@ data IndexParam = IndexParam
   , ipWebPriceStatusFilter :: Maybe [PriceStatus]
   , ipCategories :: Maybe [Text]
   , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
-  } deriving (Eq, Show, Read)
+  } deriving (Eq, Show)
 
 ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
 ipVariations param = case (ipVariationsF param, ipVariationGroup param) of
@@ -65,7 +65,7 @@ ipVariations param = case (ipVariationsF param, ipVariationGroup param) of
         (_, group_) -> Right group_
 
 data ShowInactive = ShowActive | ShowInactive | ShowAll
-  deriving (Eq, Show, Read, Bounded, Enum)
+  deriving (Eq, Show, Bounded, Enum)
 
 data IndexColumn = GLColumn Text
             | PriceColumn Int

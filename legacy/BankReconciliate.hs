@@ -146,7 +146,7 @@ data FATransaction = FATransaction
        , _fBalance     :: !Amount
        , _fRecDate      :: !(Maybe Day)
        , _fPosition    :: !Int -- ^ position
-       } deriving (Show, Read, Eq, Ord)
+       } deriving (Show, Eq, Ord)
 
 makeClassy ''FATransaction
 
@@ -206,7 +206,7 @@ data HSBCTransactions = HSBCTransactions
     , _hAmount :: !Amount
     , _hBalance :: !(Maybe (ValidField Amount))
     , _hDayPos :: !Int -- ^ position unique within a day, but doesn't have to start a one.
-    } deriving (Show, Read, Eq, Ord)
+    } deriving (Show, Eq, Ord)
 
 makeClassy ''HSBCTransactions
 
@@ -248,7 +248,7 @@ data HSBCDaily = HSBCDaily
     , _hsDescription :: String
     , _hsAmount :: Amount
     , _hsDayPos :: Int
-    } deriving (Show, Read, Generic)
+    } deriving (Show, Generic)
 
 instance FromRecord (Int -> HSBCDaily) where
     parseRecord r = HSBCDaily <$> (parseTime ["%e/%m/%Y"] =<< r .! 0)
@@ -282,7 +282,7 @@ data PaypalTransaction = PaypalTransaction
      , _pCurrency :: String
      , _pGross :: Amount
      , _pDayPos :: Int -- not in CSV, order
-     } deriving (Show, Read, Generic)
+     } deriving (Show, Generic)
 
 makeClassy ''PaypalTransaction
 instance FromNamedRecord (Int -> PaypalTransaction) where
@@ -577,7 +577,7 @@ best hfs hs fs = if minDistance < 31
 
 -- | Summary, for the output. Sort of Either HSBCTransactions FATransaction
 -- but exportable to CSV
-data TSource = HSBC | FA | Statement deriving (Show, Read, Eq)
+data TSource = HSBC | FA | Statement deriving (Show, Eq)
 instance ToField TSource where
     toField f = toField (show f)
 
@@ -592,7 +592,7 @@ data Transaction = Transaction
     , _sDayPos :: !Int -- ^ Used to sort transaction 
     , _sRecDate :: !(Maybe Day)
     , _sBalance :: !(Maybe (ValidField Amount)) -- ^ Balance if provided
-    } deriving (Show, Read, Generic)
+    } deriving (Show, Generic)
 
 
 makeClassy ''Transaction
@@ -686,7 +686,7 @@ data Options = Options
     , discardFilter :: !(Maybe String)
     } deriving (Show)
 
-data FaMode = BankAccountId Int deriving (Show, Read, Eq)
+data FaMode = BankAccountId Int deriving (Show, Eq)
 
 -- ** Main body 
 readFa :: Options -> IO [FATransaction]

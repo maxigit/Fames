@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -213,6 +213,7 @@ library
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
+    , ghc
     , ghc-prim
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
@@ -222,6 +223,7 @@ library
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger ==0.3.*
+    , mono-traversable
     , mtl ==2.2.*
     , mysql
     , mysql-simple
@@ -269,12 +271,12 @@ library
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
+  default-language: Haskell2010
   if (flag(dev)) || (flag(library-only))
     ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -Wno-missing-local-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
     ghc-options: -W -fwarn-tabs -Wno-type-defaults -Wno-partial-type-signatures -O2 -j6
-  default-language: Haskell2010
 
 executable DPDDump
   main-is: DPDDump.hs
@@ -341,6 +343,7 @@ executable DPDDump
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
+    , ghc
     , ghc-prim
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
@@ -350,6 +353,7 @@ executable DPDDump
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger ==0.3.*
+    , mono-traversable
     , mtl ==2.2.*
     , mysql
     , mysql-simple
@@ -466,6 +470,7 @@ executable DPDImport
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
+    , ghc
     , ghc-prim
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
@@ -475,6 +480,7 @@ executable DPDImport
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger ==0.3.*
+    , mono-traversable
     , mtl ==2.2.*
     , mysql
     , mysql-simple
@@ -587,6 +593,7 @@ executable FAGenerator
     , file-embed
     , filepath
     , formatting
+    , ghc
     , ghc-prim
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
@@ -596,6 +603,7 @@ executable FAGenerator
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger ==0.3.*
+    , mono-traversable
     , mtl ==2.2.*
     , mysql
     , mysql-simple
@@ -737,6 +745,7 @@ executable Fames
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
+    , ghc
     , ghc-prim
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
@@ -746,6 +755,7 @@ executable Fames
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger ==0.3.*
+    , mono-traversable
     , mtl ==2.2.*
     , mysql
     , mysql-simple
@@ -793,13 +803,13 @@ executable Fames
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
+  default-language: Haskell2010
   if flag(library-only)
     buildable: False
   if (flag(dev))
     ghc-options: -O0
   else
     ghc-options: -O2
-  default-language: Haskell2010
 
 test-suite test
   type: exitcode-stdio-1.0
@@ -896,6 +906,7 @@ test-suite test
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
+    , ghc
     , ghc-prim
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
@@ -907,6 +918,7 @@ test-suite test
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger
+    , mono-traversable
     , mtl ==2.2.*
     , mysql
     , mysql-simple
@@ -1184,6 +1196,7 @@ test-suite zghicd
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
+    , ghc
     , ghc-prim
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
@@ -1195,6 +1208,7 @@ test-suite zghicd
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger
+    , mono-traversable
     , mtl ==2.2.*
     , mysql
     , mysql-simple

@@ -33,7 +33,7 @@ data BatchSummary = BatchSummary
   , bsTotal :: BatchSummaryCount
   } deriving Show
 -- * Form 
-data Mode = Validate | Success deriving (Show, Read, Eq)
+data Mode = Validate | Success deriving (Show, Eq)
 batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
   form = Batch <$> areq textField "Name" (batchName <$> batchM)
                <*> aopt textField "Alias" (batchAlias <$> batchM)
@@ -52,7 +52,7 @@ data MatchTableParam  = MatchTableParam
   , mtAggregationMode :: MatchAggregationMode
   , mtRowAggregationMode :: Maybe BatchMergeMode -- merging means hide the batch column
   , mtDisplayMode :: QualityDisplayMode
-  } deriving (Show, Read, Eq)
+  } deriving (Show, Eq)
 matchTableForm categories = renderBootstrap3 BootstrapInlineForm form where
   form = MatchTableParam <$> pure [] -- filled manually by parsing params
                          <*> aopt filterEField "Sku" Nothing

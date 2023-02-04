@@ -10,7 +10,7 @@ data Section = Section
    { sectionType :: HeaderType
    , sectionContent :: Content
    , sectionTitle :: Text
-   } deriving (Show, Read, Eq)
+   } deriving (Show, Eq)
 
 -- * Content Types 
 -- TODO needs refactoring. Now we are using orgmode drawer
@@ -25,7 +25,7 @@ data TypedLine = CommentL
               | EndL
               | EndSectionL
               | HashL DocumentHash
-              deriving (Show, Read, Eq, Ord)
+              deriving (Show, Eq, Ord)
 
 
 data HeaderType
@@ -47,7 +47,7 @@ data HeaderType
   | DeletesH
   | ImportH
   | TitleH
-  deriving (Show, Read, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic)
 
 -- * Scenario 
 -- | Description of warehouse. Initial stage plus way modify it.
@@ -56,7 +56,7 @@ data Scenario = Scenario
   { sInitialState :: Maybe DocumentHash
   , sSteps        :: [Step]
   , sLayout ::  Maybe DocumentHash
-  } deriving (Read, Show)
+  } deriving (Show)
 
 instance Semigroup Scenario where
   _ <> sc@(Scenario (Just _i') _ _)  = sc
@@ -69,7 +69,7 @@ instance Monoid Scenario where
 -- usefull to reconstruct the orignal file
 data Step = Step HeaderType DocumentHash Text
           | SavingPoint
-          deriving (Show, Read, Eq)
+          deriving (Show, Eq)
 
 
 

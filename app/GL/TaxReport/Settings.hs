@@ -28,12 +28,12 @@ data TaxReportSettings  = TaxReportSettings
   , boxesRaw :: [TaxBox] -- ^ should only be called by processor
   , processor :: TaxProcessorSettings
   }
-  deriving (Eq, Read, Show)
+  deriving (Eq, Show)
 data TaxProcessorSettings
   = HMRCProcessor HMRCProcessorParameters 
   | ManualProcessor  ManualProcessorParameters-- ^ Don't submit anything but set the submitted date using the deadline or the submission date
   | ECSLProcessor ECSLProcessorParameters --  ^ European community VAT
-  deriving (Eq, Read, Show)
+  deriving (Eq, Show)
 
 data HMRCProcessorParameters = HMRCProcessorParameters
        { baseUrl :: Text
@@ -51,17 +51,17 @@ data HMRCProcessorParameters = HMRCProcessorParameters
        , govClientDeviceId :: Maybe Text
        , govVendorProductName :: Text
        }
-  deriving (Eq, Read, Show)
+  deriving (Eq, Show)
 data ManualProcessorParameters = ManualProcessorParameters
     { submissionDate :: Maybe DateCalculator --  ^ submission date calculated next period
     }
-  deriving (Eq, Read, Show)
+  deriving (Eq, Show)
 data ECSLProcessorParameters = ECSLProcessorParameters
   { outOfScope :: Maybe Bucket --  ^ Bucket used for tax out of ECSL scope
   , vatNumber :: Text
   , branch :: Text
   }
-  deriving (Eq, Read, Show)
+  deriving (Eq, Show)
 
 -- * JSON 
 -- $(deriveJSON defaultOptions ''TaxReport.Bucket)

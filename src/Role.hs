@@ -6,7 +6,7 @@ import qualified Data.Text as Text
 import qualified Data.Set as Set
 -- * Types 
 -- | Read or Write request
-data WriteRequest = ReadRequest | WriteRequest deriving (Eq, Read, Show, Ord)
+data WriteRequest = ReadRequest | WriteRequest deriving (Eq, Show, Ord)
 
 type Permissions = Set (Text, WriteRequest, Set Text)
 
@@ -26,7 +26,7 @@ data Role = Administrator --  ^ As access to everything
           | RoleGroup [Role] --  ^ groups role
           | RolePermission Permissions --  ^ a set of permissions
           | RoleRoute (URL) WriteRequest --  ^ a url. Override everything else
-  deriving(Show, Read, Eq)
+  deriving(Show, Eq)
 
 -- * Checking permissions 
 -- | Check if the given route is allowed, based on it path .

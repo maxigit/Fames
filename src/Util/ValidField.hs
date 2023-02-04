@@ -8,7 +8,7 @@ import Prelude
 -- Usefull when autofilling data from a csv (using the previous row) or
 -- computing a bank accounting balance
 data ValidField a = Provided { validValue :: a} | Guessed { validValue :: a }
-     deriving (Show, Read, Eq, Ord, Functor)
+     deriving (Show, Eq, Ord, Functor)
 instance Applicative ValidField  where
   pure = Provided
   (Provided f) <*> (Provided v) = Provided (f v)

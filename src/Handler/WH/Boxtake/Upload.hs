@@ -19,7 +19,7 @@ data RawScanRow = RawDate Day
              | RawOperator Text
              | RawLocation Text
              | RawBarcode Text
-             deriving (Eq, Read, Show)
+             deriving (Eq, Show)
 
 data ScanRow = DateRow Day
              | OperatorRow (Entity Operator)
@@ -57,7 +57,7 @@ data WipeMode = FullShelves --  ^ Wipe all boxes previously on the scanned locat
               | FullStylesAndShelves
               | Addition --  ^ Don't wipe anything. Just add new boxes 
               | Deactivate -- deactivate all boxes instead of reactivate them. 
-              deriving (Eq, Read, Show, Enum, Bounded)
+              deriving (Eq, Show, Enum, Bounded)
 -- * Util 
 
 -- | Reverse op parseRawScan

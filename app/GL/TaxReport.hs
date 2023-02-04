@@ -16,7 +16,7 @@ import Util.Decimal
 data TaxSummary = TaxSummary
    { netAmount :: Amount
    , taxAmount :: Amount
-   } deriving (Eq, Read, Show, Ord)
+   } deriving (Eq, Show, Ord)
 
 grossAmount :: TaxSummary -> Amount
 grossAmount TaxSummary{..} = netAmount + taxAmount
@@ -31,7 +31,7 @@ data TaxReportStatus
   | Closed --  ^ close , read to submit
   | Late Day --  ^ with deadline
   | Submitted UTCTime --  ^ With submissioon date
-  deriving (Eq, Show, Read)
+  deriving (Eq, Show)
 -- * Instance 
 instance Semigroup TaxSummary where
   (TaxSummary net tax) <> (TaxSummary net' tax') = TaxSummary (net + net') (tax + tax')

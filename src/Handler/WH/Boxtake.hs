@@ -27,7 +27,7 @@ import Database.Persist.Sql (fromSqlKey)
 import Handler.Items.Common(skuToStyleVarH)
 -- * Types 
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
-  deriving (Eq, Read, Show, Enum, Bounded)
+  deriving (Eq, Show, Enum, Bounded)
 
 -- | Parameters for boxtake history,lookup,
 data BoxtakeInquiryParam  = BoxtakeInquiryParam
@@ -42,7 +42,7 @@ data BoxtakeInquiryParam  = BoxtakeInquiryParam
 defaultInquiryParam = BoxtakeInquiryParam Nothing Nothing Nothing LocationRupture Nothing  False True
 
 -- | Validate or save spreadsheet.
-data SavingMode = Validate | Save deriving (Eq, Read, Show)
+data SavingMode = Validate | Save deriving (Eq, Show)
 
 -- | Parameters to upload box moves/scans.
 data UploadParam = UploadParam

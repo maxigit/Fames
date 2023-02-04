@@ -105,7 +105,7 @@ groupBy key as =
     
     
 -- **  Textcart 
-newtype Sku = Sku { sku :: String } deriving (Eq, Ord, Read, Show)
+newtype Sku = Sku { sku :: String } deriving (Eq, Ord, Show)
 newtype Textcart = Textcart (Day, ShiftType, [Shift Sku])
 textcarts :: ShiftType -> Timesheet p Sku -> [Textcart]
 textcarts st ts = let 

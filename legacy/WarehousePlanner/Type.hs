@@ -44,7 +44,7 @@ data BoxNumberSelector = BoxNumberSelector
    { nsPerContent :: !(Maybe Limit)
    , nsPerShelf :: !(Maybe Limit)
    , nsTotal :: !(Maybe Limit)
-   } deriving (Show, Read)
+   } deriving (Show)
 
 -- | How to take slice of a selection
 data Limit = Limit 
@@ -125,7 +125,7 @@ instance Show (BoxId s) where
 -- Indicate if the given box should start a new row or a new shelf
 data BoxBreak = StartNewSlot
               | StartNewSlice -- new row or column according to shelf strategy
-              | StartNewShelf deriving (Eq, Show, Read, Ord)
+              | StartNewShelf deriving (Eq, Show, Ord)
 -- | Tags with optionals value
 type Tags = Map Text (Set Text)
 data Box s = Box { _boxId      :: BoxId s
@@ -233,7 +233,7 @@ data BoxStyling = BoxStyling
   , displayBarGauge :: Bool -- ^ to display or the bar gauge
   , offsetBarGaugeX :: Maybe Double
   , offsetBarGaugeY :: Maybe Double
-  } deriving (Show, Eq, Read)
+  } deriving (Show, Eq)
   
 data ShelfStyling = ShelfStyling
   { foreground :: Colour Double --  ^ Text colour
@@ -245,7 +245,7 @@ data ShelfStyling = ShelfStyling
   , title :: [ Text ] -- ^ text to display 
   , barTitle :: Maybe Text -- ^ text to display in the bar
   , displayBarGauge :: Bool -- ^ to display or the bar gauge
-  } deriving (Show, Eq, Read)
+  } deriving (Show, Eq)
 -- * Classes 
 class ShelfIdable a where
     shelfId :: a s -> ShelfId s

@@ -447,7 +447,7 @@ _ <-?. []  =  []
 a <-?. list  =   [a <-. list]
 -- ** Filtering Expressions (Like or Regexp) 
 -- | Generate a like or rlike statement
-data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, Read)
+data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show)
 showFilterExpression :: FilterExpression -> Text
 showFilterExpression (LikeFilter t) = t
 showFilterExpression (RegexFilter t) = "/" <> t

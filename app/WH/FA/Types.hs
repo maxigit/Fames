@@ -19,7 +19,7 @@ data FAConnectInfo = FAConnectInfo
 -- | An GLAccount. Even though GLAccount should be Int
 -- the formatting matters, so we need to store them as Text
 newtype GLAccount = GLAccount {unGLAccount :: Text}
-  deriving (Eq, Show, Read, Ord)
+  deriving (Eq, Show, Ord)
 -- * Items 
 -- ** StockAdjustment 
 -- | Information needed to post a FA stock adjustment

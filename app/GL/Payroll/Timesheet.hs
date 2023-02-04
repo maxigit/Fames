@@ -129,7 +129,7 @@ hourlyRate = to $ (/) <$> (^.cost) <*> (^.duration)
 data DeductionAndCost key = DeductionAndCost
   { _dacKey :: key
   , _dacDac :: These Amount Amount
-  } deriving (Eq, Read, Show, Functor, Foldable, Traversable)
+  } deriving (Eq, Show, Functor, Foldable, Traversable)
 makeClassy ''DeductionAndCost
 
 dacDeduction, dacCost :: (HasDeductionAndCost c key, Applicative f) => (Amount -> f Amount) -> c -> f c
@@ -138,7 +138,7 @@ dacCost = dacDac . there
 dacTotal :: HasDeductionAndCost s key => s -> Amount
 dacTotal dac =  go dacDeduction +  go dacCost where go f = fromMaybe 0 (dac ^? f)
 
-data PayrollFrequency = Weekly | Monthly deriving (Eq, Read, Show, Enum, Bounded, Ord)
+data PayrollFrequency = Weekly | Monthly deriving (Eq, Show, Read, Enum, Bounded, Ord)
 -- | A Timesheet. A functor over employee : allows
 -- to easily modify the information relative to an employee
 -- like replacing an operatorId by an Operator

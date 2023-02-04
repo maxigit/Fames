@@ -100,7 +100,7 @@ data ReceiptTemplate' f
   | BankAccountMapper (Map Text (f FA.BankAccountRef))
   | ItemTaxMapper (Map Text (f FA.TaxRef))
   | ItemGLAccountMapper (Map Text (f FA.GLAccountRef))
-  -- deriving (Eq, Show, Read)
+  -- deriving (Eq, Show)
 
 type ReceiptTemplate = ReceiptTemplate' (Const Text)
 type ReceiptTemplateExpanded = ReceiptTemplate' Identity

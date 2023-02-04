@@ -6,7 +6,7 @@ import Util.Decimal
 -- * Type 
 type Bucket = Text
 -- data Bucket = DefaultBucket | NamedBucket Text
---   deriving (Show, Read, Eq, Ord)
+--   deriving (Show, Eq, Ord)
 
 -- | Rules to determine the bucket of a given tax transaction
 data Rule
@@ -20,7 +20,7 @@ data Rule
   | InputRule Rule
   | OutputRule Rule
   | CustomerCategory Text (Maybe Text)
-  deriving (Show, Read, Eq, Ord)
+  deriving (Show, Eq, Ord)
 
 defaultBucket :: Bucket
 defaultBucket = "<undefined>"
@@ -35,7 +35,7 @@ data RuleInput = RuleInput
  , riTaxRate :: Double
  , riAmount :: Double
  , riCustCategoryFinder:: Text -> Maybe Text
- } -- deriving (Eq, Show, Read)
+ } -- deriving (Eq, Show)
 
 data TaxBox = TaxBox
    { tbName :: Text -- 
@@ -43,7 +43,7 @@ data TaxBox = TaxBox
    , tbShouldBe :: Maybe Ordering -- expected sign of amount
    , tbRule :: TaxBoxRule
    , tbRound :: Maybe RoundingMethod
-   } deriving (Eq, Show, Read)
+   } deriving (Eq, Show)
 
 tbDefaultDecimal :: Word8
 tbDefaultDecimal = 6
@@ -65,4 +65,4 @@ data TaxBoxRule
   | TaxBoxCeil Word8 TaxBoxRule
   | TaxBoxRound Word8 TaxBoxRule
   | TaxBoxBanker Word8 TaxBoxRule -- Banker round. round function in Haskell
-  deriving (Show, Read, Eq)
+  deriving (Show, Eq)

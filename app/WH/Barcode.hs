@@ -14,14 +14,14 @@ data BarcodeParams = BarcodeParams
   { bpPrefix :: Text
   , bpDescription :: Text
   , bpTemplates :: [BarcodeTemplate]
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 
 data BarcodeTemplate = BarcodeTemplate
   { btPath :: Text
   , btNbPerPage :: Int
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 
-data OutputMode = Csv | GLabels deriving (Eq, Ord, Read, Show)
+data OutputMode = Csv | GLabels deriving (Eq, Ord, Show)
 
 -- * FromJSON 
 instance FromJSON (Text -> BarcodeParams) where

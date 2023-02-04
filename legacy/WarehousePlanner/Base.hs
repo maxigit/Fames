@@ -95,7 +95,7 @@ data TagOperationF s = -- ClearTagValues  use SetValue []
                   | SetValues [s]
                   | AddValue s
                   | RemoveValue s
-                  deriving (Eq, Show, Read, Functor, Foldable, Traversable)
+                  deriving (Eq, Show, Functor, Foldable, Traversable)
 
 type TagOperation = TagOperationF Text
 type Tag'Operation = (Text, TagOperation)
@@ -1000,7 +1000,7 @@ indexToOffsetDiag (Dimension l w h) diagSize (il, iw, ih) =
           
 
 data SortBoxes = SortBoxes | DontSortBoxes
-     deriving (Eq, Ord, Read, Show)
+     deriving (Eq, Ord, Show)
 -- Try to Move a block of boxes  into a block of shelves.
 -- Boxes are move in sequence and and try to fill shelve
 -- in sequence. If they are not enough space the left boxes

@@ -647,7 +647,7 @@ findResidual orientations shelf box qty nbOfShelf = let
 -- | Try each each pair of boxes and each shelves to find the best arrange
 -- a pair of style is good if it minimize the occupied ration
 
-data MixedResult = LeftOnly Int  | RightOnly Int | Both Int Int deriving (Eq, Read, Show, Ord)
+data MixedResult = LeftOnly Int  | RightOnly Int | Both Int Int deriving (Eq, Show, Ord)
 data Pair s  = Pair
   { pRes1 :: Residual s
   , pRes2 :: Maybe (Residual s)

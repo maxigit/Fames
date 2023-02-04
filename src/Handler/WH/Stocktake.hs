@@ -38,12 +38,12 @@ import Text.Blaze(Markup)
 
 -- * Types 
 -- | Validate spreadsheet, save , collect and save partial stocktakes generated from lost items
-data SavingMode = Validate | Save | CollectMOP deriving (Eq, Read, Show)
+data SavingMode = Validate | Save | CollectMOP deriving (Eq, Show)
 
 -- | Which stocktake items to display.
 -- Complete stocktake can be quite big so displaying in the browser can be skipped if not needed.
 data DisplayMode = DisplayAll | DisplayMissingOnly | HideMissing
-  deriving (Eq, Read, Show, Enum, Bounded)
+  deriving (Eq, Show, Enum, Bounded)
 
 -- | Whether a style is complete or not, i.e. we need to generate zerotake for variations
 -- not present in the stocktake (only for style present)
@@ -60,7 +60,7 @@ data DisplayMode = DisplayAll | DisplayMissingOnly | HideMissing
 -- without triggering a 
 
 data StyleComplete = StyleComplete | StyleIncomplete | StyleAddition | StyleNoAdjustment
-  deriving (Eq, Read, Show, Enum, Bounded)
+  deriving (Eq, Show, Enum, Bounded)
 
 -- | Should be Either FileInfo (Text, Text)
 data FormParam = FormParam
@@ -717,7 +717,7 @@ type OpFinder = Text -> Maybe Operator'
 data Location' = Location' { faLocation :: FA.LocationId
                            , parsed :: Text
                            , expanded :: Text
-                           } deriving (Eq, Read, Show)
+                           } deriving (Eq, Show)
 type LocFinder = Text -> Maybe Location'
 
 -- | a take row can hold stocktake and boxtake information
@@ -739,7 +739,7 @@ data TakeRow s = TakeRow --  Basic       QuickTake BarcodeLookup
 data TakeRowType = RawT | PartialT | FullT
   | QuickT | FinalQuickT
   |  BarcodeLookupT -- -| FinalBarcodeLookupT
-  | FinalT deriving (Eq, Read, Show)
+  | FinalT deriving (Eq, Show)
 type RawRow = TakeRow 'RawT -- Raw data. Contains if the original text value if necessary
 type PartialRow = TakeRow 'PartialT -- Well formatted row. Can contains blank
 type FullRow = TakeRow 'FullT -- Contains valid value with guessed/provided indicator

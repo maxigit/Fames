@@ -38,7 +38,7 @@ data FormParam = FormParam
   , pDisplayMode :: Maybe ScenarioDisplayMode -- ^ How to re-render the scenario in the textarea field
   , pViewMode :: Maybe PlannerViewMode -- ^ How to view the warehouse
   , pParameter :: Maybe Text
-  } deriving (Show, Read)
+  } deriving (Show)
 
 defaultParam :: FormParam
 defaultParam = FormParam Nothing Nothing Nothing Nothing Nothing Nothing Nothing

@@ -164,7 +164,7 @@ data WhichBucket
   = AllBuckets --  ^ 
   | BucketsIn --  ^ within period range
   | BucketsOut --  ^ out of period range
-  deriving (Show, Read)
+  deriving (Show)
 
 loadBucketSummary :: WhichBucket -> Key TaxReport -> SqlHandler (Map (Bucket, Entity FA.TaxType) TaxSummary)
 loadBucketSummary mode key = do
@@ -275,7 +275,7 @@ loadTaxBoxesFromBuckets processor whichBucket reportId bucket'rates = do
   return $  computeBoxes (setFromList $ keys bucket'rates) buckets boxes
 
 
-data BucketType = ConfigBucket | ExtraBucket deriving (Eq, Read, Show, Enum, Bounded)
+data BucketType = ConfigBucket | ExtraBucket deriving (Eq, Show, Enum, Bounded)
 -- | Get the list of all  Bucket/rate configuration from the config
 -- (and the rate in the database)
 getBucketRateFromSettings :: Key TaxReport

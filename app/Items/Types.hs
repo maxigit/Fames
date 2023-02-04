@@ -44,7 +44,7 @@ instance (Ord a, Num a, Fractional a) => Monoid (MinMax a) where
 -- | Status of a variation within a group
 -- Given a group of items and a list of variations
 -- tells if the current items belongs , is missing or is extra
-data VariationStatus= VarOk | VarMissing | VarExtra deriving (Eq, Show, Read, Ord)
+data VariationStatus= VarOk | VarMissing | VarExtra deriving (Eq, Show, Ord)
 
 type FieldWithClasses a = ([Text], a)
 -- ** Functor parametrize data types 
@@ -165,23 +165,23 @@ data FARunningStatus = FARunning --  ^ can and need to be sold
 
                     | FADead --  ^ Not used anymore but can't be deleted because of exists in previous trans.
                     | FAGhost --  ^ In the system but can be deleted.
-                    deriving (Show, Read, Eq, Enum, Bounded)
+                    deriving (Show, Eq, Enum, Bounded)
 
 data WebDisplayStatus = WebOk --  ^ is active and has a product display : shows on the website
                       | WebHidden --  ^ has a product display but inactive: is hidden
                       | WebMissing --  ^  the variation doesn't exist.
                       | WebUnlinked --  ^  orphan variation without a product display
-                      deriving (Show, Read, Eq, Enum, Bounded)
+                      deriving (Show, Eq, Enum, Bounded)
 
 data PriceStatus =  PriceOk --  ^ All prices are the same within a group for all (selected) price lists
                  | PriceMissing
                  | PriceDiffers
-                 deriving (Show, Read, Eq, Enum, Bounded)
+                 deriving (Show, Eq, Enum, Bounded)
 
 data GLStatus = GLOk --  ^ Everything is the same within  a group
               | GLDescriptionDiffers --  ^ Only the description differs
               | GLDiffers --  ^ 
-              deriving (Show, Read, Eq, Enum, Bounded)
+              deriving (Show, Eq, Enum, Bounded)
 
 
 -- * Reporting 
@@ -223,7 +223,7 @@ instance Monoid QPrice where
 -- | Specifies whether the quantities are seen  as inward or outward (from the company point of view)
 -- Positive quantities for Inward transaction means we are getting more in
 -- For example, a Sales is outward, whereas a customer credit note in inward (<0) or (outward <0)
-data InOutward = Inward | Outward deriving (Show, Read, Eq, Ord, Enum, Bounded) 
+data InOutward = Inward | Outward deriving (Show, Eq, Ord, Enum, Bounded) 
 
 -- | Type of transaction corresponding to a QPrice
 -- Types are actually not disjoint, and can be converted from one (sub)type to another one.
@@ -530,7 +530,7 @@ nmapToList (NMap _ _ m) = [ (key : subkeys, es)
 
 -- * Forecast 
 -- | Proportion of sales for each month of sales for each month. The sum should be 1 or 0 (and we should have 12 )
-data SeasonProfile = SeasonProfile [Double] deriving (Show, Read, Eq)
+data SeasonProfile = SeasonProfile [Double] deriving (Show, Eq)
 seasonProfile [] = seasonProfile (repeat 1)
 seasonProfile weights0 = SeasonProfile (normalize weights) where
   weights = take 12 $ weights0 ++ repeat 0

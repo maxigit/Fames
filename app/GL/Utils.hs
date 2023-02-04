@@ -177,7 +177,7 @@ previousVATQuarter day =  (start, end) where
   start = calculateDate (AddMonths (-monthOffset-3))  begMonth
   end = foldr (calculateDate) start [EndOfMonth, AddMonths 2]
 -- * Gl Transaction Releated 
-data DebitCredit = Debit | Credit deriving (Eq, Read, Show, Ord, Enum, Bounded)
+data DebitCredit = Debit | Credit deriving (Eq, Show, Ord, Enum, Bounded)
 
 class HasDebitCredit a where
   debitCredit :: a -> DebitCredit

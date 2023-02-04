@@ -41,17 +41,17 @@ import qualified Data.Map as Map
 import qualified FA as FA
 
 -- * Types 
-data Mode = Validate | Save deriving (Eq, Read, Show)
+data Mode = Validate | Save deriving (Eq, Show)
 data UploadParam = UploadParam
   { upTimesheet :: Textarea
   , upPreviousKey :: Maybe DocumentHash
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 
 data FAParam = FAParam
   { ffDate :: Day
   , ffReferenceSuffix :: Maybe Text
   , ffPayments :: Map Text (Maybe Double, Maybe Day)
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 -- * Form 
 uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
 uploadForm mode paramM = let

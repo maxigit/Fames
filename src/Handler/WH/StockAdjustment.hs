@@ -47,16 +47,16 @@ import Control.Monad.Except hiding (mapM_)
 -- TODO save  as csv -> compatible with old system
 -- TODO parse
 -- TODO check product exists
-data Unsure = Sure | Unsure | All deriving (Eq, Read, Show, Enum, Bounded)
+data Unsure = Sure | Unsure | All deriving (Eq, Show, Enum, Bounded)
 
 
-data CartMode = Lost | Found | New deriving (Eq, Read, Show, Enum)
+data CartMode = Lost | Found | New deriving (Eq, Show, Enum)
 
 -- If a stocktake represent a full style, all variations not present
 -- should be lost .
-data StyleMode = LooseMissing | Partial deriving (Eq, Read, Show, Enum)
+data StyleMode = LooseMissing | Partial deriving (Eq, Show, Enum)
 
-data SortMode = SortByStyle | SortByQuantity deriving (Eq, Read, Show, Enum, Bounded)
+data SortMode = SortByStyle | SortByQuantity deriving (Eq, Show, Enum, Bounded)
 data FormParam = FormParam
   { style :: Maybe Text
   , download :: Bool
@@ -71,10 +71,10 @@ data FormParam = FormParam
   , quantityBefore :: Map Text Int -- ^ Quantity to substract from qoh
   , minDate :: Maybe Day -- ^ force date
   , maxDate :: Maybe Day -- ^ force date
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 
 
-data FormMode = Save | Reject | View deriving (Eq, Read, Show)
+data FormMode = Save | Reject | View deriving (Eq, Show)
 paramForm mode = renderBootstrap3 BootstrapBasicForm  form
   where form = FormParam
             <$> aopt textField "style" Nothing
@@ -324,7 +324,7 @@ data LocationInfo = LocationInfo
   , quantityNow :: !Int -- quantity on hand NOW. To avoid negative stock
   , date :: Maybe Day
   , movesAt :: [MoveInfo] -- any picking have been done within the "UNsure" date range
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 
 quantityTake0 = fromMaybe 0 . quantityTake
 
@@ -336,7 +336,7 @@ data PreAdjust = PreAdjust
   , lost :: !LocationInfo
   , takeDate :: !Day
   , preComment :: Maybe Text
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 
 adjustInfos :: PreAdjust -> [LocationInfo]
 adjustInfos adj  = [mainLocation, lost] <*> [adj]
@@ -349,7 +349,7 @@ data MoveInfo = MoveInfo
  , moveCustomerName :: !Text
  , moveOperatorName :: Maybe Text
  , movePickedQty :: !Int
- } deriving (Eq, Read, Show)
+ } deriving (Eq, Show)
 
 lastMove :: PreAdjust -> Maybe Day
 lastMove pre = max (date (mainLocation pre)) (date (lost pre)) 

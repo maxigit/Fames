@@ -21,10 +21,10 @@ import qualified Data.Text as Text
 -- A graded version of MatchScore. This is ultimately what we expose to the end user.
 -- Quality are saved internally as Double (score) , only to make merging easier
 data MatchQuality = Bad | Close | Fair | Good | Excellent | Identical
-  deriving(Eq, Read, Show, Enum, Bounded, Ord)
+  deriving(Eq, Show, Read, Enum, Bounded, Ord)
 
 newtype MatchError = MatchError Double -- 100 - MatchScore
-  deriving(Eq, Read,Show, Ord, Num)
+  deriving(Eq,Show, Ord, Num)
 
 data MatchRow (s :: RowTypes) = MatchRow
   { source :: FieldTF s (ForRowT s Text Text (Entity Batch) (Entity Batch))
@@ -42,12 +42,12 @@ data MatchAggregationMode = AllMatches --  ^ Keep all
   --  -| MedianMatches --  ^ get average of the two medians
   | AverageMatches --  ^ get the average
   | LastMatches --  ^ get the latest
-  deriving (Show, Read, Eq, Enum, Bounded)
+  deriving (Show, Eq, Enum, Bounded)
 -- | Display quality as text or sign, and hide bad and identical
 data QualityDisplayMode = FullQuality --  ^ display full text 
                         | LimitQuality --  ^ remove Bad and Identical
                         | LimitCloses --  ^ as LimitQuality and  remove closes except unique
-                        deriving (Show, Read, Eq, Enum, Bounded)
+                        deriving (Show, Eq, Enum, Bounded)
 -- | How to merge batches into one and keep colours
 -- example, when displaying the table of a given style
 -- each colour can correspond to one or many batch.
@@ -61,7 +61,7 @@ data BatchMergeMode =
   -- ie, worst case scenario. check that a batch belong to ALL Batches
   -- and get the worst
   -- -| MergeBest --  ^ Only merge if the SafeMatch is good enough, otherwise raises an error
-  deriving (Show, Read, Eq, Enum, Bounded)
+  deriving (Show, Eq, Enum, Bounded)
 
 -- * Instance 
 -- | Parse one match per row

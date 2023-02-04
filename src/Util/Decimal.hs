@@ -15,7 +15,7 @@ data RoundingMethod = Round {roundDec' :: Word8 }
   | RoundDown {roundDec' :: Word8 }
   | RoundBanker {roundDec' :: Word8 }
   | RoundAbs RoundingMethod 
-  deriving (Eq, Show, Read)
+  deriving (Eq, Show)
 
 roundDec :: RoundingMethod -> Word8
 roundDec (RoundAbs r) = roundDec r

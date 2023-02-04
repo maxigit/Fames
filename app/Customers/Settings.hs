@@ -15,7 +15,7 @@ data DPDSettings = DPDSettings
   , shipperContactTelephone :: Text
   , shipperOrganisation :: Text
   , shipperEORI :: Text
-  } deriving (Show, Read, Eq, Ord)
+  } deriving (Show, Eq, Ord)
 
 
 -- * JSON 

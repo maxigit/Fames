@@ -17,13 +17,13 @@ import FATransType
 
 -- * Warehouse 
 -- | Where as a transaction has been processed or not.
-data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, Ord)
+data PendingStatus = Pending | Process deriving (Eq, Show, Read, Enum, Bounded, Ord)
 
 derivePersistField "PendingStatus"
 
 -- | Quality of Batch. 0 is bad -  100 is perfect
 newtype MatchScore = MatchScore { unMatchScore:: Double }
-  deriving(Eq, Read,Show, Ord)
+  deriving(Eq,Show, Ord)
 
 instance PersistField MatchScore where
   toPersistValue = toPersistValue . unMatchScore
@@ -34,7 +34,7 @@ instance PersistFieldSql MatchScore where
 
 -- * Payroll 
 -- | Wether a payroll cost is a added to the employer bill (cost) or paid by the employee (deduction)
-data CostOrDeduction = Cost | Deduction deriving(Eq, Read, Show, Enum, Bounded, Ord)
+data CostOrDeduction = Cost | Deduction deriving(Eq, Show, Read, Enum, Bounded, Ord)
 derivePersistField "CostOrDeduction"
 
 derivePersistField "PayrollFrequency"

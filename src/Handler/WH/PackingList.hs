@@ -47,10 +47,10 @@ import Handler.Items.Common(skuToStyleVarH, dutyForH)
 import Data.Char (isAlphaNum)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
-data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
+data EditMode = Replace | Insert | Delete deriving (Eq, Show, Read, Enum)
 
 -- | Type of file
-data Format = PartialFirst deriving (Eq, Read, Show)
+data Format = PartialFirst deriving (Eq, Show)
 data UploadParam = UploadParam
   { orderRef :: Text --  ^ original order reference
   , invoiceRef :: Text -- ^ name of the file to upload
@@ -61,7 +61,7 @@ data UploadParam = UploadParam
   , arriving :: Maybe Day
   , comment :: Maybe Textarea -- ^ any comment
   , spreadsheet :: Textarea -- ^ the actual spreadsheet to upload/process
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 
 uploadForm :: Maybe UploadParam -> Markup ->  _ (FormResult UploadParam, Widget)
 uploadForm param = renderBootstrap3 BootstrapBasicForm form
@@ -993,7 +993,7 @@ data PLRowTypes = PLRawT
                 | PLPartialBoxT
                 | PLTotalT
                 | PLOrderRefT
-                | PLFinalT deriving (Eq, Read, Show) 
+                | PLFinalT deriving (Eq, Show) 
 
 type PLRaw = PLRow 'PLRawT
 type PLPartial = PLRow 'PLPartialT

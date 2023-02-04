@@ -27,7 +27,7 @@ data VATObligation = VATObligation
    , due :: Day
    , periodKey :: Text
    , received :: Maybe Day
-   } deriving (Eq, Show, Read)
+   } deriving (Eq, Show)
 
 data VATReturn = VATReturn
    { vr_periodKey :: Text
@@ -41,7 +41,7 @@ data VATReturn = VATReturn
    , vr_totalValueGoodsSuppliedExVAT :: Fixed E0
    , vr_totalAcquisitionsExVAT :: Fixed E0
    , vr_finalised :: Bool
-   } deriving (Eq, Show, Read)
+   } deriving (Eq, Show)
 
 newtype AuthorizationCode = AuthorizationCode Text
 data AuthorizationToken = AuthorizationToken
@@ -50,7 +50,7 @@ data AuthorizationToken = AuthorizationToken
   , expiresIn :: Int
   , refreshToken :: Text
   , scope :: Text -- should be a list
-   } deriving (Eq, Show, Read)
+   } deriving (Eq, Show)
 
 $(deriveJSON defaultOptions {fieldLabelModifier = camelTo2 '_'  } ''AuthorizationToken)
 $(deriveJSON defaultOptions ''VATObligation)

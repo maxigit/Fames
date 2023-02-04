@@ -16,7 +16,7 @@ import Data.List(nub)
 
 
 newtype DetailsKey = DetailsKey { unDetailsKey :: Text }
-  deriving (Eq, Ord, Show, Read)
+  deriving (Eq, Ord, Show)
 
 computeKey :: ShippingDetails -> DetailsKey
 computeKey ShippingDetails{..} = let
@@ -80,7 +80,7 @@ data Match = FullKeyMatch
            -- -| FullContactMatch
            | TelephoneMatch
            | EmailMatch
-     deriving (Eq, Ord, Show, Read, Bounded, Enum)
+     deriving (Eq, Ord, Show, Bounded, Enum)
 -- | Find the shipping details with the same key as the given one.
 -- This allow to find a valid version of the details even if
 -- fields are not field correctly (all information is there but not

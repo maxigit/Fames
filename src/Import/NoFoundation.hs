@@ -74,7 +74,7 @@ import Data.Time.Format(FormatTime)
 
 import Text.Printf(printf)
 
-data MessageType = MError | MWarning | MInfo | MSuccess deriving (Eq, Read, Show)
+data MessageType = MError | MWarning | MInfo | MSuccess deriving (Eq, Show)
 
 setError, setWarning, setInfo, setSuccess :: MonadHandler m => Markup -> m ()
 setError = addMessage "Error" . formatError

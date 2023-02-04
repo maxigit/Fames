@@ -27,7 +27,7 @@ data InvalidSpreadsheet = InvalidSpreadsheet
   , missingColumns :: [Text]
   , columnIndexes :: [Int] -- ^ index of present columns
   , sheet :: [[ Either Csv.Field Text]]  -- ^ origin file
-  } deriving (Eq, Read, Show)
+  } deriving (Eq, Show)
 
 data InvalidField = ParsingError { invFieldType :: Text
                                  , invFieldValue :: Text

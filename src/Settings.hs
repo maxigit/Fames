@@ -126,14 +126,14 @@ data BankAutoReconciliateRule = BankAutoTransfer !Int
   | BankAutoCustomer !Int
   | BankAutoSkip -- used to force rule ignore a specific regex 
   -- usually caugh otherwise by a too lax auto-generated rule
-  deriving (Show, Read, Eq, Ord)
+  deriving (Show, Eq, Ord)
 data BankStatementMode = BankUseStatement
   { bsPath :: FilePath -- Where to find the statement files
   , bsStatementGlob :: Text
   , bsDailyGlob :: Text -- Glob pattern to filter daily statement
   }
                        | BankNoStatement 
-                       deriving (Show, Read, Eq, Ord)
+                       deriving (Show, Eq, Ord)
 data BankStatementSettings = BankStatementSettings
   { bsStartDate :: Maybe Day -- point in time to start from. Should correspond to 0-discrepency
   -- between FA and the given statemet
@@ -149,7 +149,7 @@ data BankStatementSettings = BankStatementSettings
   , bsSummaryDateCalculator :: Maybe DateCalculator -- When to start the statement section
   , bsSummaryLimit :: Maybe Int -- Number max to load
   , bsRules:: [Map Text BankAutoReconciliateRule]  -- rules to generate FA transaction statement entry
-  } deriving (Show, Read, Eq, Ord)
+  } deriving (Show, Eq, Ord)
 
 -- TODO clean
 instance ToJSON MySQLConf  where

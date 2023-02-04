@@ -29,10 +29,8 @@ data Locker r a where
 
 deriving instance  (Eq a, Eq r) => Eq (Locker r a) 
 deriving instance  (Ord a, Ord r) => Ord (Locker r a) 
-deriving instance  (Ord r, Read a, Read r) => Read (Locker r a) 
 
-
-data Granted = Granted | Forbidden deriving (Eq, Ord, Show, Read)
+data Granted = Granted | Forbidden deriving (Eq, Ord, Show)
 
 -- * Manipulators 
 lock :: Ord r => [r] -> a -> Locker r a
@@ -103,7 +101,7 @@ showLock  unlocker l_lock = case unlock unlocker l_lock of
 
 -- * Roles Granter 
 
-data Privilege = ViewPriv | CreatePriv | DeletePriv | SavePriv deriving (Eq, Read, Show, Ord, Enum ,Bounded)
+data Privilege = ViewPriv | CreatePriv | DeletePriv | SavePriv deriving (Eq, Show, Ord, Enum ,Bounded)
 granter :: Role -> (Privilege, Text) -> Granted
 granter Administrator _ = Granted
 granter role0 (priv, r) = let

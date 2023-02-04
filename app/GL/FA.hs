@@ -28,7 +28,7 @@ data ReferenceType
   | TaxRefR
 
 data Reference (s :: ReferenceType) e = Reference {refId :: !Int, refName :: !Text, refActive :: !Bool, refExtra :: e}
-  deriving (Show, Read, Eq, Ord)
+  deriving (Show, Eq, Ord)
 
 type BankAccountRef = Reference 'BankAccountR ()
 type GLAccountRef = Reference 'GLAccountR ()
@@ -97,7 +97,7 @@ parseReference refMap ref0 =
 
 -- * Payment related 
 -- | Correspond to the payment form to "Misc"
-data Payment = Payment [PaymentItem] deriving (Show, Read, Eq)
+data Payment = Payment [PaymentItem] deriving (Show, Eq)
 
 
 -- | A row in the payment. Will generate one line in the General Ledger.
@@ -112,7 +112,7 @@ data PaymentItem = PaymentItem
   , dimension1 :: Maybe DimensionId
   , dimension2 :: Maybe DimensionId
   , memo :: Maybe Text
-  } deriving (Show, Read, Eq)
+  } deriving (Show, Eq)
                
 
 

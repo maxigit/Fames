@@ -16,20 +16,20 @@ data EmployeeSettings = EmployeeSettings
   , faSKU :: Text
   , dimension1 :: Maybe Int
   , dimension2 :: Maybe Int
-  } deriving (Show, Read , Eq, Ord)
+  } deriving (Show , Eq, Ord)
 
 -- | External party associated with deductions and costs
 data PayrollExternalSettings = PayrollExternalSettings
   {  costPaymentSettings :: Maybe DACSettings
   ,  deductionsPaymentSettings :: Maybe DACSettings
   ,  costGlAccount:: Int
-  } deriving (Show, Read, Eq, Ord)
+  } deriving (Show, Eq, Ord)
 
 data DACSettings = DACSettings
   { paymentRef :: Maybe Text
   , paymentTerm :: DateCalculator
   , paymentSettings :: DACPaymentSettings
-  } deriving (Show, Read, Eq, Ord)
+  } deriving (Show, Eq, Ord)
 
 -- | dacs payments can be either entered in FA
 -- as a normal payment (similar to employee)
@@ -47,7 +47,7 @@ data DACPaymentSettings
   | DACPaymentSettings
     { bankAccount :: Int
     }
-  deriving (Show, Read, Eq, Ord)
+  deriving (Show, Eq, Ord)
 
 data PayrollSettings = PayrollSettings
   { employees :: Map Text EmployeeSettings
@@ -60,7 +60,7 @@ data PayrollSettings = PayrollSettings
   , externals :: Map Text PayrollExternalSettings
   , views :: Map Text [(Text, [PayrollFormula]) ]
   -- , formulas :: Map Text PayrollFormula
-  } deriving (Show, Read, Eq, Ord)
+  } deriving (Show, Eq, Ord)
 
 
 -- ** Date Calculator 
@@ -100,7 +100,7 @@ succCyclic d = succ d
 data PayrollFormula = PFVariable Text
                     | PFValue Double
                     | PFNegVariable Text
-  deriving (Show, Read, Eq, Ord)
+  deriving (Show, Eq, Ord)
 
 -- * JSON 
 instance ToJSONKey (Maybe DayOfWeek) where
