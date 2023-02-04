@@ -92,6 +92,7 @@ library
       Handler.WH.Dimensions
       Handler.WH.Location
       Handler.WH.PackingList
+      Handler.WH.PLToPlanner
       Handler.WH.StockAdjustment
       Handler.WH.Stocktake
       Import
@@ -1084,6 +1085,7 @@ test-suite zghicd
       Handler.WH.Dimensions
       Handler.WH.Location
       Handler.WH.PackingList
+      Handler.WH.PLToPlanner
       Handler.WH.StockAdjustment
       Handler.WH.Stocktake
       Import

@@ -45,6 +45,11 @@ import Formatting hiding(bytes)
 import Data.Align(align)
 import Handler.Items.Common(skuToStyleVarH, dutyForH)
 import Data.Char (isAlphaNum)
+import qualified Handler.Planner.Exec as Planner
+import qualified WarehousePlanner.Base as Planner
+import qualified Planner.Internal as Planner
+import qualified Handler.Planner.FamesImport as Planner
+import Handler.WH.PLToPlanner
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Show, Read, Enum)
@@ -62,6 +67,11 @@ data UploadParam = UploadParam
   , comment :: Maybe Textarea -- ^ any comment
   , spreadsheet :: Textarea -- ^ the actual spreadsheet to upload/process
   } deriving (Eq, Show)
+
+data PlannerInfo = PlannerInfo
+  { location :: Maybe Text
+  , extras :: Map Text Text
+  } deriving (Show)
 
 uploadForm :: Maybe UploadParam -> Markup ->  _ (FormResult UploadParam, Widget)
 uploadForm param = renderBootstrap3 BootstrapBasicForm form
@@ -324,8 +334,8 @@ deliverPackingList key param = do
             -- deliver
             forM_ delivers $ \k -> update k [PackingListDetailDelivered =. True]
             -- create associated boxtakes
-            details <- selectList [PackingListDetailId <-. delivers] []
-            let boxtakes = map (detailToBoxtake param docKey . entityVal) details
+            details <- selectList [PackingListDetailId <-. delivers] [] >>= lift . joinWithPlanner key
+            let boxtakes = [detailToBoxtake param docKey detail info | (Entity _ detail, info) <-  details]
             insertMany_ boxtakes
             -- undeliver delete boxtakes and stocktakes
             forM_ undelivers $ \k -> update k [PackingListDetailDelivered =. False]
@@ -343,15 +353,15 @@ deliverPackingList key param = do
                       (parseDeliverList (dpCart param))
 
 
-detailToBoxtake :: DeliveryParam -> DocumentKeyId -> PackingListDetail -> Boxtake
-detailToBoxtake param docKey detail = Boxtake
+detailToBoxtake :: DeliveryParam -> DocumentKeyId -> PackingListDetail -> PlannerInfo -> Boxtake
+detailToBoxtake param docKey detail info = Boxtake
   (Just $ packingListDetailStyle detail)
   reference
   (packingListDetailLength detail)
   (packingListDetailWidth detail)
   (packingListDetailHeight detail)
   (packingListDetailBarcode detail)
-  (dpLocation param)
+  (fromMaybe (dpLocation param) $ location info)
   (dpDate param)
   True
   (dpOperator param)
@@ -472,7 +482,7 @@ viewPackingList mode key pre = do
           corridors = [(8, 1.9, 3 ), (5, 1.5, 3), (4, 1.2, 3)]
 
       case mode of
-        Stickers  -> generateStickers pl entities
+        Stickers  -> joinWithPlanner key entities >>= generateStickers pl
         StocktakePL  -> generateStocktake key pl
         _ -> do
            entitiesWidget <- case mode of
@@ -480,13 +490,14 @@ viewPackingList mode key pre = do
              Edit -> renderEdit key pl docKey
              EditInvoices -> renderEditInvoices key invoiceNos
              Deliver -> renderDeliver Nothing key entities
+             StickerCsv -> toWidget . renderStickers today pl <$> joinWithPlanner key entities
              _ -> return . toWidget $ (case mode of
                                  Details -> renderDetails
                                  Textcart -> renderTextcart
-                                 StickerCsv -> renderStickers today
                                  Chalk -> renderChalk corridors
                                  Planner -> renderPlanner WithDetails
                                  PlannerColourless -> renderPlannerColourless
+                                 StickerCsv ->  error "Shoudn't happen"
                                  Stickers ->  error "Shoudn't happen"
                                  EditDetails ->  error "Shoudn't happen"
                                  EditInvoices ->  error "Shoudn't happen"
@@ -621,7 +632,7 @@ $forall (ref, skus) <- Map.toList groups
         #{skusToText skus}
 |]
 
-renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
+renderStickers :: Day -> PackingList -> [(Entity PackingListDetail, PlannerInfo)] -> Html
 renderStickers today pl entities = 
   -- we need a monad to use the conduit. Let's use Maybe ...
   let Just csv = runConduit $ stickerSource today pl entities .| consume
@@ -659,12 +670,14 @@ stickerSource ::
   Monad m =>
   Day
   -> PackingList
-  -> [Entity PackingListDetail]
+  -> [(Entity PackingListDetail, PlannerInfo)]
   -> ConduitM i Text m ()
 stickerSource today pl entities = do
   let sorted = sortBy (comparing cmp) entities
-      cmp (Entity _ detail) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
-  yield "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,batch,a1Morse,a1Space\n"
+      cmp (Entity _ detail, _ ) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
+      usedKeys = keys $ foldMap (extras . snd) entities 
+  yield (intercalate "," $ "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,batch,a1Morse,a1Space,location" : usedKeys)
+  yield "\n"
   yieldMany [ packingListDetailStyle detail
             <> "," <> (tshow $ fromMaybe today (packingListArriving pl) )
             <> "," <> (packingListDetailReference detail )
@@ -674,11 +687,13 @@ stickerSource today pl entities = do
             <> "," <> (fromMaybe "" $ packingListBatch pl)
             <> "," <> (toMorse . fromMaybe "" . headMay $ detailToStickerMarks detail)
             <> "," <> (withSpace . fromMaybe "" . headMay $ detailToStickerMarks detail)
+            <> "," <> intercalate "," 
+                      (fromMaybe "" (location info) : map (\k -> findWithDefault "" k (extras info)) usedKeys)
             <> "\n"
-            | (Entity _ detail) <- sorted
+            | (Entity _ detail, info) <- sorted
             ]
 
-generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedContent
+generateStickers :: PackingList -> [(Entity PackingListDetail, PlannerInfo)] -> Handler TypedContent
 generateStickers pl details = do
   today <- todayH
   template <- appPackingListStickerTemplate <$> getsYesod appSettings
@@ -743,8 +758,7 @@ $forall zone <- sliced
           <td> #{tshow nd} (#{showf d})
 |]
 
--- | CSV compatible with WarehousePlanner
-data WithDetails = WithDetails | NoDetail deriving (Eq, Show)
+-- | CSV compatible with warehousePlanner.
 renderPlanner :: WithDetails -> PackingList -> [Entity PackingListDetail] -> Html
 renderPlanner withDetails pl details = let
   rows = toPlanner withDetails pl details
@@ -752,43 +766,6 @@ renderPlanner withDetails pl details = let
              $forall row <- rows
               <p>#{row}
              |]
-
-toPlanner :: WithDetails -> PackingList -> [Entity PackingListDetail] -> [Text]
-toPlanner withDetails PackingList{..} details = let
-  groups = Map.fromListWith (+) [ ( ( style detail
-                                    , packingListDetailLength
-                                    , packingListDetailWidth
-                                    , packingListDetailHeight
-                                    )
-                                 , (1 :: Int)
-                                 )
-                               | (Entity _ detail@PackingListDetail{..}) <- details
-                               ]
-  style PackingListDetail{..} = packingListDetailStyle
-                             <> (content $ Map.toList packingListDetailContent )
-                             <> if withDetails == WithDetails
-                                then ("#barcode=" <> packingListDetailBarcode )
-                                     <>  (maybe "" ("#pl-vessel=" <>) packingListVessel)
-                                     <>  (maybe "" ("#pl-batch=" <>) packingListBatch)
-                                     <>  (maybe "" ("#pl-container=" <>) packingListContainer)
-                                     <>  (maybe "" ("#pl-departure=" <>) $ fmap tshow packingListDeparture)
-                                     <>  (maybe "" ("#pl-arriving=" <>) $ fmap tshow packingListArriving)
-                                     <> ("#reference=" <> packingListDetailReference )
-                                     <> ("#boxNumber=" <> tshow packingListDetailBoxNumber )
-                                     <> case Map.toList packingListDetailContent of
-                                         cols@(_:_:_) -> "#mixed" <> mconcat [ "#content" <> tshow i <> "=" <> col
-                                                                             | ((col, __qty), i) <- zip cols [1..]
-                                                                             ]
-                                         _ -> ""
-                                 else ""
-  content [] = ""
-  content ((col,__qty):cs) = "-" <> col <> if null cs then "" else "*"
-  header = "style,quantity,l,w,h"
-  detailToText ((style, l, w, h),qty) = intercalate "," $
-    [style , tshow qty ]
-    <> map tshow [ l , w , h]
-  in header : map detailToText (Map.toList groups) 
-
 -- | CSV compatible with warehousePlanner. Identical to {renderPlanner}
 -- but remove colour information so that it's easier to know actuall how many boxes
 -- are coming for a given style.
@@ -811,7 +788,7 @@ stocktakeSource key detail'boxS = do
       yieldMany [packingListDetailStyle
                 <> "," <> var
                 <> "," <> tshow qty
-                <> "," -- location
+                <> "," <> boxtakeLocation
                 <> "," <> ife packingListDetailBarcode "-" -- Barcode
                 <> "," <> ife (tshow packingListDetailLength) ""
                 <> "," <> ife (tshow packingListDetailWidth) ""
@@ -1789,6 +1766,46 @@ instance Monoid DetailInfo  where
 normQ :: DetailInfo ->  DetailInfo
 normQ (DetailInfo qty vol cost) = DetailInfo 1 (forQ vol) (fmap forQ cost)
   where forQ x = x / fromIntegral qty
+  
+-- | Join packing list detail with planner information, location and extra tags
+joinWithPlanner :: Int64 -> [Entity PackingListDetail] -> Handler [(Entity PackingListDetail, PlannerInfo)]
+joinWithPlanner plId eDetails = do
+  let path = "pl-" <> show plId <> ".org"
+      defInfo = PlannerInfo Nothing mempty
+  plannerDir <- appPlannerDir <$> getsYesod appSettings
+  scenarioE <- Planner.readScenarioFromPath Planner.importFamesDispatch (plannerDir </> path)
+  case scenarioE of 
+    Left _ -> do
+      setWarning $ [shamlet|Planner file ${path} has not been found.|]
+      return []
+    Right scenario -> do
+      infoMap <- Planner.renderReport scenario  extractPlannerInfo
+      return $ [(detail, info)
+               | detail <- eDetails
+               , let info = Map.findWithDefault defInfo (packingListDetailBarcode $ entityVal detail) infoMap
+               ]
+  
+extractPlannerInfo :: Planner.WH (Map Text PlannerInfo) s
+extractPlannerInfo = do
+  let boxSelector = Planner.parseBoxSelector $ "#barcode=" 
+  boxIds <- Planner.findBoxByNameAndShelfNames boxSelector
+  boxes <- mapM Planner.findBox boxIds
+  infos <- mapM mkPlannerInfo boxes
+  return $ mapFromList [ (barcode, info)
+                       | (box, info)  <- zip boxes infos
+                       , Just barcode <- [ Planner.getTagValuem box "barcode" ]
+                       ]
+
+mkPlannerInfo :: Planner.Box s -> Planner.WH PlannerInfo s
+mkPlannerInfo box = do
+  locationm <- forM (Planner.boxShelf box) (\sid -> Planner.shelfName <$> Planner.findShelf sid )
+  -- keep tags starting with "for-planner-"
+  let tags = mapFromList [ (tag, intercalate ";" (toList set))
+                         | (fulltag, set) <- Map.toList (Planner.boxTags box)
+                         , Just tag <- [ stripPrefix "for-planner-" fulltag ]
+                         ]
+  return  $ PlannerInfo locationm tags
+
 -- | Computes the contribution  of a given style to the shipping cost relative to the occupied volume
 computeStyleShippingCost :: [Entity PackingListDetail] -> Map EventType Double -> Map Text DetailInfo
 computeStyleShippingCost details costMap = let
