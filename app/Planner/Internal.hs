@@ -306,7 +306,11 @@ makeScenario sections0 = do -- Either
   initial <- firstOrNone "Too many INITIAL sections" initials
   layout <- firstOrNone "Too many LAYOUT sections" (take 1 $ reverse layouts) -- take last one
 
-  let steps = map (\(header , (sha, title)) ->  Step header sha title) sections2
+  let steps = concatMap (\(header , (sha, title)) ->
+                           (case header of
+                            TitleH | take 2 title == "* " || take 3 title == "** " -> [SavingPoint]
+                            _ -> []
+                            ) ++ [Step header sha title]) sections2
 
   Right $ Scenario (map fst initial) steps (map fst layout)
 
@@ -320,7 +324,7 @@ sectionsToText sections = unlines $ concatMap sectionToText sections
 emptyHash :: DocumentHash
 emptyHash = computeDocumentKey ""
 sectionToText :: Section -> [Text]
-sectionToText s@Section{..} = execWriter $ do
+sectionToText Section{..} = execWriter $ do
     tell [sectionTitle]
     hasHeader <- do
               case writeHeader sectionType of
