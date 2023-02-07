@@ -1798,7 +1798,11 @@ extractPlannerInfo = do
 
 mkPlannerInfo :: Planner.Box s -> Planner.WH PlannerInfo s
 mkPlannerInfo box = do
-  locationm <- forM (Planner.boxShelf box) (\sid -> Planner.shelfName <$> Planner.findShelf sid )
+  locationm <- case Planner.getTagValuem box "for-planner-location" of
+                 -- use tag value instead of location is tag is provide
+                 -- allow to override the actual location
+                 Just loc -> return $ Just loc 
+                 _ -> forM (Planner.boxShelf box) (\sid -> Planner.shelfName <$> Planner.findShelf sid )
   -- keep tags starting with "for-planner-"
   let tags = mapFromList [ (tag, intercalate ";" (toList set))
                          | (fulltag, set) <- Map.toList (Planner.boxTags box)
