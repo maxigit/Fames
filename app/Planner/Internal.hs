@@ -320,11 +320,17 @@ sectionsToText sections = unlines $ concatMap sectionToText sections
 emptyHash :: DocumentHash
 emptyHash = computeDocumentKey ""
 sectionToText :: Section -> [Text]
-sectionToText Section{..} = execWriter $ do
-    tell [sectionTitle] --  $ ["* " <> writeHeader sectionType]
+sectionToText s@Section{..} = execWriter $ do
+    tell [sectionTitle]
+    hasHeader <- do
+              case writeHeader sectionType of
+                "" -> return False
+                header -> tell [":" <> header <> ":"] >> return True
     case sectionContent of
        Left k@(DocumentHash key) -> if k /= emptyHash then tell ["@" <> key] else return ()
-       Right texts -> tell [":" <> writeHeader sectionType <> ":"] >> tell texts >> tell [":END:"]
+       Right texts -> tell texts 
+    when hasHeader $ do
+         tell [":END:"]
     return ()
 
 scenarioToFullText :: MonadIO m => Scenario -> m Text
