@@ -675,7 +675,7 @@ stickerSource ::
 stickerSource today pl entities = do
   let sorted = sortBy (comparing cmp) entities
       cmp (Entity _ detail, _ ) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
-      usedKeys = keys $ foldMap (extras . snd) entities 
+      usedKeys = filter (/= "location") $ keys $ foldMap (extras . snd) entities 
   yield (intercalate "," $ "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,batch,a1Morse,a1Space,location" : usedKeys)
   yield "\n"
   yieldMany [ packingListDetailStyle detail
