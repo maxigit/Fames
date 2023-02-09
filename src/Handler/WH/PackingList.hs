@@ -1808,7 +1808,9 @@ mkPlannerInfo box = do
                          | (fulltag, set) <- Map.toList (Planner.boxTags box)
                          , Just tag <- [ stripPrefix "for-planner-" fulltag ]
                          ]
-  return  $ PlannerInfo locationm tags
+      replaceQ '\'' = '/'
+      replaceQ c = c
+  return  $ PlannerInfo (fmap (omap replaceQ) locationm) tags
 
 -- | Computes the contribution  of a given style to the shipping cost relative to the occupied volume
 computeStyleShippingCost :: [Entity PackingListDetail] -> Map EventType Double -> Map Text DetailInfo
