@@ -448,7 +448,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     countyState <- mopt textField (f 35 "County/State") (ship <&> fmap (take 35) . shCountyState)
     contact <- mreq textField (f 25 "Contact") (ship <&> take 25 . shContact)
     telephone <- mreq textField (f 15 "Telephone") (ship <&> take 15 .  shTelephone)
-    notificationEmail <- mopt textField (f 35 "Notification Email") (ship <&> fmap (take 35) . shNotificationEmail)
+    notificationEmail <- mopt textField (f 100 "Notification Email") (ship <&> fmap (take 100) . shNotificationEmail)
     notificationText <- mopt textField (f 35 "Notification Text") (ship <&>  fmap (take 35) .shNotificationText)
     noOfPackages <- mreq intField "No of Packages" Nothing
     weight <- mreq doubleField "Weight" (ship <&> shWeight)
