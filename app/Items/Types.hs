@@ -502,7 +502,7 @@ normalizeNMap n@(NMap _ [] m) = case Map.toList m of
 normalizeNMap n = n 
 
 instance Monoid a => Monoid (NMap a) where
-  mappend = appendNMap mappend
+  -- mappend = appendNMap mappend
   mempty = NMap mempty [] mempty
 
 instance Functor NMap where

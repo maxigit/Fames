@@ -6,6 +6,7 @@ import ClassyPrelude.Yesod hiding(replace)
 import Data.List(nub)
 import qualified Data.Map as Map
 import Data.Aeson
+import Data.Aeson.KeyMap (toMapText)
 
 import qualified Text.Regex as Rg
 import qualified Text.Regex.Base as Rg
@@ -64,7 +65,7 @@ parseJSON' key0 v = let
       _ -> mzero
     parseObject o = do
       let disM = [ parsePair key value
-            | (key, value) <- mapToList o
+            | (key, value) <- mapToList $ toMapText o
             ]
       dis <- sequence disM
       return $ CategoryDisjunction dis 
@@ -124,7 +125,7 @@ instance ToJSON (CategoryRule a) where
     --  |                         |
     --  |                         +---   heuristic if search & replace involded prefer / notation 
     --  +-----------------------------  / would  interfer with / notation
-    then object [ pack replace .= origin ]  -- origin <> "/" <> replace
+    then object [ fromString replace .= origin ]  -- origin <> "/" <> replace
     else   toJSON $ origin <> "/" <> replace
   toJSON (CategoryDisjunction rules) = let
     -- group by replace string if possible toJSON  rules
@@ -135,11 +136,11 @@ instance ToJSON (CategoryRule a) where
     groups = groupBy same $ map go rules
     groupToJSON g = case partitionEithers g of
                       ([], [(replace,origin)]) -> [toJSON . SkuTransformer $ regexSub origin replace]
-                      ([], r'origins@((replace,_):_)) -> [object [ pack replace .=  map snd r'origins]]
+                      ([], r'origins@((replace,_):_)) -> [object [ fromString replace .=  map snd r'origins]]
                       (others,_) -> map toJSON others
     in  toJSON (concatMap groupToJSON groups :: [Value])
 
-  toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= paramJ] where
+  toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [fromString target .= paramJ] where
     paramJ = object ["source" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
   -- toJSON (SourceTransformer source0 (SkuTransformer(RegexSub _ origin _))) = object ["source" .= source0, "match" .= origin  ]
   toJSON (SourceTransformer source0 rule0) = object ["source" .= source0, "rules" .= rule0 ]

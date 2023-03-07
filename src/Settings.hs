@@ -14,6 +14,8 @@ import Control.Exception          (throw)
 import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=), Object,
                                    (.:?))
 import Data.Aeson.Types (camelTo2, Parser)
+import Data.Aeson.KeyMap (toMapText)
+import Data.Aeson.Key (fromText)
 import qualified Data.Aeson as JSON
 import Data.Aeson.TH(deriveToJSON, deriveJSON, defaultOptions, Options(..), SumEncoding(..))
 import Data.FileEmbed             (embedFile)
@@ -346,6 +348,6 @@ combineScripts = combineScripts'
 -- automatically.
 concatFromPrefix :: FromJSON a => Text -> Object -> Parser (Maybe [a])
 concatFromPrefix prefix o = do
-  let keys_ = filter (prefix `isPrefixOf`)  $ keys o
-  objects <- mapM (o .: ) (sort keys_)
+  let keys_ = filter (prefix `isPrefixOf`)  $ keys $ toMapText o  :: [Text]
+  objects <- mapM (o .: ) (sort $ map fromText keys_)
   return $ concat objects

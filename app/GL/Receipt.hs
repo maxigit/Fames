@@ -21,6 +21,7 @@ import qualified GL.FA as FA
 import qualified Data.Map as Map
 import Data.Aeson
 import Data.Aeson.Types(Parser,typeMismatch)
+import Data.Aeson.KeyMap (toMapText)
 import Control.Applicative (Const(..))
 
 
@@ -143,7 +144,7 @@ instance FromJSON (ReceiptTemplate' (Const Text)) where
   parseJSON = fmap normalizeTemplate . parseJSON'
 
 parseJSON' :: Value -> Parser (ReceiptTemplate' (Const Text))
-parseJSON' (Object o) = CompoundTemplate <$> traverse (uncurry parsePair) (sortOn fst $ mapToList o)
+parseJSON' (Object o) = CompoundTemplate <$> traverse (uncurry parsePair) (sortOn fst $ mapToList $ toMapText o)
 parseJSON' (Array a) = CompoundTemplate <$> traverse parseJSON' (toList a)
 parseJSON' l_json = error (show l_json)
 

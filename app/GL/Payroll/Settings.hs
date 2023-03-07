@@ -6,6 +6,8 @@ module GL.Payroll.Settings where
 import ClassyPrelude
 import Data.Aeson.TH(deriveJSON)
 import Data.Aeson.Types
+import Data.Aeson.Key (fromText)
+import Data.Aeson.KeyMap (toMapText)
 import Control.Monad.Fail (MonadFail(..))
 
 -- * Types 
@@ -40,8 +42,8 @@ data DACPaymentSettings
   = DACSupplierSettings
     { supplier :: Int
     , glAccount :: Int
-    , dimension1 :: Maybe Int
-    , dimension2 :: Maybe Int
+    , psDimension1 :: Maybe Int
+    , psDimension2 :: Maybe Int
     , memo :: Maybe Text
     }
   | DACPaymentSettings
@@ -103,6 +105,7 @@ data PayrollFormula = PFVariable Text
   deriving (Show, Eq, Ord)
 
 -- * JSON 
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
 instance ToJSONKey (Maybe DayOfWeek) where
   toJSONKey = toJSONKeyText myKey where
     myKey Nothing = "default"
@@ -114,12 +117,12 @@ instance FromJSONKey (Maybe DayOfWeek) where
 instance {-# OVERLAPPING #-}  ToJSON (Text, [PayrollFormula]) where
   toJSON (var, []) = String var
   toJSON (var, [PFVariable var']) | var == var' = String var
-  toJSON (var, vs) = object [ var .= vs ]
+  toJSON (var, vs) = toJSON [ (fromText var, vs) ]
 
 instance {-# OVERLAPPING #-} FromJSON (Text, [PayrollFormula]) where
   parseJSON v = withText "variable" (\s -> return (s, [PFVariable s])) v
              <|> withObject ("named formula") (\o -> do
-                 case mapToList o of
+                 case mapToList $ toMapText o of
                         [(var, f)] -> (var,) <$> parseJSON f
                         _ -> fail "Named formula should have only one key value pair"
              ) v
@@ -139,15 +142,14 @@ instance FromJSON PayrollFormula where
                                        Just negated -> PFNegVariable negated
                                ) v
   
-$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
 $(deriveJSON defaultOptions ''EmployeeSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , fieldLabelModifier = \d -> case d of
                                                            "dayX" -> "day"
                                                            _ -> d
                             } ''DateCalculator)
-$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField} ''DACSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DACPaymentSettings)
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField} ''DACSettings)
 $(deriveJSON defaultOptions ''PayrollExternalSettings)
 $(deriveJSON defaultOptions ''PayrollSettings)
 

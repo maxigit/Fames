@@ -170,7 +170,7 @@ postWHBarcodeR = do
 
                 let barcodeSource =  do
                             yield "Barcode,Number,Date\n"
-                            yieldMany [ toStrict $ format (text % "," % int %","% dateDash % "\n")  b n date
+                            yieldMany [ toStrict $ format (text % "," % int % ","% dateDash % "\n")  b n date
                                       | (b,n) <- barcodes
                                       ]
                 case (outputMode, template) of

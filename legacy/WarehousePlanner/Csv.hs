@@ -41,7 +41,7 @@ import qualified Text.Regex as Rg
 import qualified Text.Regex.Base.RegexLike as Rg
 import Data.Text(splitOn)
 import Data.Text.IO(readFile)
-import MonadUtils (mapAccumLM)
+import GHC.Utils.Monad (mapAccumLM)
 
 -- | Dimension info to construct a Shelf
 data ShelfDimension = ShelfDimension

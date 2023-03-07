@@ -11,11 +11,19 @@ where
 import ClassyPrelude
 import Data.Aeson.TH(deriveJSON)
 import Data.Aeson.Types
+import Data.Aeson.KeyMap (toMapText)
+import Data.Aeson.Key (fromText)
 import GL.Payroll.Settings
 import GL.TaxReport.Types
 import Data.Text(strip)
 import Util.Decimal
 import Control.Monad.Fail (MonadFail(..))
+
+$(deriveJSON defaultOptions ''RoundingMethod)
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
+                            , fieldLabelModifier = fromMaybe <*> stripPrefix "TaxBox"
+                            , constructorTagModifier = fromMaybe <*> stripPrefix "TaxBox"
+                            } ''TaxBoxRule)
 -- * Type 
 -- | Main settins to define a report.
 -- The actual report name should be in the key map
@@ -72,7 +80,7 @@ instance FromJSON TaxBox where
   parseJSON v = withText "taxbox as string" (\s -> return $ TaxBox s Nothing Nothing (TaxBoxGross s ) Nothing ) v
             <|> withObject "taxbox" parseObject v where
     parseObject o0 =  do
-      case  mapToList o0 of
+      case  mapToList $ toMapText o0 of
         [(l_tbName, fields)] -> do
           let parseFields o = do
                   tbDescription  <- o .:? "description"
@@ -120,7 +128,7 @@ negateBucket rule0 = case rule0 of
 
 
 instance ToJSON TaxBox where
-  toJSON TaxBox{..} = object [tbName .= object fields] where
+  toJSON TaxBox{..} = object [(fromText tbName , object fields)] where
       fields = catMaybes [ ("description" .=) <$> tbDescription 
                          , Just $ "rules" .= tbRule
                          ]
@@ -132,11 +140,6 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , constructorTagModifier = (fromMaybe <*> stripSuffix "Rule")
                                                        . (fromMaybe <*> stripPrefix "Rule")
                             } ''Rule)
-$(deriveJSON defaultOptions ''RoundingMethod)
-$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
-                            , fieldLabelModifier = fromMaybe <*> stripPrefix "TaxBox"
-                            , constructorTagModifier = fromMaybe <*> stripPrefix "TaxBox"
-                            } ''TaxBoxRule)
 $(deriveJSON defaultOptions ''HMRCProcessorParameters)
 $(deriveJSON defaultOptions ''ManualProcessorParameters)
 $(deriveJSON defaultOptions ''ECSLProcessorParameters)

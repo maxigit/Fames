@@ -2,7 +2,7 @@
 # For more information, see: http://docs.haskellstack.org/en/stable/yaml_configuration/
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-18.17
+resolver: lts-20.11
 require-stack-version: ">= 2.1.3"
 
 # Local packages, usually specified by relative directory name
@@ -12,56 +12,44 @@ packages:
 #   subdirs:
 #   - yesod-bin
 #   extra-dep: true
-#   extra-dep: true
-#   extra-dep: true
-#   extra-dep: true
 - '.'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - /home/max/devel/metamorphosis
-# - /home/max/Hackage/Fay/fay-jquery
-# - /home/max/Hackage/Fay/fay
-# - git: https://github.com/yesodweb/yesod
-  # commit: f3fc735a25eb3d5c051c761b59070eb9a0e4e156
-#- say-0.1.0.0
-#- typed-process-0.1.0.0
-#- hspec-stack-rerun-0.1.0.3
-#- fames-persist-0.0.0.0
-#- yesod-media-simple-0.2.0.0
-#- Metamorphosis-0.1.0.1
-# - intero-0.1.32
 - /home/max/Hackage/yesod-fay
 #- git: https://github.com/fpco/yesod-fay
 #commit: 7c87550a3450b1d476737eee34bf2a09b9048751
-- fay-0.24.2.0
+#- fay-0.24.2.0@2ce1d8b5b10d06878819e7488ba86fd4083640cc
+- git: https://github.com/maxigit/fay
+  commit: 2b4f3ab38f06be3f2d0082d0365e89622a123392
 - fay-base-0.21.2.0@sha256:6953c9fafa343848da6f9d4bab77a4f7e591acae962a8e95ec800b8577e1c187,1446
 - fay-jquery-0.6.1.0@sha256:25ee1ed2276608c69523d6ba1601d063029323d110c43eb0bfdc3d93c31ef870,887
 
-# - fay-jquery-0.6.1.0
-#- fay-text-0.3.2.2
-# - fay-base-0.21.1.0
 - fay-text-0.3.2.2@sha256:c66ac5d4a129f7fbe3e40420a258e482ee4cadf5ba782f210e7fe595d5b9917f,1197
-
-# - yesod-fay-0.10.0
+# 
+# # - yesod-fay-0.10.0
 - yesod-media-simple-0.2.0.1
-- classy-prelude-yesod-1.5.0@sha256:8f7e183bdfd6d2ea9674284c4f285294ab086aff60d9be4e5d7d2f3c1a2b05b7,1330
-- diagrams-cairo-1.4.1.1@sha256:8b62e90fcb0a2c9343f594940698a148b2e778b203f3297c0bed3097d34b559a,3801
-- diagrams-core-1.5.0@sha256:eae2e82ad2e5ddbbfc9875067a0810dc4ebf35549ca6d0018a536d94b3aa7bf1,2973
-- diagrams-lib-1.4.4@sha256:1129be254377b926ce2e932113e4bd06256de878d163fbcbacacf1be97bdf3b0,8220
-- diagrams-svg-1.4.3@sha256:407ff78cb7bd1f44c68b0059036186f17a281a053901e29d0139ab151e703247,3159
+# - classy-prelude-yesod-1.5.0@sha256:8f7e183bdfd6d2ea9674284c4f285294ab086aff60d9be4e5d7d2f3c1a2b05b7,1330
+# - diagrams-cairo-1.4.1.1@sha256:8b62e90fcb0a2c9343f594940698a148b2e778b203f3297c0bed3097d34b559a,3801
+# - diagrams-core-1.5.0@sha256:eae2e82ad2e5ddbbfc9875067a0810dc4ebf35549ca6d0018a536d94b3aa7bf1,2973
+# - diagrams-lib-1.4.4@sha256:1129be254377b926ce2e932113e4bd06256de878d163fbcbacacf1be97bdf3b0,8220
+# - diagrams-svg-1.4.3@sha256:407ff78cb7bd1f44c68b0059036186f17a281a053901e29d0139ab151e703247,3159
 - fay-dom-0.5.0.1@sha256:0bed15b1f6dc5a648a3b751cb4e06cc2b2f4c8ff7ad0150a373bdf63859b15d2,884
 - language-ecmascript-0.19.1.0@sha256:2cf08e581980e69fbac5f941c9f6493dc4c3527817c3d395f33f3ffb8ef98253,3833
-- palette-0.3.0.2@sha256:af3f7b381906e7c5855e6524d22866bea9e19885a437924af7f19a1bea229c8c,1524
-- active-0.2.0.15@sha256:22e235aefdd47121db743e138d309d7529b0eea545f9add8c113ce8f15ccf83e,1767
-- cairo-0.13.8.1@sha256:1938aaeb5d3504678d995774dfe870f6b66cbd43d336b692fa8779b23b2b67a9,4075
-- dual-tree-0.2.3.0@sha256:bba5476c1cefc3802708a72ab22b5eab9e182cc065507f4a1f673ebdfc694bad,2884
-- monoid-extras-0.6.1@sha256:15312b3ed40481fc879fc7021857421794403763325d5c05b8536198012170b1,2197
-- pango-0.13.8.1@sha256:877b121c0bf87c96d3619effae6751ecfd74b7f7f3227cf3fde012597aed5ed9,3917
-- statestack-0.3@sha256:be43ce2cd790a4732b88cdc9480458503cb5e307b4f79a502d99d5b3d417730e,1135
-- svg-builder-0.1.1@sha256:22de54d326a6b6912e461e1302edb9108b02aac0b6a6368fcdc3c4a224d487fd,1440
-- glib-0.13.8.1@sha256:42670daf0c85309281e08ba8559df75daa2e3be642e79fdfa781bef5e59658b0,3156
-- gtk2hs-buildtools-0.13.8.2@sha256:01c4a6cc3679008bd4caec32b49843acb27a5f48ee2b22484218f097835548f6,5238
+# - palette-0.3.0.2@sha256:af3f7b381906e7c5855e6524d22866bea9e19885a437924af7f19a1bea229c8c,1524
+# - active-0.2.0.15@sha256:22e235aefdd47121db743e138d309d7529b0eea545f9add8c113ce8f15ccf83e,1767
+# - cairo-0.13.8.1@sha256:1938aaeb5d3504678d995774dfe870f6b66cbd43d336b692fa8779b23b2b67a9,4075
+# - dual-tree-0.2.3.0@sha256:bba5476c1cefc3802708a72ab22b5eab9e182cc065507f4a1f673ebdfc694bad,2884
+# - monoid-extras-0.6.1@sha256:15312b3ed40481fc879fc7021857421794403763325d5c05b8536198012170b1,2197
+# - pango-0.13.8.1@sha256:877b121c0bf87c96d3619effae6751ecfd74b7f7f3227cf3fde012597aed5ed9,3917
+# - statestack-0.3@sha256:be43ce2cd790a4732b88cdc9480458503cb5e307b4f79a502d99d5b3d417730e,1135
+# - svg-builder-0.1.1@sha256:22de54d326a6b6912e461e1302edb9108b02aac0b6a6368fcdc3c4a224d487fd,1440
+# - glib-0.13.8.1@sha256:42670daf0c85309281e08ba8559df75daa2e3be642e79fdfa781bef5e59658b0,3156
+# - gtk2hs-buildtools-0.13.8.2@sha256:01c4a6cc3679008bd4caec32b49843acb27a5f48ee2b22484218f097835548f6,5238
+# 
+- git: https://github.com/maxigit/regex-compat-tdfa
+  commit: 576bac0b0b4ad99b415a92c5bd2ef05e944f2dae
 
 
 

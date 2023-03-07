@@ -378,6 +378,7 @@ authFA :: AuthPlugin App
 authFA = AuthPlugin "fa" dispatch loginWidget
   where
     -- dispatch _ _ = liftHandler
+    dispatch :: Text -> [Text] -> AuthHandler App TypedContent
     dispatch "POST" ["login"] = postLoginR >>= sendResponse
     dispatch _ _ = notFound
     loginR = PluginR "fa" ["login"]

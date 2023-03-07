@@ -5,6 +5,7 @@ where
 
 import Import hiding(computeCategory, formatAmount, formatQuantity, panel, trace, all)
 import Items.Types
+import Data.Aeson.Key (fromText)
 import Handler.Items.Common
 import Handler.Items.Reports.Forecast
 import Handler.Items.Category.Cache
@@ -1599,7 +1600,7 @@ traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
                 , "type" .=  String "scatter"  
                 ] <> maybe [] (return .("legendgroup" .=))  groupId
                 -- <> maybe [] (\color -> [("color", String color)]) colorM
-                <> tpChartOptions tp color
+                <> map (first fromText) (tpChartOptions tp color)
                 <> (if name == PersistNull then [] else ["name" .= nkeyWithRank name'])
 
 nmapToListWithRunSum :: (Ord w, Monoid a, Monoid w) =>

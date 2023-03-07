@@ -6,7 +6,7 @@ import Data.Aeson.Types
 import Data.Text(splitOn)
 import Control.Monad.Fail (MonadFail(..))
 -- * Type 
-data Account = Account { fromAccount:: Text } deriving (Eq, Show, Ord)
+data Account = Account { fromAccount:: Text } deriving (Eq, Show, Read, Ord)
 
 data Behavior
   = Skip -- as didn't exist
@@ -20,7 +20,7 @@ data Behavior
   | WaitForStock Double -- wait for given quantity
   | BehaveIf BehaviorSubject Behavior
   | BehaveIfe BehaviorSubject Behavior Behavior
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Read, Ord)
 
 data BehaviorSubject
   = ForTransaction Int Int
@@ -31,7 +31,7 @@ data BehaviorSubject
   | ForNullCost
   | ForAccount Text
   | ForSalesWithoutInvoice
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Read, Ord)
 
 -- * Settings 
 data Settings =  Settings
@@ -43,7 +43,7 @@ data Settings =  Settings
   , batchSize :: Maybe Int -- maximum number of item to process when posting to FA
   , behaviors:: Maybe BehaviorMap
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 type BehaviorMap = Map BehaviorSubject Behavior
 
@@ -51,7 +51,7 @@ data AccountSettings = AccountSettings
   { items :: Map Text ItemSettings
   , fixAccount :: Maybe Account
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 
 
@@ -61,7 +61,7 @@ data ItemSettings = ItemSettings
   , closingQoh :: Maybe  Double
   , closingDate :: Maybe  Day
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data InitialSettings
   = FromAccount Account
@@ -69,9 +69,9 @@ data InitialSettings
   -- use the item/account summary as initial balance
   | InitialData { initialBalance :: Double
                 , initialQoh :: Double
-                , startDate :: Day -- ^ filter transaction before that date
+                , startDate :: Day --  ^ filter transaction before that date
                 } 
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
   
 -- * JSON 
@@ -183,7 +183,7 @@ behaviorSubjectToText = go where
     go ForNullCost = "cost=0"
     go ForSalesWithoutInvoice = "sales-without-invoice"
 ----------------------------------------------------
-$(deriveJSON defaultOptions ''AccountSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField }  ''InitialSettings)
 $(deriveJSON defaultOptions ''ItemSettings)
+$(deriveJSON defaultOptions ''AccountSettings)
 $(deriveJSON defaultOptions ''Settings)

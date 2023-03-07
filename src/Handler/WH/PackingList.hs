@@ -497,13 +497,6 @@ viewPackingList mode key pre = do
                                  Chalk -> renderChalk corridors
                                  Planner -> renderPlanner WithDetails
                                  PlannerColourless -> renderPlannerColourless
-                                 StickerCsv ->  error "Shoudn't happen"
-                                 Stickers ->  error "Shoudn't happen"
-                                 EditDetails ->  error "Shoudn't happen"
-                                 EditInvoices ->  error "Shoudn't happen"
-                                 Edit ->  error "Shoudn't happen"
-                                 Deliver ->  error "Shoudn't happen"
-                                 StocktakePL -> error "Shoudn't happen"
                            ) pl entities
            selectRep $ provideRep $ defaultLayout $ do
               [whamlet|
@@ -1795,7 +1788,7 @@ loadPLInfo rateFn e@(Entity plKey pl) = do
 
         shippingInfo = computeStyleShippingCost entities costs
         -- styleFn = fst . skuToStyleVar
-        ref = sformat ("PL#"%shown %"-"%stext) (unSqlBackendKey $ unPackingListKey plKey) (packingListInvoiceRef pl)
+        ref = sformat ("PL#" % shown % "-" % stext) (unSqlBackendKey $ unPackingListKey plKey) (packingListInvoiceRef pl)
     infoNoDuty <- computeSupplierCosts ref rateFn styleFn (map (entityVal . snd) invoices)  shippingInfo
     dutyFor <- lift dutyForH 
     info <- lift $ mapWithKeyM (addDutyOn dutyFor)  infoNoDuty
@@ -1909,20 +1902,20 @@ computeSupplierCosts pl rateFn styleFn invoices shippInfo = do
       invoiceAmount = sum (map (\FA.SuppTran{..} -> suppTranOvAmount - suppTranOvDiscount `rateFn` suppTranRate) invoices)
       detailsAmount = sum $ mapMaybe (lookup PackingListInvoiceE . diCostMap) (toList invoiceInfos)
   when (abs (detailsAmount  - invoiceAmount) > 1e-4) $ do
-      let msg = "PL "% shown %"Invoice amount ("% commasFixed %") doesn't match content"% commasFixed  
+      let msg = "PL " % shown % "Invoice amount (" % commasFixed % ") doesn't match content" % commasFixed  
       setWarning . toHtml $ sformat msg pl invoiceAmount detailsAmount
   -- check content matches (invoices vs pl)
   let paired = align invoiceInfos shippInfo
   forM_ (mapToList paired) $ \(style, th ) -> do
       case th of
         This _ ->  do
-            let msg = stext % "Item " %stext%" present in invoice but not present in PL"
+            let msg = stext % "Item " % stext % " present in invoice but not present in PL"
             setWarning . toHtml $ sformat msg pl style
         That _  -> do
-            let msg = stext % "Item " %stext%" present in PL but not present in invoice"
+            let msg = stext % "Item " % stext % " present in PL but not present in invoice"
             setWarning . toHtml $ sformat msg pl style
         These inv pld | diQty inv /= diQty pld -> do
-            let msg = stext % ": Quantity differs for style "%stext%" : Invoice "%int%" PL " %int
+            let msg = stext % ": Quantity differs for style " % stext % " : Invoice " % int % " PL " % int
             setWarning . toHtml $ sformat msg pl style (diQty inv) (diQty pld)
         _ -> return ()
 
