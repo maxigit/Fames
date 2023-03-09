@@ -578,7 +578,7 @@ truncateForm ShippingForm{..} =
                (fmap (take 35) shCountyState)
                (take 25 shContact)
                (take 15  shTelephone)
-               (fmap (take 35 . joinSpaces) shNotificationEmail)
+               (fmap (take 100 . joinSpaces) shNotificationEmail)
                ( fmap (take 35 . joinSpaces)shNotificationText)
                (shNoOfPackages)
                (shWeight)
