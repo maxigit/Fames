@@ -1802,7 +1802,8 @@ joinWithPlanner plId eDetails = do
   case scenarioE of 
     Left _ -> do
       setWarning $ [shamlet|Planner file ${path} has not been found.|]
-      return []
+      let defInfo = PlannerInfo (Just "<location>") mempty
+      return $ map (, defInfo) eDetails
     Right scenario -> do
       infoMap <- Planner.renderReport scenario  extractPlannerInfo
       return $ [(detail, info)
