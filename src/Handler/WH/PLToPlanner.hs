@@ -24,7 +24,7 @@ toPlanner withDetails PackingList{..} details = let
                              <> if withDetails == WithDetails
                                 then ("#barcode=" <> packingListDetailBarcode )
                                      <>  (maybe "" ("#pl-vessel=" <>) packingListVessel)
-                                     <>  (maybe "" ("#pl-batch=" <>) packingListBatch)
+                                     <>  (maybe "" ("#pl-batch=" <>) $ packingListDetailBatch <|> packingListBatch)
                                      <>  (maybe "" ("#pl-container=" <>) packingListContainer)
                                      <>  (maybe "" ("#pl-departure=" <>) $ fmap tshow packingListDeparture)
                                      <>  (maybe "" ("#pl-arriving=" <>) $ fmap tshow packingListArriving)

@@ -684,7 +684,7 @@ stickerSource today pl entities = do
             <> "," <> (tshow $ packingListDetailBoxNumber detail )
             <> "," <> (packingListDetailBarcode detail)
             <> "," <> (intercalate "," (detailToStickerMarks detail))
-            <> "," <> (fromMaybe "" $ packingListBatch pl)
+            <> "," <> (fromMaybe "" $ packingListDetailBatch detail <|> packingListBatch pl)
             <> "," <> (toMorse . fromMaybe "" . headMay $ detailToStickerMarks detail)
             <> "," <> (withSpace . fromMaybe "" . headMay $ detailToStickerMarks detail)
             <> "," <> intercalate "," 
@@ -854,6 +854,7 @@ detailsCart details = let
       , h $ tshow volume
       , h $ tshow weight
       , h $ tshow weight
+      , h $ fromMaybe "" $ packingListDetailBatch detail
       ]
 
     | ((var, qty), main) <- zip (reverse content) (True : repeat False)
@@ -962,6 +963,7 @@ data PLRow s = PLRow
   , plTotalVolume       :: PLFieldTF s  Double Maybe Null
   , plWeight            :: PLFieldTF s  Double Maybe Null
   , plTotalWeight       :: PLFieldTF s  Double Maybe Null
+  , plBatch             :: PLFieldTF s (Maybe Text) Identity Identity
   }
 
 data PLRowTypes = PLRawT
@@ -999,7 +1001,7 @@ type family PLFieldTF (s :: PLRowTypes) a f g where
   PLFieldTF 'PLFinalT a f g = a
 
 columnNames :: [(String, [String])]
-columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
+columnNames = [("Style Or OrderRef", ["Style", "S", "Style No.", "Style No", "Style No ."] )
               , ("Colour", ["C", "Col", "Color"])
               ,("Quantity", ["Q", "QTY", "order QTY", "order Qty"])
               ,("1st carton number", ["start", "F", "cn", "C/NO", "first"])
@@ -1013,14 +1015,15 @@ columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
               ,("Volume", ["V", "CBM/CTN"])
               ,("Total Volume", ["TV", "CBM", "TOTAL CBM"])
               ,("Weight", ["N.W/CTN", "N.W./CTN"])
-              ,("Total Weight", ["N.W", "N.W.","TOTAL N.W"])
+              ,("Total Weight", ["N.W", "N.W.","TOTAL N.W", "TOTAL N.W."])
+              ,("Batch", ["B"])
               ]
 columnNameMap :: Map String [String]
 columnNameMap = buildColumnMap columnNames
 
 instance Csv.FromNamedRecord (PLRow 'PLRawT) where
   parseNamedRecord m = let
-    [style, col, qty, cn, cne, n, qc, tot, l, w, h, vol, tvol, weight, tweight] = map fst columnNames
+    [style, col, qty, cn, cne, n, qc, tot, l, w, h, vol, tvol, weight, tweight, batch] = map fst columnNames
     parse = parseMulti columnNameMap
     in pure PLRow
         <*> m `parse` style
@@ -1038,9 +1041,16 @@ instance Csv.FromNamedRecord (PLRow 'PLRawT) where
         <*> m `parse` tvol
         <*> m `parse` weight
         <*> m `parse` tweight
+        <*> m `parse` batch
 
 
-traverseRow :: (PLFieldTF t Double Maybe Null ~ f (PLFieldTF s Double Maybe Null), PLFieldTF t Int Null Null ~ f (PLFieldTF s Int Null Null), PLFieldTF t Int Identity Null ~ f (PLFieldTF s Int Identity Null), PLFieldTF t Text Identity Maybe ~ f (PLFieldTF s Text Identity Maybe), PLFieldTF t Text Identity Identity ~ f (PLFieldTF s Text Identity Identity), Applicative f) => PLRow t -> f (PLRow s)
+-- traverseRow :: (PLFieldTF t Double Maybe Null ~ f (PLFieldTF s Double Maybe Null)
+--                , PLFieldTF t Int Null Null ~ f (PLFieldTF s Int Null Null)
+--                , PLFieldTF t Int Identity Null ~ f (PLFieldTF s Int Identity Null)
+--                , PLFieldTF t Text Identity Maybe ~ f (PLFieldTF s Text Identity Maybe)
+--                , PLFieldTF t Text Identity Identity ~ f (PLFieldTF s Text Identity Identity)
+--                -- , PLFieldTF t (Maybe Text) Identity Identity ~ f (PLFieldTF s (Maybe Text) Identity Identity)
+--                , Applicative f) => PLRow t -> f (PLRow s)
 traverseRow PLRow{..} = pure PLRow
        <*> plStyle
        <*> plColour
@@ -1057,8 +1067,15 @@ traverseRow PLRow{..} = pure PLRow
        <*> plTotalVolume
        <*> plWeight
        <*> plTotalWeight
+       <*> fmap transform plBatch
 
-transformRow :: (Transformable (PLFieldTF t Double Maybe Null) (PLFieldTF s Double Maybe Null), Transformable (PLFieldTF t Int Null Null) (PLFieldTF s Int Null Null), Transformable (PLFieldTF t Int Identity Null) (PLFieldTF s Int Identity Null), Transformable (PLFieldTF t Text Identity Maybe) (PLFieldTF s Text Identity Maybe), Transformable (PLFieldTF t Text Identity Identity) (PLFieldTF s Text Identity Identity)) => PLRow t -> PLRow s
+transformRow :: (Transformable (PLFieldTF t Double Maybe Null) (PLFieldTF s Double Maybe Null),
+                Transformable (PLFieldTF t Int Null Null) (PLFieldTF s Int Null Null),
+                Transformable (PLFieldTF t Int Identity Null) (PLFieldTF s Int Identity Null),
+                Transformable (PLFieldTF t Text Identity Maybe) (PLFieldTF s Text Identity Maybe),
+                Transformable (PLFieldTF t Text Identity Identity) (PLFieldTF s Text Identity Identity),
+                Transformable (PLFieldTF t (Maybe Text) Identity Identity) (PLFieldTF s (Maybe Text) Identity Identity))
+                => PLRow t -> PLRow s
 transformRow PLRow{..} = PLRow
        (transform plStyle)
        (transform plColour)
@@ -1075,6 +1092,7 @@ transformRow PLRow{..} = PLRow
        (transform plTotalVolume)
        (transform plWeight)
        (transform plTotalWeight)
+       (transform plBatch)
 
 transformPartial :: PLPartialBox -> PLRaw
 transformPartial PLRow{..} = PLRow
@@ -1093,11 +1111,13 @@ transformPartial PLRow{..} = PLRow
   (transform plTotalVolume)
   (transform plWeight)
   (transform plTotalWeight)
+  (transform plBatch)
 
 transformOrder :: PLOrderRef -> PLRaw
 transformOrder PLRow{..} = PLRow
   (transform plStyle)
   (transform plColour)
+  (Right Nothing)
   (Right Nothing)
   (Right Nothing)
   (Right Nothing)
@@ -1139,17 +1159,18 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                                                          plLength plWidth plHeight
                                                          plWeight plTotalWeight
                                                          plVolume plTotalVolume
+                                                         plBatch
                                                  )
                  PLRow (Just ref) Nothing Nothing Nothing Nothing Nothing
                                   Nothing Nothing Nothing Nothing Nothing
-                                  Nothing Nothing Nothing Nothing
+                                  Nothing Nothing Nothing Nothing _
                             -> Right $ OrderRef ( PLRow ref Nothing () () () ()
                                                                 () () () () ()
-                                                                () () () ()
+                                                                () () () () Nothing
                                                   )
                  _  -> Left raw
 
-              createOrder orderRef0 = PLRow (Provided orderRef0) Nothing () () () () () () () () () () ()  () ():: PLOrderRef
+              createOrder orderRef0 = PLRow (Provided orderRef0) Nothing () () () () () () () () () () ()  () () Nothing:: PLOrderRef
               groupRow :: Text -> [PLValid] -> Either [PLRaw] [ (PLOrderRef , [PLBoxGroup])]
               groupRow orderRef0 rows = go (createOrder orderRef0) rows [] []
                 where
@@ -1282,6 +1303,7 @@ renderRow :: (Renderable (PLFieldTF t Text Identity Identity)
              , Renderable (PLFieldTF t Int Identity Null)
              , Renderable (PLFieldTF t Int Null Null)
              , Renderable (PLFieldTF t Double Maybe Null)
+             , Renderable (PLFieldTF t (Maybe Text) Identity Identity)
              )
           => PLRow t -> Widget
 renderRow PLRow{..} = do
@@ -1289,6 +1311,7 @@ renderRow PLRow{..} = do
           <td.pl>^{render plStyle}
           <td.pl>^{render plColour}
           <td.pl>^{render plOrderQuantity}
+          <td.pl>^{render plBatch}
           <td.pl>^{render plFirstCartonNumber}
           <td.pl>-
           <td.pl>^{render plLastCartonNumber}
@@ -1312,6 +1335,7 @@ renderHeaderRow = [whamlet|
     <th>Style
     <th>Colour
     <th>Order Qty
+    <th>Batch
     <th>1st CTN/N
     <th>
     <th>last CTN/N
@@ -1417,6 +1441,7 @@ createDetails pKey orderRef (partials, main') = do
      <*> plWidth
      <*> plHeight
      <*> plWeight
+     <*> plBatch
      <*> (pure False)
      $ main
     )

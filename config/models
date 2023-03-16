@@ -145,6 +145,7 @@ PackingListDetail sql=fames_packinglist_detail
   width Double
   height Double
   weight Double
+  batch Text Maybe
   delivered Bool default=False
   UniquePLD packingList reference style boxNumber
   UniquePLB barcode
@@ -176,8 +177,6 @@ PayrollShift sql=fames_payroll_shift
   date Day Maybe
   type Text -- normal, holidays etc ...
   
--- | Any extra expenses 
--- Costs are added to the bill, whereas deduction are deducted from the operator wages
 PayrollItem sql=fames_payroll_item
   timesheet TimesheetId sql=timesheet_id
   amount Double
