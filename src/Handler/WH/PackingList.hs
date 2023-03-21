@@ -1801,7 +1801,7 @@ joinWithPlanner plId eDetails = do
   scenarioE <- Planner.readScenarioFromPath Planner.importFamesDispatch (plannerDir </> path)
   case scenarioE of 
     Left _ -> do
-      setWarning $ [shamlet|Planner file ${path} has not been found.|]
+      setWarning $ [shamlet|Planner file #{path} has not been found.|]
       let defInfo = PlannerInfo (Just "<location>") mempty
       return $ map (, defInfo) eDetails
     Right scenario -> do
