@@ -186,7 +186,7 @@ makeDPDSource delivery' details@(detail:_) = do
   --------------------------------------------------
   -- Headers first ...
   yield $ encodeByNameWith optPipe devHeader ([] :: [Delivery])
-  yield $ encodeByNameWith opt detailHeader ([] :: [ProductDetail])
+  -- yield $ encodeByNameWith opt detailHeader ([] :: [ProductDetail])
   -- Then no header
   yield $ encodeByNameWith (noHeader optPipe) devHeader [delivery]
   if generateCustomData delivery == Y
