@@ -539,15 +539,44 @@ viewPackingList mode key pre = do
 
 renderCostingInformation faUrl invoices = [whamlet|
    <table.table.table-border.table-hover.table-striped>
+       <tr>
+         <th> Type
+         <th> Transaction
+         <th.text-right> Amount GBP
+         <th.text-right> Discount
+         <th.text-right> FX Rates
      $forall (event, Entity _ trans) <- invoices
        <tr>
         <td> #{fromMaybe (tshow $ transactionMapEventType event) (showEvent event)}
         <td> #{decodeHtmlEntities $ FA.suppTranSuppReference trans}
         <td.text-right> #{formatDouble' $ (FA.suppTranOvAmount trans * FA.suppTranRate trans)}
         <td.text-right> #{formatDouble' $ (FA.suppTranOvDiscount trans * FA.suppTranRate trans)}
-        <td.text-right> #{tshow $ FA.suppTranRate trans}
+        <td.text-right> 
+          $case FA.suppTranRate trans
+            $of 0
+               1
+            $of r
+              #{tshow r }
         <td> <a href="#{urlForFA faUrl (transactionMapFaTransType event) (transactionMapFaTransNo event)}" target=_blank>##{transactionMapFaTransNo event}
-|]
+     <tr>
+       <th> Total
+       <th>
+       <th.text-right> Goods
+       <th.text-right> Shipping
+       <th.text-right> Ratio
+       <th>
+     <tr>
+       <th>
+       <th>
+       <th.text-right> #{formatDouble' totalGoods}
+       <th.text-right> #{formatDouble' totalExtra}
+       <th.text-right> #{formatDouble' $ toPercent $ totalExtra / totalGoods }%
+       <th>
+|] where totalGoods = sum $ map (getAmount . entityVal . snd) goods
+         totalExtra = sum $ map (getAmount . entityVal . snd) extra
+         getAmount t = (FA.suppTranOvAmount t - FA.suppTranOvDiscount t) * FA.suppTranRate t
+         (goods, extra) = partition (((==) PackingListInvoiceE)  . transactionMapEventType . fst) invoices
+         toPercent = (100 *)
 
 data DeliveryParam = DeliveryParam
   { dpCart :: !Text
