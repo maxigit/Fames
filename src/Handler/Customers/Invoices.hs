@@ -86,10 +86,10 @@ renderInvoices invoices = do
   let name FA.DebtorTran{..} = fromMaybe (tshowM debtorTranDebtorNo) $
           nameMap ST_SALESINVOICE $ fmap fromIntegral debtorTranDebtorNo
       -- sort by date desc then by customer name
-      sorted = sortOn (first $ Down . FA.debtorTranTranDate)
+      sorted = sortOn (first $ Down . ((,) <$> FA.debtorTranTranDate <*> FA.debtorTranTransNo))
                       [ (inv, name inv) | (Entity _ inv) <- invoices ]
   return [whamlet|
-   <table *{datatable}>
+   <table data-page-length=200 *{datatable}>
     <thead>
       <th> Trans No
       <th> Customer
