@@ -92,7 +92,6 @@ data AppSettings = AppSettings
     , appFAStockLikeFilter :: Text
     -- ^ SQL LIKE expression to filter what's is considered stock
     , appCategoryRules :: [Map Text (ItemCategoryRule)]  
-    , appReverseCategoryKey :: Bool -- reverse stock it in Category Map. Might speed up lookup if items have a common prefix
     , appCustomerCategoryRules :: [Map Text (CustomerCategoryRule)]  
     , appOrderCategoryRules :: [Map Text (OrderCategoryRule)]  
     , appDeliveryCategoryRules :: [Map Text (DeliveryCategoryRule)]
@@ -219,7 +218,6 @@ instance FromJSON AppSettings  where
         appFADefaultLocation  <- o .:? "fa-default-location" .!= "DEF"
         appFAStockLikeFilter  <- o .:? "fa-stock-like-filter" .!= "%"
         appCategoryRules <- concatFromPrefix "category-rules" o .!= []
-        appReverseCategoryKey <- o .:? "category-reverse-key" .!= False
         appCustomerCategoryRules <- concatFromPrefix "customer-category-rules" o .!= []
         appOrderCategoryRules <- concatFromPrefix "order-category-rules" o .!= []
         appDeliveryCategoryRules <- concatFromPrefix "delivery-category-rules" o  .!= []

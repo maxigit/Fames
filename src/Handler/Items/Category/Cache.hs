@@ -22,6 +22,7 @@ import FA as FA hiding (unUserKey)
 import Database.Persist.MySQL(rawSql, Single(..), RawSql(..))
 import qualified Data.Map as LMap
 import qualified Data.Map.Strict as Map
+import qualified Data.HashMap.Strict as HMap
 import qualified Data.List as Data.List
 import Data.Maybe(fromJust)
 import Data.Align(align)
@@ -30,6 +31,21 @@ import Lens.Micro
 import Data.These.Lens
 import Text.Printf(printf) 
 import Data.Time (diffDays)
+import qualified GHC.Exts as List
+{-# NOINLINE  categoryFinderCached #-}
+{-# NOINLINE  categoryFinderCachedFor #-}
+{-# NOINLINE  categoryFinderCachedSlow #-}
+{-# NOINLINE  categoryCacheKey #-}
+{-# NOINLINE  customerCategoryFinderCached #-}
+{-# NOINLINE  loadDebtorsMasterRuleInfos #-}
+{-# NOINLINE  loadStockMasterRuleInfos #-}
+{-# NOINLINE  loadItemDeliveryForSku #-}
+{-# NOINLINE  applyCategoryRules #-}
+{-# NOINLINE  refreshCategoryCache #-}
+{-# NOINLINE  refreshCategoryFor #-}
+{-# NOINLINE  refreshCustomerCategoryCache #-}
+{-# NOINLINE  refreshOrderCategoryCache #-}
+{-# NOINLINE  refreshNewOrderCategoryCache  #-}
 -- * Types 
 -- ** Items 
 data StockMasterRuleInfo = StockMasterRuleInfo
@@ -99,23 +115,19 @@ categoryFinderCachedFor categories = do
 
 categoryFinderCached :: Text -> Handler (FA.StockMasterId -> Maybe Text)
 categoryFinderCached category =  cache0 False cacheForEver (categoryCacheKey category) $ do
-  reverseKey <- getsYesod appSettings <&> appReverseCategoryKey
   refreshCategoryCache False (Just category)
   -- we reverse the stock_id to speed up string comparison
   -- as most items share a common prefix, it might be faster to compare them from right to left 
-  let (order_key, valueFinder ) = if reverseKey
-                                  then ("REVERSE(stock_id)", \sku -> Map.lookup (reverse sku))
-                                  else ("stock_id", \sku -> Map.lookup sku)
-  let sql =  "SELECT " <> order_key <> " AS order_key, value "
+  let sql =  "SELECT stock_id AS order_key, value "
           <> "FROM fames_item_category_cache "
           <> "WHERE category = ?"
-          <> "ORDER by order_key"
   key'values <- runDB $ rawSql sql [PersistText category]
   -- Don't use fromAscList
-  let skuMap = Map.fromList [ (key , value )
+  let skuMap :: HMap.HashMap Text Text
+      skuMap = List.fromList $ [ (key , value )
                                | (Single key, Single value) <- key'values
                                ]
-  let finder (FA.StockMasterKey sku) = valueFinder sku skuMap
+  let finder (FA.StockMasterKey sku) = HMap.lookup sku skuMap
   return $ skuMap `seq` finder
 
 categoryCacheKey :: Text -> (String, Text)
@@ -135,7 +147,7 @@ refreshCategoryFor textm stockFilterM = do
     let criteria = map (ItemCategoryCategory ==.) (maybeToList textm)
     -- Warning, we delete everything before having computed anything
     -- might be better to delete for a given sku in the form loop
-    deleteWhere (criteria <> filterE id ItemCategoryStockId (Just stockFilter))
+    deleteWhere (criteria <> filterE id ItemCategoryStockId stockFilterM)
     forM_ stockMasters $ \stockMaster0 -> do
       deliveries <- loadItemDeliveryForSku (smStockId stockMaster0)
       let stockMaster = stockMaster0 { smDeliveries = deliveries}
@@ -151,7 +163,7 @@ refreshCategoryFor textm stockFilterM = do
                 Just rule -> do
                   r <- computeOneCategory cat deliveryRules rule  stockMaster
                   return r
-      mapM_ insert_ categories
+      insertMany_ categories
 
 
   
