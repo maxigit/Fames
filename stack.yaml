@@ -16,7 +16,8 @@ packages:
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- /home/max/devel/metamorphosis
+- git: https://github.com/maxigit/metamorphosis
+  commit: cf6931606f96ef150f65626c7cc69b3b6d542aa8
 - /home/max/Hackage/yesod-fay
 #- git: https://github.com/fpco/yesod-fay
 #commit: 7c87550a3450b1d476737eee34bf2a09b9048751
@@ -80,20 +81,21 @@ extra-package-dbs: []
 # compiler-check: newer-minor
 allow-newer: true
 nix:
-  enable: false
-  pure: false
-  packages:
-    - pkg-config
-    - curl
-    - openssl
-    - libmysqlclient
-    - pcre
-    - zlib
-    - glib
-    - cairo
-    - pango
-    # to compile FAY
-    - haskellPackages.cpphs
-    - ghc
-  path:
-    - nixpkgs=https://github.com/NixOS/nixpkgs/archive/1c1f5649bb9c1b0d98637c8c365228f57126f361.tar.gz
+  enable: true
+  pure: true
+  shell-file: shell.nix
+  # packages:
+  #   - pkg-config
+  #   - curl
+  #   - openssl
+  #   - libmysqlclient
+  #   - pcre
+  #   - zlib
+  #   - glib
+  #   - cairo
+  #   - pango
+  #   # to compile FAY
+  #   - haskellPackages.cpphs
+  #   - ghc
+  # path:
+  #   - nixpkgs=https://github.com/NixOS/nixpkgs/archive/1c1f5649bb9c1b0d98637c8c365228f57126f361.tar.gz
