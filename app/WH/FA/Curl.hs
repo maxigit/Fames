@@ -797,8 +797,9 @@ postSalesOrder connectInfo SalesOrder{..} = do
                              Just "1" -> Just NowOrNever
                              _ -> Just NowOrNever
             setNowOrNever item = item { soiNowOrNever = soiNowOrNever item <|> nowOrNever }
+            salesType = fmap unpack soSalesType <|> lookup "sales_type" selected
 
-        mapM_ addSalesOrderItem (map setNowOrNever soItems)
+        mapM_ (addSalesOrderItem salesType) (map setNowOrNever soItems)
         
         let process = curlPostFields [ "customer_id" <=> soCustomerId
                                      , "branch_id" <=> soBranchNo
@@ -810,7 +811,7 @@ postSalesOrder connectInfo SalesOrder{..} = do
                                      , "phone" <=> soPhone
                                      , "Comments" <=> soComment
                                      , fromOpt "payment" soPayment
-                                     , fromOpt "sales_type" soSalesType
+                                     , "sales_type" <=> salesType
                                      , "now_or_never" <=> fmap fromEnum nowOrNever
                                      , fromOpt "Location" soLocation
                                      , fromOpt "ship_via" soShipVia
@@ -823,8 +824,8 @@ postSalesOrder connectInfo SalesOrder{..} = do
             Right faId -> return faId
 
 addSalesOrderItem :: (?baseURL :: URLString, ?curl :: Curl)
-                  => SalesOrderItem -> ExceptT Text IO [Tag String]
-addSalesOrderItem SalesOrderItem{..} = do
+                  => (Maybe String) -> SalesOrderItem -> ExceptT Text IO [Tag String]
+addSalesOrderItem salesType SalesOrderItem{..} = do
     let fields = curlPostFields [ Just "AddItem=Add%20Item"
                                , "stock_id" <=> soiStockId
                                -- , "now_or_never"
@@ -832,6 +833,7 @@ addSalesOrderItem SalesOrderItem{..} = do
                                , "price" <=> soiPrice
                                , "Disc" <=> soiDiscountPercent
                                , "now_or_never_detail" <=> fmap fromEnum soiNowOrNever
+                               , "sales_type" <=> salesType
                                ] : method_POST
     curlSoup (ajaxSalesOrderItemURL) fields [200] "Add sales order item"
         
