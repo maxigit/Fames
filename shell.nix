@@ -1,4 +1,4 @@
-{ghc?null}:
+{stack_ghc?null}:
 with (import (builtins.fetchTarball {
              name = "fames";
              url = "https://github.com/nixos/nixpkgs/archive/${import ./.nixpkgs}.tar.gz";
@@ -14,8 +14,9 @@ let glabels-qr = glabels.overrideAttrs (oldAttrs: {nativeBuildInputs = oldAttrs.
                     cairo
                     pango
                     glabels-qr
+		   barcode
                ] ;
-    barcode-libs = [qrencode];
+    barcode-libs = [qrencode ];
     dev-inputs = [
                  pkg-config
                  # to compile FAY
@@ -24,13 +25,17 @@ let glabels-qr = glabels.overrideAttrs (oldAttrs: {nativeBuildInputs = oldAttrs.
                  which # to find the executable using stack exec which 
                ];
     inputs = runtime-inputs
-             ++ (if  ghc == null
+             ++ (if  stack_ghc == null
                 then []
                 else dev-inputs);
 
       
-in if ghc == null
-   then runCommand "myEnv" {} ''''
+in if stack_ghc == null
+   then mkShell {
+	packages=[coreutils which];
+        inputsFrom = [ghc];
+        buildInputs = inputs;
+        }
    else 
       haskell.lib.buildStackProject {
       inherit ghc;
