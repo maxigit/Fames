@@ -232,10 +232,10 @@ loadStockMasterRuleInfos stockFilter = do
             <> "left join 0_dimensions as dim2 on (sm.dimension2_id = dim2.id) "
             <> "left join 0_stock_category as cat on (sm.category_id = cat.category_id) "
             <> "left join 0_prices as sales on (sm.stock_id = sales.stock_id AND sales.sales_type_id =?) "
-            <> "where sm.stock_id "<> keyw <> "?"
+            <> "where sm.stock_id "<> keyw
       (keyw, p) = filterEKeyword stockFilter
 
-  runDB $ rawSql sql [toPersistValue base, PersistText p]
+  runDB $ rawSql sql (toPersistValue base : p)
 
 
 -- We use string to be compatible with regex substitution

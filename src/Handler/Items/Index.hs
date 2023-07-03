@@ -287,13 +287,13 @@ styleQuery IndexParam{..} =
       (where0, p0) = case ipSKU of
           Nothing -> ("", [])
           Just styleE ->  let (keyw, v) = filterEKeyword styleE
-                              where_ = " stock_id " <> keyw <> " ?"
-                          in (where_, [toPersistValue v])
+                              where_ = " stock_id " <> keyw
+                          in (where_, v)
       (joinClause, where1 , p1) = case (ipCategory, ipCategoryFilter) of
                        (Just category, Just catFilter) -> let joinClause0 = " JOIN fames_item_category_cache AS category USING (stock_id) "
                                                               (catw, catv) = filterEKeyword catFilter
-                                                              whereCat = [ "category.category = ? " , " category.value " <> catw <> "? " ]
-                                                          in (joinClause0, whereCat, [toPersistValue category, toPersistValue catv])
+                                                              whereCat = [ "category.category = ? " , " category.value " <> catw ]
+                                                          in (joinClause0, whereCat, (toPersistValue category : catv))
                        _ -> ("", [], [])
       makeWhere [] = ""
       makeWhere ws = " WHERE " <> intercalate " AND " ws
@@ -303,8 +303,8 @@ styleQuery IndexParam{..} =
                       ShowAll -> []
 
   in case (filter (not . null) $ (where0 : where1)) of
-    [] -> Left "Please enter a styles or category filter expression (SQL like expression or regexp starting with '/'')"
-    wheres -> Right  ( selectClause ++ joinClause ++ makeWhere (wheres ++ activeWhere)
+    [] -> Left "Please enter a styles or category filter expression (SQL like expression or regexp starting with '/'. You can also enter a text cart or list starting with a delimeter , or |')"
+    wheres -> Right  $ ( selectClause ++ joinClause ++ makeWhere (wheres ++ activeWhere)
                       , p0 <> p1 )
 -- | Return Persistent filter corresponding to selected checkbox
 selectedItemsFilter :: IsString a => IndexParam -> Either a  [ Filter FA.StockMaster ]
@@ -466,7 +466,7 @@ loadVariations cache param = do
   
   styles <- case styleQuery param of
     Left err -> do
-              setWarning err
+              Import.setInfo err
               return []
     Right (sql, sqlParams) -> let select = rawSql (sql <> " ORDER BY 0_stock_master.stock_id") sqlParams
                     in cache0 forceCache (cacheDelay) ("load styles", (ipSKU param, ipCategory param, ipCategoryFilter param, ipShowInactive param)) (runDB select)
@@ -620,13 +620,13 @@ loadSalesPrices param = do
             <> " WHERE curr_abrev = 'GBP' AND " <> stockF <> inactive
             <> " ORDER BY stock_id"
            (fKeyword, p) = filterEKeyword styleF
-           stockF = "stock_id " <> fKeyword <> "?"
+           stockF = "stock_id " <> fKeyword
            inactive = case ipShowInactive param of
                         ShowActive -> " AND inactive = 0"
                         ShowInactive -> " AND inactive = 1"
                         ShowAll -> ""
        do
-           prices <- rawSql sql [PersistText p]
+           prices <- rawSql sql p
 
            let group_ = groupBy ((==) `on `priceStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
@@ -665,13 +665,13 @@ loadPurchasePrices param = do
             <> " WHERE " <> stockF <> inactive
             <> " ORDER BY stock_id"
            (fKeyword, p) = filterEKeyword styleF
-           stockF = "stock_id " <> fKeyword <> "?"
+           stockF = "stock_id " <> fKeyword
            inactive = case ipShowInactive param of
                         ShowActive -> " AND inactive = 0"
                         ShowInactive -> " AND inactive = 1"
                         ShowAll -> ""
        do
-           prices <- rawSql sql [PersistText p]
+           prices <- rawSql sql p
 
            let group_ = groupBy ((==) `on `purchDataStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
@@ -729,14 +729,14 @@ loadStatus param = do
               <> "            FROM 0_purch_order_details "
               <> "            GROUP BY stock_id"
               <> "           ) on_order USING (stock_id)"
-              <> " WHERE stock_id " <> fKeyword <> "?"
+              <> " WHERE stock_id " <> fKeyword
               <> inactive
           (fKeyword, p) = filterEKeyword styleF
           inactive = case ipShowInactive param of
                         ShowActive -> " AND inactive = 0"
                         ShowInactive -> " AND inactive = 1"
                         ShowAll -> ""
-      rows <- rawSql sql [PersistText p]
+      rows <- rawSql sql p
       return [ ItemInfo style var master
              | (Single sku, Single qoh, Single allQoh
                , Single onDemand, Single allOnDemand, Single onOrder
@@ -767,9 +767,9 @@ loadWebStatus param = do
              <> " LEFT JOIN field_data_field_product ON (product_id = field_product_product_id"
              <> "                                                     AND  entity_type = 'node')"
              <> " LEFT JOIN node ON (entity_id = nid) "
-             <> " WHERE sku " <> fKeyword <> " ?"
+             <> " WHERE sku " <> fKeyword
           (fKeyword, p) = filterEKeyword styleF
-      rows <- runDCDB $ rawSql sql [PersistText p]
+      rows <- runDCDB $ rawSql sql p
       return [ItemInfo style var master
              | (Single sku, Single active, Single display) <- rows
              , let (style, var) = ?skuToStyleVar sku
@@ -806,8 +806,8 @@ loadWebPriceFor (fKeyword, p) pId = do
           <> " FROM commerce_product AS product "
           <> " JOIN field_data_field_price_" <> webPriceList pId <> " AS price"
           <> "      ON (price.entity_id = product_id AND type = 'product')"
-          <> " WHERE sku " <> fKeyword <> " ?"
-  rows <- runDCDB $ rawSql sql [PersistText p]
+          <> " WHERE sku " <> fKeyword
+  rows <- runDCDB $ rawSql sql p
   return [ (sku, webPrices)
          | (Single sku, Single price) <- rows
          , let webPrices = ItemPriceF (mapFromList [(fromIntegral pId, Identity (price /100))])

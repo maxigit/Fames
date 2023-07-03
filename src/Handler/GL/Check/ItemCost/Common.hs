@@ -89,7 +89,7 @@ getStockAccounts = do
         case settingsm of
              Nothing -> (sql0, [])
              Just settings -> let (keyword, stockLike) = filterEKeyword $ readFilterExpression (stockFilter settings)
-                              in (sql0 <> " AND stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
+                              in (sql0 <> " AND stock_id " <> keyword, stockLike)
   -- let sql = "select distinct(account) from 0_gl_trans where stock_id is not null and stock_id " <> filterEToSQL stockLike
   --        <> " and amount <> 0"
   --        ^ Find all accounts used by any stock transaction (filter by stock like)
@@ -111,12 +111,12 @@ glBalanceFor :: Day -> Account -> Handler (Double, Double)
 glBalanceFor date (Account account) = do
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let sql = "select sum(amount) "
-           <> ", sum(IF(stock_id IS NULL OR stock_id " <> keyword <> " ?, 0, amount))"
+           <> ", sum(IF(stock_id IS NULL OR stock_id " <> keyword <> ", 0, amount))"
            <> " from 0_gl_trans where account = ? AND tran_date <= ? "
       (keyword, stockLike) = case settingsm of
         Just settings -> filterEKeyword $ readFilterExpression (stockFilter settings)
-        Nothing -> ("LIKE", "%")
-  rows <- runDB $ rawSql sql [toPersistValue stockLike, toPersistValue account, toPersistValue date]
+        Nothing -> ("LIKE", [toPersistValue @Text "%"])
+  rows <- runDB $ rawSql sql (stockLike ++ [toPersistValue account, toPersistValue date])
   case rows of
     [] -> return (0,0)
     [(Single total, Single total')] -> return $ (fromMaybe 0 total, fromMaybe 0 total' )
@@ -175,7 +175,7 @@ getItemFor (Account account) = do
       (sql, params) = case settingsm of
              Nothing -> (sql0, [])
              Just settings -> let (keyword, stockLike) = filterEKeyword $ readFilterExpression (stockFilter settings)
-                              in (sql0 <> " AND stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
+                              in (sql0 <> " AND stock_id " <> keyword, stockLike)
   runDB $ map (bimap unSingle unSingle)  <$> rawSql sql ([toPersistValue account, toPersistValue account] ++ params)
 
 -- | Stock valuation for return stock valuation + qoh for given stock price

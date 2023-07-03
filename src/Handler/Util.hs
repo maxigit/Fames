@@ -42,7 +42,6 @@ module Handler.Util
 , filterE
 , filterEField
 , filterEKeyword
-, filterEToSQL
 , filterEAddWildcardRight
 , (<-?.)
 , readUploadOrCacheUTF8
@@ -100,12 +99,13 @@ import qualified Data.List as Data.List
 import Model.DocumentKey
 import Control.Monad.Except hiding(mapM_, filterM)
 import Text.Printf(printf) 
+import qualified Data.Text as T
 import Data.Maybe(fromJust)
 import Text.Read(readPrec)
 -- import Data.IOData (IOData)
 import Database.Persist.MySQL(unSqlBackendKey)
 import System.Directory(listDirectory, doesDirectoryExist)
-import Data.Char(isUpper)
+import Data.Char(isUpper, isSpace)
 import qualified Data.List.Split as Split 
 import Data.Aeson(encode)
 
@@ -446,17 +446,26 @@ firstOperator = do
 _ <-?. []  =  []
 a <-?. list  =   [a <-. list]
 -- ** Filtering Expressions (Like or Regexp) 
--- | Generate a like or rlike statement
-data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show)
+-- | Generate a like , rlike statement or In statements
+-- RLike statement starts with '/'
+-- In statements starts with ',' .,a,b,c
+--                     or '|'   |a|b
+-- or contains a new lines, in that case only, everything after the first space of each line will be ignored
+data FilterExpression = LikeFilter Text  | RegexFilter Text | InFilter Char [Text] deriving (Eq, Show)
 showFilterExpression :: FilterExpression -> Text
 showFilterExpression (LikeFilter t) = t
 showFilterExpression (RegexFilter t) = "/" <> t
-
+showFilterExpression (InFilter sep ts) = concat $ sep' : intersperse sep' ts
+  where sep' = T.singleton sep
 
 readFilterExpression :: Text -> FilterExpression
-readFilterExpression t = case stripPrefix "/" t of
-  Nothing -> LikeFilter t
-  Just regex -> RegexFilter regex
+readFilterExpression  t = case uncons  t of
+  Just ('/', regex) -> RegexFilter regex
+  Just (sep, textlist) | sep `elem` (",|"  :: String) -> InFilter sep (filter (not . null) $ T.splitOn (T.singleton sep) textlist)
+  _ -> case T.lines t of
+             [_] -> LikeFilter t
+             lines -> InFilter '\n' (filter (not . null) $ map firstColumn lines)
+  where firstColumn =  fst . T.break isSpace
 
 
 instance IsString FilterExpression where
@@ -467,7 +476,7 @@ instance IsString FilterExpression where
 filterEField :: (RenderMessage (HandlerSite m) FormMessage,
                   Monad m) =>
                 Field m FilterExpression
-filterEField = convertField readFilterExpression showFilterExpression textField
+filterEField = convertField (readFilterExpression . unTextarea) (Textarea . showFilterExpression) textareaField
 
 
 -- | Create a persistent filter from a maybe filter expression
@@ -487,17 +496,22 @@ filterE conv field (Just (RegexFilter regex)) =
          (FilterValue $ conv regex)
          (BackendSpecificFilter "RLIKE")
   ]
+filterE conv field (Just (InFilter _ elements)) =
+  [ Filter field
+           (FilterValues $ map conv elements) 
+           (In)
+  ]
   
 -- | SQL keyword.
-filterEKeyword ::  FilterExpression -> (Text, Text)
-filterEKeyword (LikeFilter f) = ("LIKE", f)
-filterEKeyword (RegexFilter f) = ("RLIKE", f)
-filterEToSQL :: FilterExpression -> Text
-filterEToSQL exp = let (key, v) = filterEKeyword exp in key <> " '" <> v <> "'"
+filterEKeyword ::  FilterExpression -> (Text, [PersistValue])
+filterEKeyword (LikeFilter f) = ("LIKE ?", [toPersistValue f])
+filterEKeyword (RegexFilter f) = ("RLIKE ?", [toPersistValue f])
+filterEKeyword (InFilter _ xs) = ("IN (" <> ( intercalate ", " (Data.List.replicate (length xs) "?")) <> ")", map toPersistValue xs)
 
 filterEAddWildcardRight :: FilterExpression -> FilterExpression
 filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")
 filterEAddWildcardRight (RegexFilter f) = RegexFilter (f<>"*")
+filterEAddWildcardRight f@(InFilter _ _) = f
 -- * Badges 
 badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe Text -> Text -> Html
 badgeSpan badgeWidth qty bgM klass = do

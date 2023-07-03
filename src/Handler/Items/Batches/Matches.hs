@@ -650,7 +650,7 @@ loadSkuBatches batchCategory filterE_ = do
             <> " JOIN fames_batch ON (value RLIKE concat('^(.*[|] )*', name, '( [|].*)*$')) "
             <> "WHERE value != '' AND category = ? AND stock_id " <> keyw <> " ?"
       (keyw, v )  = filterEKeyword filterE_
-  rows <- rawSql sql [toPersistValue batchCategory, toPersistValue v]
+  rows <- rawSql sql (toPersistValue batchCategory: v)
   return $ map (\(Single sku, Single batchId) -> (sku, batchId)) rows
 
 

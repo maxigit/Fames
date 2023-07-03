@@ -657,6 +657,9 @@ generateDateIntervals date_column param = let
              <> [[("?) ", PersistBool False)]] -- close the or clause
       
 
+-- | Adapt the return type of generateTranDateIntervals for 
+toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
+toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
   
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
@@ -677,17 +680,17 @@ loadItemSales param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw, v)
                                                )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                 in [ (" AND category.value " <> keyw, v)
+                                    , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
-                       <> generateTranDateIntervals param
+                       <> toT'Ps (generateTranDateIntervals param)
         
       sql = sql0 <> intercalate " " w
   sales <- runDB $ rawSql (sqlSelect <> sql) p
@@ -726,17 +729,17 @@ loadItemOrders param io orderDateColumn qtyMode = do
           "AND quantity != 0" :
           ("AND stk_code LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           []
-      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stk_code " <> keyw <> " ?", PersistText v)
+      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stk_code " <> keyw, v)
                                                )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                 in [ (" AND category.value " <> keyw, v)
+                                    , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
-                       <> generateDateIntervals orderDateField param
+                       <> toT'Ps (generateDateIntervals orderDateField param)
       sql = sql0 <> intercalate " " w
   details <- runDB $ rawSql (sqlSelect <> sql) p
   orderCategoryMap <- loadOrderCategoriesFor "0_sales_orders.order_no AS order_" sql p
@@ -761,17 +764,17 @@ loadItemPurchases param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw, v)
                                                )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                 in [ (" AND category.value " <> keyw, v)
+                                    , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
-                       <> generateTranDateIntervals param
+                       <> toT'Ps (generateTranDateIntervals param)
       alterDate = maybe id (addDays . fromIntegral)  (rpPurchasesDateOffset param)
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map (purchToTransInfo alterDate) purch
@@ -791,17 +794,17 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
             OQuantityLeft -> "AND quantity_received != 0"
         ) :
         []
-      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                  in (" AND item_code " <> keyw <> " ?", PersistText v)
+      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                  in (" AND item_code " <> keyw, v)
                                                  )) ?:
                         case catFilterM of
                           Nothing -> []
                           Just (catToFilter, catFilter) ->
                                   let (keyw, v) = filterEKeyword catFilter
-                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                     , (" AND category.category = ? ", PersistText catToFilter)
+                                  in [ (" AND category.value " <> keyw, v)
+                                     , (" AND category.category = ? ", [PersistText catToFilter])
                                      ]
-                                     <> generateTranDateIntervals param
+                                     <> toT'Ps (generateTranDateIntervals param)
   pos <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map (poToTransInfo orderDateColumn qtyMode ) pos
 
@@ -831,17 +834,17 @@ loadStockAdjustments infoMap param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : 
           []
 
-      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+      (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw, v)
                                                )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                 in [ (" AND category.value " <> keyw, v)
+                                    , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
-                       <> generateTranDateIntervals param
+                       <> toT'Ps (generateTranDateIntervals param)
 
   moves <- runDB $ rawSql (sql <> intercalate " " w) p
   let initials = createInitialStock infoMap (rpJustFrom param)
@@ -862,15 +865,15 @@ loadValidSkus  param =  do
           ("WHERE stock_id LIKE '" <> stockLike <> "'") : 
           []
 
-      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw, v)
                                                )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                 in [ (" AND category.value " <> keyw, v)
+                                    , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
 
   rows <- runDB $ rawSql (sql <> intercalate " " w) p
@@ -893,15 +896,15 @@ loadStockInfo param = do
           (" WHERE sm.stock_id LIKE '" <> stockLike <> "'") : 
           []
       order = " ORDER BY sm.stock_id " 
-      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND sm.stock_id " <> keyw <> " ?", PersistText v)
+      (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND sm.stock_id " <> keyw, v)
                                                )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                 in [ (" AND category.value " <> keyw, v)
+                                    , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
       qoh = "SELECT stock_id, SUM(qty) as qty FROM 0_stock_moves WHERE tran_date < ? AND loc_code = ? GROUP BY stock_id"
       toInfo (Single sku, Single cost, Single price, Single qoh_ ) = (sku, ItemInitialInfo cost price qoh_)
