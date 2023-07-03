@@ -117,6 +117,7 @@ default-extensions:
 - StandaloneDeriving
 - PartialTypeSignatures
 - NamedWildCards
+- TypeApplications
 
 library:
   source-dirs:
