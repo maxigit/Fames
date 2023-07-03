@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -179,6 +179,7 @@ library
       StandaloneDeriving
       PartialTypeSignatures
       NamedWildCards
+      TypeApplications
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -308,6 +309,7 @@ executable DPDDump
       StandaloneDeriving
       PartialTypeSignatures
       NamedWildCards
+      TypeApplications
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -434,6 +436,7 @@ executable DPDImport
       StandaloneDeriving
       PartialTypeSignatures
       NamedWildCards
+      TypeApplications
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Fames
@@ -559,6 +562,7 @@ executable FAGenerator
       StandaloneDeriving
       PartialTypeSignatures
       NamedWildCards
+      TypeApplications
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -709,6 +713,7 @@ executable Fames
       StandaloneDeriving
       PartialTypeSignatures
       NamedWildCards
+      TypeApplications
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
   build-depends:
       Decimal >=0.5.1 && <0.6
@@ -869,6 +874,7 @@ test-suite test
       StandaloneDeriving
       PartialTypeSignatures
       NamedWildCards
+      TypeApplications
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal >=0.5.1 && <0.6
@@ -1161,6 +1167,7 @@ test-suite zghicd
       StandaloneDeriving
       PartialTypeSignatures
       NamedWildCards
+      TypeApplications
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal >=0.5.1 && <0.6
