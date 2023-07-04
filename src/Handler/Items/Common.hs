@@ -14,15 +14,23 @@ import Handler.Items.Category.Cache
 skuToStyleVarH :: Handler (Text -> (Text, Text))
 skuToStyleVarH = do
   [styleFn, varFn] <- mapM categoryFinderCached ["style", "colour"]
-  categories <- categoriesH
+  catRulesMap <- mconcat <$> appCategoryRules <$> getsYesod appSettings
   -- check style and colour categories exists
   let style = "style"
       var = "colour"
-  when (style `notElem` categories) $
-    setWarning "Style category not set. Please contact your Administrator."
-  when (var `notElem` categories) $
-    setWarning "Variation category not set. Please contact your Administrator."
-  return $ (,) <$> (\sku -> fromMaybe sku $ styleFn (FA.StockMasterKey sku)) <*> (fromMaybe "" . varFn . FA.StockMasterKey)
+      ruleInput  = RuleInput mempty Nothing
+      computeCat rule def sku = maybe def pack $ computeCategory mempty (unpack sku) ruleInput rule
+  styleFromRule <- 
+    case lookup style catRulesMap of
+      Nothing -> setWarning "Style category not set. Please contact your Administrator."  >> return id
+      Just rule -> return $ \sku -> computeCat rule sku sku
+  colourFromRule <-
+    case lookup var catRulesMap of
+      Nothing -> setWarning "Colour category not set. Please contact your Administrator."                 >> return (const "")
+      Just rule -> return $ computeCat rule ""
+  return $ \sku -> ( fromMaybe (styleFromRule sku) $ styleFn (FA.StockMasterKey sku)
+                   , fromMaybe (colourFromRule sku) . varFn $ FA.StockMasterKey sku
+                   )
 
 
 

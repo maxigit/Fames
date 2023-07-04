@@ -59,11 +59,6 @@ data IndexParam = IndexParam
   , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
   } deriving (Eq, Show)
 
-ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
-ipVariations param = case (ipVariationsF param, ipVariationGroup param) of
-        (Just var, Nothing) -> Left var
-        (_, group_) -> Right group_
-
 data ShowInactive = ShowActive | ShowInactive | ShowAll
   deriving (Eq, Show, Bounded, Enum)
 
@@ -459,10 +454,8 @@ loadVariations cache param = do
           sources
         )
 
-  let varF = ipVariations param
-      bases =  ipBases param
+  let bases =  ipBases param
   adjustBase <- getAdjustBase
-  varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
   
   styles <- case styleQuery param of
     Left err -> do
@@ -470,15 +463,6 @@ loadVariations cache param = do
               return []
     Right (sql, sqlParams) -> let select = rawSql (sql <> " ORDER BY 0_stock_master.stock_id") sqlParams
                     in cache0 forceCache (cacheDelay) ("load styles", (ipSKU param, ipCategory param, ipCategoryFilter param, ipShowInactive param)) (runDB select)
-  variations <- case varF of
-    (Left filter_)  -> let select = (Left . map entityKey) <$> runDB (selectList -- selectKeysList bug. fixed but not in current LTS
-                                    (filterE StockMasterKey FA.StockMasterId (Just filter_)
-                                     <> [FA.StockMasterInactive ==. False ]
-                                    )
-                                          [Asc FA.StockMasterId])
-                       in cache0 forceCache (cacheDelay) (filter_, "load variations") select
-    (Right Nothing) -> return $ Left [] -- (Left $ map  entityKey styles)
-    (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
   infoSources <- mapM getDelayed $ adjustSources (case ipMode param of
     ItemGLView -> []
     ItemPriceView -> [delayedSalesPrices]
@@ -490,6 +474,7 @@ loadVariations cache param = do
     ItemCategoryView -> []
     )
 
+  itemVars <- getVarsFor forceCache param
   let itemStyles = filterActive $ mergeInfoSources ( map stockItemMasterToItem styles
                                                    : infoSources
                                                    ) 
@@ -500,9 +485,6 @@ loadVariations cache param = do
                      -- impMaster not present, means the variations hasn't been loaded (ie filtered)
                      -- so we are not showing it
       baseCandidates = maybe [] (splitOn "|") (ipBaseVariation param)
-      itemVars =  case variations of
-        Left keys' -> map (snd . ?skuToStyleVar . unStockMasterKey) keys'
-        Right vars -> vars
       itemGroups = joinStyleVariations (?skuToStyleVar <$> bases)
                                         baseCandidates
                                         (adjustBase cache) computeDiff
@@ -516,6 +498,32 @@ loadVariations cache param = do
                 ) itemGroups
   mapM_ (startDelayed . snd) delayeds
   return result
+  
+-- | Create a function which given a style returns
+-- a list of variants. The normal case is cross product
+-- with the variations (select * for variationGroup) but is tweaked
+-- to add explicitely filtered sku
+getVarsFor :: (?skuToStyleVar :: Text -> (Text, Text)) => Bool -> IndexParam -> Handler (Text -> [Text])
+getVarsFor forceCache param =
+  case (ipVariationsF param, ipVariationGroup param)  of
+       (Just filter_, Nothing)  -> do
+                       let select = runDB (selectKeysList
+                                                      (filterE StockMasterKey FA.StockMasterId (Just filter_)
+                                                       <> [FA.StockMasterInactive ==. False ]
+                                                      )
+                                             [Asc FA.StockMasterId])
+                       keys' <-   cache0 forceCache (cacheDelay) (filter_, "load variations") select
+                       return $ const $ map (snd . ?skuToStyleVar . unStockMasterKey) keys'
+       (Nothing, Nothing) -> 
+          case ipSKU param of
+            Just (InFilter _ skus) ->  let  styleToVars = groupAsMap fst (return . snd) $ map ?skuToStyleVar skus
+                               in return $ \st -> findWithDefault [] st styleToVars
+
+            _ -> return . const $ [] -- (Left $ map  entityKey styles)
+       (_ ,Just group_) -> do
+         varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
+         return . const $ (Map.findWithDefault [] group_ varGroupMap)
+
 -- | Filters according to FA and DC status but KEEP base variation if needed.
 -- This is needed To be able to copy price or other information when creating missing
 -- product. 

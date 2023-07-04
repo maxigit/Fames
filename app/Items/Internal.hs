@@ -145,20 +145,20 @@ joinStyleVariations :: Copointed a
                     -> (ItemInfo (ItemMasterAndPrices a) -> Text -> ItemInfo (ItemMasterAndPrices a))
                     -> (ItemInfo (ItemMasterAndPrices a) -> ItemInfo (ItemMasterAndPrices a) -> ItemInfo diff)
                     -> [ItemInfo (ItemMasterAndPrices a)]
-                    -> [Text] --  ^ All possible variations
+                    -> (Text -> [Text]) --  ^ All possible variations for a given style
                     -> [( ItemInfo (ItemMasterAndPrices a)
                         , [(VariationStatus, ItemInfo diff)]
                         )]
-joinStyleVariations bases baseCandidates adjustBase computeDiff_ items vars = let
+joinStyleVariations bases baseCandidates adjustBase computeDiff_ items varsFor = let
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
   -- -| if base is not defined, find the first active
 
   in map (\(_, variations@(var:_)) -> let
              -- bases Map a style to the base sku. We need to find the sku then item
              varMap = mapFromList [((iiStyle v, iiVariation v), v) | v <- variations ]
-             varsForBase = if null vars
-                           then map iiVariation variations
-                           else vars
+             varsForBase = case varsFor (iiStyle var) of
+                              [] -> map iiVariation variations
+                              vars -> vars
              -- -| if the base is not set, find the first active variation
              -- but preferably the one true for baseCandidate
              weightMap = Map.fromList (zip baseCandidates [1..])
