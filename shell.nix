@@ -1,9 +1,14 @@
-{stack_ghc?null}:
-with (import (builtins.fetchTarball {
+{ghc?null}:
+let pkgs =  (import (builtins.fetchTarball {
              name = "fames";
              url = "https://github.com/nixos/nixpkgs/archive/${import ./.nixpkgs}.tar.gz";
              }) {});
-let glabels-qr = glabels.overrideAttrs (oldAttrs: {nativeBuildInputs = oldAttrs.nativeBuildInputs ++ barcode-libs;});
+    stack_ghc = ghc;
+in if stack_ghc != null && stack_ghc != pkgs.ghc
+   then abort ("stack ghc " + stack_ghc.version + " different from " + pkgs.ghc.version)
+   else with pkgs;
+let ghc = pkgs.ghc ;
+    glabels-qr = glabels.overrideAttrs (oldAttrs: {nativeBuildInputs = oldAttrs.nativeBuildInputs ++ barcode-libs;});
     runtime-inputs = [ 
                     curl
                     openssl
@@ -42,5 +47,3 @@ in if stack_ghc == null
       name = "myEnv";
       buildInputs = inputs;
    }
-
-
