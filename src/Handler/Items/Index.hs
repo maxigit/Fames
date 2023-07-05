@@ -1155,11 +1155,11 @@ columnForCategory catName category = ([], badgify catName category <> link ) whe
 renderButton :: IndexParam -> Text -> Button -> Html
 renderButton param bclass button = case buttonStatus param button of
   BtnActive ->  [shamlet|
-               <button.btn class="btn-#{bclass}" type="submit" name="button" value="#{tshow button}">#{buttonName button}
+               <button.btn class="btn-#{bclass}" type="submit" name="button" value="#{tshow button}">#{buttonName (ipMode param) button}
                |]
   BtnInactive tooltip ->  [shamlet|
                  <a href="#" data-toggle="tooltip" title="#{tooltip}">
-                    <div.btn.disabled class="btn-#{bclass} type="submit" name="button" value="#{tshow button}">#{buttonName button}
+                    <div.btn.disabled class="btn-#{bclass} type="submit" name="button" value="#{tshow button}">#{buttonName (ipMode param) button}
                |]
   BtnHidden ->  [shamlet||]
 
@@ -1180,15 +1180,19 @@ buttonStatus param ActivateBtn = case ipMode param of
 buttonStatus param DeactivateBtn = case ipMode param of
   ItemPriceView -> BtnHidden
   ItemPurchaseView -> BtnHidden
+  ItemCategoryView -> BtnHidden
   _ -> BtnActive
   
-buttonStatus __param DeleteBtn = BtnActive
+buttonStatus param DeleteBtn = case ipMode param of
+  ItemCategoryView -> BtnHidden
+  _ -> BtnActive
 
-buttonName :: Button -> Text
-buttonName CreateMissingBtn = "Create Missings"
-buttonName ActivateBtn = "Activate"
-buttonName DeactivateBtn = "Deactivate"
-buttonName DeleteBtn = "Delete"
+buttonName :: ItemViewMode -> Button -> Text
+buttonName ItemCategoryView CreateMissingBtn = "Refresh Categories"
+buttonName _ CreateMissingBtn = "Create Missings"
+buttonName _ ActivateBtn = "Activate"
+buttonName _ DeactivateBtn = "Deactivate"
+buttonName _ DeleteBtn = "Delete"
 
   
 
@@ -1352,13 +1356,13 @@ columnClass :: IndexColumn -> Text
 columnClass col = filter (/= ' ') (tshow col)
   
 -- * Actions 
--- ** Missings 
--- *** Actions 
+-- *** Missings 
 createMissing :: (?skuToStyleVar :: Text -> (Text, Text))
                   => IndexParam -> Handler ()
 createMissing params = do
    resp <- (case ipMode params of
               ItemWebStatusView -> createDCMissings
+              ItemCategoryView -> refreshCategories
               _ -> createGLMissings
            ) params
 
@@ -1373,7 +1377,7 @@ deleteItems params = do
               ItemPriceView -> deleteSalesPrices params
               ItemPurchaseView -> deletePurchasePrices params
               _ -> error "Should not happen"
-          )
+      )
   clearAppCache
   return resp
 
@@ -1494,6 +1498,15 @@ deletePurchasePrices  params = do
 
   runDB $ mapM_ deleteWhere deletePairs
 
+-- *** Categories
+refreshCategories :: (?skuToStyleVar :: Text -> (Text, Text)) => IndexParam -> Handler ()
+refreshCategories params = do
+  cache <- fillIndexCache
+  itemGroup <- loadVariationsToKeep cache params
+
+  forM_ itemGroup $ \(_, infos) -> do
+       refreshCategoryFor Nothing (Just $ InFilter ',' $ map (iiSku . snd) infos)
+  
 -- *** Website 
 createDCMissings :: (?skuToStyleVar :: Text -> (Text, Text))
                   => IndexParam -> Handler ()
