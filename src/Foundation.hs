@@ -17,8 +17,7 @@ module Foundation
 
 import Import.NoFoundation hiding(toList, force)
 
-import Database.Persist.Sql (ConnectionPool, runSqlPool, runSqlConn)
-import Database.Persist.MySQL (myConnInfo, withMySQLConn)
+import Database.Persist.Sql (ConnectionPool, runSqlPool)
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
 import qualified Yesod.Auth.Message    as Msg
@@ -102,8 +101,6 @@ deriving instance Generic (FAX'R)
 instance EnumTreeable (FAX'R) 
 deriving instance Generic (FAMES'R)
 instance EnumTreeable (FAMES'R) 
-deriving instance Generic (DC'R)
-instance EnumTreeable (DC'R) 
 deriving instance Generic (PlannerR)
 instance EnumTreeable PlannerR
 deriving instance Generic (DashboardR)
@@ -306,23 +303,6 @@ instance YesodPersist App where
 instance YesodPersistRunner App where
     getDBRunner = defaultGetDBRunner appConnPool
 
--- | Run Persistent action on DC database.
--- As we are not expecting it be used much
--- we don't create a pool but create connection when needed
-runDCDB :: (MonadUnliftIO m1, MonadPlus m2, MonadHandler m1,
-             MonadLoggerIO m1, HandlerSite m1 ~ App
-             ) =>
-           ReaderT SqlBackend m1 (m2 a) -> m1 (m2 a)
-runDCDB action = do
-  master <- appSettings <$> getYesod 
-  let dcConfM = appDatabaseDCConf master
-  case dcConfM of
-    Nothing -> do
-      setError $ "DC Database not configured. Please contact your administrator"
-      return mzero -- error "Action can not be performed" -- needed to match (runSqlConn action) type
-   
-    Just conf -> withMySQLConn (myConnInfo conf) (runSqlConn action)
-
 instance YesodAuth App where
     type AuthId App = UserId
 
@@ -445,7 +425,6 @@ mainLinks = do
              , ("FA",  FA'R FADebtorsMasterR)
              , ("FAX",  FAX'R FAXItemRequestsR)
              , ("FAMES",  FAMES'R FAMESFamesBarcodeSeedR)
-             , ("DC",  DC'R DCNodeR)
              , ("Dashboard",  DashboardR DMainR)
              ]
       authorised (_, r) = do

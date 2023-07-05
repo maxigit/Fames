@@ -315,8 +315,6 @@ indexParam = I.IndexParam{..} where
   ipSalesPriceStatusFilter = Nothing
   ipPurchasePriceStatusFilter = Nothing
   ipFAStatusFilter = Nothing
-  ipWebStatusFilter = Nothing
-  ipWebPriceStatusFilter = Nothing
   ipCategories = Nothing
   ipBaseVariation= Nothing
 
@@ -391,17 +389,8 @@ importActiveBoxtakesLive todaym tags = do
 -- ** Website color 
 -- | Transform colour name with RGB value
 importColourDefinitions :: Text -> Handler Section
-importColourDefinitions prop =  do
-  let query = "SELECT field_colour_code_value, field_rgb_value FROM field_data_field_colour_code NATURAL JOIN field_data_field_rgb "
-  col'rgbs <- runDCDB $ rawSql query []
-  let content = map transform col'rgbs 
-      transform (Single colour, Single rgb) = "#" <> prop <> "=" <> colour <> "," <> prop <> "=" <> clean rgb
-      clean ('#':rgb) = clean rgb
-      clean rgb = pack rgb
-
-  mapM print content
-
-  return $ Section (TagsH) (Right $ "selector,tag" : content) ("* Colour transform")
+importColourDefinitions _prop =  do
+  error "NOT Implemented"
 
 -- ** Category 
 importCategory skus categories = do

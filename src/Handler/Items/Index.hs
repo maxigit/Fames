@@ -15,7 +15,6 @@ import Import hiding(replace, product)
 import Handler.Table
 import Yesod.Form.Bootstrap3
 import FA
-import qualified DC as DC
 import Items
 import Handler.Items.Common
 import Handler.Items.Category.Cache
@@ -27,8 +26,6 @@ import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet as IntSet
-import Text.Printf (printf)
-import Data.Time.Clock.POSIX (getPOSIXTime)
 import Util.Cache
 import Control.Comonad
 import qualified Generics.OneLiner as OL
@@ -53,8 +50,6 @@ data IndexParam = IndexParam
   , ipSalesPriceStatusFilter :: Maybe [PriceStatus]
   , ipPurchasePriceStatusFilter :: Maybe [PriceStatus]
   , ipFAStatusFilter :: Maybe [FARunningStatus]
-  , ipWebStatusFilter :: Maybe [WebDisplayStatus]
-  , ipWebPriceStatusFilter :: Maybe [PriceStatus]
   , ipCategories :: Maybe [Text]
   , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
   } deriving (Eq, Show)
@@ -73,14 +68,9 @@ data IndexColumn = GLColumn Text
             | SalesPriceStatusColumn
             | PurchasePriceStatusColumn
             | FAStatusColumn FAStatusColumn
-            | WebStatusColumn WebColumn -- situaton of variations/ active hidden, link
-            | WebPriceColumn Int
-            | WebPriceStatusColumn --  does web prices matches FA ?
             | CategoryColumn Text -- (Text -> Maybe Text)
             deriving Show
 
-data WebColumn = WebStatusC | WebProductDisplay
-  deriving (Show, Enum, Bounded, Eq, Ord, Generic)
 
 data FAStatusColumn
   = QuantityOnHand AllOrAvailable
@@ -101,7 +91,6 @@ data IndexCache = IndexCache
   { icPriceLists :: [Entity SalesType]
   , icPriceListNames :: IntMap Text
   , icSupplierNames :: IntMap Text
-  , icWebPriceList :: [Int] -- price list ids
   , icCategoryFinder :: Text -> FA.StockMasterId -> Maybe Text
   , icCategories :: [Text]
   }
@@ -179,7 +168,7 @@ paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
                            False --  ^ clear c
-                           Nothing Nothing Nothing Nothing Nothing Nothing Nothing -- status filter
+                           Nothing Nothing Nothing Nothing Nothing -- status filter
                            Nothing -- _^ base variation
 
 -- g :: Applicative f => (f (Double -> Bool -> ABC)) -> _ -> f ABC
@@ -200,7 +189,7 @@ indexForm categories groups param extra = do
     (f2, w2 ) <- renderBootstrap3 BootstrapBasicForm (form2 $ pure (\a b f -> f a b )) ""
     (f2', w2' ) <- renderBootstrap3 BootstrapBasicForm (form2' $ pure (\a b f -> f a b)) ""
     (f3, _unused_w3 ) <- renderBootstrap3 BootstrapBasicForm (form3 $ pure (\a b c d e f -> f a b c d e)) ""
-    (f4, w4 ) <- renderBootstrap3 BootstrapBasicForm (form4 $ pure (\a b c d e x y f -> f a b c d e x y)) ""
+    (f4, w4 ) <- renderBootstrap3 BootstrapBasicForm (form4 $ pure (\a b c d e f -> f a b c d e)) ""
     (f5, w5 ) <- renderBootstrap3 BootstrapBasicForm (form5 $ pure (\a f -> f a)) ""
     let f = f1 <**> f2 <**> f2' <**> f3 <**> f4 <**> f5
         ws = map renderInline [w1 , w2, w2', w4 , w5]
@@ -226,8 +215,6 @@ indexForm categories groups param extra = do
           <*> (aopt (mkStatusOptions 5) (bfs' "Sales Price status") (Just $ ipSalesPriceStatusFilter param)) 
           <*> (aopt (mkStatusOptions 5) (bfs' "Purchase Price status") (Just $ ipPurchasePriceStatusFilter param)) 
           <*> (aopt (mkStatusOptions 2) (bfs' "Running status") (Just $ ipFAStatusFilter param)) 
-          <*> (aopt (mkStatusOptions 3) (bfs' "Web Display status") (Just $ ipWebStatusFilter param)) 
-          <*> (aopt (mkStatusOptions 5) (bfs' "Web Price status") (Just $ ipWebPriceStatusFilter param)) 
           <*> (aopt multiCategories (bfs' "Categories") (Just $ ipCategories param)) 
         form5 f = f
           <*> (aopt textField (bfs' "base candidates") (Just $ ipBaseVariation param))
@@ -336,17 +323,8 @@ fillIndexCache' categoriesm = do
             return $ mapFromList [(k, supplierSuppName s) | (Entity (SupplierKey k) s) <- entities]
 
       -- don't load webprices if the DC database is not configured
-      dcConf <- getsYesod (appDatabaseDCConf . appSettings)
-      webPriceList_ <- case dcConf of
-        Nothing -> return []
-        Just _ -> do
-          rows <- runDCDB $ rawSql "SHOW TABLES LIKE 'field_data_field_price%'" []
-          return [ pId :: Int
-                 | (Single table) <- rows
-                 , Just pId <- return $ readMay =<< stripPrefix "field_data_field_price_pl_" (table :: Text)
-                 ]
 
-      return $ IndexCache salesTypes priceListNames supplierNames webPriceList_
+      return $ IndexCache salesTypes priceListNames supplierNames
   return $ mkCache catFinder categories
   
   
@@ -432,13 +410,10 @@ loadVariations cache param = do
            [ ("prices" :: Text, loadSalesPrices)
            , ("purchase", loadPurchasePrices)
            , ("fa status", loadStatus)
-           , ("web status", loadWebStatus)
-           , ("web prices", loadWebPrices cache)
            ]
   -- mapM_ startDelayed delayeds
   let [ delayedSalesPrices , delayedPurchasePrices
         , delayedStatus
-        , delayedWebStatus , delayedWebPrices 
         ] = delayeds
   let -- adjustSources ::
     -- Add sources needed by filter and remove duplicate
@@ -449,8 +424,6 @@ loadVariations cache param = do
           (if null (ipSalesPriceStatusFilter param) then Nothing else Just delayedSalesPrices) ?:
           (if null (ipPurchasePriceStatusFilter param) then Nothing else Just delayedPurchasePrices) ?:
           (if null (ipFAStatusFilter param) then Nothing else Just delayedStatus) ?:
-          (if null (ipWebStatusFilter param) then Nothing else Just delayedWebStatus) ?:
-          (if null (ipWebPriceStatusFilter param) then Nothing else Just delayedWebPrices) ?:
           sources
         )
 
@@ -467,10 +440,9 @@ loadVariations cache param = do
     ItemGLView -> []
     ItemPriceView -> [delayedSalesPrices]
     ItemPurchaseView -> [delayedPurchasePrices]
-    ItemAllStatusView -> [delayedSalesPrices, delayedPurchasePrices, delayedStatus, delayedWebStatus, delayedWebPrices]
+    ItemAllStatusView -> [delayedSalesPrices, delayedPurchasePrices, delayedStatus]
     ItemAllView -> [delayedSalesPrices, delayedPurchasePrices]
     ItemFAStatusView -> [delayedStatus]
-    ItemWebStatusView -> [delayedSalesPrices, delayedStatus, delayedWebStatus, delayedWebPrices]
     ItemCategoryView -> []
     )
 
@@ -543,7 +515,7 @@ filterFromParam param@IndexParam{..} cache (base, vars0) = let
   statusOk i = all (\fn -> fn param i) [ glStatusOk
                                      , salesPriceStatusOk (priceListsToKeep cache param)
                                      , purchasePriceStatusOk (suppliersToKeep cache param)
-                                     , faStatusOk, webStatusOk, webPriceStatusOk (webPriceListToKeep cache param)
+                                     , faStatusOk
                                      ]
   -- -| variation given as parameter or base one
   isBase info = iiVariation base == iiVariation info
@@ -564,9 +536,6 @@ checkStatuses paramStatuses itemStatus param item =
     (Just [], _) -> True -- no statuses to check
     (Just nonnull, Just statusM)  -> extract statusM `elem` nonnull
     (_, Nothing) -> False -- not item status to check
-
-webStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
-webStatusOk = checkStatuses ipWebStatusFilter (fmap webDisplayStatus . impWebStatus .iiInfo)
 
 glStatusOk = checkStatuses ipGLStatusFilter (Just . ([],) .  glStatus . iiInfo)
 glStatus :: ItemMasterAndPrices ((,) [Text]) -> GLStatus
@@ -612,10 +581,6 @@ purchasePriceStatusOk priceListIds = checkStatuses ipPurchasePriceStatusFilter (
 purchasePricesStatus :: [Key Supplier] ->  ItemMasterAndPrices ((,) [Text]) -> PriceStatus
 purchasePricesStatus supplierIds item = maybe PriceMissing (pricesStatus pdfPrice unSupplierKey supplierIds) (impPurchasePrices item)
 
-webPriceStatusOk priceListIds = checkStatuses ipWebPriceStatusFilter (fmap (([],) . webPriceStatus priceListIds) . impWebPrices . iiInfo)
-webPriceStatus :: [Key SalesType] -> ItemPriceF ((,) [Text]) -> PriceStatus
-webPriceStatus priceListIds (ItemPriceF prices) = pricesStatus id unSalesTypeKey priceListIds prices
-  
 -- ** Sales prices 
 -- | Load sales prices 
     -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
@@ -760,68 +725,6 @@ loadStatus param = do
              ]
     _ -> return []
 
--- ** Web Status 
-    
--- | Load Web Status, if item exists, have a product display, activated and the prices
--- FIXME: Technically we don't need to return SqlHandler, as we are not using
--- the main Persistent database but the one. Here for historical and convenient reason
-loadWebStatus :: (?skuToStyleVar :: Text -> (Text,Text))
-              => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
-loadWebStatus param = do
-  case (ipSKU param) of
-    Just styleF -> do
-      let sql = "SELECT sku, product.status, node.title"
-             <> " FROM commerce_product AS product "
-             <> " LEFT JOIN field_data_field_product ON (product_id = field_product_product_id"
-             <> "                                                     AND  entity_type = 'node')"
-             <> " LEFT JOIN node ON (entity_id = nid) "
-             <> " WHERE sku " <> fKeyword
-          (fKeyword, p) = filterEKeyword styleF
-      rows <- runDCDB $ rawSql sql p
-      return [ItemInfo style var master
-             | (Single sku, Single active, Single display) <- rows
-             , let (style, var) = ?skuToStyleVar sku
-             , let webStatus = ItemWebStatusF (pure display)  (pure active)
-             , let master = mempty { impWebStatus = Just webStatus}
-             ]
-    
-         
-    _ -> return []
-
--- ** Web Prices 
-loadWebPrices :: (?skuToStyleVar :: Text -> (Text, Text))
-              => IndexCache -> IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
-loadWebPrices cache param = do
-  case (ipSKU param) of
-    Just styleF ->  do
-       -- individual prices For each sku
-       sku'prices <- mapM (loadWebPriceFor (filterEKeyword styleF)) (icWebPriceList cache)
-       let style'var'pricesMap  :: Map Text (ItemPriceF Identity)
-           style'var'pricesMap  = Map.fromListWith (<>) (concat sku'prices)
-       return [ ItemInfo style var (mempty {impWebPrices = Just prices})
-              | (sku, prices) <- Map.toList style'var'pricesMap
-              , let (style, var) = ?skuToStyleVar sku
-              ]
-
-    _ -> return []
-
-
--- webPriceList :: Int -> Text
-webPriceList pId = pack $ printf "pl_%0.2d" pId
-loadWebPriceFor ::  _ -> Int -> SqlHandler [(Text, ItemPriceF Identity )]
-loadWebPriceFor (fKeyword, p) pId = do 
-  let sql =  " SELECT sku, field_price_" <> webPriceList pId <> "_amount"
-          <> " FROM commerce_product AS product "
-          <> " JOIN field_data_field_price_" <> webPriceList pId <> " AS price"
-          <> "      ON (price.entity_id = product_id AND type = 'product')"
-          <> " WHERE sku " <> fKeyword
-  rows <- runDCDB $ rawSql sql p
-  return [ (sku, webPrices)
-         | (Single sku, Single price) <- rows
-         , let webPrices = ItemPriceF (mapFromList [(fromIntegral pId, Identity (price /100))])
-         ]
-  
--- | Load variations which have been checked (using the checkbox)
 loadVariationsToKeep :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexCache -> IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
@@ -897,17 +800,7 @@ columnsFor _ ItemPurchaseView infos = PurchasePriceStatusColumn :map PurchaseCol
   cols = purchasePricesColumns $ map  iiInfo  infos
 columnsFor _ ItemFAStatusView _ = map FAStatusColumn fas where
   fas = OL.create @Bounded [minBound,maxBound] 
-
-columnsFor cache ItemWebStatusView infos =
-  columnsFor cache ItemFAStatusView infos
-  <> map WebStatusColumn (OL.create [])
-  <> map WebPriceColumn webPrices
-  where
-  -- union of FA prices list AND web prices
-  -- so we also show missing prices list
-  webPrices = List.nub . sort $ (keys (icPriceListNames cache)) <> (icWebPriceList cache)
-
-columnsFor _ ItemAllStatusView _ =  [StatusColumn, GLStatusColumn, SalesPriceStatusColumn, PurchasePriceStatusColumn, FAStatusColumn RunningStatus, WebPriceStatusColumn, WebStatusColumn WebStatusC]
+columnsFor _ ItemAllStatusView _ =  [StatusColumn, GLStatusColumn, SalesPriceStatusColumn, PurchasePriceStatusColumn, FAStatusColumn RunningStatus]
 columnsFor _ ItemAllView _ = []
 columnsFor cache ItemCategoryView _ = map CategoryColumn (icCategories cache)
 
@@ -974,8 +867,6 @@ itemsTable cache param = do
                         PriceColumn i -> columnForPrices i =<< impSalesPrices master 
                         PurchaseColumn i -> columnForPurchData i =<< impPurchasePrices master 
                         FAStatusColumn col' -> columnForFAStatus col' =<< impFAStatus master
-                        WebStatusColumn col' -> columnForWebStatus col' (impWebStatus master)
-                        WebPriceColumn i -> columnForWebPrice i =<< impWebPrices master
                         CategoryColumn catName -> columnForCategory catName <$> icCategoryFinder cache catName (FA.StockMasterKey sku)
                         GLStatusColumn -> case glStatus master of
                           GLOk ->  Just ([], [shamlet|<span.label.label-success data-label=glok>Ok|])
@@ -989,12 +880,6 @@ itemsTable cache param = do
                           PriceOk ->  Just ([], [shamlet|<span.label.label-success data-label=purchase-prices-ok>Ok|])
                           PriceMissing ->  Just ([], [shamlet|<span.label.label-warning data-label=purchase-prices-missing>Missing|])
                           PriceDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=purchase-prices-differ>Diff|])
-                        WebPriceStatusColumn -> case webPriceStatus (webPriceListToKeep cache param ) <$> impWebPrices master of
-                          Nothing -> Nothing
-                          Just PriceOk ->  Just ([], [shamlet|<span.label.label-success data-label=web-prices-ok>Ok|])
-                          Just PriceMissing ->  Just ([], [shamlet|<span.label.label-warning data-label=web-prices-missing>Missing|])
-                          Just PriceDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=web-prices-differ>Diff|])
-
 
             differs = or diffs where
               diffs = [ "text-danger" `elem `kls
@@ -1109,43 +994,6 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
         ghost = "The item exists in the system but is not used whatsoever. It could be safely deleted" :: Text
 
 
-columnForWebStatus :: WebColumn
-                   -> Maybe (ItemWebStatusF ((,) [Text]))
-                   -> Maybe ([Text], Html)
-columnForWebStatus col wStatusM =
-  let w  = (iwfActive `traverse` wStatusM)
-  in case col of
-    WebStatusC -> let
-      in  Just (showActive <$>  w)
-    WebProductDisplay ->
-      case sequence w of
-        Just (_, True) ->  Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unlinked"
-                                                      data-toggle="tooltip" title="The variation exists but is not linked to a product display."
-                                                     >Unlinked|])
-                                      (fmap toHtml)
-                                      (sequence . iwfProductDisplay =<<  wStatusM) 
-        Just (_, False) ->  Just $ maybe ([], [shamlet|<span.label.label-warning data-label="unliked-a">Inactive|])
-                                      (fmap toHtml)
-                                      (sequence . iwfProductDisplay =<<  wStatusM) 
-        Nothing -> Nothing
-  where showActive (Just True) = [shamlet|<span data-label="web-active"
-                                          data-toggle="tooltip" title="The variation exists and will show on the product display page (if any)."
-                                          >Active|]
-        showActive (Just False) = [shamlet|<span data-label="web-inactive"
-                                          data-toggle="tooltip" title="The variation exists but is hidden. It won't show on the product display page."
-                                           >Inactive|]
-        showActive Nothing = [shamlet|<span data-label="web-missing"
-                                          data-toggle="tooltip" title="The variation doesn't exist. Can be created using <Create Missings> if needed."
-                                      >Missing|]
-  -- where showActive (Just True) = "Enabled"
-  --       showActive (Just False) = "Disabled"
-  --       showActive Nothing = "Missing"
- 
-columnForWebPrice :: Int -> ItemPriceF ((,) [Text]) -> Maybe ([Text], Html)
-columnForWebPrice colInt (ItemPriceF priceMap) = do
-  value <- IntMap.lookup colInt priceMap
-  return $  toHtml . (\x -> x :: String) . printf "%.2f"  <$> value
-  
 columnForCategory :: Text -> Text -> ([Text], Html)
 columnForCategory catName category = ([], badgify catName category <> link ) where
   link = [shamlet|<a href="/items/index/Nothing?category=#{catName}&category-filter=#{category}">@|]
@@ -1167,7 +1015,7 @@ renderButton param bclass button = case buttonStatus param button of
 -- some of them. Creating missing items only works if we are sure that
 -- we are displaying the item.
 areVariationsComplete :: IndexParam -> Bool
-areVariationsComplete IndexParam{..} = (ipShowInactive == ShowAll) && null ipFAStatusFilter && null ipWebStatusFilter && null ipCategoryFilter
+areVariationsComplete IndexParam{..} = (ipShowInactive == ShowAll) && null ipFAStatusFilter && null ipCategoryFilter
 buttonStatus :: IndexParam -> Button -> ButtonStatus
 buttonStatus param CreateMissingBtn = case (ipMode param, areVariationsComplete param) of
   (ItemGLView, False) -> BtnInactive "Please show inactive item before creating items. This is to avoid trying to create disabled items."
@@ -1335,16 +1183,6 @@ getColumnToTitle cache param = do
                 OnOrder -> "On Order"
                 RunningStatus -> "Running Status"
               
-            WebStatusColumn t -> Right $ case t of
-                WebStatusC -> "Web Status"
-                WebProductDisplay  -> "Product Display"
-            WebPriceStatusColumn  -> Right "Web Prices (vs FA)"
-            WebPriceColumn i -> -- check if the prices list exists in FA or Web
-              case lookup i priceListNames of
-                Nothing -> Left (toHtml $ "#" <> tshow i, ["text-danger"]) -- only web
-                Just name -> if i `List.elem` icWebPriceList cache
-                             then Right name
-                             else Left (toHtml name, ["text-danger"])
             CategoryColumn t -> Right t
             GLStatusColumn -> Right "GL Status"
             SalesPriceStatusColumn ->  Right "Sales Price Status"
@@ -1361,7 +1199,6 @@ createMissing :: (?skuToStyleVar :: Text -> (Text, Text))
                   => IndexParam -> Handler ()
 createMissing params = do
    resp <- (case ipMode params of
-              ItemWebStatusView -> createDCMissings
               ItemCategoryView -> refreshCategories
               _ -> createGLMissings
            ) params
@@ -1373,7 +1210,6 @@ deleteItems :: (?skuToStyleVar :: Text -> (Text, Text))
                   => IndexParam -> Handler ()
 deleteItems params = do
   resp <- ( case ipMode params of
-              ItemWebStatusView -> deleteDC params
               ItemPriceView -> deleteSalesPrices params
               ItemPurchaseView -> deletePurchasePrices params
               _ -> error "Should not happen"
@@ -1507,528 +1343,6 @@ refreshCategories params = do
   forM_ itemGroup $ \(_, infos) -> do
        refreshCategoryFor Nothing (Just $ InFilter ',' $ map (iiSku . snd) infos)
   
--- *** Website 
-createDCMissings :: (?skuToStyleVar :: Text -> (Text, Text))
-                  => IndexParam -> Handler ()
-createDCMissings params = do
-  cache <- fillIndexCache
-  basePl <- basePriceList
-  -- timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = ShowAll, ipBases = mempty}) 
-  -- we need to create everything which is missing in the correct order
-  let go (baseInfo, group') = runDB $ do
-        -- find items with no product information in DC
-        -- ie, ItemWebStatusF not present 
-        -- also we can't create product which doesn't have a price
-        -- let missingProduct group_ = isJust (_ group_)
-          let groupE = [ if toKeep
-                         then Right (s'i, price)
-                         else Left (iiSku info)
-                       | s'i@(_, info) <- group'
-                       , let mm = iiInfo info
-                       , let toKeep = isNothing . join $ snd (iwfProductDisplay `traverse` impWebStatus mm)
-                                      -- && not (isNothing (impMaster mm)) -- only to create new product
-                       -- filter item with no base price
-                       , Just price <- return $ masterPrice basePl mm
-                       ]
-          let group_ = rights groupE
-          -- mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA, or doesn't have a sale price. Please create it first.")
-          --      ) (lefts groupE)
-             
-
-           
-          product'revMap <- createMissingProducts cache group_
-          createMissingDCLinks cache (iiStyle $ baseInfo) (map fst group_) product'revMap
-          createMissingWebPrices cache (map fst group_) product'revMap
-          return ()
-  mapM_ go itemGroups
-  
-deleteDC :: (?skuToStyleVar :: Text -> (Text, Text))
-                => IndexParam -> Handler ()
-deleteDC params = do
-  cache <- fillIndexCache
-  -- basePl <- basePriceList
-  -- timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = ShowAll, ipBases = mempty}) 
-
-  let skus = [ iiSku info
-             | (_, group_) <- itemGroups
-             , (_, info) <- group_
-             ] 
-
-      go pId'revId = do
-        -- skip deleteWebPrices
-        -- skip deleteDCLinks
-        deleteProduct pId'revId
-
-  runDB $ do
-        sku'pId'revIds <- loadSkuProductRevisions mempty skus
-        let pId'revIds = [ (p,r) | (_, p, r) <- sku'pId'revIds ]
-        mapM_ go pId'revIds
-  
-webPriceListToKeep _ _  = []
-
-createMissingProducts
-  :: IndexCache
-  -> [((VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]))), Double)]
-  -> _ (Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId))
-createMissingProducts __cache group_ = do
-  timestamp <- round <$> liftIO getPOSIXTime
-  colorMap <- lift loadDCColorMap
-  [base, trim] <- lift $ mapM categoryFinderCached ["base", "trim"]
-  -- find items with no product information in DC
-  -- ie, ItemWebStatusF not present 
-  -- let missingProduct group_ = isJust (_ group_)
-  let infos  = [ (info, price)
-              | ((_, info), price) <- group_
-              , isNothing (impWebStatus (iiInfo info))
-              ]
-  let skus = map (iiSku.fst) infos
-      prices = map snd infos
-      bases = map (\sku -> fromMaybe (error $ "Missing or invalid base color for " <> unpack sku) (findColour base sku)) skus 
-      trims = map (findColour trim) skus 
-      findColour getCat sku = (getCat (FA.StockMasterKey sku) >>= flip Map.lookup colorMap )
-
-  productEntities <- createAndInsertNewProducts timestamp skus
-  prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities
-  let prod'revMKeys = Just <$$> prod'revKeys
-  createAndInsertProductPrices prices prod'revMKeys
-  createAndInsertProductColours bases prod'revMKeys
-  createAndInsertProductTrimColours (trims) prod'revMKeys
-  createAndInsertProductStockStatus prod'revMKeys
-  return $ mapFromList (zip skus prod'revKeys)
-        
--- deleteProduct :: (DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId) -> _ ()
-deleteProduct p'r = do
-  _ <- deleteProductStockStatus p'r
-  _ <- deleteProductTrimColour p'r
-  _ <- deleteProductColour p'r
-  _ <- deleteProductPrice p'r
-  _ <- deleteCommerceProduct p'r
-  return ()
-
-
-createAndInsertFields'
-  :: _
-  => [(Int, Maybe Int) -> r]
-  -> [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
-  -> SqlHandler ()
-createAndInsertFields' mks p'rKeys = do
-  let p'rIds = [(pId, rId)
-               | (DC.CommerceProductTKey pId, rM) <- p'rKeys
-               , let rId = DC.unCommerceProductRevisionTKey <$> rM
-               ]
-  insertMany_ $ zipWith ($) mks p'rIds
-
-createAndInsertRevFields' mks0 p'rKeys = do
-  let (mks, p'rIds) = unzip [(mk, (pId, rId))
-                            | (mk, (DC.CommerceProductTKey pId, rIdM)) <- zip mks0 p'rKeys
-                            , Just (DC.CommerceProductRevisionTKey rId) <- return rIdM
-                            ]
-  insertMany_ $ zipWith ($) mks p'rIds
-  
-createAndInsertFields mk = createAndInsertFields' (repeat mk) 
-createAndInsertRevFields mk = createAndInsertRevFields' (repeat mk) 
-
-newProductField f (pId, revId) = f
- "commerce_product"
- "product"
- False
- pId
- revId
- "und"
- 0
-
--- **** commerce_product 
--- | Create and insert a new product in the corresponding table
-createAndInsertNewProducts :: Int -> [Text] -> SqlHandler [Entity DC.CommerceProductT]
-createAndInsertNewProducts timestamp skus =  do
-      let products = map (newProduct timestamp) skus
-      pIds <- insertMany products
-      return $ zipWith Entity pIds products
-
--- | Create and insert a new product revision. Update the product table
--- accordingly
-createAndInsertNewProductRevisions
-  :: Int -> [Entity DC.CommerceProductT]
-  -> SqlHandler [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)]
-createAndInsertNewProductRevisions __timestamp pEntities = do
-  let revs = map newProductRev  pEntities
-  revIds <- insertMany revs
-  let product'revIds = zip (map entityKey pEntities) revIds
-  mapM_ updateProductWithRevision product'revIds
-  return product'revIds
-
-updateProductWithRevision
-  :: (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
-  -> SqlHandler ()
-updateProductWithRevision (pId, DC.CommerceProductRevisionTKey revId) = do
-  update pId [DC.CommerceProductTRevisionId =. Just (revId)]
-     
-
-newProduct :: Int -> Text -> DC.CommerceProductT
-
-newProduct timestamp sku = DC.CommerceProductT{..} where
-  commerceProductTRevisionId = Nothing
-  commerceProductTSku = sku
-  commerceProductTTitle = sku
-  commerceProductTType = "product"
-  commerceProductTLanguage = ""
-  commerceProductTUid = 1
-  commerceProductTStatus = True -- Active
-  commerceProductTCreated = timestamp
-  commerceProductTChanged = timestamp
-  commerceProductTData = Nothing -- "b:0;" -- Empty PHP encoding
-        
-newProductRev :: Entity DC.CommerceProductT -> DC.CommerceProductRevisionT
-newProductRev (Entity pId DC.CommerceProductT{..}) = DC.CommerceProductRevisionT{..} where
-  commerceProductRevisionTProductId = DC.unCommerceProductTKey pId
-  commerceProductRevisionTSku = commerceProductTSku
-  commerceProductRevisionTTitle = commerceProductTTitle
-  commerceProductRevisionTRevisionUid = commerceProductTUid
-  commerceProductRevisionTStatus = commerceProductTStatus
-  commerceProductRevisionTLog = "Created by Fames"
-  commerceProductRevisionTRevisionTimestamp = commerceProductTChanged
-  commerceProductRevisionTData = commerceProductTData
-  
-deleteCommerceProduct (pId, mrevId) = do
-  delete pId
-  forM mrevId (\revId ->
-
-                 delete revId
-              )
--- **** field_*_field_price : main price. Should be Retail price 
-createAndInsertProductPrices :: [Double]
-                             -> [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
-                             -> _
-createAndInsertProductPrices prices p'rKeys = do
-  let go mk = [ newProductPrice price mk
-              | price <- prices
-              ]
-  let go' mk = [ newProductPrice price mk
-              | price <- prices
-              ]
-  createAndInsertFields'  (go DC.FieldDataCommercePriceT)  p'rKeys
-  createAndInsertRevFields'  (go' DC.FieldRevisionCommercePriceT)  p'rKeys
-    
-
-newProductPrice price mkPrice pr = newProductField mkPrice pr
- (round $ price * 100)
- "GBP"
- (Just  "a:1:{s:10:\"components\";a:0:{}}")
-
-deleteProductPrice (pId,mrevId) = do
-  deleteWhere  [ DC.FieldDataCommercePriceTEntityId ==. DC.unCommerceProductTKey pId
-               , DC.FieldDataCommercePriceTEntityType ==. "commerce_product"
-               ]
-  forM mrevId (\revId -> 
-                deleteWhere  [ DC.FieldRevisionCommercePriceTEntityId ==. DC.unCommerceProductRevisionTKey revId
-                             , DC.FieldRevisionCommercePriceTEntityType ==. "commerce_product"
-                             ]
-             )
--- **** field*_field_colour 
-loadDCColorMap :: Handler (Map Text Int)
-loadDCColorMap = cache0 False cacheForEver "dc-color-map" $ do
-  let sql = "SELECT field_colour_code_value, entity_id "
-          <>  "FROM field_data_field_colour_code "
-          <>  "WHERE bundle = 'colours' "
-          <>  "AND deleted = 0 "
-  rows <- runDCDB $ rawSql sql []
-  return $ mapFromList [ ( col, eid ) | ( Single col, Single eid ) <- rows ]
-
-createAndInsertProductColours colours p'rKeys = do
-  let go mk = [ newProductColour col mk
-              | col <- colours
-              ]
-  let go' mk = [ newProductColour col mk
-              | col <- colours
-              ]
-  createAndInsertFields' (go DC.FieldDataFieldColourT) p'rKeys
-  createAndInsertRevFields' (go' DC.FieldRevisionFieldColourT) p'rKeys
-
-deleteProductColour (pId,mrevId) = do
-  deleteWhere  [ DC.FieldDataFieldColourTEntityId ==. DC.unCommerceProductTKey pId
-               , DC.FieldDataFieldColourTEntityType ==. "commerce_product"
-               ]
-  forM mrevId (\revId -> 
-                deleteWhere  [ DC.FieldRevisionFieldColourTEntityId ==. DC.unCommerceProductRevisionTKey revId
-                             , DC.FieldRevisionFieldColourTEntityType ==. "commerce_product"
-                             ]
-             )
-
-createAndInsertProductTrimColours colourMs p'rKeys0 = do
-  -- we need to skip colours which are not present
-  let (colours, p'rKeys) = unzip [(col, p'r)
-                                 | (Just col, p'r) <- zip colourMs p'rKeys0
-                                 ]
-  let go mk = [ newProductColour col mk
-              | col <- colours
-              ]
-  let go' mk = [ newProductColour col mk
-              | col <- colours
-              ]
-  createAndInsertFields' (go DC.FieldDataFieldTrimColourT) p'rKeys
-  createAndInsertRevFields' (go' DC.FieldRevisionFieldTrimColourT) p'rKeys
-
-deleteProductTrimColour (pId,mrevId) = do
-  deleteWhere  [ DC.FieldDataFieldTrimColourTEntityId ==. DC.unCommerceProductTKey pId
-               , DC.FieldDataFieldTrimColourTEntityType ==. "commerce_product"
-               ]
-  forM mrevId (\revId -> 
-                deleteWhere  [ DC.FieldRevisionFieldTrimColourTEntityId ==. DC.unCommerceProductRevisionTKey revId
-                             , DC.FieldRevisionFieldTrimColourTEntityType ==. "commerce_product"
-                             ]
-             )
-
-newProductColour colId mkColour pId'revId =
-  newProductField mkColour pId'revId (Just colId)
-
--- **** field_*_field_stock_status  
-createAndInsertProductStockStatus p'rKeys = do
-  createAndInsertFields (newProductStockStatus (Just 70) DC.FieldDataFieldStockStatusT) p'rKeys
-  createAndInsertRevFields (newProductStockStatus (Just 70) DC.FieldRevisionFieldStockStatusT) p'rKeys
-
-newProductStockStatus status  mkStatus_ pId'revId =
-  newProductField mkStatus_ pId'revId status
-                      --       newFieldProduct productDisplayId productId delta = DC.FieldDataFieldProductT{..} where
-          --        fieldDataFieldProductTEntityType = "node"
---        fieldDataFieldProductTBundle = "product_display"
---        fieldDataFieldProductTDeleted = False
---        fieldDataFieldProductTEntityId = productDisplayId
---        fieldDataFieldProductTRevisionId = Nothing
---        fieldDataFieldProductTLanguage = "und"
---        fieldDataFieldProductTDelta = delta
---        fieldDataFieldProductTFieldProductProductId = productId
-
---   runDB $ do
---     ids <- insertMany $ trace "new product" (map newProduct missings)
---     return ()
---     -- insertMany_ (map newProductRev missings)
-  
-deleteProductStockStatus (pId,mrevId) = do
-  deleteWhere  [ DC.FieldDataFieldStockStatusTEntityId ==. DC.unCommerceProductTKey pId
-               , DC.FieldDataFieldStockStatusTEntityType ==. "commerce_product"
-               ]
-  forM mrevId (\revId -> 
-                deleteWhere  [ DC.FieldRevisionFieldStockStatusTEntityId ==. DC.unCommerceProductRevisionTKey revId
-                             , DC.FieldRevisionFieldStockStatusTEntityType ==. "commerce_product"
-                             ]
-             )
-  
--- **** field_*_field_product : link to product display 
--- | Create product display link for all variations of a given style
-createMissingDCLinks
-  :: IndexCache
-  -> Text --  ^ Style name, common to all variations
-  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] --  ^ variations
-  -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
-  -> SqlHandler ()
-createMissingDCLinks __cache style group_ p'rMap = do
-  -- only keep item which doesn't have a produc display
-  let skus = [ iiSku info
-             | (__status, info) <-  group_
-             , let mm = iiInfo info
-             , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
-             ]
-  -- the sku, pId , revId needs to be loaded from the database
-  -- the one passed as argument are only there as cache but 
-  (displayId, displayRev) <- loadProductDisplayInfo style
-  lastDelta <- loadLastProductDelta displayId
-  sku'p'rs0 <- loadSkuProductRevisions p'rMap skus
-  let sku'p'rs = zip [lastDelta + 1   ..] sku'p'rs0
-  createAndInsertDCLinks displayId displayRev sku'p'rs
-  return ()
-  
-
-loadSkuProductRevisions
-  :: Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
-  -> [Text]
-  -> SqlHandler [(Text, DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
-loadSkuProductRevisions p'rMap skus  = do
-  let go sku = do
-        case Map.lookup sku p'rMap of
-          Nothing -> do -- Find it from the database
-            entities <- selectList [DC.CommerceProductTSku ==. sku] [LimitTo 1]
-            return $ case entities of
-                          [Entity pId product] -> let rev = DC.commerceProductTRevisionId product
-                                                  in Just ( sku
-                                                          , pId
-                                                          , DC.CommerceProductRevisionTKey <$> rev )
-                          _ -> Nothing
-          Just (pId, revId) -> return $ Just (sku, pId, Just revId)
-
-  resultMaybes <- mapM go skus
-  return (catMaybes resultMaybes)
-
-loadProductDisplayInfo
-  :: Text -> SqlHandler (DC.NodeTId, Maybe DC.NodeRevisionTId)
-loadProductDisplayInfo style = do
-  -- workaround federated bug
-  pdKeys <- selectList [DC.NodeTTitle ==. style, Filter  DC.NodeTType (FilterValue ("_roduct_display" :: Text)) (BackendSpecificFilter "LIKE") ] []
-  case pdKeys of
-    [Entity nodeKey node] -> let nodeId = nodeKey
-                                 revId = DC.NodeRevisionTKey <$> DC.nodeTVid node
-                             in return (nodeId, revId)
-    [] -> error $ "Product display not found for style :" ++ unpack style
-    _ -> error $ "Too many nodes for style :" ++ unpack style
-  
-loadLastProductDelta
-  :: DC.NodeTId
-  -> SqlHandler Int
-loadLastProductDelta displayId = do
-      [(Single lastDelta)] <- runDCDB $ rawSql ("SELECT MAX(delta) "
-                           <> "FROM field_data_field_product "
-                           <> "WHERE entity_id = ?"
-                           )
-                           [toPersistValue displayId]
-      return (fromMaybe 0 lastDelta)
-
-createAndInsertDCLinks
-  :: DC.NodeTId
-  -> Maybe DC.NodeRevisionTId
-  -> [(Int, (Text, DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId))]
-  -> SqlHandler ()
-createAndInsertDCLinks displayId displayRev d's'p'r = do
-  let go mk = [ newProductDCLink displayId displayRev mk d 
-              | (d, _) <- d's'p'r
-              ]
-  let go' mk = [ newProductDCLink' displayId displayRev' mk d 
-              | (d, _) <- d's'p'r
-              , Just displayRev' <- return displayRev
-              ]
-      p'rS = [(p,r) | (_, (_,p,r)) <- d's'p'r]
-  createAndInsertFields' (go DC.FieldDataFieldProductT) p'rS
-  createAndInsertRevFields' (go' DC.FieldRevisionFieldProductT) p'rS
-  
-  
--- newProductDCLink
---   ::  DC.NodeTId
---   -> (Maybe DC.NodeRevisionTId)
---   -> (_)
---   -> Int
---   -> (Int, _ )
---   -> b
-newProductDCLink displayId displayRev mk delta (pId, __revId) = mk
-  "node"
-  "product_display"
-  False
-  (DC.unNodeTKey displayId)
-  (DC.unNodeRevisionTKey <$> displayRev)
-  "und"
-  delta
-  (Just pId)
-
-newProductDCLink' displayId displayRev mk delta (pId, __revId) = mk
-  "node"
-  "product_display"
-  False
-  (DC.unNodeTKey displayId)
-  (DC.unNodeRevisionTKey displayRev)
-  "und"
-  delta
-  (Just pId)
--- | Create missing link between product and product display.
--- createMissingDCLinksOldForStyle :: _ -> _ -> Handler ()
--- createMissingDCLinksOldForStyle toKeep (base, items) = runDB $ do
---   let missings = [ sku
---                  | (status, info) <-  items
---                  , let sku = styleVarToSku (iiStyle info) (iiVariation info)
---                  , toKeep sku
---                  , let mm = iiInfo info
---                  , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
---                  ]
---   -- Get product display id
---   pdKeys <- selectKeysList [DC.NodeTTitle ==. iiStyle base] []
---   case pdKeys of
---     [] -> setError (toHtml $ "Product display " ++ (iiStyle base) ++ " missing from node table") >> return ()
---     [DC.NodeTKey pdId] -> do
---       let newFieldProduct productId delta = DC.FieldDataFieldProductT{..} where
---             fieldDataFieldProductTEntityType = "node"
---             fieldDataFieldProductTBundle = "product_display"
---             fieldDataFieldProductTDeleted = False
---             fieldDataFieldProductTEntityId = pdId
---             fieldDataFieldProductTRevisionId = Nothing
---             fieldDataFieldProductTLanguage = "und"
---             fieldDataFieldProductTDelta = delta
---             fieldDataFieldProductTFieldProductProductId = productId
---       pIds' <- forM missings $ \sku -> do
---         entities <- selectKeysList [DC.CommerceProductTSku ==. sku] []
---         case entities of
---           [DC.CommerceProductTKey pId] -> return (Just pId)
---           _ -> return Nothing
---       let pIds = map Just $ catMaybes pIds'
---       last_delta <- rawSql "SELECT MAX(delta) FROM dcx_field_data_field_product where entity_id = ?" [toPersistValue pdId]
---       let delta = case last_delta of
---             [Single (Just d)] -> d + 1
---             _ -> 1
-           
-            
-
---       zipWithM_  (\pId delta -> do
---                      insert_ $ trace ("inserting product field" ++ show (pId, delta)) (newFieldProduct pId delta)
---                  ) pIds [delta..]
-        
-
-
-      
-    
--- **** Web Prices : different price lists 
-
-createMissingWebPrices
-  :: IndexCache
-  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] --  ^ variations
-  -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
-  -> SqlHandler ()
-createMissingWebPrices cache group_ p'revMap = do
-  basePl <- lift basePriceList
-
-  let sku'prices = [ (sku, priceMap)
-           | (__status, info) <- group_
-           , Just priceMap <- return $ impSalesPrices (iiInfo info)
-           , let sku = iiSku info
-           ]
-      priceList = icPriceLists cache -- TODO move in global cache
-      prices = map (computeTheoreticalPricesP basePl priceList . snd)  sku'prices
-  sku'p'rs0 <- loadSkuProductRevisions p'revMap (map fst sku'prices)
-
-  createAndInsertDCPrices prices sku'p'rs0
-  
-createAndInsertDCPrices priceMaps sku'p'rs = do
-  let creators =
-        [ createAndInsertDCPriceFor 1 DC.FieldDataFieldPricePl01T (DC.FieldRevisionFieldPricePl01T)
-        , createAndInsertDCPriceFor 2 DC.FieldDataFieldPricePl02T DC.FieldRevisionFieldPricePl02T
-        , createAndInsertDCPriceFor 3 DC.FieldDataFieldPricePl03T DC.FieldRevisionFieldPricePl03T
-        , createAndInsertDCPriceFor 4 DC.FieldDataFieldPricePl04T DC.FieldRevisionFieldPricePl04T
-        , createAndInsertDCPriceFor 5 DC.FieldDataFieldPricePl05T DC.FieldRevisionFieldPricePl05T
-        , createAndInsertDCPriceFor 6 DC.FieldDataFieldPricePl06T DC.FieldRevisionFieldPricePl06T
-        , createAndInsertDCPriceFor 7 DC.FieldDataFieldPricePl07T DC.FieldRevisionFieldPricePl07T
-        , createAndInsertDCPriceFor 8 DC.FieldDataFieldPricePl08T DC.FieldRevisionFieldPricePl08T
-        , createAndInsertDCPriceFor 9 DC.FieldDataFieldPricePl09T DC.FieldRevisionFieldPricePl09T
-        , createAndInsertDCPriceFor 10 DC.FieldDataFieldPricePl10T DC.FieldRevisionFieldPricePl10T
-        , createAndInsertDCPriceFor 11 DC.FieldDataFieldPricePl11T DC.FieldRevisionFieldPricePl11T
-        , createAndInsertDCPriceFor 12 DC.FieldDataFieldPricePl12T DC.FieldRevisionFieldPricePl12T
-        , createAndInsertDCPriceFor 13 DC.FieldDataFieldPricePl13T DC.FieldRevisionFieldPricePl13T
-        , createAndInsertDCPriceFor 14 DC.FieldDataFieldPricePl14T DC.FieldRevisionFieldPricePl14T
-        ]
-      go creator = creator priceMaps sku'p'rs
-        
-  mapM_ go creators
-
-createAndInsertDCPriceFor index_ mk mkRev priceMaps sku'p'rs = do
-  let (prices, p'rs) = unzip [(price, (p,r))
-                                 | (priceMap,  (_, p, r)) <- zip priceMaps sku'p'rs
-                                 , Just price <- return $ lookup index_ priceMap
-                                 ]
-  createAndInsertFields' (map (newProductFieldPrice mk) prices) p'rs
-  createAndInsertRevFields' (map (newProductFieldPrice mkRev) prices) p'rs
-
-    
--- newProductFieldPrice :: Double ->
---   (Text -> Text -> Bool -> Int -> rev -> Text -> Int -> Int -> Maybe Text -> Maybe Text -> a) -> a
-newProductFieldPrice mk price p'r = 
-  newProductField mk p'r (round $ 100* price) ("GBP") Nothing
-  
-
 -- ** Activation 
 -- | Activates/deactivate and item in FrontAccounting.
 changeFAActivation :: Bool -> IndexParam -> Handler ()
@@ -2056,57 +1370,11 @@ changeActivation __activate param activeFilter updateFn =  runDB $ do
 -- | Activated and item in  FrontAccounting or the Website
 activate :: IndexParam -> Handler ()
 activate param = case (ipMode param ) of
-  ItemWebStatusView -> changeWebActivation True param
   _ -> changeFAActivation True param
 
 -- | deactivate and item in  FrontAccounting or the Website
 deactivate :: IndexParam -> Handler ()
 deactivate param = case (ipMode param ) of
-  ItemWebStatusView -> changeWebActivation False param
   _ -> changeFAActivation False param
   
-changeWebActivation :: Bool -> IndexParam -> Handler ()
-changeWebActivation activate_ param = do
-  muser <- maybeAuth
-  timestamp <- round <$> liftIO getPOSIXTime
-  let usertext = maybe "" (\u -> " by user:" <> userIdent (entityVal u)) muser
-  changeActivation activate_ param [] $ \key -> do
-    let sku = unStockMasterKey key
-    --     sql = " UPDATE dcx_commerce_product p "
-    --        <> " SET p.status = ?, p.changed = ?"
-    --        <> " WHERE p.sku = ? "
-    --     pactivate = PersistBool activate_
-    --     ptimestamp = PersistInt64 timestamp
-
-    -- rawExecute sql [ pactivate, ptimestamp, PersistText sku]
-
-    -- -- let sql_rev = " UPDATE dcx_commerce_product_revision r "
-    -- --        <> " JOIN dcx_commerce_product p "
-    -- --        <> " USING (product_id, revision_id) "
-    -- --        <> " SET r.status = ? "
-    -- --        <> "   , r.log = ?, r.revision_timestamp = ? "
-    -- --        <> " WHERE p.sku = ? "
-
-    -- -- rawExecute sql_rev [ pactivate
-    -- --                , PersistText ("Updated by Fames" <> usertext)
-    -- --                , ptimestamp 
-    -- --                , PersistText sku
-    -- --                ]
-    products <- selectList [DC.CommerceProductTSku ==. sku] []
-    let updateProduct (Entity pKey product) = do
-          let pId = DC.unCommerceProductTKey pKey
-          update pKey [ DC.CommerceProductTStatus =. activate_
-                     , DC.CommerceProductTChanged =. timestamp
-                     ]
-
-          -- update revision if any
-          forM_ (DC.commerceProductTRevisionId product) $ \revId -> 
-                updateWhere [ DC.CommerceProductRevisionTProductId ==. pId 
-                            , DC.CommerceProductRevisionTId ==. DC.CommerceProductRevisionTKey revId
-                            ]
-                            [ DC.CommerceProductRevisionTStatus =. activate_
-                            , DC.CommerceProductRevisionTLog =. ("Updated by Fames" <> usertext)
-                            , DC.CommerceProductRevisionTRevisionTimestamp =. timestamp
-                            ]
-    mapM_ updateProduct products
   

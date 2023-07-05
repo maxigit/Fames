@@ -36,8 +36,6 @@ library
       Handler.Customers.Lookup
       Handler.Customers.ShippingDetails
       Handler.Dashboard
-      Handler.DC
-      Handler.DC.Def
       Handler.FA
       Handler.FA.Def
       Handler.FAMES
@@ -1035,8 +1033,6 @@ test-suite zghicd
       Handler.Customers.Lookup
       Handler.Customers.ShippingDetails
       Handler.Dashboard
-      Handler.DC
-      Handler.DC.Def
       Handler.FA
       Handler.FA.Def
       Handler.FAMES

@@ -39,7 +39,7 @@ devel:
 
 # From DB Handler and routes generatio
 .PHONY: config/routes.gen
-config/routes.gen: config/routes config/fa-routes config/fax-routes config/fames-routes config/dc-routes
+config/routes.gen: config/routes config/fa-routes config/fax-routes config/fames-routes
 	cat $^ > $@
 
 
@@ -136,39 +136,6 @@ gen_tables:
 	mkdir -p config/tables
 	cd config; csplit fa-models /^$$/ {*}
 	mv config/xx* config/tables
-
-# Generate Drupal Commerce model
-config/dc-tables/dcx%: config/dc-models
-
-dc/DC%.hs: config/dc-tables/dcx%
-	@echo '{-# LANGUAGE FlexibleInstances, DeriveGeneric #-}'  > $@
-	@echo "module DC$* where" >> $@
-	@echo  >> $@
-	@echo 'import ClassyPrelude.Yesod' >> $@
-	@echo 'import Database.Persist.Quasi' >> $@
-	@echo '' >> $@
-	@echo 'share [mkPersist sqlSettings] -- , mkMigrate "migrateAll"]' >> $@
-	@echo '    $$(persistFileWith lowerCaseSettings "$<")' >> $@
-
-DCS=$(patsubst config/dc-tables/dcx%,dc/DC%.hs,$(wildcard config/dc-tables/dcx*))
-
-DC.hs: $(DCS)
-	echo '{-# OPTIONS_GHC -fno-warn-unused-imports #-}' > $@
-	echo 'module DC (module X) where ' >> $@
-	mkdir -p config/dc
-	for file in $(patsubst dc/%.hs,%, $?);do echo import $$file as X >> $@; done
-
-clean_dc:
-	rm -rf dc/*
-
-
-# Split dc-models to one file per table
-# should be faster to compile
-gen_dc_tables:
-	cd config; csplit -fdcx dc-models '/^$$/' '{*}'
-	mkdir -p config/dc-tables
-	mkdir -p config/dc
-	mv config/dcx* config/dc-tables
 
 restart: 
 	cd ..; docker-compose restart fames
