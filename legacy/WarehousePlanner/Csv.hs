@@ -836,7 +836,9 @@ readStockTake :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> FilePath -
 readStockTake defaultTags newBoxOrientations splitStyle filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
+        Left _ ->  case Csv.decode Csv.HasHeader csvData of
+                        Left err -> error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
+                        Right rows -> return $ processStockTakeWithPosition defaultTags newBoxOrientations splitStyle $ Vec.toList rows
         Right (rowsV) -> return $ do
             -- we get bigger box first : -l*w*h
             let rows0 = [ ((qty, content, tags),  (-(l*w*h), shelf, style', l,w,h, if null os then "%" else os)) | (shelf, style, qty, l, w, h, os)
@@ -884,6 +886,34 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
 
             return (concat boxes, concat errors)
 
+-- | Like stocktake but put boxes at the given position (without checking overlapps)
+processStockTakeWithPosition :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> [(Text, Text, Text, Double, Double, Double, Text)] -> WH ([Box s], [Text]) s
+processStockTakeWithPosition defaultTags newBoxOrientations splitter rows  =  do
+  s0 <- defaultShelf
+  let go (shelfname, posSpec, style', l, w, h, os) =  do
+              let (name, tags ) = extractTags style'
+                  (style, content) = splitter name
+                  dim = Dimension l w h
+                  boxOrientations = readOrientations newBoxOrientations os
+              shelfs <- findShelfBySelector (Selector (matchName shelfname) [])
+              let shelf = headEx $ shelfs ++ [s0]
+              case parsePositionSpec posSpec of 
+                Nothing -> return . Left $ posSpec <> " is not a valid position."
+                Just (or, toPos) ->  do
+                      box <- newBox style
+                                    content
+                                    dim
+                                    or
+                                    (shelfId shelf)
+                                    boxOrientations
+                                    (defaultTags <> tags)
+                      fmap Right $ updateBox  (\b -> b { boxOffset = toPos dim} ) box
+
+  boxeEs <- mapM go rows
+  let (errors, boxes) = partitionEithers boxeEs
+  return $ (boxes, errors)
+      
+      
 
 -- * read orientation rules 
 readOrientationRules :: [Orientation] -> FilePath -> IO (Box s -> Shelf s -> Maybe [OrientationStrategy])

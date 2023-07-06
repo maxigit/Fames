@@ -96,11 +96,10 @@ instance Ord TilingMode where
 showOrientationWithDiag :: Orientation -> TilingMode -> Text
 showOrientationWithDiag or tilingMode = 
   case tilingMode of
-       (Regular _) -> show_ or
-       (Diagonal  _ n ) -> "[" <> show_ (rotateO or) <> Data.Text.replicate (n-1) (show_ or) <> "]"
+       (Regular _) -> showOrientation' or
+       (Diagonal  _ n ) -> "[" <> showOrientation' (rotateO or) <> Data.Text.replicate (n-1) (showOrientation' or) <> "]"
        (TilingCombo dir m1 m2) -> showOrientationWithDiag or m1 <> showD dir <> showOrientationWithDiag (rotateO or) m2
-  where show_ = dropEnd 1 . showOrientation
-        showD dir = case dir of
+  where showD dir = case dir of
                       Horizontal -> "→"
                       Vertical -> "↑"
                       Depth -> "⊙"
@@ -373,13 +372,15 @@ rotatedSide = Orientation Horizontal Vertical
 rotatedUp = Orientation Vertical Horizontal
 
 showOrientation :: Orientation -> Text
-showOrientation o | o == up             =  "^ "
-                  | o == tiltedForward  =  "= "
-                  | o == tiltedRight    =  "> "
-                  | o == tiltedFR       =  "| "
-                  | o == rotatedUp      =  "' "
-                  | o == rotatedSide      =  "@ "
-                  | otherwise           =  "tA "
+showOrientation o = showOrientation' o <> " "
+showOrientation' :: Orientation -> Text
+showOrientation' o | o == up             =  "^"
+                  | o == tiltedForward  =  "="
+                  | o == tiltedRight    =  ">"
+                  | o == tiltedFR       =  "|"
+                  | o == rotatedUp      =  "'"
+                  | o == rotatedSide      =  "@"
+                  | otherwise           =  "tA"
 
 readOrientation :: Char -> Orientation
 readOrientation c = case c of

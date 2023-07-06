@@ -79,6 +79,7 @@ data PlannerViewMode = PlannerSummaryView
                      | PlannerBoxGroupReport --  ^ box dimensions and number summary per style
                      -- -| PlannerBoxGroupWarningReport --  ^ only group with different size Boxes
                      | PlannerExport --  ^ Reexport a planner. Can be usefull to see where is what
+                     | PlannerStocktake -- ^ Export all boxes with and their location+position, ready to be read by stocktakes
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece PlannerViewMode where
   fromPathPiece = readFromPathPiece

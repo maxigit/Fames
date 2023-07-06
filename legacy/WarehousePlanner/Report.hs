@@ -18,6 +18,7 @@ module WarehousePlanner.Report
 , groupBoxesReport
 , reportPairs
 , boxStyleWithTags
+, generateStockTakes
 ) where
 
 import WarehousePlanner.Base
@@ -473,6 +474,24 @@ generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey0 prin
     value0 = getTagValuem box (prefix <> "-value")
     value = maybe boxKey_ (expandReportValue today boxes $ shelvesToNames shelfNames ) value0
     in value
+
+generateStockTakes ::  WH [Text] s
+generateStockTakes = do
+    sb <- shelfBoxes
+    return $ [":STOCKTAKE:"
+             ,"Bay No,Position,Style,Length,Width,Height,Orientations"
+             ]
+             ++ map printBox sb 
+             ++ [":END:"]
+    where printBox (shelf, box) =
+                   let Dimension l w h = _boxDim box
+                   in intercalate  ","
+                      [ shelfName shelf
+                      , boxPositionSpec box
+                      , (boxStyleWithTags box)
+                      , (pack $ printf "%0.2f,%0.2f,%0.f" l w h)
+                      , (concat $ map showOrientation $ boxBoxOrientations box)
+                      ]
 
 
 -- | Expands group related properties, which can't be processed on a indivial box

@@ -10,6 +10,8 @@ module WarehousePlanner.Base
 , assignShelf
 , bestArrangement
 , boxCoordinate
+, boxPosition
+, boxPositionSpec
 , boxRank
 , boxStyleAndContent
 , buildWarehouse
@@ -47,6 +49,7 @@ module WarehousePlanner.Base
 , parseTagOperation
 , parseTagOperations
 , parseTagSelector
+, parsePositionSpec
 , printDim
 , replaceSlashes
 , shelfBoxes
@@ -1341,10 +1344,33 @@ boxStyleAndContent box = case boxContent box of
 -- | Box coordinate as if the shelf was full of this box
 -- give the offest divide by the dimension of the box + 1
 boxCoordinate :: Box s -> Dimension
-boxCoordinate box  = let (Dimension ol ow oh) = boxOffset box
-                         (Dimension l w h) = boxDim box
-                         go o d = (o / d) + 1
-                     in Dimension (go ol l) (go ow w) (go oh h)
+boxCoordinate = fst . boxPosition
+                     
+-- | Box coordinate + left over                   
+boxPosition :: Box s -> (Dimension, Dimension)
+boxPosition box  = let
+  (Dimension ol ow oh) = boxOffset box
+  (Dimension l w h) = boxDim box
+  go o d = let q = fromIntegral $ floor (o / d)
+               r = o - q * d
+           in (q+1,r)
+  (lq,lr) = go ol l
+  (wq,wr) = go ow w
+  (hq,hr) = go oh h
+  in (Dimension lq wq hq, Dimension lr wr hr)
+  
+boxPositionSpec :: Box s -> Text
+boxPositionSpec box = let
+  (coord, offset) = boxPosition box
+  coordString = case coord of
+            Dimension 0 0 0 -> ""
+            Dimension l w h -> printf "%.f:%.f:%.f" l w h
+  offsetString  = case offset of
+                  Dimension 0 0 0 -> ""
+                  Dimension l w h-> printf "+%.f+%.f+%.f" l w h
+  in showOrientation' (orientation box) <> pack coordString <> pack offsetString
+
+
 -- | Box attribute can be used to create new tag
 -- example, /pending,#previous=$shelfname on a
 -- will add the tag previous=pending to all items in the pending shelf
@@ -1740,6 +1766,40 @@ applyPattern pat value = case pat of
   MatchAnything -> True
   MatchFull value0 -> value == value0
   MatchGlob glob -> Glob.match glob (unpack value)
+
+-- * Position Specications
+-- | read a position specification, ie an orientation and function to compute
+-- the final offset depending on the box location.
+-- This is to allow position specified in multiple of the box dimension
+-- as well as absolute offset>
+-- 
+-- Syntax [=|^..][[l]:[w]:[h]][+[x]+[y]+z]
+--  Example
+--  |1:1:2    if the box tilted to the right, 2nd row up
+--  |0+0+50   absolute offset
+--  
+--  offset can be combined as in
+--  |1::++5
+parsePositionSpec :: Text -> Maybe (Orientation, Dimension -> Dimension)
+parsePositionSpec spec =  do -- Maybe
+  (orientationC, offsets) <-  uncons spec
+  let orientation = readOrientation orientationC
+  case splitOn ("+") offsets of
+    [] -> Nothing
+    (pos:abs) -> let 
+      mul :: Double -> Maybe Int -> Double
+      mul d m = case m of 
+                     Nothing -> 0
+                     Just n -> d * fromIntegral (n -1)
+      compute :: Double -> Maybe Int -> Int -> Double
+      compute dim pos offset = mul dim pos + fromIntegral offset
+      (nl: nw: nh:_) = map readMay (splitOn ":" pos) ++ repeat Nothing
+      (x: y: z: _) = map (fromMaybe 0) (map readMay abs ++ repeat Nothing)
+      toPos dim0 = let Dimension l w h = rotate orientation dim0
+                   in Dimension (compute l nl x)
+                                (compute w nw y)
+                                (compute h nh z)
+      in Just (orientation, toPos)
 
 -- * Warehouse Cache 
 -- ** Property stats 
