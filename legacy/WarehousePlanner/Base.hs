@@ -1519,7 +1519,7 @@ extractPriority :: Text -> Tags -> Maybe Int
 extractPriority key tags = do
   set <- Map.lookup key tags
   case mapMaybe readMay (toList set) of
-    (n:_) -> Just n
+    ns@(_:_) -> Just $ sum ns
     _ -> Nothing
 
 
