@@ -16,6 +16,7 @@ module Planner.Internal
 , parseScenarioFile
 , fileValid
 , writeHeader
+, addTagsToHeader
 , scenarioToFullText
 )
 where 
@@ -146,9 +147,9 @@ parseDrawer h = case splitOn "_" h of
     ("join shelves":[]) -> Right ShelfJoinH
     ("update":"shelves":[]) -> Right UpdateShelvesH
     ("updateshelves":[]) -> Right UpdateShelvesH
-    ("transform":[]) -> Right TransformTagsH
-    ("transform tags":[]) -> Right TransformTagsH
-    ("transform":"tags":[]) -> Right TransformTagsH
+    ("transform tags":tags) -> Right $ TransformTagsH tags
+    ("transform":"tags":tags) -> Right $ TransformTagsH tags
+    ("transform":tags) -> Right $ TransformTagsH tags
     ("orientations":[]) -> Right OrientationsH
     ("clone":tags) -> Right $ ClonesH tags
     ("clones":tags) -> Right $ ClonesH tags
@@ -158,28 +159,39 @@ parseDrawer h = case splitOn "_" h of
     _parsed -> Left $ h <> " is not a valid drawer."
   
 
-class GWriteHeader f where
+class GHeader f where
   gwriteHeader :: f a -> Text
+  gaddTags :: [Text] -> f a -> f a
 
-instance GWriteHeader U1 where -- Single constructor
+instance GHeader U1 where -- Single constructor
   gwriteHeader _ = ""
-instance (GWriteHeader a , GWriteHeader b) => GWriteHeader (a :+: b) where -- Single constructor
+  gaddTags _ = id
+instance (GHeader a , GHeader b) => GHeader (a :+: b) where -- Sum
   gwriteHeader (L1 x) = gwriteHeader x
   gwriteHeader (R1 x) = gwriteHeader x
-instance GWriteHeader (K1 i [Text] ) where
+  gaddTags tags (L1 x) = L1 (gaddTags tags x)
+  gaddTags tags (R1 x) = R1 (gaddTags tags x)
+instance GHeader (K1 i [Text] ) where -- Constructor with tags
   gwriteHeader (K1 []) = ""
   gwriteHeader (K1 xs) = "_" <> intercalate "_" xs
-instance GWriteHeader a => GWriteHeader (D1 c a) where
+  gaddTags tags (K1 xs) = K1 (xs <> tags)
+instance GHeader a => GHeader (D1 c a) where
   gwriteHeader (M1 x) = gwriteHeader x 
+  gaddTags _ = id
 -- | get the constructor and remove the trailing H
-instance (Constructor c, GWriteHeader a) => GWriteHeader (C1 c a) where
+instance (Constructor c, GHeader a) => GHeader (C1 c a) where
   gwriteHeader m@(M1 x) = (Text.init . pack $ conName m) <>  gwriteHeader x
-instance GWriteHeader a => GWriteHeader (S1 c a) where
+  gaddTags _ = id
+instance GHeader a => GHeader (S1 c a) where
   gwriteHeader (M1 x) = gwriteHeader x
+  gaddTags _ = id
 
     
 writeHeader :: HeaderType -> Text
 writeHeader = gwriteHeader . from
+
+addTagsToHeader :: [Text] -> HeaderType -> HeaderType
+addTagsToHeader tags g = to . gaddTags tags $ from g
   -- case header of
   --       StocktakeH tags -> intercalate "#" ("Stockake":tags)
   --       BoxesH tags -> intercalate "#" ("Boxes":tags)
@@ -407,7 +419,7 @@ executeStep (Step header sha _) =
           ShelfJoinH -> execute $ readShelfJoin path
           UpdateShelvesH -> execute $ readUpdateShelves path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
-          TransformTagsH -> execute $ readTransformTags path
+          TransformTagsH tags -> execute $ readTransformTags path tags
           ClonesH tags -> execute $ readClones (tags) path
           DeletesH -> execute $ readDeletes path
           TitleH -> return $ return ()

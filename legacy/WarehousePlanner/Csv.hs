@@ -28,6 +28,7 @@ import qualified Data.Csv as Csv
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
 import qualified Data.Vector as Vec
+import qualified Data.Map as Map
 import Control.Monad hiding(mapM_,foldM)
 -- import Data.List.Split (splitOn)
 import qualified Data.List as List
@@ -811,24 +812,39 @@ instance Csv.FromField (Selector a) where
     return $ parseSelector x
 
 -- | Read transform tags
-readTransformTags :: FilePath -> IO (WH [Box s] s)
-readTransformTags = readFromRecordWith (\(style, tagPat, tagSub) -> transformTags style tagPat tagSub)
+readTransformTags :: FilePath -> [Text] -> IO (WH [Box s] s)
+readTransformTags path tags = readFromRecordWith (\(style, tagPat, tagSub) -> transformTags tags style tagPat tagSub) path
 
  -- -| Apply {transformTagsFor} to the matching boxes
-transformTags :: BoxSelector s -> RegexOrFn s -> Text -> WH [Box s] s
-transformTags style tagPattern tagSub = do
+ -- if tags are given only the given tags will be process.
+ -- If only one tag is given, the substition will only apply
+ -- to the tag value instead of the chain #tag=value
+transformTags :: [Text] -> BoxSelector s -> RegexOrFn s -> Text -> WH [Box s] s
+transformTags tags style tagPattern tagSub = do
   boxes0 <- findBoxByNameAndShelfNames style
   boxes <- mapM findBox boxes0
-  catMaybes <$> mapM (transformTagsFor tagPattern tagSub) boxes
+  catMaybes <$> mapM (transformTagsFor tags tagPattern tagSub) boxes
   
 -- | Regex tags substitutions. Each tags is matched and applied separately
 -- The tag is not removed. To do so add a `#-\0` at the end
-transformTagsFor :: RegexOrFn s -> Text -> Box s -> WH (Maybe (Box s)) s
-transformTagsFor tagPat' tagSub box = do
+transformTagsFor :: [Text] -> RegexOrFn s -> Text -> Box s -> WH (Maybe (Box s)) s
+transformTagsFor tags tagPat' tagSub box = do
   tagPat <- either return ($ box) tagPat'
-  let tagOps = map parseTagOperation $
+  let tagOps = case tags of
+                [] -> transformTags (const True)
+                [tag] -> transformTag tag
+                _ -> transformTags (`elem` tags)
+      transformTags keep =
+          map parseTagOperation $
                concatMap (splitOn "#" . (\t -> pack $ Rg.subRegex tagPat (unpack t) (unpack tagSub)))
-               (getTagList box)
+               (getTagList $ Map.filterWithKey (\k _ -> keep k)  $ boxTags box)
+      transformTag tag = let
+          values = getTagValues box tag
+          in case values of
+                  [] -> []
+                  vs -> case filter (not . null) $ map (\t -> Rg.subRegex tagPat (unpack t) (unpack tagSub)) vs of
+                        [] -> [(tag, RemoveTag)]
+                        news -> [(tag, SetValues $ map pack news)]
   Just <$> updateBoxTags tagOps box
 
 -- | Read box dimension on their location

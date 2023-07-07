@@ -54,6 +54,7 @@ module WarehousePlanner.Base
 , replaceSlashes
 , shelfBoxes
 , stairsFromCorners
+, TagOperationF(..)
 , updateBox
 , updateBoxTags
 , updateShelf

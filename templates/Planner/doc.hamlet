@@ -537,15 +537,21 @@ A planner file is made of different sections. Each section corresponds to an org
                 <p> Similar to <code>boxStatus/live</code> but uses the given date instead of today
             <li><code>boxStatus/live/ago/</code>days/prefix
                 <p> Similar to <code>boxStatus/live</code> but <code>days</code> ago instead of today.
-            <li><code>file/</code>pattern[<code>#</code>exclusive-pattern]
+            <li><code>files/</code>pattern[<code>#</code>exclusive-pattern]
                 <> Import all files matching the glob pattern. Files are local to the planner template directory.
                 Tags can be used to filter out some file matched by the original pattern.
                 Example
                 <pre>
-                   file/Base.org --  Base.org file
-                   file/Base/* -- all file present in the Base folder
-                   file/Base/*#moves.org -- all file present in the Base folder except Base/moves.org
-                   file/Base/moves.org -- Base/moves.org only
+                   files/Base.org --  Base.org file
+                   files/Base/* -- all file present in the Base folder
+                   files/Base/*#moves.org -- all file present in the Base folder except Base/moves.org
+                   files/Base/moves.org -- Base/moves.org only
+            <li><code>file/</code>pattern[<code>#</code>tags]
+                <> Import one file matching the glob pattern. Files are local to the planner template directory.
+                Tags are added to each sections of the corresponding file
+                Example
+                <pre>
+                   file/Base/container.org#C1 -- Call container and #C1 to all sections within it.
             <li><code>/plannerReport/</code>section</code>/<code>path</code>[<code>#</code>report-parameter
                 <p> The plannerReport command allows to run a "generic report" from another planner file and wrap in any of standard section like :Moves:, :Boxes: etc ...
                     Path represents the path of the planner to execute.

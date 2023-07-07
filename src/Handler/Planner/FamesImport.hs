@@ -48,6 +48,7 @@ mkYesodSubData "FI" [parseRoutes|
 /boxStatus/live/#Text FIBoxStatusLive
 /boxStatus/live/at/#Day/#Text FIBoxStatusLiveAt
 /boxStatus/live/ago/#Int/#Text FIBoxStatusLiveAgo
+/files/+[FilePath] FILocalFiles
 /file/+[FilePath] FILocalFile
 /plannerReport FIPlannerReport:
   /tags/+[FilePath] TagReport
@@ -63,7 +64,6 @@ mkYesodSubData "FI" [parseRoutes|
 /cloneVariation/all/#Int/#Text/#Text FICloneVariationAll
 /stockStatus/active/#Text FIStockStatusActive
 /stockStatus/all/#Text FIStockStatusAll
-/colour/variations/#Text FIColourTransform
 /category/#Text/+[Text] FICategory
 /sales/#Day/#Day/#Text FISalesBetween
 /salesWithKey/#Day/#Day/#Text/#Text FISalesWithKeyBetween
@@ -97,6 +97,10 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIBoxStatusLiveAt date prefix -> ret $ importBoxStatusLive (Just date) AllBoxes prefix tags
           FIBoxStatusLiveAgo days prefix -> calcDate days >>= \date -> ret $ importBoxStatusLive (Just date) AllBoxes prefix tags
           FILocalFile path -> hxtoHe $ do
+            sectionsX <- heToHx $ readLocalFile (intercalate "/" path) tags
+            ssx <- mapM (heToHx . importFamesDispatch) sectionsX
+            return $ concat ssx
+          FILocalFiles path -> hxtoHe $ do
             sectionsX <- heToHx $ readLocalFiles (intercalate "/" path) tags
             ssx <- mapM (heToHx . importFamesDispatch) sectionsX
             return $ concat ssx
@@ -116,7 +120,6 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FICloneVariationAll qty skus toClone -> ret $ cloneVariationStatus AllBoxes qty skus toClone tags
           FIStockStatusActive skus -> ret $ importStockStatus ActiveBoxes skus
           FIStockStatusAll skus -> ret $ importStockStatus AllBoxes skus
-          FIColourTransform prop -> ret $ importColourDefinitions prop
           FICategory skus categories -> ret $ importCategory skus categories
           FISalesBetween start end skus -> ret $ importSales start end skus Nothing
           FISalesWithKeyBetween start end skus for -> ret $ importSales start end skus (Just for)
@@ -188,6 +191,15 @@ readLocalFiles pat excluded = do
   contents <- mapM readFile orgs
   let sectionss = traverse (parseScenarioFile . decodeUtf8)  contents
   return $ fmap concat sectionss
+
+readLocalFile :: FilePath -> [Text] -> Handler (Either Text [Section])
+readLocalFile path tags = do
+  plannerDir <- appPlannerDir <$> getsYesod appSettings
+  content <- readFile $ plannerDir </> path
+  let sections = parseScenarioFile . decodeUtf8 $ content
+      addTags section = section {sectionType = addTagsToHeader tags (sectionType section) }
+  return $ fmap (map addTags) sections
+
 
 --  | Execute the report from another planner
 executeReport :: HeaderType -> [FilePath] -> Maybe Text -> Handler (Either Text [Section])
@@ -386,12 +398,6 @@ importActiveBoxtakesLive todaym tags = do
 
 
   
--- ** Website color 
--- | Transform colour name with RGB value
-importColourDefinitions :: Text -> Handler Section
-importColourDefinitions _prop =  do
-  error "NOT Implemented"
-
 -- ** Category 
 importCategory skus categories = do
   skuToStyleVar <- I.skuToStyleVarH
