@@ -3,12 +3,13 @@ module Planner.WarehouseSpec (spec) where
 import TestImport
 import WarehousePlanner.Csv
 import WarehousePlanner.Base
+import Planner.Internal
 
 spec :: Spec
 spec = parallel pureSpec 
 
 pureSpec :: Spec
-pureSpec = expandSpecs >> boxArrangements
+pureSpec = expandSpecs >> boxArrangements >> expandAttributes
 expandSpecs = describe "Expand" $ do
   it "exands brackets" $ do
     expand "a[12]" `shouldBe` [("a1", Nothing), ("a2", Nothing)]
@@ -77,3 +78,34 @@ boxArrangements = describe "boxArrangements @F" $ do
 
 
 
+shouldExpandTo attribute expected = do
+  let shelfDim = Dimension 200 100 200
+      today = fromGregorian 2023 07 10
+  val <- execWH (emptyWarehouse today)$ do
+    a <- newShelf "Shelf S" Nothing shelfDim shelfDim 0 DefaultOrientation ColumnFirst
+    _ <- newBox "Box A" ""(Dimension 50 50 80) (readOrientation '=') a [] ["tag=V"]
+    box <- newBox "Box B" ""(Dimension 50 50 80) (readOrientation '=') a [] ["tag=X"]
+    _ <- newBox "Box C" ""(Dimension 50 50 80) (readOrientation '=') a [] ["tag=Y"]
+    expandAttribute box attribute
+  val `shouldBe` expected
+expandAttributes = describe "expand box attributes" $ do
+  describe "expands" do
+      it  "one attribute" do
+          "prefix-${shelfname}-suffix"  `shouldExpandTo` "prefix-Shelf S-suffix"
+      it "two attributes" do
+          "${boxname} in ${shelfname}"  `shouldExpandTo` "Box B in Shelf S"
+      it "nothing" do
+          "" `shouldExpandTo` ""
+      it "tags" do
+          "tag value $[tag]." `shouldExpandTo` "tag value X."
+      it "statistics" do
+          "rank = $rank[tag]." `shouldExpandTo` "rank = 2."
+      it "statistics with modulo" do
+          "min rank = $rank-1[tag]." `shouldExpandTo` "min rank = 1."
+      it "keeps $$" do
+         "^full $$match$" `shouldExpandTo` "^full $match$"
+
+  -- empty
+  -- existing tags
+  -- statistics
+  -- $$

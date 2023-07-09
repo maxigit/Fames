@@ -22,7 +22,7 @@ module WarehousePlanner.Base
 , deleteShelf
 , emptyWarehouse
 , expandAttribute
-, expandAttribute'
+, expandAttributeMaybe
 , extractTag
 , extractTags
 , filterBoxByTag
@@ -1376,30 +1376,42 @@ boxPositionSpec box = let
 -- example, /pending,#previous=$shelfname on a
 -- will add the tag previous=pending to all items in the pending shelf
 expandAttribute :: Box s -> Text -> WH Text s
-expandAttribute box toExpand = maybe (return toExpand) ($ box) (expandAttribute' toExpand)
+expandAttribute box toExpand = maybe (return toExpand) ($ box) (expandAttributeMaybe toExpand)
+
+
 -- | Workhorse for expandAttribute. The difference is it actually doesn't need a box
 -- to know if it needs expansion or not
 -- If an attribute is found, we can safely call expandAttribute (recursively), as we are
 -- only interested in doest in need expansion or not
-expandAttribute' :: Text -> Maybe (Box s -> WH Text s)
-expandAttribute' (stripPrefix "${shelfname}" -> Just xs) = Just $ \box ->  do
-  ex <-  expandAttribute box xs
+expandAttributeMaybe :: Text -> Maybe (Box s -> WH Text s)
+expandAttributeMaybe text = let
+  wrap :: Box s -> (Text -> Box s -> WH Text s) -> Text -> WH Text s
+  wrap box f subtext =
+    case T.breakOn "}" subtext of
+      -- (_, "") -> f subtext box
+      (key, leftOver) -> (<> drop 1 leftOver) <$> f key box
+  in case splitOn "$" text of
+     prefix:segments -> Just $ \box -> do
+      expandeds <- mapM (wrap box expandAttribute') segments
+      return $ concat (prefix : expandeds)
+     _ -> Nothing
+expandAttribute' :: Text -> Box s -> WH Text s
+expandAttribute' "" = const $ return "$"
+expandAttribute' "{shelfname" = \box ->  do
   case boxShelf box of
-    Nothing -> return ex
+    Nothing -> return ""
     Just sId -> do
       shelf <- findShelf sId
-      return $ shelfName shelf ++ ex
-expandAttribute' (stripPrefix "${shelftags}" -> Just xs) = Just $ \box -> do
-  ex <-  expandAttribute box xs
+      return $ shelfName shelf
+expandAttribute' "{shelftags" = \box -> do
   case boxShelf box of
-    Nothing -> return ex
+    Nothing -> return ""
     Just sId -> do
       shelf <- findShelf sId
-      return $ (intercalate "#" . flattenTags $ shelfTag shelf) <> ex
-expandAttribute' (stripPrefix "${fit}" -> Just xs) = Just $ \box -> do
-  ex <-  expandAttribute box xs
+      return $ (intercalate "#" . flattenTags $ shelfTag shelf)
+expandAttribute' "{fit" = \box -> do
   case boxShelf box of
-    Nothing -> return ex
+    Nothing -> return ""
     Just sId -> do
       shelf <- findShelf sId
       let   Dimension xn yn zn = minDim shelf
@@ -1413,90 +1425,84 @@ expandAttribute' (stripPrefix "${fit}" -> Just xs) = Just $ \box -> do
                       (_, True) -> "out"
                       (True, False) -> "tight"
                       (False, False) -> "fit"
-      return $ fit ++ ex
-
-expandAttribute' (stripPrefix "${ol}" -> Just xs) = Just $ \box -> let (Dimension ol _ _ ) = boxCoordinate box in fmap ((tshow $ round ol) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${ow}" -> Just xs) = Just $ \box -> let (Dimension _ ow _ ) = boxCoordinate box in fmap ((tshow $ round ow) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${oh}" -> Just xs) = Just $ \box -> let (Dimension _ _ oh ) = boxCoordinate box in fmap ((tshow $ round oh) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${@}" -> Just xs) = Just $ \box -> let (global, style, content) = boxPriorities box in fmap ((tshow content <> "@" <> tshow style <> "@" <> tshow global) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${@content}" -> Just xs) = Just $ \box -> fmap ((tshow $ boxContentPriority box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${@style}" -> Just xs) = Just $ \box -> fmap ((tshow $ boxStylePriority box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${@global}" -> Just xs) = Just $ \box -> fmap ((tshow $ boxGlobalPriority box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${style}" -> Just xs) =  Just $ \box -> fmap ((boxStyle box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${content}" -> Just xs) =  Just $ \box -> fmap ((boxContent box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${boxname}" -> Just xs) =  Just $ \box -> fmap ((boxStyleAndContent box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${coordinate}" -> Just xs) =  Just $ \box -> let (Dimension ol ow oh) = boxCoordinate box
-                                                                                roundi i = (round i) :: Int
-                                                                            in fmap ((pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${offset}" -> Just xs) =  Just $ \box -> fmap ((printDim $ boxOffset box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${dimension}" -> Just xs) =  Just $ \box -> fmap ((printDim $ _boxDim box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "${orientation}" -> Just xs) = Just $ \box -> fmap (showOrientation (orientation box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "$[" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs'' = Just $ \box -> do
+      return $ fit
+expandAttribute' "{ol" = \box -> let (Dimension ol _ _ ) = boxCoordinate box in return . tshow $ round ol
+expandAttribute' "{ow" = \box -> let (Dimension _ ow _ ) = boxCoordinate box in return . tshow $ round ow
+expandAttribute' "{oh" = \box -> let (Dimension _ _ oh ) = boxCoordinate box in return . tshow $ round oh
+expandAttribute' "{@" = \box -> let (global, style, content) = boxPriorities box in return $ tshow content <> "@" <> tshow style <> "@" <> tshow global
+expandAttribute' "{@content" = \box -> return $ tshow $ boxContentPriority box
+expandAttribute' "{@style" = \box -> return $ tshow $ boxStylePriority box
+expandAttribute' "{@global" = \box -> return $ tshow $ boxGlobalPriority box
+expandAttribute' "{style" =  \box -> return $ boxStyle box
+expandAttribute' "{content" =  \box -> return $ boxContent box
+expandAttribute' "{boxname" =  \box -> return $ boxStyleAndContent box
+expandAttribute' "{coordinate" =  \box -> let (Dimension ol ow oh) = boxCoordinate box
+                                              roundi i = (round i) :: Int
+                                          in return $ pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)
+expandAttribute' "{offset" =  \box -> return $ printDim $ boxOffset box
+expandAttribute' "{dimension" =  \box -> return $ printDim $ _boxDim box
+expandAttribute' "{orientation" = \box -> return $ showOrientation (orientation box)
+expandAttribute' (stripPrefix "[" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs'' = \box -> do
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
                                return $ maybe ex (<> ex) (getTagValuem box pat)
 -- get the rank of the tag value
-expandAttribute' (stripStatFunction "$rank" -> Just (arg, prop, xs)) = Just $ \box -> do
-  expandStatistic valueRank arg box prop xs
-expandAttribute' (stripStatFunction  "$index" -> Just (arg, prop, xs)) = Just $ \box -> do
-  expandStatistic valueIndex arg box prop xs
--- | convert date to days since today
-expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \box -> do
-  maxDate <- gets whDay
-  let valuem = getTagValuem box prop
-  stats <- propertyStatsFor prop
-  let dates = keys (valueIndex stats)
-  ex <- expandAttribute box xs
-  return $ case (readMay =<< minimumMay dates, readMay =<< valuem) of
-    (Just minDate, Just currentDate) -> let
-      daysAgo = diffDays maxDate currentDate
-      range = diffDays maxDate minDate
-      d = case arg of
-        Just ('-', 0) -> -- normalize a year to n
-               (daysAgo `div` 365) + 1
-        Just ('-', n) -> -- normalize range to n
-               min (daysAgo * fromIntegral n `div` range + 1) (fromIntegral n)
-        Just ('%', 0) -> -- normalize a year to n
-               (daysAgo -1) `mod` 365 + 1
-        Just ('%', n) -> -- normalize a year to n
-               (daysAgo -1) * fromIntegral n `mod` range + 1
-        Just ('^', 0) -> case daysAgo of -- log day, week etc
-          d' | d' <= 7 -> 1 -- last week
-          d' | d' <= 31 -> 2 -- last month
-          d' | d' <= 91 -> 3 -- last quarter
-          d' | d' <= 183 -> 4 -- last 6 months
-          d' | d' <= 365 -> 5 -- last year
-          d' | d' <= 3*365 -> 6 -- last 3 years
-          _ -> 7
-        Just ('^', n) -> let -- log 
-                 daysAgo' = fromIntegral daysAgo
-                 n' = fromIntegral n
-                 range' = fromIntegral range
-                 lambda = range' / log n' :: Double
-                 in min (fromIntegral n) $ round $ exp (lambda *  daysAgo')
-        _ -> daysAgo
-      in tshow (d :: Integer) <> ex
-    _ -> "<not a date>" <> ex
+expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box -> 
+  case stat of
+    "rank" -> expandStatistic valueRank arg box prop xs
+    "index" -> expandStatistic valueIndex arg box prop xs
+    "ago" ->  do
+        maxDate <- gets whDay
+        let valuem = getTagValuem box prop
+        stats <- propertyStatsFor prop
+        let dates = keys (valueIndex stats)
+        return $ case (readMay =<< minimumMay dates, readMay =<< valuem) of
+          (Just minDate, Just currentDate) -> let
+            daysAgo = diffDays maxDate currentDate
+            range = diffDays maxDate minDate
+            d = case arg of
+              Just ('-', 0) -> -- normalize a year to n
+                     (daysAgo `div` 365) + 1
+              Just ('-', n) -> -- normalize range to n
+                     min (daysAgo * fromIntegral n `div` range + 1) (fromIntegral n)
+              Just ('%', 0) -> -- normalize a year to n
+                     (daysAgo -1) `mod` 365 + 1
+              Just ('%', n) -> -- normalize a year to n
+                     (daysAgo -1) * fromIntegral n `mod` range + 1
+              Just ('^', 0) -> case daysAgo of -- log day, week etc
+                d' | d' <= 7 -> 1 -- last week
+                d' | d' <= 31 -> 2 -- last month
+                d' | d' <= 91 -> 3 -- last quarter
+                d' | d' <= 183 -> 4 -- last 6 months
+                d' | d' <= 365 -> 5 -- last year
+                d' | d' <= 3*365 -> 6 -- last 3 years
+                _ -> 7
+              Just ('^', n) -> let -- log 
+                       daysAgo' = fromIntegral daysAgo
+                       n' = fromIntegral n
+                       range' = fromIntegral range
+                       lambda = range' / log n' :: Double
+                       in min (fromIntegral n) $ round $ exp (lambda *  daysAgo')
+              _ -> daysAgo
+            in tshow (d :: Integer) <> xs
+          _ -> "<not a stat>" <> xs
+    _ -> return $ "<not a stat> xs"
 
-
-expandAttribute' (uncons -> Just (x, xs)) = fmap (\f box -> (cons x) <$> f box) (expandAttribute' xs)
-expandAttribute' ("") = Nothing
-expandAttribute' _ = error "Bug. All pattern should be caught"
+expandAttribute' text = const $ return text
 
 expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> Text -> Text -> WH Text s
 expandStatistic fn arg box prop xs = do
   let values = getTagValues box prop
   stats <- propertyStatsFor prop
-  ex <- expandAttribute box xs
   return $ case values of
-    [] -> ex
+    [] -> xs
     (value:_) -> let
       adjust i = case arg of
         Just ('-', n) -> min i n
         Just ('%', n) -> (i-1) `mod` n + 1
         Just ('^', n) -> round $ fromIntegral i / fromIntegral (totalCount stats) * fromIntegral n
         _ -> i
-      in maybe ex (\i -> tshow (adjust i) <> ex) (lookup value $ fn stats) 
+      in maybe xs (\i -> tshow (adjust i) <> xs) (lookup value $ fn stats) 
 
 replaceSlash '/' = '\''
 replaceSlash c  = c
@@ -1507,27 +1513,28 @@ defaultPriority :: Int
 defaultPriority = 100
 defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)
 
--- | Parse strat function name and its parameter
+-- | Parse stat function name and its parameter
 -- example
 --  - $rank
 --  - $rank-100 - normalize to 100
 --  - $rank^100 - cut to 99 and everything above = 100
 --  - $rank%100 - modulo 100
 
-stripStatFunction :: Text --  ^ prefix
-                  -> Text --  ^ text  to parse
-                  -> Maybe (Maybe (Char, Int) -- operator number
-                           , Text
+stripStatFunction :: Text --  ^ text  to parse
+                  -> Maybe (Text -- stat function
+                           , Maybe (Char, Int) -- operator number
+                           , Text  -- property 
                            , Text) -- left over
-stripStatFunction prefix (stripPrefix prefix -> Just xs')  = do
-  let (t', uncons -> Just (_, xs)) = break (==']') xs'
-      (pre, prop0) = break (=='[') t'
-  (_, prop) <- uncons prop0
-  case pre of
-    (uncons -> Just (op, argtext)) | not (isLetter op) , Just arg <- readMay argtext -> Just (Just (op, arg), prop, xs)
-    "" -> Just (Nothing, prop, xs)
-    _ -> Nothing
-stripStatFunction _ _ = Nothing
+stripStatFunction xs  = do
+  (prefix, drop 1 -> xs') <- breakm (== '[') xs -- rank-100 [name]
+  (prop, drop 1 -> xs'') <- breakm (==']') xs'
+  case breakm (not . isLetter) prefix of
+    Just (pre, uncons -> Just (op, argText)) | Just arg <- readMay argText -> Just (pre, Just (op, arg), prop, xs'')
+    _ -> Just (prefix, Nothing, prop, xs'')
+  where breakm cond text = 
+          case break cond text of
+            (_,"") -> Nothing
+            a -> Just a
 
 printDim :: Dimension -> Text
 printDim  (Dimension l w h) = pack $ printf "%0.1fx%0.1fx%0.1f" l w h

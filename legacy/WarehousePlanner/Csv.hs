@@ -789,11 +789,10 @@ type RegexOrFn s =  Either Rg.Regex (Box s -> WH Rg.Regex s)
 instance Csv.FromField (Either Rg.Regex (Box s -> WH Rg.Regex s)) where
   parseField s = do
     r <- Csv.parseField s
-    case expandAttribute' r of
+    case expandAttributeMaybe r of
       Nothing -> Left <$> Rg.makeRegexM (unpack r)
       Just _ -> return . Right $ \box -> do
-              r'  <- expandAttribute box r
-              Rg.makeRegexM (unpack r')
+              expandAttribute box r >>= Rg.makeRegexM . unpack
 
 instance Csv.FromField (BoxSelector a) where
   parseField s = do
