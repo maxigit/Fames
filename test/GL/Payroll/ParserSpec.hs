@@ -88,7 +88,7 @@ spec = describe "@Payroll" $ do
                             , "Alice 1 2 3"
                             ]
 
-                expected = Right $Timesheet ss day0 Weekly []
+                expected = Right $ Timesheet ss day0 Weekly []
                 ss = [
                     Shift (alice, makeDay (i-1), Work)
                           Nothing
@@ -108,7 +108,7 @@ spec = describe "@Payroll" $ do
                             , "@PAYE ^5"
                             , "@Pension 1.5^1.87"
                             ]
-                expected = Right $Timesheet [] day0 Weekly [ DeductionAndCost ("PAYE", alice) (That $ lockA 5)
+                expected = Right $ Timesheet [] day0 Weekly [ DeductionAndCost ("PAYE", alice) (That $ lockA 5)
                                                            , DeductionAndCost ("Pension", alice) (These (lockA 1.5) (lockA 1.87))
                                                            ]
             parseFastTimesheet (lines content)
@@ -125,7 +125,7 @@ spec = describe "@Payroll" $ do
                      , Shift (alice, makeDay 2, Work) Nothing (lockD 4) (lockAD 40)
                      , Shift (alice, makeDay 2, Holiday) Nothing (lockD 4) (lockAD 40)
                      ]
-                expected = Right $Timesheet ss day0 Weekly []
+                expected = Right $ Timesheet ss day0 Weekly []
             parseFastTimesheet (lines content)
                 `shouldBe` expected
 

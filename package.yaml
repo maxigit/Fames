@@ -95,29 +95,30 @@ dependencies:
 - ghc
 - mono-traversable
 default-extensions:
-- TemplateHaskell
-- QuasiQuotes
-- OverloadedStrings
-- NoImplicitPrelude
-- MultiParamTypeClasses
-- TypeFamilies
-- GADTs
-- GeneralizedNewtypeDeriving
+- BlockArguments
+- DeriveDataTypeable
+- EmptyDataDecls
 - FlexibleContexts
 - FlexibleInstances
-- EmptyDataDecls
+- GADTs
+- GeneralizedNewtypeDeriving
+- MultiParamTypeClasses
+- NamedWildCards
+- NoImplicitPrelude
 - NoMonomorphismRestriction
-- RankNTypes
-- DeriveDataTypeable
-- ViewPatterns
-- TupleSections
-- RecordWildCards
+- OverloadedStrings
+- PartialTypeSignatures
 - PatternGuards
 - PatternSynonyms
+- QuasiQuotes
+- RankNTypes
+- RecordWildCards
 - StandaloneDeriving
-- PartialTypeSignatures
-- NamedWildCards
+- TemplateHaskell
+- TupleSections
 - TypeApplications
+- TypeFamilies
+- ViewPatterns
 
 library:
   source-dirs:

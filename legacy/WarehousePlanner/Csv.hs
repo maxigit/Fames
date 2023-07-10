@@ -2,6 +2,7 @@
 -- | Miscelaneous functions to read and write shelves and boxes from csv
 module WarehousePlanner.Csv 
 ( extractModes 
+, expand
 , parseOrientationRule
 , readBoxes
 , readClones

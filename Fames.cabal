@@ -155,29 +155,30 @@ library
       app
       fay-shared
   default-extensions:
-      TemplateHaskell
-      QuasiQuotes
-      OverloadedStrings
-      NoImplicitPrelude
-      MultiParamTypeClasses
-      TypeFamilies
-      GADTs
-      GeneralizedNewtypeDeriving
+      BlockArguments
+      DeriveDataTypeable
+      EmptyDataDecls
       FlexibleContexts
       FlexibleInstances
-      EmptyDataDecls
+      GADTs
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      NamedWildCards
+      NoImplicitPrelude
       NoMonomorphismRestriction
-      RankNTypes
-      DeriveDataTypeable
-      ViewPatterns
-      TupleSections
-      RecordWildCards
+      OverloadedStrings
+      PartialTypeSignatures
       PatternGuards
       PatternSynonyms
+      QuasiQuotes
+      RankNTypes
+      RecordWildCards
       StandaloneDeriving
-      PartialTypeSignatures
-      NamedWildCards
+      TemplateHaskell
+      TupleSections
       TypeApplications
+      TypeFamilies
+      ViewPatterns
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -285,29 +286,30 @@ executable DPDDump
   hs-source-dirs:
       tools
   default-extensions:
-      TemplateHaskell
-      QuasiQuotes
-      OverloadedStrings
-      NoImplicitPrelude
-      MultiParamTypeClasses
-      TypeFamilies
-      GADTs
-      GeneralizedNewtypeDeriving
+      BlockArguments
+      DeriveDataTypeable
+      EmptyDataDecls
       FlexibleContexts
       FlexibleInstances
-      EmptyDataDecls
+      GADTs
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      NamedWildCards
+      NoImplicitPrelude
       NoMonomorphismRestriction
-      RankNTypes
-      DeriveDataTypeable
-      ViewPatterns
-      TupleSections
-      RecordWildCards
+      OverloadedStrings
+      PartialTypeSignatures
       PatternGuards
       PatternSynonyms
+      QuasiQuotes
+      RankNTypes
+      RecordWildCards
       StandaloneDeriving
-      PartialTypeSignatures
-      NamedWildCards
+      TemplateHaskell
+      TupleSections
       TypeApplications
+      TypeFamilies
+      ViewPatterns
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -412,29 +414,30 @@ executable DPDImport
   hs-source-dirs:
       tools
   default-extensions:
-      TemplateHaskell
-      QuasiQuotes
-      OverloadedStrings
-      NoImplicitPrelude
-      MultiParamTypeClasses
-      TypeFamilies
-      GADTs
-      GeneralizedNewtypeDeriving
+      BlockArguments
+      DeriveDataTypeable
+      EmptyDataDecls
       FlexibleContexts
       FlexibleInstances
-      EmptyDataDecls
+      GADTs
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      NamedWildCards
+      NoImplicitPrelude
       NoMonomorphismRestriction
-      RankNTypes
-      DeriveDataTypeable
-      ViewPatterns
-      TupleSections
-      RecordWildCards
+      OverloadedStrings
+      PartialTypeSignatures
       PatternGuards
       PatternSynonyms
+      QuasiQuotes
+      RankNTypes
+      RecordWildCards
       StandaloneDeriving
-      PartialTypeSignatures
-      NamedWildCards
+      TemplateHaskell
+      TupleSections
       TypeApplications
+      TypeFamilies
+      ViewPatterns
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Fames
@@ -538,29 +541,30 @@ executable FAGenerator
   hs-source-dirs:
       tools
   default-extensions:
-      TemplateHaskell
-      QuasiQuotes
-      OverloadedStrings
-      NoImplicitPrelude
-      MultiParamTypeClasses
-      TypeFamilies
-      GADTs
-      GeneralizedNewtypeDeriving
+      BlockArguments
+      DeriveDataTypeable
+      EmptyDataDecls
       FlexibleContexts
       FlexibleInstances
-      EmptyDataDecls
+      GADTs
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      NamedWildCards
+      NoImplicitPrelude
       NoMonomorphismRestriction
-      RankNTypes
-      DeriveDataTypeable
-      ViewPatterns
-      TupleSections
-      RecordWildCards
+      OverloadedStrings
+      PartialTypeSignatures
       PatternGuards
       PatternSynonyms
+      QuasiQuotes
+      RankNTypes
+      RecordWildCards
       StandaloneDeriving
-      PartialTypeSignatures
-      NamedWildCards
+      TemplateHaskell
+      TupleSections
       TypeApplications
+      TypeFamilies
+      ViewPatterns
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -689,29 +693,30 @@ executable Fames
   hs-source-dirs:
       app
   default-extensions:
-      TemplateHaskell
-      QuasiQuotes
-      OverloadedStrings
-      NoImplicitPrelude
-      MultiParamTypeClasses
-      TypeFamilies
-      GADTs
-      GeneralizedNewtypeDeriving
+      BlockArguments
+      DeriveDataTypeable
+      EmptyDataDecls
       FlexibleContexts
       FlexibleInstances
-      EmptyDataDecls
+      GADTs
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      NamedWildCards
+      NoImplicitPrelude
       NoMonomorphismRestriction
-      RankNTypes
-      DeriveDataTypeable
-      ViewPatterns
-      TupleSections
-      RecordWildCards
+      OverloadedStrings
+      PartialTypeSignatures
       PatternGuards
       PatternSynonyms
+      QuasiQuotes
+      RankNTypes
+      RecordWildCards
       StandaloneDeriving
-      PartialTypeSignatures
-      NamedWildCards
+      TemplateHaskell
+      TupleSections
       TypeApplications
+      TypeFamilies
+      ViewPatterns
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
   build-depends:
       Decimal >=0.5.1 && <0.6
@@ -850,29 +855,30 @@ test-suite test
   hs-source-dirs:
       test
   default-extensions:
-      TemplateHaskell
-      QuasiQuotes
-      OverloadedStrings
-      NoImplicitPrelude
-      MultiParamTypeClasses
-      TypeFamilies
-      GADTs
-      GeneralizedNewtypeDeriving
+      BlockArguments
+      DeriveDataTypeable
+      EmptyDataDecls
       FlexibleContexts
       FlexibleInstances
-      EmptyDataDecls
+      GADTs
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      NamedWildCards
+      NoImplicitPrelude
       NoMonomorphismRestriction
-      RankNTypes
-      DeriveDataTypeable
-      ViewPatterns
-      TupleSections
-      RecordWildCards
+      OverloadedStrings
+      PartialTypeSignatures
       PatternGuards
       PatternSynonyms
+      QuasiQuotes
+      RankNTypes
+      RecordWildCards
       StandaloneDeriving
-      PartialTypeSignatures
-      NamedWildCards
+      TemplateHaskell
+      TupleSections
       TypeApplications
+      TypeFamilies
+      ViewPatterns
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal >=0.5.1 && <0.6
@@ -1141,29 +1147,30 @@ test-suite zghicd
       src
       app
   default-extensions:
-      TemplateHaskell
-      QuasiQuotes
-      OverloadedStrings
-      NoImplicitPrelude
-      MultiParamTypeClasses
-      TypeFamilies
-      GADTs
-      GeneralizedNewtypeDeriving
+      BlockArguments
+      DeriveDataTypeable
+      EmptyDataDecls
       FlexibleContexts
       FlexibleInstances
-      EmptyDataDecls
+      GADTs
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      NamedWildCards
+      NoImplicitPrelude
       NoMonomorphismRestriction
-      RankNTypes
-      DeriveDataTypeable
-      ViewPatterns
-      TupleSections
-      RecordWildCards
+      OverloadedStrings
+      PartialTypeSignatures
       PatternGuards
       PatternSynonyms
+      QuasiQuotes
+      RankNTypes
+      RecordWildCards
       StandaloneDeriving
-      PartialTypeSignatures
-      NamedWildCards
+      TemplateHaskell
+      TupleSections
       TypeApplications
+      TypeFamilies
+      ViewPatterns
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal >=0.5.1 && <0.6

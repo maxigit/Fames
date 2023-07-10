@@ -2,6 +2,7 @@
 module Legacy.BankReconciliateSpec (spec) where
 import Prelude
 import BankReconciliate
+import Planner.Internal
 
 import Test.Hspec
 import Text.Shakespeare.Text (lbt)
