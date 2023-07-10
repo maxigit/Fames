@@ -156,6 +156,8 @@ parseDrawer h = case splitOn "_" h of
     ("delete":[]) -> Right DeletesH
     ("deletes":[]) -> Right DeletesH
     ("import":[]) -> Right ImportH
+    ("colours":[]) -> Right ColourMapH
+    ("colors":[]) -> Right ColourMapH
     _parsed -> Left $ h <> " is not a valid drawer."
   
 
@@ -253,7 +255,7 @@ fileValid :: FilePath -> Bool
 fileValid = (== ".org") . takeExtension
 
 savePointScenario :: Scenario
-savePointScenario = Scenario Nothing [SavingPoint] Nothing
+savePointScenario = Scenario Nothing [SavingPoint] Nothing mempty
 
 -- | Save a content to a temporary file if needed
 cacheContent :: MonadIO m => Content -> m (Either Text DocumentHash)
@@ -311,6 +313,7 @@ makeScenario :: [(HeaderType, (DocumentHash, Text))]  -> Either Text Scenario
 makeScenario sections0 = do -- Either
   let (initials, sections1) = partition (( InitialH==). fst) sections0
       (layouts, sections2) = partition (( LayoutH==). fst) sections1
+      (colourMaps, sections3) = partition (( ColourMapH==) . fst) sections2
       firstOrNone _ [] = Right Nothing
       firstOrNone _ [x] = Right (Just $ snd x)
       firstOrNone err _ = Left err
@@ -322,9 +325,9 @@ makeScenario sections0 = do -- Either
                            (case header of
                             TitleH | take 2 title == "* " || take 3 title == "** " -> [SavingPoint]
                             _ -> []
-                            ) ++ [Step header sha title]) sections2
+                            ) ++ [Step header sha title]) sections3
 
-  Right $ Scenario (map fst initial) steps (map fst layout)
+  Right $ Scenario (map fst initial) steps (map fst layout) (map (fst . snd) colourMaps)
 
 -- * Pretty Printing 
 scenarioToTextWithHash :: Scenario -> Text
@@ -360,6 +363,7 @@ scenarioToSections :: Scenario -> [Section]
 scenarioToSections Scenario{..} = execWriter $ do  -- []
   _ <- forM sInitialState (\state -> tell [Section InitialH (Left state) "* INITIAL"])
   _ <- forM sLayout (\layout -> tell [Section LayoutH (Left layout) "* LAYOUT"])
+  _ <- forM sColourMap (\cmap -> tell [Section ColourMapH (Left cmap) "* COLOUR MAP"])
   forM sSteps (\s -> case s of
                   Step header sha title -> tell [Section header (Left sha) title]
                   SavingPoint -> return ()
@@ -368,7 +372,7 @@ scenarioToSections Scenario{..} = execWriter $ do  -- []
 -- | Key identifying the scenario. Takes all document and has them.
 scenarioKey :: Scenario -> DocumentHash
 -- if a scenario is an empty initial state we use the same key as the original warehouse/scenario
-scenarioKey (Scenario (Just key) [] Nothing) = key
+scenarioKey (Scenario (Just key) [] Nothing _) = key
 scenarioKey sc = computeDocumentKey .  encodeUtf8 $ scenarioToTextWithHash  sc
 
 -- | Key indentifying the warehouse scenario, i.e. not taking the layout into account
@@ -424,6 +428,7 @@ executeStep (Step header sha _) =
           DeletesH -> execute $ readDeletes path
           TitleH -> return $ return ()
           ImportH -> return $ return ()
+          ColourMapH -> return $ return ()
 
 -- | Retrieve the number of line in the layout file
 scenarioLayoutSize :: MonadIO m => Scenario -> m Int

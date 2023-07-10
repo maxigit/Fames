@@ -19,6 +19,7 @@ module WarehousePlanner.Csv
 , readTransformTags
 , readUpdateShelves
 , readWarehouse
+, readColourMap
 , setOrientationRules
 ) where
 
@@ -585,6 +586,14 @@ readLayout filename = do
           comment "" = True -- or empty line
           comment _ = False
 
+readColourMap :: FilePath -> IO (Map Text Text)
+readColourMap filename = do
+    csvData <- BL.readFile filename
+    case Csv.decode Csv.HasHeader csvData of
+       Left err -> error $ "File:" <> filename <> " " <> err
+       Right rows -> return $ mapFromList $ Vec.toList rows
+
+    
 readWarehouse :: FilePath -> IO (WH (ShelfGroup s) s)
 readWarehouse filename = buildWarehouse `fmap` readLayout filename
 

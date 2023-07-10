@@ -47,6 +47,7 @@ data HeaderType
   | DeletesH
   | ImportH
   | TitleH
+  | ColourMapH
   deriving (Show, Eq, Ord, Generic)
 
 -- * Scenario 
@@ -56,13 +57,14 @@ data Scenario = Scenario
   { sInitialState :: Maybe DocumentHash
   , sSteps        :: [Step]
   , sLayout ::  Maybe DocumentHash
+  , sColourMap :: [DocumentHash]
   } deriving (Show)
 
 instance Semigroup Scenario where
-  _ <> sc@(Scenario (Just _i') _ _)  = sc
-  (Scenario i steps l) <> (Scenario _i' steps' l') = Scenario i (steps <> steps') (l' <|> l)
+  _ <> sc@(Scenario (Just _i') _ _ _)  = sc
+  (Scenario i steps l cmap) <> (Scenario _i' steps' l' cmap') = Scenario i (steps <> steps') (l' <|> l) (cmap <> cmap')
 instance Monoid Scenario where
-  mempty = Scenario Nothing [] Nothing
+  mempty = Scenario Nothing [] Nothing mempty
   
 
 -- | Text is the original line.
