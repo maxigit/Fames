@@ -412,14 +412,19 @@ A planner file is made of different sections. Each section corresponds to an org
 
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-transformtags"> Transform (transform tags)
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-transformtags"> Transform[=properties] (transform tags)
         <div.pre.collapse :expanded:.in id=info-section-transformtags>
           Allow to use POSIX regular expression to subsitute existing tags into new ones.
-          Each tag of the selecting boxes are matched against the pattern. A set of new tags is generated
+          Depending on if properties are given or not, the behavior will be slightly different.
+          Without properties, each tag of the selecting boxes are matched against the pattern. A set of new tags is generated
           by substituing the pattern with the substitution string  which is then splitted using <code>#</code>.
           Other tags can be removed by generating a <i>negative</i> tag (using <code>-</code>).
           The original tag is not deleted but can be done using <code>-\0</code>.
+          <br>
+          If properties are given, the transformations will only apply to the values
+          of those properties. This should be faster but doesn't allow renaming or deleting a tag/property.
           It is a CSV with the following header
+
           <pre>
              stock_id,pat(tern),sub(stitue)
 
@@ -460,6 +465,12 @@ A planner file is made of different sections. Each section corresponds to an org
             ,shelfname=(...).*,shortshelf=\1
             ,location=(...).*,shortloc=\1
             ,shortshelf=$[shortloc],unmoved -- uses the value of shortloc property
+            :END:
+            :TRANSFORM_shortshelf:
+            stock_id,pat,sub
+            ,A,B -- rename the value of short shelf from A to B
+            :END:
+
             
       <li>
         <h4>
@@ -506,6 +517,20 @@ A planner file is made of different sections. Each section corresponds to an org
             ,xx3 -- max height 3
 
       <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-oolours"> Colours
+        Defines a map colour name to colour value. The value can be either a existing colour name or a RGB value (without the <code>#</code>).
+        It is a csv with the following header :
+        <pre>name,value</pre>
+
+        Example
+        <pre>
+          :COLOURS:
+          name,value
+          red,ff0000
+          good,green
+          :END:
+
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-import"> Import
         <div.pre.collapse :expanded:.in id=info-section-import>
