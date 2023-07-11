@@ -202,7 +202,7 @@ loadQohForAdjustment param = do
                  <> " WHERE loc_code = ? AND category = 'style' AND quantity != 0 "
               (w,p) = case filterEKeyword <$> aStyleFilter param of
                 Nothing -> ("",  [] )
-                Just (keyword, v) -> (" AND value " <> keyword <> " ? " , [toPersistValue v])
+                Just (keyword, v) -> (" AND value " <> keyword, v)
            in (sql <> w, p) 
         Just today ->  
           -- use stock moves table, slower
@@ -214,7 +214,7 @@ loadQohForAdjustment param = do
                     <> " GROUP BY stock_id HAVING quantity != 0 "
               (w,p) = case filterEKeyword <$> aStyleFilter param of
                 Nothing -> ("",  [] )
-                Just (keyword, v) -> (" AND value " <> keyword <> " ? " , [toPersistValue v])
+                Just (keyword, v) -> (" AND value " <> keyword, v)
           in (sql <> w <> after, p ++ [toPersistValue today] )
       convert :: (Single Text, Single (Text), Single Double) -> (Text, (Text, Double))
       convert (Single style, Single var, Single quantity) = (style, (var, quantity))
