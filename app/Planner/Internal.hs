@@ -179,14 +179,14 @@ instance GHeader (K1 i [Text] ) where -- Constructor with tags
   gaddTags tags (K1 xs) = K1 (xs <> tags)
 instance GHeader a => GHeader (D1 c a) where
   gwriteHeader (M1 x) = gwriteHeader x 
-  gaddTags _ = id
+  gaddTags tags (M1 x) = M1 (gaddTags tags x)
 -- | get the constructor and remove the trailing H
 instance (Constructor c, GHeader a) => GHeader (C1 c a) where
   gwriteHeader m@(M1 x) = (Text.init . pack $ conName m) <>  gwriteHeader x
-  gaddTags _ = id
+  gaddTags tags (M1 x) = M1 (gaddTags tags x)
 instance GHeader a => GHeader (S1 c a) where
   gwriteHeader (M1 x) = gwriteHeader x
-  gaddTags _ = id
+  gaddTags tags (M1 x) = M1 (gaddTags tags x)
 
     
 writeHeader :: HeaderType -> Text
