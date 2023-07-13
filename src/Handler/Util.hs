@@ -14,6 +14,7 @@ module Handler.Util
 , unsafeRunFormPost
 , unsafeRunFormGet
 , Encoding(..)
+, defaultPathMaker
 , readUploadUTF8
 , setAttachment
 , generateLabelsResponse
@@ -314,7 +315,7 @@ readUploadOrCacheUTF8
   -> Maybe Text -- Path if already uploaded
   -> m (Maybe (ByteString, DocumentHash, Text))
 readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
-      let tmp (DocumentHash file) = "/tmp/DocumentCache" </> (unpack file)
+      tmp <- liftIO defaultPathMaker
       case (fileInfoM, keyM, pathM) of
         -- key and path set. Reuse the temporary file
         (_, Just (key), Just path) -> do
@@ -339,21 +340,27 @@ cacheText :: (MonadIO m, MonadResource m) => Maybe (DocumentHash -> FilePath) ->
 cacheText base = cacheByteString base . encodeUtf8
 cacheByteString :: (MonadIO m, MonadResource m) => Maybe (DocumentHash -> FilePath) -> ByteString -> m (DocumentHash, FilePath)
 cacheByteString base bs = do
+  tmp <- liftIO defaultPathMaker
   let key = computeDocumentKey bs
-      path = fromMaybe (defaultPathMaker) base $ key
+      path = fromMaybe tmp base $ key
   -- exist <- liftIO $ doesFileExist path
   liftIO $ createDirectoryIfMissing True (takeDirectory path)
   writeFile path  bs
 
   return (key, path)
 
-defaultPathMaker :: DocumentHash -> FilePath
-defaultPathMaker (DocumentHash key) = "/tmp/DocumentCache" </> (unpack key)
+defaultPathMaker :: IO (DocumentHash -> FilePath)
+defaultPathMaker = do
+  let tmp = "/tmp/DocumentCache" 
+      f (DocumentHash key) = tmp </> (unpack key)
+  createDirectoryIfMissing True tmp
+  return f
 
 retrieveTextByKey :: (MonadIO m, MonadResource m)
                   => Maybe (DocumentHash -> FilePath) -> DocumentHash -> m (Maybe Text)
 retrieveTextByKey base key = do
-  let path = fromMaybe defaultPathMaker  base $ key
+  tmp <- liftIO defaultPathMaker
+  let path = fromMaybe tmp  base $ key
   exist <- liftIO $ doesFileExist  path
   if exist
     then (Just . decodeUtf8) <$> readFile path

@@ -35,7 +35,7 @@ data HeaderType
   | StocktakeH [Text]
   | BoxesH  [Text]
   | MovesH  [Text]
-  | TagsH 
+  | TagsH  [Text]
   | MovesAndTagsH [Text] -- not needed but to be compatible with Moves
   | ShelfTagsH
   | ShelfSplitH

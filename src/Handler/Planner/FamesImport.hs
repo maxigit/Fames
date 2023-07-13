@@ -106,14 +106,15 @@ importFamesDispatch (Section ImportH (Right content) _) = do
             return $ concat ssx
           FIPlannerReport report -> let
             reportParam = headMay tags
+            tagsLeft = drop 1 tags
             in case report of
-              TagReport path -> executeReport TagsH path reportParam
-              BoxReport path -> executeReport (BoxesH tags) path reportParam
-              MATReport path -> executeReport (MovesAndTagsH tags) path reportParam
+              TagReport path -> executeReport (TagsH tagsLeft) path reportParam
+              BoxReport path -> executeReport (BoxesH tagsLeft) path reportParam
+              MATReport path -> executeReport (MovesAndTagsH tagsLeft) path reportParam
               OrientationReport path -> executeReport OrientationsH path reportParam
-              CloneReport path -> executeReport (ClonesH tags) path reportParam
+              CloneReport path -> executeReport (ClonesH tagsLeft) path reportParam
               DeleteReport path -> executeReport DeletesH path reportParam
-              StocktakeReport path -> executeReport (StocktakeH tags) path reportParam
+              StocktakeReport path -> executeReport (StocktakeH tagsLeft) path reportParam
           FIVariationStatusActive skus -> ret $ importVariationStatus ActiveBoxes skus
           FIVariationStatusAll skus -> ret $ importVariationStatus AllBoxes skus
           FICloneVariationActive qty skus toClone -> ret $ cloneVariationStatus ActiveBoxes qty skus toClone tags
@@ -176,7 +177,7 @@ importBoxStatus whichBoxes prefix a_tags = do
       header = "selector,tags"
   rows <- (runDB $ runConduit $ source .| mapC getTags .| consume)
   let content = header:rows
-  return $ Section (TagsH) (Right content) ("* Tags from Fames DB [" <> tshow today <> "]")
+  return $ Section (TagsH []) (Right content) ("* Tags from Fames DB [" <> tshow today <> "]")
   
 
 -- | Read local files using glob pattern(s)
@@ -253,7 +254,7 @@ importVariationStatus which skuLike = do
                 ]
       tagFor = drop 2 . toLower . tshow
 
-  return $ Section TagsH (Right $ "selector,tags" : content) ("* FA status")
+  return $ Section (TagsH []) (Right $ "selector,tags" : content) ("* FA status")
   
 whichToActive which = case which of
   AllBoxes -> I.ShowAll
@@ -306,7 +307,7 @@ importStockStatus which skus = do
         "coming soon" -> "CS"
         "expected later" -> "EL"
         _ -> "SO"
-  return $ Section TagsH (Right $ "selector,tags" : content) ("* Stock status")
+  return $ Section (TagsH []) (Right $ "selector,tags" : content) ("* Stock status")
 
 
 indexParam :: I.IndexParam
@@ -356,7 +357,7 @@ importBoxStatusLive todaym which prefix __tags = do
                  ActiveBoxes -> boxtakeActive
              ]
 
-  return $ Section (TagsH) (Right content) ("* Tags from box status live")
+  return $ Section (TagsH []) (Right content) ("* Tags from box status live")
 
 loadLiveSummaries todaym = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
@@ -416,7 +417,7 @@ importCategory skus categories = do
                  , let (style,var) = skuToStyleVar sku
                  ]
       mkTag (category, value) = "cat-" <> category <> "=" <> value
-  return $ Section TagsH (Right $ "selector,tags" : content) ("* Categories " <> intercalate " " categories) 
+  return $ Section (TagsH []) (Right $ "selector,tags" : content) ("* Categories " <> intercalate " " categories) 
 -- ** Sales
 -- | generates tags with the sales between the give date for each sku.
 importSales :: Day -> Day -> Text -> Maybe Text  -> Handler _
@@ -448,4 +449,4 @@ importSales startDate endDate skus forStyle = do
               , let key = fromMaybe style forStyle
               ]
 
-  return $ Section TagsH (Right $ "selector, tags" : (reset ++ content)) ( "* Sales ")
+  return $ Section (TagsH []) (Right $ "selector, tags" : (reset ++ content)) ( "* Sales ")

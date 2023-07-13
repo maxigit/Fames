@@ -506,7 +506,7 @@ readShelfJoin = readFromRecordWith go where
 -- | Read a csv described a list of box with no location
 -- boxes are put in the default location and tagged with the new tag
 readBoxes :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> FilePath -> IO (WH [Box s] s)
-readBoxes defaultTags boxOrientations splitter filename = do
+readBoxes tagOrPatterns boxOrientations splitter filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
@@ -519,7 +519,7 @@ readBoxes defaultTags boxOrientations splitter filename = do
                             (style, content) = splitter name
                         s0 <- incomingShelf
 
-                        forM [1..qty] $   \_ -> newBox style content dim (headEx boxOrientations) s0 boxOrientations (defaultTags <> tags)
+                        forM [1..qty] $   \_ -> newBox style content dim (headEx boxOrientations) s0 boxOrientations (readTagAndPatterns tagOrPatterns tags)
 
             concat `fmap` (Vec.toList `fmap` v)
 
@@ -527,7 +527,7 @@ readBoxes defaultTags boxOrientations splitter filename = do
 -- This can be used to create ghosts, ie fake boxes
 -- used to reserve some space. 
 readClones :: [Text] -> FilePath-> IO (WH [Box s] s)
-readClones defaultTags filename = do
+readClones tagOrPatterns filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
@@ -552,7 +552,7 @@ readClones defaultTags filename = do
                             s0
                             (boxBoxOrientations box)
                             (if copyTag then filter (not . isPrefixOf "'") (getTagList box) else [])
-                    updateBoxTags (map parseTagOperation $ defaultTags ++  tags)
+                    updateBoxTags (parseTagAndPatterns tagOrPatterns tags)
                                   newbox  {boxTags = boxTags box} -- copy tags
                                   -- note that those tags are only used
                                   -- to expand attributes but are not 
@@ -602,7 +602,7 @@ readWarehouse filename = buildWarehouse `fmap` readLayout filename
 -- | read a file assigning styles to locations
 -- returns left boxes
 readMoves :: [Text] -> FilePath -> IO ( WH [Box s] s)
-readMoves tags = readFromRecordWithPreviousStyle (\style (Moves location orientations) -> processMovesAndTags (style, tags, Just location, orientations))
+readMoves tagOrPatterns = readFromRecordWithPreviousStyle (\style (Moves location orientations) -> processMovesAndTags tagOrPatterns (style, [], Just location, orientations))
 
 -- | Hack to allow different csv format
 data Moves s = Moves  Text [OrientationStrategy]
@@ -706,16 +706,23 @@ readFromRecordWithPreviousStyle rowProcessor filename = do
 -- example ^A|B|C|D will exit on top of B  and fill C (even though
 -- there might be space left to create a new column in A)
 -- \^A|B C|D will exit B to A  until A and B are full
-processMovesAndTags :: (BoxSelector s, [Text], Maybe Text, [OrientationStrategy]) -> WH [Box s] s
-processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientations orientations $ do
-  let (noEmpty, tags) = partition (== "@noEmpty") tags_
+-- Tag can be exclude using a glob pattern
+-- This is to allows script to import partial tagging.
+processMovesAndTags :: [Text] -> (BoxSelector s, [Text], Maybe Text, [OrientationStrategy]) -> WH [Box s] s
+processMovesAndTags tagsAndPatterns_ (style, tags_, locationM, orientations) = withBoxOrientations orientations $ do
+  let withNoEmpty = partition (== "@noEmpty")
+      (noEmpty1, tagsAndPatterns) = withNoEmpty tagsAndPatterns_
+      (noEmpty2, tags) = withNoEmpty tags_
+      noEmpty = not . null $ noEmpty1 <> noEmpty2
+
       -- don't resort boxes if a number selector has been set.
       sortMode = case numberSelector style  of
                       BoxNumberSelector Nothing Nothing Nothing -> SortBoxes
                       _ -> DontSortBoxes
+      tagOps = parseTagAndPatterns tagsAndPatterns tags
   boxes0 <- findBoxByNameAndShelfNames style
   case (boxes0, noEmpty) of
-       ([], _:_) -> error $ show style ++ " returns an empty set"
+       ([], True) -> error $ show style ++ " returns an empty set"
        _         -> return ()
   boxes <- mapM findBox boxes0
   leftoverss <- forM locationM $ \location' -> do
@@ -729,11 +736,28 @@ processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientation
   case tags of
     [] -> return boxes
     _  -> do
-      let tagOps = map parseTagOperation tags
-          untagOps = negateTagOperations tagOps
+      let untagOps = negateTagOperations tagOps
       new <- mapM (updateBoxTags tagOps) boxes
       _ <- mapM (updateBoxTags untagOps) (concat leftoverss)
       return new
+
+-- | Parse tags operations from a list a text.
+-- If @include or @exclude is used, the tags on the right
+-- will be used as glob pattern to filter the local tags
+-- This allows to read boxes but only set a s
+parseTagAndPatterns :: [Text] ->  [Text] -> [Tag'Operation]
+parseTagAndPatterns tagsAndPatterns localTags = 
+  let (defaultTags, pats) = break (`elem` ["@exclude", "@include"]) tagsAndPatterns
+      globs = map (Glob.compile . unpack) $ drop 1 pats
+      keepTagOp = case pats of
+        "@exclude":_ -> \(tag, _) -> not $ any (flip Glob.match (unpack tag)) globs
+        "@include":_ -> \(tag, _) -> any (flip Glob.match (unpack tag)) globs
+        _ -> const True
+  in map parseTagOperation defaultTags <> filter keepTagOp (map parseTagOperation localTags)
+  
+readTagAndPatterns :: [Text] -> [Text] -> [Text]
+readTagAndPatterns tagsAndPatterns localTags = maybe [] flattenTags $ modifyTags (parseTagAndPatterns tagsAndPatterns localTags) mempty 
+  
 
 extractModes :: Text -> (Text, (ExitMode, PartitionMode, AddOldBoxes, Maybe SortBoxes))
 extractModes modeLoc = 
@@ -759,8 +783,8 @@ extractModes modeLoc =
 
 -- | read a file assigning tags to styles
 -- returns left boxes
-readTags :: FilePath -> IO ( WH [Box s] s)
-readTags = readFromRecordWithPreviousStyle (\style (Csv.Only tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing, []))
+readTags :: [Text] -> FilePath -> IO ( WH [Box s] s)
+readTags tagOrPatterns = readFromRecordWithPreviousStyle (\style (Csv.Only tag) -> processMovesAndTags tagOrPatterns (style, splitOn "#" tag, Nothing, []))
 
 -- | Hack to allow different csv format
 data ForMovesAndTags s = ForMovesAndTags  Text [OrientationStrategy]
@@ -783,7 +807,7 @@ readMovesAndTags :: [Text] -> FilePath -> IO (WH [Box s] s)
 readMovesAndTags tags0 = readFromRecordWithPreviousStyle go where
   go style (ForMovesAndTags tag'location orientations) =
     let (tags, locM) = splitTagsAndLocation tag'location
-    in processMovesAndTags (style, tags0 <> tags, locM, orientations)
+    in processMovesAndTags tags0 (style, tags, locM, orientations)
 
 splitTagsAndLocation :: Text -> ([Text], Maybe Text)
 splitTagsAndLocation tag'locations
@@ -875,12 +899,12 @@ transformTagsFor tags tagPat' tagSub box = do
 
 -- | Read box dimension on their location
 readStockTake :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> FilePath -> IO (WH ([Box s], [Text]) s)
-readStockTake defaultTags newBoxOrientations splitStyle filename = do
+readStockTake tagOrPatterns newBoxOrientations splitStyle filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
         Left _ ->  case Csv.decode Csv.HasHeader csvData of
                         Left err -> error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
-                        Right rows -> return $ processStockTakeWithPosition defaultTags newBoxOrientations splitStyle $ Vec.toList rows
+                        Right rows -> return $ processStockTakeWithPosition tagOrPatterns newBoxOrientations splitStyle $ Vec.toList rows
         Right (rowsV) -> return $ do
             -- we get bigger box first : -l*w*h
             let rows0 = [ ((qty, content, tags),  (-(l*w*h), shelf, style', l,w,h, if null os then "%" else os)) | (shelf, style, qty, l, w, h, os)
@@ -904,7 +928,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
                                     (headEx boxOrs)
                                    s0
                                    boxOrs -- create box in the "ERROR self)
-                                   (defaultTags ++ tags)
+                                   (readTagAndPatterns tagOrPatterns tags)
                         let boxes = concat boxesS
                             pmode = POr PAboveOnly PRightOnly
                         shelves <- (mapM findShelf) =<< findShelfBySelector (Selector (NameMatches [MatchFull shelf]) [])
@@ -930,7 +954,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
 
 -- | Like stocktake but put boxes at the given position (without checking overlapps)
 processStockTakeWithPosition :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> [(Text, Text, Text, Double, Double, Double, Text)] -> WH ([Box s], [Text]) s
-processStockTakeWithPosition defaultTags newBoxOrientations splitter rows  =  do
+processStockTakeWithPosition tagOrPatterns newBoxOrientations splitter rows  =  do
   s0 <- defaultShelf
   let go (shelfname, posSpec, style', l, w, h, os) =  do
               let (name, tags ) = extractTags style'
@@ -948,7 +972,7 @@ processStockTakeWithPosition defaultTags newBoxOrientations splitter rows  =  do
                                     or
                                     (shelfId shelf)
                                     boxOrientations
-                                    (defaultTags <> tags)
+                                   (readTagAndPatterns tagOrPatterns tags)
                       fmap Right $ updateBox  (\b -> b { boxOffset = toPos dim} ) box
 
   boxeEs <- mapM go rows

@@ -15,6 +15,9 @@ A planner file is made of different sections. Each section corresponds to an org
     Sections accepting parameters will have <code>[_parametes]</code> next to their names.
     Most sections body are a CSV (comma separated files) which expect a header (ie the name of each column).
     Forgetting the header might result in the first line be interpreted as the header and therefore skipped.
+    
+    Some sections accepts a list of tag or pattern as a parameter. For more details see <a href="#tag-or-patterns">tag or patterns</a>.
+
     <ul> 
       <li>
         <h4>
@@ -159,7 +162,7 @@ A planner file is made of different sections. Each section corresponds to an org
           For example, all boxes created in the section <code>:Stocktake-tag1-tag2</code> will be tagged with <code>tag1</code> and <code>tag2</code>
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-boxes"> Boxes[=Tag]
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-boxes"> Boxes[_TagOrPatterns]
         <div.pre.collapse :expanded:.in id=info-section-boxes>
           A set of boxes without initial location. They will be put in the <code>pending</code> shelf.
           It is a CSV with the following header :
@@ -167,7 +170,7 @@ A planner file is made of different sections. Each section corresponds to an org
           Tags provided in the section name, will be applied to the created boxes.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-moves"> Moves[=Tag]
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-moves"> Moves[_TagOrPatterns]
         <div.pre.collapse :expanded:.in id=info-section-moves>
           Describes a set of moves boxes to shelves. The first column describe a set of boxes to moves to
           a set of shelves. If multiple shelves are given, the Planner will fill the shelf in the given order
@@ -261,7 +264,7 @@ A planner file is made of different sections. Each section corresponds to an org
 
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-tags"> Tags
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-tags"> Tags[_TagOrPatterns]
         <div.pre.collapse :expanded:.in id=info-section-tags>
           Tags allow boxes to be selected (via selector) to be either moved or tagged but also change their behavior (colour, priority, etc ...) via properties.
           A Tag can be removed by setting with <code>-</code>
@@ -279,7 +282,7 @@ A planner file is made of different sections. Each section corresponds to an org
           The last line set the background property of the box tagged with <code>tag1</code> to red.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-movesandtags"> MAT[=Tag] (moves and tags)
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-movesandtags"> MAT[_TagOrPatterns] (moves and tags)
         <div.pre.collapse :expanded:.in id=info-section-movesandtags>
           Allows to move and tag at the same time a set of boxes. This can be faster and less verbose than creating a move and
           a tag section. Tags needs to start with a <code>#</code> and location CAN start with <code>/</code>
@@ -804,6 +807,7 @@ A planner file is made of different sections. Each section corresponds to an org
         A]&  <=> &[]A&
         A&[extra  <=> A&[extra]&
         A]&extra  <=> &[A]&extra
+
      
       This at the moment only works for the box selectors of the section related to moving or tagging boxes.
         
@@ -1054,5 +1058,32 @@ A planner file is made of different sections. Each section corresponds to an org
   In that case, only the given boxes and shelves will be taken into account for the report.
 
 
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#tag-or-patterns">
+     Tag or Patterns
+<div.pre.collapse :expanded:.in id=tag-or-patterns>
+  Some sections accepts a list of tags and patterns as parameters.
+  Those tags are usually applied on "success" and applied as well as the tags of a specific line.
+  Tag and patterns allows to filter the final tags using thes special tags <code>@exclude</code> and <code>@include</code>.
+  <li> <code>@exclude</code> will exclude all the tags matching the (glob) patterns  at is right
+  <li> <code>@include</code> will only include all tags matching the (glob) patterns at is right.
+  This is particularly usefull when import an existing file when some selected needs to be imported.
+  
+  Example, given the stock.org file
+  <pre>
+    :STOCKTAKE:
+    Bay No,Quantity,Style,Length,Width,Height,Orientations
+    shelf,1,A#status=active#bg=black,10,20,20,
+    :END:
 
+
+  This will create a box A with the two properties <code>status</code> and <code>bg</code>.
+  
+  Replace <code>:STOCKTAKE:</code>, with <code>:STOCKTAKE_@include#stat*</code>, will only the <code>status</code> property (it is the only one matching the pattern <code>stat*</code>.
+  
+  This can be achieved without modifying the file but importing it with extra tag 
+  <pre>
+     :IMPORT:
+     file/stock.org#@include#stat*
+     :END:
 

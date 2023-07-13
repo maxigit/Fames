@@ -6,7 +6,7 @@ module Planner.Internal
 , warehouseScenarioKey
 , executeStep
 , execWH
-, contentPath
+, contentPathM
 , sSortedSteps
 , readScenariosFromDir
 , readScenarioFromPath
@@ -33,6 +33,7 @@ import Data.Text(strip,splitOn)
 import qualified Data.Text as Text
 import System.Directory (doesFileExist, listDirectory)
 import System.FilePath (takeExtension)
+import Handler.Util(defaultPathMaker)
 
 import Model.DocumentKey
 import GHC.Generics
@@ -125,7 +126,7 @@ parseDrawer h = case splitOn "_" h of
     ("boxes":tags) -> Right $ BoxesH tags
     ("moves":"and":"tags":tags) -> Right $ MovesAndTagsH tags
     ("moves":tags) -> Right $ MovesH tags
-    ("tags":[]) -> Right TagsH
+    ("tags":tags) -> Right $ TagsH tags
     ("moves and tags":tags) -> Right $ MovesAndTagsH tags
     ("movesandtags":tags) -> Right $ MovesAndTagsH tags
     ("mat":tags) -> Right $ MovesAndTagsH tags
@@ -260,20 +261,27 @@ savePointScenario = Scenario Nothing [SavingPoint] Nothing mempty
 -- | Save a content to a temporary file if needed
 cacheContent :: MonadIO m => Content -> m (Either Text DocumentHash)
 cacheContent (Left sha) = do
+  contentPath <- contentPathM
   -- check it exists
   exist <- liftIO $ doesFileExist (contentPath sha)
   return $ if exist
            then Right sha
            else Left $ "No file found for SHA: " <> (unDocumentHash sha)
+
 cacheContent (Right texts) = do
+  contentPath <- contentPathM
   let bs = encodeUtf8 $ Text.unlines texts
       key = computeDocumentKey bs
+  
   writeFile (contentPath key) bs
 
   return (Right key)
 
-contentPath :: DocumentHash -> FilePath
-contentPath (DocumentHash file) = "/tmp/DocumentCache/planner-" <> unpack file
+contentPathM :: MonadIO m => m (DocumentHash -> FilePath)
+contentPathM = do
+  tmp <- liftIO $ defaultPathMaker
+  let f (DocumentHash file) = tmp (DocumentHash "planner-") <> unpack file
+  return f
 
 
 -- | Saves files and replace them by their hash
@@ -303,6 +311,7 @@ unCacheSection section = do
 
 retrieveContent :: MonadIO m => DocumentHash -> m (Maybe Text)
 retrieveContent key = do
+  contentPath <- contentPathM
   let path = contentPath key
   exist <- liftIO $ doesFileExist  path
   if exist
@@ -401,7 +410,8 @@ runWH warehouse0 wh = liftIO $ stToIO $ runStateT wh warehouse0
 
 executeStep :: Step -> IO (WH () s)
 executeStep SavingPoint = return (return ())
-executeStep (Step header sha _) =
+executeStep (Step header sha _) = do
+  contentPath <- contentPathM
   let path = contentPath sha
       defaultOrientations = [tiltedForward, tiltedFR]
       splitStyle s = let (style, colour) = splitAt 8 s
@@ -409,14 +419,14 @@ executeStep (Step header sha _) =
       execute step = do
         s <- step
         return (s >> clearCache)
-  in case header of
+  case header of
           LayoutH -> return $ return ()
           ShelvesH -> execute $ readShelves BoxOrientations path
           InitialH -> return $ return ()
           StocktakeH tags -> execute $ readStockTake tags defaultOrientations splitStyle path
           BoxesH tags -> execute $ readBoxes tags defaultOrientations splitStyle path
           MovesH tags -> execute $ readMoves tags path
-          TagsH -> execute $ readTags path
+          TagsH tags -> execute $ readTags tags path
           MovesAndTagsH tags -> execute $ readMovesAndTags tags path
           ShelfTagsH -> execute $ readShelfTags path
           ShelfSplitH -> execute $ readShelfSplit path

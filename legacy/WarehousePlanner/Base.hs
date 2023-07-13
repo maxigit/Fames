@@ -38,6 +38,7 @@ module WarehousePlanner.Base
 , indexToOffsetDiag, d0, r
 , matchName
 , maxUsedOffset
+, modifyTags
 , module WarehousePlanner.Type
 , moveBoxes, SortBoxes(..)
 , negateTagOperations
@@ -55,6 +56,7 @@ module WarehousePlanner.Base
 , shelfBoxes
 , stairsFromCorners
 , TagOperationF(..)
+, Tag'Operation
 , updateBox
 , updateBoxTags
 , updateShelf

@@ -228,6 +228,7 @@ execWithCache sc = do
 renderScenario :: Scenario -> Maybe DocumentHash
                -> Handler (Either String [_Diagram])
 renderScenario sc layoutM = do
+  contentPath <- contentPathM
   case layoutM <|> (sLayout sc) of
     Nothing -> return $ Left "No layout provided"
     Just layout -> do
