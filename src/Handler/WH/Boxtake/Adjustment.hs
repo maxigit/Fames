@@ -1,4 +1,18 @@
-module Handler.WH.Boxtake.Adjustment
+module Handler.WH.Boxtake.Adjustment 
+( AdjustmentParam(..)
+, BoxStatus(..)
+, StyleInfoSummary(..)
+, adjustmentCSS
+, adjustmentJS
+, boxStatus
+, computeInfoSummary
+, defaultAdjustmentParamH
+, displayBoxtakeAdjustments
+, loadAdjustementInfo
+, loadBoxForAdjustment
+, processBoxtakeAdjustment
+, usedSubject
+)
 where
 import Import hiding(Planner, leftover)
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
