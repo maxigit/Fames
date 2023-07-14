@@ -13,7 +13,10 @@ import Handler.Items.Category.Cache
 -- construct the function depending on the category setting
 skuToStyleVarH :: Handler (Text -> (Text, Text))
 skuToStyleVarH = do
-  [styleFn, varFn] <- mapM categoryFinderCached ["style", "colour"]
+  skip <- appSkipStyleCategory <$> getsYesod appSettings
+  [styleFn, varFn] <- if skip 
+                      then return [const Nothing , const Nothing ] 
+                      else mapM categoryFinderCached ["style", "colour"]
   catRulesMap <- mconcat <$> appCategoryRules <$> getsYesod appSettings
   -- check style and colour categories exists
   let style = "style"
