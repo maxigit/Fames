@@ -315,6 +315,7 @@ encodedSku pre = Text.replace "/" "_div_"
                $ Text.replace "*" "_star_"
                $ Text.replace "?" "_qmark_"
                $ Text.replace "!" "_emark_"
+               $ Text.replace "&" "_amp_"
                $  (sku pre)
 -- | Temporary data holding stock adjustment information (to display)
 data LocationInfo = LocationInfo

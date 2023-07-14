@@ -779,30 +779,31 @@ A planner file is made of different sections. Each section corresponds to an org
     <li>
       <h4> Set and use reference
       Part (or all) of a selector can be used as reference to be reused in the following lines.
-      A reference can be set by enclosing it with <code>&</code>. It will be  used as a base selector
+      A reference can be set by enclosing it between <code>&[</code> and <code>]&</code>. It will be  used as a base selector
       for all the subsequent lines of the same sections.
       
       This is somehow equivalent to select thoses boxes and then apply subsequent filter to the "selection".
       
       <pre>
-        &A&,action   -- set A as reference and apply action to all As.
+        &[A]&,action   -- set A as reference and apply action to all As.
         #tag,action2 -- equivalent to A#tag,action2
-        &&,B,action3 -- reset the reference and apply action3 to all Bs
+        ]&,B,action3 -- reset the reference and apply action3 to all Bs
         
       The reference can only capture a part of the initial selector
 
       <pre>
-        &A&#tag1,action   -- set A as reference and apply action to all As with tag1.
+        &[A]&#tag1,action   -- set A as reference and apply action to all As with tag1.
         #tag2,action2 -- equivalent to A#tag2,action2
-        &A#tag1&,action   -- set A#tag1 as reference and apply action to all As with tag1.
+        &[A#tag1]&,action   -- set A#tag1 as reference and apply action to all As with tag1.
         #tag2,action2 -- equivalent to A#tag1#tag2,action2
 
-      If only one <code>&</code> is present, reference will set as follow
+      If only one delimiter is present, reference will set as follow
       
       <pre>
-        &A <=> &A&
-        A&  <=> &A&
-        A&extra  <=> &A&extra
+        &[A <=> &[A]&
+        A]&  <=> &[]A&
+        A&[extra  <=> A&[extra]&
+        A]&extra  <=> &[A]&extra
      
       This at the moment only works for the box selectors of the section related to moving or tagging boxes.
         

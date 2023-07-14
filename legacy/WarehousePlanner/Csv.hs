@@ -45,6 +45,7 @@ import qualified Text.Regex.Base.RegexLike as Rg
 import Data.Text(splitOn)
 import Data.Text.IO(readFile)
 import GHC.Utils.Monad (mapAccumLM)
+import qualified System.FilePath.Glob as Glob
 
 -- | Dimension info to construct a Shelf
 data ShelfDimension = ShelfDimension
@@ -626,23 +627,26 @@ data BoxSelectorPlus s r = SetPrevious (BoxSelector s) (BoxSelector s) r
 
 instance Csv.FromRecord r => Csv.FromRecord (BoxSelectorPlus s r) where
         parseRecord v = do
+            let open = "&["
+                close = "]&"
+            let split bs = case BS.breakSubstring open bs of
+                             (before, "") -> case BS.breakSubstring close before of
+                                                 (_middle, "")  -> (before,"","") -- "before"
+                                                 (middle, after) -> ("", middle, drop 2 after) -- "middle&]after"
+                             (before, bs') -> case BS.breakSubstring close (drop 2 bs') of
+                                                 (middle, after) -> (before, middle, BS.drop 2 after)
             case uncons v of
               Just (f, v') -> do
                 s <- Csv.parseField f
                 record <- Csv.parseRecord v'
-                boxp <- case BS.split (fromIntegral $ fromEnum '&') (s :: ByteString) of
-                      -- =before=after
-                      ["", before,after] -> SetPrevious <$> Csv.parseField before <*> Csv.parseField (before <> after) <*> return record
-                      -- =after
-                      ["",after] -> let selector = Csv.parseField after
-                                    in SetPrevious <$> selector <*> selector <*> return record
-                      -- before=
-                      [before,""] -> let selector = Csv.parseField before
-                                     in SetPrevious <$> selector <*> selector <*> return record
-                      -- before=after
-                      [before,after] -> SetPrevious <$> Csv.parseField before <*> Csv.parseField (before <> after) <*> return record
-                      [before,middle,after] -> SetPrevious <$> Csv.parseField middle <*> Csv.parseField (before <> middle <> after) <*> return record
-                      _ -> UsePrevious  <$> Csv.parseField s <*> return record
+                boxp <- case split  (s :: ByteString) of
+                      (_before, "", "") -> UsePrevious  <$> Csv.parseField s <*> return record
+                      (before, ref, after) -> SetPrevious <$> Csv.parseField ref
+                                                          <*> Csv.parseField (before <> ref <> after)
+                                                          --                 ^
+                                                          --                 |
+                                                          --                 +- string without &[ &]
+                                                          <*> return record
                 return boxp
               Nothing -> fail "<not box selector plus>"
                     
@@ -659,17 +663,31 @@ readFromRecordWithPreviousStyle rowProcessor filename = do
     where process previous  boxSelectorPlus =
             let (next, sel, row) = case boxSelectorPlus of
                  SetPrevious prev boxs row -> (prev, boxs, row)
-                 UsePrevious boxs row -> (previous, previous `merge` boxs, row)
+                 UsePrevious boxs row ->  (previous, previous `merge` boxs, row)
             in (next,) <$> rowProcessor sel row
 
           merge previous sel =
              BoxSelector (boxSelectors previous `merges` boxSelectors sel)
                          (shelfSelectors previous `merges` shelfSelectors sel)
                          (numberSelector previous `mergen` numberSelector sel)
-          merges (Selector namep tagsp) (Selector (matchAnyNames -> True) tags) = Selector namep (tagsp <> tags) 
-          merges (Selector _ tagsp) (Selector names tags) = Selector names (tagsp <> tags) 
+          merges (Selector namep tagsp) (Selector namep' tags) = Selector (mergeNames namep namep') (tagsp <> tags) 
           mergen p (BoxNumberSelector Nothing Nothing Nothing) = p
           mergen _ bn = bn
+          -- merge easy ones
+          mergeNames (matchAnyNames -> True) ns = ns
+          mergeNames ns (matchAnyNames -> True) = ns
+          mergeNames (NameMatches [MatchFull full]) (NameMatches matches) = let
+            fullGlob = Glob.compile $ unpack full
+            addFull (MatchFull f) = MatchFull (full <> f)
+            addFull (MatchAnything) = MatchFull full
+            addFull (MatchGlob glob) = MatchGlob (fullGlob <> glob)
+            in NameMatches (map addFull matches)
+          mergeNames (NameMatches [m@(MatchGlob fullGlob)]) (NameMatches matches) = let
+            addFull (MatchFull full) = MatchGlob (fullGlob <> Glob.compile (unpack full))
+            addFull (MatchAnything) = m
+            addFull (MatchGlob glob) = MatchGlob (fullGlob <> glob)
+            in NameMatches (map addFull matches)
+          mergeNames _ names = names
             
 -- | Move and tag boxes.
 -- If a location (destination) is provided, only boxes which have been moved will be tagged -
@@ -714,7 +732,6 @@ processMovesAndTags (style, tags_, locationM, orientations) = withBoxOrientation
       let tagOps = map parseTagOperation tags
           untagOps = negateTagOperations tagOps
       new <- mapM (updateBoxTags tagOps) boxes
-      -- traceShowM("UNTAG", untagOps, length $ concat leftoverss)
       _ <- mapM (updateBoxTags untagOps) (concat leftoverss)
       return new
 

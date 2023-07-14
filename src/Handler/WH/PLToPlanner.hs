@@ -37,7 +37,7 @@ toPlanner withDetails PackingList{..} details = let
                                          _ -> ""
                                  else ""
   content [] = ""
-  content ((col,__qty):cs) = "-" <> col <> if null cs then "" else "*"
+  content cols = "-" <> intercalate "&" (map fst cols)
   header = "style,quantity,l,w,h"
   detailToText ((style, l, w, h),qty) = intercalate "," $
     [style , tshow qty ]
