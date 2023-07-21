@@ -10,6 +10,7 @@ module WarehousePlanner.Base
 , assignShelf
 , bestArrangement
 , boxCoordinate
+, boxContentPriority
 , boxPosition
 , boxPositionSpec
 , boxRank
@@ -46,6 +47,7 @@ module WarehousePlanner.Base
 , newShelf
 , orTrue
 , parseBoxSelector
+, parseShelfSelector
 , parseSelector
 , parseTagOperation
 , parseTagOperations
@@ -86,6 +88,7 @@ import Data.Text (splitOn, uncons, stripPrefix)
 import qualified Data.Text as T 
 import Data.Char (isLetter)
 import Data.Time (diffDays)
+import Data.Semigroup (Arg(..))
 
 import qualified System.FilePath.Glob as Glob
 
@@ -260,7 +263,7 @@ orTrue bs = or bs
 -- it needs to be before the shelf condition
 --
 -- syntax is  Box#tag^3/shelf#tag : 3 box from shelf shelf
-findBoxByNameAndShelfNames :: BoxSelector s -> WH [BoxId s] s
+findBoxByNameAndShelfNames :: BoxSelector s -> WH [Box s] s
 findBoxByNameAndShelfNames ( BoxSelector ( Selector (NameMatches [])
                                                     [ TagIsKeyAndValues (MatchFull prop)
                                                                         [MatchFull value]
@@ -289,7 +292,7 @@ findBoxByNameAndShelfNames ( BoxSelector ( Selector (NameMatches [])
   let box'nameS =  [ (box, shelfName shelf) | (box, Just shelf) <- box'shelfms] 
         
   -- filter boxes by number
-  return . map (boxId  . fst) $ limitByNumber numSel box'nameS
+  return . map fst $ limitByNumber numSel box'nameS
 
 
 
@@ -315,7 +318,7 @@ findBoxByNameAndShelfNames (BoxSelector boxSel shelfSel numSel) = do
   let box'nameS =  [ (box, shelfName shelf) | (box, Just shelf) <- box'shelfms] 
         
   -- filter boxes by number
-  return . map (boxId  . fst) $ limitByNumber numSel box'nameS
+  return . map fst $ limitByNumber numSel box'nameS
 
 
 -- | Limit a box selections by numbers
@@ -413,6 +416,7 @@ emptyWarehouse today = Warehouse mempty mempty mempty
                                  (const defaultBoxStyling)
                                  (const defaultShelfStyling)
                                  defaultBoxOrientations Nothing today
+                                 0
 
 newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> Double -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
 newShelf name tagm minD maxD bottom boxOrientator fillStrat = do
@@ -438,14 +442,22 @@ newBox style content dim or_ shelf ors tagTexts = do
         tags = fromMaybe mempty $ modifyTags (contentTag : tags' <> dtags) mempty
                                   --   ^ apply dimension tags after tags so dimension override tags
 
-    ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or_ ors tags defaultPriorities (extractBoxBreak tags)
+    uniqueRef@(Arg _ ref) <- newUniqueSTRef (error "should never been called. undefined. Base.hs:338")
+    let box = Box (BoxId_ uniqueRef) (Just $ shelfId shelf) style content dim mempty or_ ors tags defaultPriorities (extractBoxBreak tags)
     shelf' <- findShelf shelf
-    linkBox (BoxId ref) shelf'
+    linkBox (BoxId_ uniqueRef) shelf'
     lift $ writeSTRef ref box
-    put warehouse { boxes = boxes warehouse |> BoxId ref
+    put warehouse { boxes = boxes warehouse |> BoxId_ uniqueRef
                   }
     return box
+
+newUniqueSTRef :: a s -> WH (Arg Int (STRef s (a s))) s
+newUniqueSTRef object = do
+  ref <- lift $ newSTRef object
+  unique0 <- gets whUnique
+  let unique = unique0 + 1
+  modify (\w -> w { whUnique = unique })
+  return $ Arg unique ref
 
 -- | Parses a string  to Tag operation
 -- the general syntax [-]tag[=[-+]value]
@@ -521,7 +533,7 @@ updateDimFromTags box = case extractDimensions (_boxDim box) (boxTags box) of
 -- | Assign a box to shelf regardless of if there is enough space
 -- left or not.
 -- For a "real" move see moveBox
-assignShelf :: (Box' box,  Shelf' shelf) => Maybe (shelf s) -> box s -> WH () s
+assignShelf :: (Box' box,  Shelf' shelf) => Maybe (shelf s) -> box s -> WH (Box s) s
 assignShelf s box0 = do
     box <- findBox box0
     oldShelfM <- traverse findShelf (boxShelf box)
@@ -529,11 +541,13 @@ assignShelf s box0 = do
 
     -- if box belong to a shelf
     -- we need to update the shelf to remove the link to the box
-    when (oldShelfM /= newShelfM) $ do
+    if (oldShelfM /= newShelfM) 
+    then do
       mapM_ (unlinkBox (boxId box)) oldShelfM
       mapM_ (linkBox (boxId box)) newShelfM
-      _ <- updateBox (\box_ -> box_ { boxShelf = shelfId `fmap` s }) box
-      return ()
+      updateBox (\box_ -> box_ { boxShelf = shelfId `fmap` s }) box
+    else
+      return box
 
 -- | Unlink a box from a shelf without
 -- checking anything. Shoudn't be exported
@@ -557,12 +571,12 @@ linkBox box shelf = do
   _ <- updateShelf (const shelf') shelf'
   return ()
 
-deleteBoxes :: [BoxId s] -> WH [Box s] s
-deleteBoxes boxIds = do
-  deleted <- forM boxIds $ \boxId_ -> do
-                box <- findBox boxId_
+deleteBoxes :: [Box s] -> WH [Box s] s
+deleteBoxes boxes_ = do
+  let boxIds = map boxId boxes_
+  deleted <- forM boxes_ $ \box -> do
                 oldShelfM <- traverse findShelf (boxShelf box)
-                mapM_ (unlinkBox boxId_) oldShelfM
+                mapM_ (unlinkBox $ boxId box) oldShelfM
                 return box
   wh <- get
   put wh { boxes = Seq.fromList $ (toList $ boxes wh ) List.\\ boxIds }
@@ -572,7 +586,7 @@ deleteBoxes boxIds = do
 
 deleteShelf :: ShelfId s -> WH () s
 deleteShelf shelfId = do
-  findBoxByShelf shelfId >>= deleteBoxes . map boxId
+  findBoxByShelf shelfId >>= deleteBoxes
   warehouse <- get
   put warehouse { shelves = filter (/= shelfId) $ shelves warehouse }
   
@@ -1217,13 +1231,13 @@ aroundArrangement useOld arrangement newBoxishs shelves = do
                           return $ oldBoxes ++ newBoxes
 
     let nothing = Nothing `asTypeOf` headMay shelves -- trick to typecheck
-    mapM_ (assignShelf nothing) boxes
+    void $ mapM (assignShelf nothing) boxes
     -- rearrange what's left in each individual space
     -- so that there is as much space left as possible
 
     left <- arrangement boxes shelves
     s0 <- defaultShelf
-    mapM_ (assignShelf (Just s0)) left
+    void $ mapM (assignShelf (Just s0)) left
     return left
 
 
@@ -1771,6 +1785,12 @@ parseBoxSelector selector = let
               (parseSelector location)
               (parseBoxNumberSelector numbers)
 
+parseShelfSelector :: Text -> ShelfSelector s
+parseShelfSelector selector = let
+  BoxSelector boxSel shelfSel _ = parseBoxSelector selector
+  in ShelfSelector boxSel shelfSel
+
+  
 applyPattern :: MatchPattern -> Text -> Bool
 applyPattern pat value = case pat of
   MatchAnything -> True

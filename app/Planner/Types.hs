@@ -48,6 +48,7 @@ data HeaderType
   | ImportH
   | TitleH
   | ColourMapH
+  | RearrangeH [Text]
   deriving (Show, Eq, Ord, Generic)
 
 -- * Scenario 

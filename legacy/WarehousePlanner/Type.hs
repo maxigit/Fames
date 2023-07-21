@@ -20,6 +20,7 @@ import qualified System.FilePath.Glob as Glob
 -- import Data.List(intercalate)
 import Data.Text hiding(map)
 import Data.Time (Day)
+import Data.Semigroup(Arg(..))
 
 -- * Types 
 data Dimension = Dimension { dLength :: !Double
@@ -116,7 +117,10 @@ data OrientationStrategy  = OrientationStrategy
 
 -- | Every box belongs to a shelf.
 -- Non placed boxes belongs to the special default shelf
-newtype BoxId s = BoxId (STRef s (Box s)) deriving (Eq)
+newtype BoxId s = BoxId_ (Arg Int (STRef s (Box s))) deriving (Eq, Ord)
+{-# COMPLETE BoxId #-}
+pattern BoxId s <- BoxId_ (Arg _ s)
+
 instance Show (BoxId s) where
   show _ = "<<Boxref>>"
 
@@ -140,6 +144,8 @@ data Box s = Box { _boxId      :: BoxId s
                , boxBreak :: !(Maybe BoxBreak)
                } deriving (Show, Eq)
 newtype ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
+instance Ord (Box s) where
+  compare a b = compare (_boxId a) (_boxId b)
 
 -- | Shelf have a min and max dimension. This allows shelf to be overloaded
 -- or boxes to stick out.
@@ -185,6 +191,7 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , whDay :: Day -- Today usefull to compute date operation
                            -- \^ a cache. We use maybe to that an empty warehouse can be created "purely"
                            -- Should probably be part of of the WH 
+                           , whUnique :: Int
                            
              } -- deriving Show
 type WH a s = StateT  (Warehouse s) (ST s) a

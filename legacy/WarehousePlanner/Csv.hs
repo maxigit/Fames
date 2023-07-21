@@ -20,12 +20,14 @@ module WarehousePlanner.Csv
 , readUpdateShelves
 , readWarehouse
 , readColourMap
+, readRearrangeBoxes
 , setOrientationRules
 ) where
 
 
 import WarehousePlanner.Base
 import WarehousePlanner.ShelfOp
+import WarehousePlanner.Rearrange
 import qualified Data.Csv as Csv
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
@@ -826,6 +828,14 @@ readOrientations def os = case uncons os of
     Just ('%', os') -> def `List.union` readOrientations def os'  -- def
     Just (o, os') -> [readOrientation o] `List.union` readOrientations def os'
 
+-- * Read Rearrange Boxes
+readRearrangeBoxes :: [Text] -> FilePath -> IO (WH [Box s] s)
+readRearrangeBoxes tags0 = readFromRecordWithPreviousStyle go
+  where go style (Csv.Only (parseActions -> (deleteUnused, actions))) = do
+           rearrangeBoxesByContent deleteUnused tagOps (flip tagIsPresent "#dead") style actions
+        tagOps = parseTagAndPatterns tags0 []
+  
+
 -- * Read Shelf Tags 
 readShelfTags :: FilePath -> IO (WH [Shelf s] s)
 readShelfTags = readFromRecordWith go where
@@ -853,8 +863,7 @@ instance Csv.FromField (BoxSelector a) where
 instance Csv.FromField (ShelfSelector a) where
   parseField s = do
     x <- Csv.parseField s
-    let (BoxSelector boxSel selfSel _ ) = parseBoxSelector x
-    return (ShelfSelector boxSel selfSel)
+    return $ parseShelfSelector x
 
 instance Csv.FromField (Selector a) where
   parseField s = do

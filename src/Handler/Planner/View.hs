@@ -340,10 +340,11 @@ renderShelvesGroupReport = renderConsoleReport groupShelvesReport
 renderBoxGroupReport :: Maybe Text ->  Scenario -> Handler Widget
 renderBoxGroupReport selectorM = renderConsoleReport report where
   report = do
-    boxIds <- case selectorM of
-      Nothing -> toList <$> gets boxes
+    boxes <- case selectorM of
+      Nothing -> do
+          boxIds <- toList <$> gets boxes
+          mapM findBox boxIds
       Just pat -> findBoxByNameAndShelfNames (parseBoxSelector pat)
-    boxes <- mapM findBox boxIds
     groupBoxesReport boxes
   
 

@@ -159,6 +159,8 @@ parseDrawer h = case splitOn "_" h of
     ("import":[]) -> Right ImportH
     ("colours":[]) -> Right ColourMapH
     ("colors":[]) -> Right ColourMapH
+    ("rearrange":tags) -> Right $ RearrangeH tags
+    ("rar":tags) -> Right $ RearrangeH tags
     _parsed -> Left $ h <> " is not a valid drawer."
   
 
@@ -439,6 +441,7 @@ executeStep (Step header sha _) = do
           TitleH -> return $ return ()
           ImportH -> return $ return ()
           ColourMapH -> return $ return ()
+          RearrangeH tags -> execute $ readRearrangeBoxes tags path
 
 -- | Retrieve the number of line in the layout file
 scenarioLayoutSize :: MonadIO m => Scenario -> m Int
