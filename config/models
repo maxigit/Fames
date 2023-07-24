@@ -406,6 +406,7 @@ ShippingDetails sql=fames_shipping_details
   contact Text -- |
   county Text -- | addree 4
   telephone Text Maybe
+  additionalInformation Text Maybe
   notificationEmail Text Maybe
   notificationText Text Maybe
   taxId Text Maybe

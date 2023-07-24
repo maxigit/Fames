@@ -282,7 +282,7 @@ mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
   addressLine4'County'State = shCountyState
   postCode_7 = mconcat $ words shPostalCode -- remove space to fit in 7 chars
   countryCode_2 = fromJust shCountry
-  additional_information = ""
+  additional_information = fromMaybe "" shAdditionalInformation
   contactName = shContact
   contactTelephoneNumber = mconcat $ words shTelephone
   -- customValue = customValue
@@ -353,6 +353,7 @@ data ShippingForm = ShippingForm
   , shNotificationText :: Maybe Text
   , shNoOfPackages :: Int
   , shWeight :: Double
+  , shAdditionalInformation :: Maybe Text
   , shGenerateCustomData :: Bool
   , shTaxId :: Maybe Text
   -- , shCustomValue ::  Double
@@ -396,6 +397,7 @@ fillShippingForm info customerInfo detailKeyM = do
         shNotificationText =  ((personm >>= FA.crmPersonPhone2) <|> (personm >>= FA.crmPersonPhone)) <|> (Just "<Text>")
         shNoOfPackages = 1
         shWeight = 9
+        shAdditionalInformation = Nothing
         shTaxId = Just $ FA.debtorsMasterTaxId customer
         -- shCustomValue ::  Double
         -- shService = ""
@@ -452,6 +454,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     notificationText <- mopt textField (f 35 "Notification Text") (ship <&>  fmap (take 35) .shNotificationText)
     noOfPackages <- mreq intField "No of Packages" Nothing
     weight <- mreq doubleField "Weight" (ship <&> shWeight)
+    additionalInformation <- mopt textField (size 35 $ f 50 "Additional Information") (ship <&> fmap (take 50) . shAdditionalInformation)
     generateCustomData <- mreq boolField "Custom Data" (ship <&> shGenerateCustomData)
     taxId <- mopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
     serviceCode <- mreq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
@@ -479,6 +482,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
           ^{renderRow normalize (fromMaybe "" . shippingDetailsNotificationText)  notificationText}
           ^{renderRow0'  noOfPackages (tlabel "Source") source}
           ^{renderRow0'  weight (tlabel "LastUsed") lastUsed}
+          ^{renderRow normalize (fromMaybe "" . shippingDetailsAdditionalInformation) additionalInformation}
           ^{renderRow0  generateCustomData}
           ^{renderRow id (fromMaybe "" . shippingDetailsTaxId) taxId}
           ^{renderRow0  serviceCode}
@@ -513,6 +517,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
                  <*> fst notificationText
                  <*> fst noOfPackages
                  <*> fst weight
+                 <*> fst additionalInformation
                  <*> fst generateCustomData
                  <*> fst taxId
                  <*> fst serviceCode
@@ -583,6 +588,7 @@ truncateForm ShippingForm{..} =
                ( fmap (take 35 . joinSpaces)shNotificationText)
                (shNoOfPackages)
                (shWeight)
+               (fmap (take 50 . joinSpaces) shAdditionalInformation)
                (shGenerateCustomData)
                ( fmap (take 35)shTaxId)
                (shServiceCode)
@@ -760,6 +766,7 @@ toDetails userm shippingDetailsCourrier ShippingForm{..} = details {shippingDeta
   shippingDetailsTaxId = shTaxId
   shippingDetailsLastUsed = Nothing
   shippingDetailsSource = maybe "<Anonymous>" FA.userUserId userm
+  shippingDetailsAdditionalInformation = shAdditionalInformation
   details = ShippingDetails{shippingDetailsKey="",..}
   DetailsKey key = computeKey details
 
@@ -783,6 +790,7 @@ fromDetails template ShippingDetails{..} = ShippingForm{..} where
   shNotificationEmail = shippingDetailsNotificationEmail
   shNotificationText = shippingDetailsNotificationText
   shTaxId = shippingDetailsTaxId
+  shAdditionalInformation = shippingDetailsAdditionalInformation
   ShippingForm{shNoOfPackages, shWeight, shGenerateCustomData, shServiceCode, shSave} = template
   
   

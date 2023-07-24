@@ -44,6 +44,7 @@ mkShippingDetails CustomerInfo{..} = details {shippingDetailsKey = unDetailsKey 
   shippingDetailsTaxId = Nothing
   shippingDetailsLastUsed = Nothing
   shippingDetailsKey = "" --  unDetailsKey $ computeKey details
+  shippingDetailsAdditionalInformation = Nothing
 
 
 readCountry :: Text -> Maybe CountryCode
