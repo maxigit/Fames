@@ -37,6 +37,10 @@ getFAMESFamesDocumentKeyR = entityTableHandler (FAMES'R FAMESFamesDocumentKeyR) 
 getFAMESFamesEmailR :: Handler Html 
 getFAMESFamesEmailR = entityTableHandler (FAMES'R FAMESFamesEmailR) ([] :: [Filter FAMES.FamesEmail]) 
 
+{-# NOINLINE getFAMESFamesGeodataR #-}
+getFAMESFamesGeodataR :: Handler Html 
+getFAMESFamesGeodataR = entityTableHandler (FAMES'R FAMESFamesGeodataR) ([] :: [Filter FAMES.FamesGeodata]) 
+
 {-# NOINLINE getFAMESFamesItemCategoryCacheR #-}
 getFAMESFamesItemCategoryCacheR :: Handler Html 
 getFAMESFamesItemCategoryCacheR = entityTableHandler (FAMES'R FAMESFamesItemCategoryCacheR) ([] :: [Filter FAMES.FamesItemCategoryCache]) 

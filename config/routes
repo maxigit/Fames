@@ -149,6 +149,8 @@
   /invoice/commodity_codes/#Int64/#Maybe-Int64 CustInvoiceCCodesR GET
   /invoice/forDPD/#Int64 CustInvoiceDPDR POST
   /invoice/DPDlookup/#Int64 DPDLookupR GET
+  /map CustMapR !title=Customer_map GET
+  /geodata/refresh CustRefreshGeodataR !administrator !title=Refresh_Geodata GET
 
 /administrator AdministratorR !administrator:
   / AIndexR GET !group=Info !title=Index
@@ -176,3 +178,4 @@
   /custom/#Text/#Int64/#Int64 DCustomR GET
   /year DYearR GET !title=sales_year
   /all-year DAllYearR GET !title=sales_all_years
+

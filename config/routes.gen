@@ -149,6 +149,8 @@
   /invoice/commodity_codes/#Int64/#Maybe-Int64 CustInvoiceCCodesR GET
   /invoice/forDPD/#Int64 CustInvoiceDPDR POST
   /invoice/DPDlookup/#Int64 DPDLookupR GET
+  /map CustMapR !title=Customer_map GET
+  /geodata/refresh CustRefreshGeodataR !administrator !title=Refresh_Geodata GET
 
 /administrator AdministratorR !administrator:
   / AIndexR GET !group=Info !title=Index
@@ -176,6 +178,7 @@
   /custom/#Text/#Int64/#Int64 DCustomR GET
   /year DYearR GET !title=sales_year
   /all-year DAllYearR GET !title=sales_all_years
+
 -- Warning ! This code has been generated !}
 
 -- Route
@@ -307,6 +310,7 @@
   /fames_customer_category_cache FAMESFamesCustomerCategoryCacheR GET !title=fames_customer_category_cache 
   /fames_document_key FAMESFamesDocumentKeyR GET !title=fames_document_key 
   /fames_email FAMESFamesEmailR GET !title=fames_email 
+  /fames_geodata FAMESFamesGeodataR GET !title=fames_geodata 
   /fames_item_category_cache FAMESFamesItemCategoryCacheR GET !title=fames_item_category_cache 
   /fames_operator FAMESFamesOperatorR GET !title=fames_operator 
   /fames_order_category_cache FAMESFamesOrderCategoryCacheR GET !title=fames_order_category_cache 

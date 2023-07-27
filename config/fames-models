@@ -68,6 +68,13 @@ FamesEmail sql=fames_email
     userId Int Maybe sql=user_id
     verkey Text Maybe sql=verkey default=NULL
 
+FamesGeodata sql=fames_geodata
+    Id Int  sql=geodata_id
+    address Text  sql=address
+    latitude Double Maybe sql=latitude
+    longitude Double Maybe sql=longitude
+    formatted Text  sql=formatted
+
 FamesItemCategoryCache sql=fames_item_category_cache
     Id Int  sql=item_category_id
     stockId Text  sql=stock_id
@@ -96,6 +103,7 @@ FamesPackinglist sql=fames_packinglist
     boxesToDeliverD Int  sql=boxes_to_deliver_d
     departure Day Maybe sql=departure
     arriving Day Maybe sql=arriving
+    batch Text Maybe sql=batch default=NULL
 
 FamesPackinglistDetail sql=fames_packinglist_detail
     Id Int  sql=id
@@ -110,6 +118,7 @@ FamesPackinglistDetail sql=fames_packinglist_detail
     height Double  sql=height
     weight Double  sql=weight
     delivered Bool  sql=delivered
+    batch Text Maybe sql=batch default=NULL
 
 FamesPayrollItem sql=fames_payroll_item
     Id Int  sql=id
@@ -148,6 +157,7 @@ FamesShippingDetail sql=fames_shipping_details
     taxId Text Maybe sql=tax_id default=NULL
     source Text  sql=source
     lastUsed Day Maybe sql=last_used
+    additionalInformation Text Maybe sql=additional_information default=NULL
 
 FamesStocktake sql=fames_stocktake
     Id Int  sql=stocktake_id

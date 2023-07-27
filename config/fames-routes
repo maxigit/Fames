@@ -10,6 +10,7 @@
   /fames_customer_category_cache FAMESFamesCustomerCategoryCacheR GET !title=fames_customer_category_cache 
   /fames_document_key FAMESFamesDocumentKeyR GET !title=fames_document_key 
   /fames_email FAMESFamesEmailR GET !title=fames_email 
+  /fames_geodata FAMESFamesGeodataR GET !title=fames_geodata 
   /fames_item_category_cache FAMESFamesItemCategoryCacheR GET !title=fames_item_category_cache 
   /fames_operator FAMESFamesOperatorR GET !title=fames_operator 
   /fames_order_category_cache FAMESFamesOrderCategoryCacheR GET !title=fames_order_category_cache 

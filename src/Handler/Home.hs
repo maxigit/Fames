@@ -21,7 +21,6 @@ getHomeR = do
     defaultLayout $ do
         setTitle "Welcome To Fames!"
         $(widgetFile "homepage")
-        $(fayFile "Home")
 
 {-# NOINLINE postHomeR #-}
 postHomeR :: Handler Html

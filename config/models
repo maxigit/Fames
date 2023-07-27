@@ -417,11 +417,23 @@ ShippingDetails sql=fames_shipping_details
   deriving Ord
 
 
+Geodata sql=fames_geodata
+  Id sql=geodata_id
+  address Text
+  latitude Double Maybe -- error
+  longitude Double Maybe
+  formatted Text
+  UniqueA address
+  deriving Show
+  deriving Eq
+
 -- {-
 -- After modifying it to don't forget
--- To run
+-- To run TWICE (1)
 -- :main: +aw s/^--// +x !sh < @<
 --   make config/fames-routes -B
 --   make config/routes.gen
 -- .main.
+-- 1) fames-route inspect the sql table not the model
+-- therefore, it needs to be run after the migration.
 -- -}

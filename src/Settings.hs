@@ -120,6 +120,8 @@ data AppSettings = AppSettings
     , appStocktakeHistoryCategory :: Text
     , appCheckItemCostSetting :: Maybe ItemCost.Settings
     , appDPDSettings :: Maybe DPDSettings
+    , appOpenStreetMapKey :: Maybe Text
+    , appGoogleApiKey :: Maybe Text
     } deriving Show
 
 data BankAutoReconciliateRule = BankAutoTransfer !Int
@@ -253,6 +255,8 @@ instance FromJSON AppSettings  where
         appStocktakeHistoryCategory  <- o .:? "stocktake-history-category" .!= "style"
         appCheckItemCostSetting <- o .:? "check-item-cost" .!= Nothing
         appDPDSettings <- o .:? "shipping-dpd"
+        appOpenStreetMapKey <- o .:? "open-street-map" .!= Nothing 
+        appGoogleApiKey <- o .:? "google-api-key" .!= Nothing 
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
         -- See https://github.com/yesodweb/persistent/wiki/Database-Configuration#strict-mode for details
