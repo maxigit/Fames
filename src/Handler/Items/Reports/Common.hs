@@ -52,6 +52,35 @@ data ReportParam = ReportParam
   , rpColourMode :: ColourMode
   , rpTraceGroupMode :: Maybe TraceGroupMode
   }  deriving Show
+
+defaultReportParam :: Day -> Maybe DateCalculator -> ReportParam
+defaultReportParam today fromToday = ReportParam {..} where
+  rpToday = today -- today
+  rpDeduceTax = True
+  rpFrom = fmap (flip calculateDate today) fromToday
+  rpTo = Just today
+  rpPeriod' = Nothing
+  rpNumberOfPeriods = Nothing
+  rpCategoryToFilter = Nothing
+  rpCategoryFilter = Nothing
+  rpStockFilter = Nothing
+  rpPanelRupture = emptyRupture
+  rpBand = emptyRupture
+  rpSerie = emptyRupture
+  rpColumnRupture = emptyRupture
+  rpDataParam = emptyTrace
+  rpDataParam2 = emptyTrace
+  rpDataParam3 = emptyTrace
+  rpLoadSalesAndInfo = Nothing
+  rpLoadSalesOrders = Nothing
+  rpLoadPurchases = False
+  rpPurchasesDateOffset = Nothing
+  rpLoadPurchaseOrders  = Nothing
+  rpLoadAdjustment = False
+  rpForecast = (Nothing, Nothing, Nothing)
+  rpColourMode = minBound
+  rpTraceGroupMode = Nothing
+
 data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
 data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
 data OrderQuantityMode = OOrderedQuantity | OQuantityLeft deriving (Eq, Show)
