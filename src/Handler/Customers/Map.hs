@@ -151,7 +151,9 @@ loadCustomerMarkers from skuFilterM = do
                  ) = let 
           latitude = fromMaybe (54 + fromIntegral no / 500) latm
           longitude = fromMaybe (2 + fromIntegral branch / 500) longm
-          description = formatAddress $ fromMaybe address formattedm
+          description = formatAddress case formattedm of
+                                           Just f | not (null f) -> f
+                                           _ -> address 
           radius = max 5 $ sqrt (amount / maxAmount) * 50
           opacity = (1 - fromIntegral ago / fromIntegral maxAgo) -- n of days till today
           colour = case (formattedm, latm) of
