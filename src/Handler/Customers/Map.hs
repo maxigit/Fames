@@ -170,10 +170,11 @@ loadCustomerMarkers from skuFilterM = do
   
 --------------------------------------------------
 -- * Geodata
-getCustRefreshGeodataR :: Handler ()
+getCustRefreshGeodataR :: Handler Html
 getCustRefreshGeodataR = do
   updateMissingGeodata
   setSuccess "Geodata updated"
+  defaultLayout ""
   
   
 data GeoGoogle
@@ -268,7 +269,7 @@ loadBranchAddressesWithoutGeodata = do
   let sql = "select br_post_address from 0_cust_branch "
          <> "left join fames_geodata as geo on (br_post_address = geo.address) "
          <> "where geo.address is null " 
-         <> "limit 1" 
+         <> "limit 50" 
   rows <- runDB $ rawSql sql []
   return $ map unSingle rows
 
