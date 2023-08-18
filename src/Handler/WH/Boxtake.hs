@@ -221,7 +221,10 @@ postWHBoxtakeAdjustmentR = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
       actionM <- lookupPostParam "action"
-      when (actionM == Just "Process") processBoxtakeAdjustment
+      case actionM of
+        Just "Process" -> processBoxtakeAdjustment
+        Just "Deactivate" -> processBoxtakeDeactivation
+        _ -> return ()
       result <- displayBoxtakeAdjustments param
       renderBoxtakeAdjustments param (Just result)
 
@@ -634,7 +637,9 @@ renderBoxtakeAdjustments param resultM = do
       <div.panel-heading><h2> Adjustments
       <div.panel-body> ^{result}
   $if aShowDetails param
-    <button type="submit" name="action" value="Process" .btn.btn-danger> Activate/Deactivate
+    <input#toggle-all type="checkbox" checked>
+    <button type="submit" name="action" value="Process" .btn.btn-warning> Activate/Deactivate
+    <button type="submit" name="action" value="Deactivate" .btn.btn-danger> Deactivate
                         |]
                                        )
   

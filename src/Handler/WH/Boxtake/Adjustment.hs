@@ -11,6 +11,7 @@ module Handler.WH.Boxtake.Adjustment
 , loadAdjustementInfo
 , loadBoxForAdjustment
 , processBoxtakeAdjustment
+, processBoxtakeDeactivation
 , usedSubject
 )
 where
@@ -360,6 +361,10 @@ checkBoxForRow status = case boxStatus status of
       _ -> [shamlet|<span.badge>
                    <input type="checkbox" disabled>
       -- _ -> [shamlet|<span.glyphicon.glyphicon-ban-circle>|]
+  BoxUsed -> [shamlet|
+                             <span.badge>
+                               <input type="checkbox" name="used-#{boxId}" checked>
+                           |]
   _ -> ""
   where boxId = tshow . unSqlBackendKey . unBoxtakeKey . entityKey . fst  $ usedSubject status
 
@@ -400,6 +405,22 @@ extractBoxIdFromParam :: Text -> [(Text, Text)] -> [Key Boxtake]
 extractBoxIdFromParam prefix pp =
   let bids = [ bId | (p, checked) <- pp, checked=="on", Just bId <- [readMay =<< stripPrefix prefix p] ] :: [Int64]
   in map (BoxtakeKey . SqlBackendKey) bids
+-- * Deactivate
+-- | Force deactivation of selected boxes.
+-- Usefull to reactive newer ones if older boxes
+-- are active by mistake
+processBoxtakeDeactivation :: Handler ()
+processBoxtakeDeactivation = do
+  today <- todayH
+  (pp, _) <- runRequestBody
+  let toDeactivate = extractBoxIdFromParam "deactivate-" pp 
+                   <> extractBoxIdFromParam "used-" pp
+  runDB $ forM_ toDeactivate (deactivateBoxtakeByKey today)
+  setSuccess [shamlet|<p>#{length toDeactivate} boxtakes deactivated succsessfuly.
+                     |]
+
+                            
+
 -- * Css 
 adjustmentCSS :: Widget
 adjustmentCSS =toWidget [cassius|
@@ -452,6 +473,7 @@ td.varQuantity
 adjustmentJS :: Widget
 adjustmentJS = toWidget [julius|
 $(document).ready(function () {
+  // toggle all children
   $('tr.summary-row input[type=checkbox]').change(function() {
      var tbody = $(this).parents('tbody');
      var inputs = $(tbody).find('tr.box-row input[type=checkbox]');
@@ -469,9 +491,25 @@ $(document).ready(function () {
         else {return true;}
      })
      $(tbody).find('tr.summary-row input[type=checkbox]').prop('checked',checked)
+     // update toggle-all
+     // uncheck if all summary are  unchecked
+     var toggleAll = $('input#toggle-all');
+     var form = $(this).parents('form');
+     var summaries = $(form).find('tr.box-row input[type=checkbox]')
+     checked = false;
+     $.each(summaries, function(i,r) {
+       if (r.checked) {checked = true; return !checked;}
+       else {return true;}
+     })
+     toggleAll.prop('checked', checked)
    
-  }
-  )
+  })
+  // toggle everything
+  $('input#toggle-all').change(function() {
+     var form = $(this).parents('form');
+     var inputs = $(form).find('tr input[type=checkbox]')
+     $(inputs).prop('checked', this.checked);
+  })
   }
 )
 |]
