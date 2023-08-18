@@ -6,6 +6,7 @@ module Handler.WH.Boxtake.Adjustment
 , adjustmentJS
 , boxStatus
 , computeInfoSummary
+, UseActiveStatus(..)
 , defaultAdjustmentParamH
 , displayBoxtakeAdjustments
 , loadAdjustementInfo
@@ -67,9 +68,12 @@ data BoxStatus
   deriving (Eq, Ord, Show)
 -- *  
 
+data UseActiveStatus = IgnoreActiveStatus | UseActiveStatus 
+     deriving (Show, Eq)
+
 -- | Compute the box status of each boxes
-computeInfoSummary :: StyleInfo -> [StyleInfoSummary]
-computeInfoSummary StyleInfo{..} =
+computeInfoSummary :: UseActiveStatus -> StyleInfo -> [StyleInfoSummary]
+computeInfoSummary useActiveStatus StyleInfo{..} =
   -- to do so, we consider that
   -- quantity in a box can only go down, ie the
   -- quantity left is smaller than the quantity from the last stocktake (inactive or not)
@@ -83,7 +87,7 @@ computeInfoSummary StyleInfo{..} =
   -- boxes with the less quantity are more likely to be picked from first, especially if they are mixed colours
   -- However, the fact that a box can contains many colours, means than we can just process
   -- all boxes together but needs to sort priority for each colours independently
-  let p's'bs = concatMap computeStocktakePriority siBoxtakes
+  let p's'bs = concatMap (computeStocktakePriority useActiveStatus) siBoxtakes
       stocktakesSorted = map snd $ sortOn fst p's'bs
       (_qohLeft, stocktakesWithQ ) = mapAccumL assignQuantityToStocktake siQoh stocktakesSorted
       usedBoxes = usedStocktakeToBoxes (map fst siBoxtakes) stocktakesWithQ
@@ -108,10 +112,10 @@ boxInfoToSummary style t = let
   
 
 type StocktakePrioriry = (Down Bool, Down Day, Down Int, Down (Text, Text))
-computeStocktakePriority :: BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
-computeStocktakePriority (Entity bId Boxtake{..}, stocktakes) = do
+computeStocktakePriority :: UseActiveStatus -> BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
+computeStocktakePriority useActiveStatus (Entity bId Boxtake{..}, stocktakes) = do
   s@(Entity _ Stocktake{..}) <- stocktakes
-  let priority = ( Down $ boxtakeActive --    || stocktakeActive
+  let priority = ( Down $ useActiveStatus == IgnoreActiveStatus || boxtakeActive --    || stocktakeActive
                  , Down boxtakeDate -- older more likely to be picked
                  , Down stocktakeQuantity -- The more, the less we pick from it
                  , Down $ locationPriority boxtakeLocation
@@ -176,6 +180,7 @@ data AdjustmentParam = AdjustmentParam
   , aLocation :: Text
   , aSkipOk :: Bool -- ^ don't show things with nothing to do
   , aShowDetails :: Bool -- ^ don't show boxes. 
+  , aUseBoxStatus :: Bool -- ^ use or ignore box active status
   , aStyleSummary :: Bool -- ^ display summary for styles vs variations
   , aDate :: Maybe Day -- ^ stock date
   } 
@@ -183,7 +188,7 @@ data AdjustmentParam = AdjustmentParam
 defaultAdjustmentParamH :: Handler AdjustmentParam
 defaultAdjustmentParamH = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
-  return $ AdjustmentParam Nothing defaultLocation True False True Nothing
+  return $ AdjustmentParam Nothing defaultLocation True False True True Nothing
 -- * Render 
 -- * DB 
 -- | Load all boxes needed to display and compute adjustment
@@ -253,8 +258,9 @@ displayBoxtakeAdjustments :: AdjustmentParam -> Handler Widget
 displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
   infos <- runDB $ loadAdjustementInfo  param
   let summaries0 = if aStyleSummary
-        then [ aggregateInfoSummaries style (computeInfoSummary styleInfo) | (style, styleInfo) <- mapToList infos ]
-        else toList infos >>= computeInfoSummary
+        then [ aggregateInfoSummaries style (computeInfoSummary useBoxStatus styleInfo) | (style, styleInfo) <- mapToList infos ]
+        else toList infos >>= computeInfoSummary useBoxStatus
+      useBoxStatus = if aUseBoxStatus then UseActiveStatus else IgnoreActiveStatus
       -- only keep nono zero style
       summaries = filter toDisplay summaries0
       toDisplay StyleInfoSummary{..} = if aSkipOk 

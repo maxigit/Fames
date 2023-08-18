@@ -366,10 +366,11 @@ loadLiveSummaries todaym = do
       aLocation = defaultLocation
       aSkipOk = False
       aShowDetails = True
+      aUseBoxStatus = True
       aStyleSummary =  False
       aDate = todaym
   infos <- runDB $ Box.loadAdjustementInfo  param
-  let summaries = toList infos >>= Box.computeInfoSummary
+  let summaries = toList infos >>= Box.computeInfoSummary Box.UseActiveStatus
   return summaries
 
   

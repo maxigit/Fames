@@ -277,6 +277,7 @@ adjustmentForm param = renderBootstrap3 BootstrapBasicForm form where
                          <*> pure (aLocation param)
                          <*> areq boolField "Skip OK" (Just $ aSkipOk param)
                          <*> areq boolField "Show Details" (Just $ aShowDetails param)
+                         <*> areq boolField "Use Box Status" (Just $ aUseBoxStatus param)
                          <*> areq boolField "Group Style" (Just $ aStyleSummary param)
                          <*> aopt dayField "Stock Valuation Date" (Just $ aDate param)
 
