@@ -346,7 +346,7 @@ renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
                        (True, []) -> "warning" :: Text
                        (True, _) -> "success" :: Text
                        (False, _ ) ->   "danger"
-      day'locS = nub $ (boxtakeDate, boxtakeLocation) : boxtakeLocationHistory
+      day'locS = nub . sort $ (boxtakeDate, boxtakeLocation) : boxtakeLocationHistory
       history = [whamlet|
 <table *{"table-bordered" <>. datatable}>
     <tr>
