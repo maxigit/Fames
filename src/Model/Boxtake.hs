@@ -35,7 +35,7 @@ setActivateBoxtake :: Bool -> Day -> Entity Boxtake -> SqlHandler ()
 setActivateBoxtake active date (Entity key Boxtake{..}) = do
   update key [ BoxtakeActive =. active
              , BoxtakeLocationHistory =. (date
-                                         , "<Deactivated>"
+                                         , if active then "<Reactivated>" else "<Deactivated>"
                                          ) : boxtakeLocationHistory
              -- , BoxtakeDate =. date
              ]
