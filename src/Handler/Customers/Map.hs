@@ -234,7 +234,7 @@ geocode :: Text -> Text -> ExceptT Text IO Geodata
 geocode apiKey address = do
   googleGeo <- googleGeocode apiKey address
   case googleGeo of
-    ZeroResult -> return $ Geodata address Nothing Nothing address
+    ZeroResult -> return $ Geodata address Nothing Nothing $ "ZERO RESULT for :" <> decodeHtmlEntities address
     GeoGoogle{..} -> return $ Geodata address (Just lat) (Just lng) formattedAddress
     (OtherStatus status) -> throwError status
                  
@@ -247,6 +247,7 @@ encodeAddress = intercalate "%20"
               . splitOn " " 
               . intercalate " "
               . lines 
+              . decodeHtmlEntities
   
   
 updateMissingGeodata :: Handler ()
