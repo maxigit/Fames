@@ -9,7 +9,6 @@ import Data.Text(splitOn, split)
 -- import qualified Data.Map as Map
 -- import Control.Monad (zipWithM_)
 import qualified Data.Set as Set
-import  Data.Coerce(coerce)
 
 -- * Type {{{1
 data ShiftStrategy = ShiftAll | StayInPlace deriving (Show, Eq)
@@ -18,9 +17,10 @@ data ShiftStrategy = ShiftAll | StayInPlace deriving (Show, Eq)
 rearrangeBoxesByContent ::  Bool -> [Tag'Operation] -> (Box s -> Bool) -> BoxSelector s -> [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)] -> WH [Box s] s
 rearrangeBoxesByContent deleteUnused tagOps isUsed boxsel actions = do
   boxes <- findBoxByNameAndShelfNames boxsel >>= mapM findBox
+  traceShowM ("SEL", boxsel, boxes)
   -- group boxes by style and content
   let onContent = (`on` \b -> (boxStyle b, boxContent b))
-      boxByContent = groupBy (onContent (==)) $ sortBy (onContent compare) boxes
+      boxByContent = [boxes] -- groupBy (onContent (==)) $ sortBy (onContent compare) boxes
   newss <- mapM (\boxes ->  shiftUsedBoxes isUsed boxes actions) boxByContent
   let news = concat newss
       untagOps = negateTagOperations tagOps
@@ -52,6 +52,7 @@ shiftUsedBoxes isUsed boxes inBucket'strategies = do
         doSwap (source, dest) = do
                  new <- updateBox (\s -> s { boxOffset = boxOffset  dest
                                   , boxBoxOrientations = boxBoxOrientations dest
+                                  , orientation = orientation dest
                                   , boxBreak = boxBreak dest
                                   }
                                   ) source
@@ -69,34 +70,37 @@ parseActions s0 = let
   asLocation = '/' `elem` flags
   ss = splitOn ">" s1
   mkFn ss' = let
-    (c, ss) = span (`elem` t "!_ ") ss'
+    (c, ss) = traceShowId $ span (`elem` t "!_ ") ss'
     strat = if '!' `elem` c
             then StayInPlace
             else ShiftAll
-    in (\box shelfm -> or [ applyNameSelector  (nameSelector boxSel) boxStyle box
+    selectors = parseSelectors asLocation ss
+    in (\box shelfm -> orTrue [ applyNameSelector  (nameSelector boxSel) boxStyle box
                             && applyTagSelectors (tagSelectors boxSel) boxTags box
                             && case shelfm of
                                  Nothing | SelectAnything <- shelfSel  -> True
                                  Nothing -> False
                                  Just shelf -> applyNameSelector (nameSelector shelfSel) shelfName shelf
                                                && applyTagSelectors (tagSelectors shelfSel) shelfTag shelf
-                          | BoxSelector boxSel shelfSel _ <- parseSelectors asLocation ss
+                          | BoxSelector boxSel shelfSel _ <- selectors
 
                           ]
        , strat
        )
-  in ('#' `elem` flags, reverse (map mkFn ss))
+  in traceShow ("FLAGS", flags, s1, ss)
+     $ ('#' `elem` flags, reverse (map mkFn ss))
   
 -- | 
 parseSelectors :: Bool -> Text -> [BoxSelector s]
 parseSelectors isLocation s = let
   -- split by | and |
   ss = split (`elem` t " |") s
-  parse selector = case parseBoxSelector selector of
-                    BoxSelector SelectAnything SelectAnything (BoxNumberSelector Nothing Nothing Nothing) -> Nothing
-                    BoxSelector sel SelectAnything _ | isLocation -> Just selectAllBoxes { shelfSelectors = coerce sel }
-                    sel -> Just sel
-  in mapMaybe parse ss
+  parse selector | null selector = Nothing
+  parse selector = Just $ if isLocation
+                   then BoxSelector SelectAnything (parseSelector selector) (BoxNumberSelector Nothing Nothing Nothing)
+                   else parseBoxSelector selector
+  r =  mapMaybe parse ss
+  in traceShow ("SELCE", s, ss, r) r
   
   
   
@@ -120,7 +124,7 @@ shiftUsed isUsed xs = let
   
 -- | shift used boxes but leave boxes staying in the same bucket in place or not
 -- according to the bucket strategy.
-shiftUsedInBucketsWithStrategy :: (a -> Bool) -> [([a], ShiftStrategy)] -> [(a, a)]
+shiftUsedInBucketsWithStrategy :: Show a => (a -> Bool) -> [([a], ShiftStrategy)] -> [(a, a)]
 shiftUsedInBucketsWithStrategy isUsed bucket'strategies =  let
   ----------------------------------------------------------
   -- We run the algorythm twice. The first time to see which
@@ -135,7 +139,7 @@ shiftUsedInBucketsWithStrategy isUsed bucket'strategies =  let
           -- ^ in order to make a `Set a ` later we without `Ord a` we need ,
           -- to assign each box with local id
           ]
-  rawShifts = shiftUsed (isUsed . fst . fst) box'buckets
+  rawShifts = shiftUsed (traceShowId . isUsed . fst . fst) box'buckets
   -- then we for each bucket, remove boxes which haven't moved
   stayInPlace (_,(source, StayInPlace)) (_,(dest, _)) | source == dest = True
   stayInPlace  _ _ = False
@@ -146,7 +150,12 @@ shiftUsedInBucketsWithStrategy isUsed bucket'strategies =  let
                | ((box, index), _) <- box'buckets
                , index `Set.member` inPlaceSet
                ]
-  in shiftUsed isUsed finalBoxes
+  in traceShow ("BS", bucket'strategies)
+     $ traceShow ("BB", box'buckets)
+     $ traceShow ("SHIFT", rawShifts)
+     $ traceShow ("IN", inPlaceSet)
+     $ traceShow ("IFN", finalBoxes)
+     $ shiftUsed isUsed finalBoxes
   
 
   

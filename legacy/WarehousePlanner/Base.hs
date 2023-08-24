@@ -435,7 +435,6 @@ newShelf name tagm minD maxD bottom boxOrientator fillStrat = do
 
 newBox :: Shelf' shelf => Text -> Text ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [Text] -> WH (Box s) s
 newBox style content dim or_ shelf ors tagTexts = do
-    warehouse <- get
     let tags' = map (parseTagOperation . omap replaceSlash) tagTexts
         dtags = dimensionTagOps dim
         contentTag = (omap replaceSlash $ cons '\'' content, SetTag)
@@ -447,8 +446,7 @@ newBox style content dim or_ shelf ors tagTexts = do
     shelf' <- findShelf shelf
     linkBox (BoxId_ uniqueRef) shelf'
     lift $ writeSTRef ref box
-    put warehouse { boxes = boxes warehouse |> BoxId_ uniqueRef
-                  }
+    modify \warehouse ->  warehouse { boxes = boxes warehouse |> BoxId_ uniqueRef }
     return box
 
 newUniqueSTRef :: a s -> WH (Arg Int (STRef s (a s))) s

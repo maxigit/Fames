@@ -142,7 +142,10 @@ data Box s = Box { _boxId      :: BoxId s
                , boxTags :: !Tags -- ^ tags with optional values
                , boxPriorities :: !(Int, Int, Int ) -- Global, within style, within content , default is 100
                , boxBreak :: !(Maybe BoxBreak)
-               } deriving (Show, Eq)
+               } deriving (Eq)
+               
+instance Show (Box s) where
+  show box = unpack (boxStyle box <> "-" <> boxContent box <> "#") -- <> show (boxTags box)
 newtype ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
 instance Ord (Box s) where
   compare a b = compare (_boxId a) (_boxId b)
