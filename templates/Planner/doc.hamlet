@@ -729,6 +729,7 @@ A planner file is made of different sections. Each section corresponds to an org
         TShirt^^^1:2 => The first, second box containg a t-shirt
         TShirt^^^[price]1 => The box with the lowest price
         TShirt^^^-[price]5 => the five box with hight price
+        TShirt^^^[price] => sort boxes by price
 
     <li>
       <h4> Priority and selection order

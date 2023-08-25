@@ -241,11 +241,12 @@ parseLimit s = let
                         (uncons -> Just ('[', tag), uncons -> Just (_, l)) -> (Just tag, l)
                         _ -> (Nothing, s)
    (start, end) = case map readMay $ splitOn ":" limitt of
-                    [Just end ] -> (1, end)
-                    [Nothing, Just end ] -> (end, end)
-                    [Just start, Nothing] -> (start, start)
-                    [Just start, Just end] ->  (start, end)
-                    _ -> error $ show s ++ " is not a valid box number selector"
+                    [Just end ] -> (Nothing, Just end)
+                    [Nothing, Just end ] -> (Just end, Just end)
+                    [Just start, Nothing] -> (Just start, Just start)
+                    [Just start, Just end] ->  (Just start, Just end)
+                    _ -> (Nothing, Nothing)
+                    -- _ -> error $ show s ++ " is not a valid box number selector"
    in Just $ Limit start end tag False
            
            
@@ -336,7 +337,8 @@ limitByNumber selector boxes0 = let
     group_ = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
     limited = fmap (take_ n . sortBy (comparing $ snd . boxFinalPriority selector . fst) ) group_
     in concat (Map'.elems limited)
-  take_ sel = drop (liStart sel -1) . take (liEnd sel) . rev
+  take_ :: Limit -> [a] -> [a]
+  take_ sel = maybe id (drop . (subtract 1)) (liStart sel) . maybe id take (liEnd sel) . rev
     where rev = if liReverse sel then reverse else id
   in boxes3
 

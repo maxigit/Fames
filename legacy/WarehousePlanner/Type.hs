@@ -49,8 +49,8 @@ data BoxNumberSelector = BoxNumberSelector
 
 -- | How to take slice of a selection
 data Limit = Limit 
-  { liStart :: !Int -- ^ first box to take, starts a 1
-  , liEnd :: !Int -- ^ last box to take
+  { liStart :: !(Maybe Int) -- ^ first box to take, starts a 1
+  , liEnd :: !(Maybe Int) -- ^ last box to take
   , liOrderTag :: !(Maybe Text) -- ^ which tag to use to sort boxes
   , liReverse :: !Bool -- ^ if true reverse the sorting order
   } deriving (Show ,Read)
