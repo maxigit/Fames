@@ -7,7 +7,7 @@ import ClassyPrelude;
 import  WarehousePlanner.Base
 import Data.Text(splitOn, split)
 -- import qualified Data.Map as Map
--- import Control.Monad (zipWithM_)
+import Control.Monad (zipWithM)
 import qualified Data.Set as Set
 
 -- * Type {{{1
@@ -34,8 +34,8 @@ rearrangeBoxesByContent deleteUnused tagOps isUsed boxsel actions = do
              else 
                   return $ toList unMoved
 
-  void $ mapM (updateBoxTags untagOps) toUntag
-  mapM (updateBoxTags tagOps) news
+  void $ zipWithM (updateBoxTags untagOps) toUntag [1..]
+  zipWithM (updateBoxTags tagOps) news [1..]
             
 
         

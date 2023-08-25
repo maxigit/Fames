@@ -545,8 +545,8 @@ readClones tagOrPatterns filename = do
                 boxIds <- findBoxByNameAndShelfNames selector
                 boxes <- mapM findBox boxIds
                 let box'qtys =  [(box, q) | box <- boxes , q <- [1..qty :: Int]] -- cross product
-                forM box'qtys  $ \(box, _) -> do
-                    content <- mapM (expandAttribute box) content2
+                forM box'qtys  $ \(box, i) -> do
+                    content <- mapM (expandAttribute box i) content2
                     newbox <- newBox (boxStyle box)
                             (fromMaybe (boxContent box) content) -- use provided content if possible
                             (_boxDim box)
@@ -561,6 +561,7 @@ readClones tagOrPatterns filename = do
                                   -- acutally set in the box, because 
                                   -- updateBoxTags update the tags of box found in the warehouse
                                   -- boxTags is therefore only set temporarily
+                                  i
           return $ concat cloness
 
 readDeletes :: FilePath-> IO (WH [Box s] s)
@@ -739,8 +740,8 @@ processMovesAndTags tagsAndPatterns_ (style, tags_, locationM, orientations) = w
     [] -> return boxes
     _  -> do
       let untagOps = negateTagOperations tagOps
-      new <- mapM (updateBoxTags tagOps) boxes
-      _ <- mapM (updateBoxTags untagOps) (concat leftoverss)
+      new <- zipWithM (updateBoxTags tagOps) boxes [1..]
+      _ <- zipWithM (updateBoxTags untagOps) (concat leftoverss) [1..]
       return new
 
 -- | Parse tags operations from a list a text.
@@ -847,14 +848,14 @@ readShelfTags = readFromRecordWith go where
 -- * Read transform tags 
 -- | Temporary type to read a regex using Cassava
 -- Usefull so that regex validation is done when reading the file
-type RegexOrFn s =  Either Rg.Regex (Box s -> WH Rg.Regex s)
-instance Csv.FromField (Either Rg.Regex (Box s -> WH Rg.Regex s)) where
+type RegexOrFn s =  Either Rg.Regex (Box s -> Int -> WH Rg.Regex s)
+instance Csv.FromField (Either Rg.Regex (Box s -> Int -> WH Rg.Regex s)) where
   parseField s = do
     r <- Csv.parseField s
     case expandAttributeMaybe r of
       Nothing -> Left <$> Rg.makeRegexM (unpack r)
-      Just _ -> return . Right $ \box -> do
-              expandAttribute box r >>= Rg.makeRegexM . unpack
+      Just _ -> return . Right $ \box i -> do
+              expandAttribute box i r >>= Rg.makeRegexM . unpack
 
 instance Csv.FromField (BoxSelector a) where
   parseField s = do
@@ -883,13 +884,13 @@ transformTags :: [Text] -> BoxSelector s -> RegexOrFn s -> Text -> WH [Box s] s
 transformTags tags style tagPattern tagSub = do
   boxes0 <- findBoxByNameAndShelfNames style
   boxes <- mapM findBox boxes0
-  catMaybes <$> mapM (transformTagsFor tags tagPattern tagSub) boxes
+  catMaybes <$> zipWithM (transformTagsFor tags tagPattern tagSub) boxes [1..]
   
 -- | Regex tags substitutions. Each tags is matched and applied separately
 -- The tag is not removed. To do so add a `#-\0` at the end
-transformTagsFor :: [Text] -> RegexOrFn s -> Text -> Box s -> WH (Maybe (Box s)) s
-transformTagsFor tags tagPat' tagSub box = do
-  tagPat <- either return ($ box) tagPat'
+transformTagsFor :: [Text] -> RegexOrFn s -> Text -> Box s -> Int -> WH (Maybe (Box s)) s
+transformTagsFor tags tagPat' tagSub box index = do
+  tagPat <- either return (\f -> f box index) tagPat'
   let tagOps = case tags of
                 [] -> transformTags (const True)
                 [tag] -> transformTag tag
@@ -905,7 +906,7 @@ transformTagsFor tags tagPat' tagSub box = do
                   vs -> case filter (not . null) $ map (\t -> Rg.subRegex tagPat (unpack t) (unpack tagSub)) vs of
                         [] -> [(tag, RemoveTag)]
                         news -> [(tag, SetValues $ map pack news)]
-  Just <$> updateBoxTags tagOps box
+  Just <$> updateBoxTags tagOps box index
 
 -- | Read box dimension on their location
 readStockTake :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> FilePath -> IO (WH ([Box s], [Text]) s)

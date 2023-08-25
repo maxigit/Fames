@@ -1334,10 +1334,10 @@ modifyTags tag'ops tags = Just $ merge  opsOnly tagsOnly tagsAndOp tag'opsMap ta
     tag'opsMap :: Map.Map Text [TagOperation]
     tag'opsMap = Map.fromListWith (<>)  (map (fmap (:[])) tag'ops)
 
-updateBoxTags :: [Tag'Operation] -> Box s -> WH (Box s) s
-updateBoxTags tags0 box = do
+updateBoxTags :: [Tag'Operation] -> Box s -> Int -> WH (Box s) s
+updateBoxTags tags0 box index = do
   -- remove '''
-  tags1 <- mapM (mapM $ mapM (expandAttribute box)) tags0
+  tags1 <- mapM (mapM $ mapM (expandAttribute box index)) tags0
        --                 ^--  each value in Operation
        --     ^    ^-- each value of the TagOperation
        --     +------ snd of the (,)
@@ -1391,41 +1391,41 @@ boxPositionSpec box = let
 -- | Box attribute can be used to create new tag
 -- example, /pending,#previous=$shelfname on a
 -- will add the tag previous=pending to all items in the pending shelf
-expandAttribute :: Box s -> Text -> WH Text s
-expandAttribute box toExpand = maybe (return toExpand) ($ box) (expandAttributeMaybe toExpand)
+expandAttribute :: Box s -> Int -> Text -> WH Text s
+expandAttribute box index toExpand = maybe (return toExpand) (\f -> f box index) (expandAttributeMaybe toExpand)
 
 
 -- | Workhorse for expandAttribute. The difference is it actually doesn't need a box
 -- to know if it needs expansion or not
 -- If an attribute is found, we can safely call expandAttribute (recursively), as we are
 -- only interested in doest in need expansion or not
-expandAttributeMaybe :: Text -> Maybe (Box s -> WH Text s)
+expandAttributeMaybe :: Text -> Maybe (Box s -> Int -> WH Text s)
 expandAttributeMaybe text = let
-  wrap :: Box s -> (Text -> Box s -> WH Text s) -> Text -> WH Text s
-  wrap box f subtext =
+  wrap :: Box s -> Int -> (Text -> Box s -> Int -> WH Text s) -> Text -> WH Text s
+  wrap box index f subtext =
     case T.breakOn "}" subtext of
       -- (_, "") -> f subtext box
-      (key, leftOver) -> (<> drop 1 leftOver) <$> f key box
+      (key, leftOver) -> (<> drop 1 leftOver) <$> f key box index
   in case splitOn "$" text of
-     prefix:segments -> Just $ \box -> do
-      expandeds <- mapM (wrap box expandAttribute') segments
+     prefix:segments -> Just $ \box i -> do
+      expandeds <- mapM (wrap box i expandAttribute') segments
       return $ concat (prefix : expandeds)
      _ -> Nothing
-expandAttribute' :: Text -> Box s -> WH Text s
-expandAttribute' "" = const $ return "$"
-expandAttribute' "{shelfname" = \box ->  do
+expandAttribute' :: Text -> Box s -> Int -> WH Text s
+expandAttribute' "" = \_ _ -> return "$"
+expandAttribute' "{shelfname" = \box _i ->  do
   case boxShelf box of
     Nothing -> return ""
     Just sId -> do
       shelf <- findShelf sId
       return $ shelfName shelf
-expandAttribute' "{shelftags" = \box -> do
+expandAttribute' "{shelftags" = \box _i -> do
   case boxShelf box of
     Nothing -> return ""
     Just sId -> do
       shelf <- findShelf sId
       return $ (intercalate "#" . flattenTags $ shelfTag shelf)
-expandAttribute' "{fit" = \box -> do
+expandAttribute' "{fit" = \box _i -> do
   case boxShelf box of
     Nothing -> return ""
     Just sId -> do
@@ -1442,28 +1442,28 @@ expandAttribute' "{fit" = \box -> do
                       (True, False) -> "tight"
                       (False, False) -> "fit"
       return $ fit
-expandAttribute' "{ol" = \box -> let (Dimension ol _ _ ) = boxCoordinate box in return . tshow $ round ol
-expandAttribute' "{ow" = \box -> let (Dimension _ ow _ ) = boxCoordinate box in return . tshow $ round ow
-expandAttribute' "{oh" = \box -> let (Dimension _ _ oh ) = boxCoordinate box in return . tshow $ round oh
-expandAttribute' "{@" = \box -> let (global, style, content) = boxPriorities box in return $ tshow content <> "@" <> tshow style <> "@" <> tshow global
-expandAttribute' "{@content" = \box -> return $ tshow $ boxContentPriority box
-expandAttribute' "{@style" = \box -> return $ tshow $ boxStylePriority box
-expandAttribute' "{@global" = \box -> return $ tshow $ boxGlobalPriority box
-expandAttribute' "{style" =  \box -> return $ boxStyle box
-expandAttribute' "{content" =  \box -> return $ boxContent box
-expandAttribute' "{boxname" =  \box -> return $ boxStyleAndContent box
-expandAttribute' "{coordinate" =  \box -> let (Dimension ol ow oh) = boxCoordinate box
-                                              roundi i = (round i) :: Int
-                                          in return $ pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)
-expandAttribute' "{offset" =  \box -> return $ printDim $ boxOffset box
-expandAttribute' "{dimension" =  \box -> return $ printDim $ _boxDim box
-expandAttribute' "{orientation" = \box -> return $ showOrientation (orientation box)
-expandAttribute' (stripPrefix "[" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs'' = \box -> do
-                               ex <- expandAttribute box xs'
-                               pat <- expandAttribute box pat'
+expandAttribute' "{ol" = \box _i -> let (Dimension ol _ _ ) = boxCoordinate box in return . tshow $ round ol
+expandAttribute' "{ow" = \box _i -> let (Dimension _ ow _ ) = boxCoordinate box in return . tshow $ round ow
+expandAttribute' "{oh" = \box _i -> let (Dimension _ _ oh ) = boxCoordinate box in return . tshow $ round oh
+expandAttribute' "{@" = \box _i -> let (global, style, content) = boxPriorities box in return $ tshow content <> "@" <> tshow style <> "@" <> tshow global
+expandAttribute' "{@content" = \box _i -> return $ tshow $ boxContentPriority box
+expandAttribute' "{@style" = \box _i -> return $ tshow $ boxStylePriority box
+expandAttribute' "{@global" = \box _i -> return $ tshow $ boxGlobalPriority box
+expandAttribute' "{style" =  \box _i -> return $ boxStyle box
+expandAttribute' "{content" =  \box _i -> return $ boxContent box
+expandAttribute' "{boxname" =  \box _i -> return $ boxStyleAndContent box
+expandAttribute' "{coordinate" =  \box _i -> let (Dimension ol ow oh) = boxCoordinate box
+                                                 roundi i = (round i) :: Int
+                                             in return $ pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)
+expandAttribute' "{offset" =  \box _i -> return $ printDim $ boxOffset box
+expandAttribute' "{dimension" =  \box _i -> return $ printDim $ _boxDim box
+expandAttribute' "{orientation" = \box _i -> return $ showOrientation (orientation box)
+expandAttribute' (stripPrefix "[" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs'' = \box i -> do
+                               ex <- expandAttribute box i xs'
+                               pat <- expandAttribute box i pat'
                                return $ maybe ex (<> ex) (getTagValuem box pat)
 -- get the rank of the tag value
-expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box -> 
+expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box i -> 
   case stat of
     "rank" -> expandStatistic valueRank arg box prop xs
     "index" -> expandStatistic valueIndex arg box prop xs
@@ -1502,9 +1502,32 @@ expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box ->
               _ -> daysAgo
             in tshow (d :: Integer) <> xs
           _ -> "<not a stat>" <> xs
-    _ -> return $ "<not a stat> xs"
+    "n" -> do
+          let v = evalArg arg i
+              format = if null prop  then "%d" else unpack prop
+          return $ (pack $ printf format v) <> xs
+    "select" -> do
+             let e = case splitOn "|" prop of
+                          [] -> tshow i
+                          values -> values List.!! (min (length values) (evalArg arg i) - 1)
+             return $ e <> xs
+    "cycle" -> do
+                 let e = case splitOn "|" prop of
+                       [] -> tshow i
+                       values -> values List.!! mod (evalArg arg i - 1) (length values)
+                 return $ e <> xs
 
-expandAttribute' text = const $ return text
+    _ -> return $ "<not a stat> xs"
+    where evalArg arg i = case arg of
+                                 Just ('-', n) -> i -n
+                                 Just ('+', n) -> i + n
+                                 Just ('%', n) -> (i - 1) `mod` n + 1
+                                 Just ('*', n) -> i * n
+                                 Just ('/', n) -> i `div` n
+                                 Just ('^', n) -> min i n
+                                 _ -> i
+
+expandAttribute' text = \_ _ -> return text
 
 expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> Text -> Text -> WH Text s
 expandStatistic fn arg box prop xs = do
