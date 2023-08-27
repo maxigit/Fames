@@ -1,9 +1,13 @@
-{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- TODO remove
-{-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
-{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
 {-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
 {-# OPTIONS_GHC -Wno-orphans #-} -- TODO remove
-module Handler.Planner.Exec where
+module Handler.Planner.Exec 
+( renderReport
+, cacheScenarioIn
+, cacheScenarioOut
+, renderScenario
+, defOrs
+)
+where
 
 import Import hiding(get, toLower)
 import Planner.Types
@@ -68,46 +72,8 @@ cacheScenarioOut key = do
 copyWarehouse :: WH (WH (Warehouse s) s) t
 copyWarehouse = do
   wh0 <- get
-  -- buildGroup <- copyShelfGroup (shelfGroup wh0)
-  buildGroup <- mapM copyShelf (shelves wh0)
   return $ do
-    put (emptyWarehouse $ whDay wh0) { boxStyling = unsafeCoerce $ boxStyling wh0
-                                    , shelfStyling = unsafeCoerce $ shelfStyling wh0
-                                    , boxOrientations = unsafeCoerce $ boxOrientations wh0
-                                    }
-    sequence buildGroup
-    get
-
-
-copyShelfGroup :: ShelfGroup t -> WH (WH (ShelfGroup s) s) t
-copyShelfGroup (ShelfProxy sId) = do
-  sIdM <- copyShelf sId
-  return $ do
-    sId' <- sIdM
-    return $ ShelfProxy sId'
-copyShelfGroup (ShelfGroup gIds dir) = do
-  gIdM <- mapM copyShelfGroup gIds
-  return $ do
-    gIds' <- sequence gIdM
-    return $ ShelfGroup gIds' dir
-
-copyShelf :: ShelfId t -> WH (WH (ShelfId s) s) t
-copyShelf sId = do
-  Shelf{..} <- findShelf sId
-  boxes <- findBoxByShelf sId
-  buildBoxFnsM <- mapM copyBox boxes
-  return $ do
-    nshelf <- (newShelf shelfName (Just $ intercalate "#" $ flattenTags $ shelfTag) minDim maxDim bottomOffset shelfBoxOrientator shelfFillingStrategy)
-    let nId = shelfId nshelf
-    let _n = map ($ nId) buildBoxFnsM
-    sequence _n
-    updateShelf (\s ->  s {flow = flow} ) nshelf
-    return nId
-  
-copyBox :: Box t -> WH (ShelfId s -> WH (Box s) s) t
-copyBox box@Box{..} = return $ \shelf -> do
-  newBox <- newBox boxStyle boxContent _boxDim orientation shelf boxBoxOrientations (getTagList box)
-  updateBox (\b -> b { boxOffset = boxOffset, boxTags = boxTags}) newBox
+    return $ unsafeCoerce wh0
 
 -- * Exec 
 -- underscores are stripped before looking for the color name
@@ -244,6 +210,7 @@ renderScenario sc layoutM = do
                            )
         return (Right diags)
 
+renderReport :: Scenario -> WH a RealWorld -> Handler a
 renderReport sc report = do
   wh0 <- execWithCache sc
   execWH wh0 report
