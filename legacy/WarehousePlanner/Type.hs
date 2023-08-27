@@ -144,7 +144,7 @@ newtype ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
 -- | Shelf have a min and max dimension. This allows shelf to be overloaded
 -- or boxes to stick out.
 data Shelf s = Shelf { _shelfId  :: !(ShelfId s)
-                   , _shelfBoxes :: [BoxId s]
+                   , _shelfBoxes :: Seq (BoxId s)
                    , shelfName :: !Text
                    , shelfTag :: !Tags
                    , minDim    :: !Dimension

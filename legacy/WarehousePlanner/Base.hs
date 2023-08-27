@@ -163,7 +163,7 @@ incomingShelf = do
 findBoxByShelf :: Shelf' shelf => shelf s -> WH [Box s] s
 findBoxByShelf shelf = do
   boxIds <- _shelfBoxes <$> findShelf shelf
-  mapM findBox boxIds
+  mapM findBox $ toList boxIds
 
 
 findBoxByNameSelector :: (NameSelector (Box s)) -> WH [Box s] s
@@ -423,7 +423,7 @@ newShelf name tagm minD maxD bottom boxOrientator fillStrat = do
             tags = fromMaybe mempty $ fmap parseTagOperations tagm >>= (flip modifyTags mempty)
         warehouse <- get
         ref <- lift (newSTRef (error "should never been called. Base.hs:327"))
-        let shelf = Shelf (ShelfId ref) [] name tags minD maxD LeftToRight boxOrientator fillStrat bottom
+        let shelf = Shelf (ShelfId ref) mempty name tags minD maxD LeftToRight boxOrientator fillStrat bottom
         lift $ writeSTRef ref shelf
 
         put warehouse { shelves = shelves warehouse  |> ShelfId ref }
@@ -551,7 +551,7 @@ unlinkBox box shelf = do
 linkBox :: BoxId s -> Shelf s -> WH () s
 linkBox box shelf = do
   let boxes = _shelfBoxes shelf
-      boxes' = box:boxes
+      boxes' = boxes |> box  
 
       shelf' = shelf { _shelfBoxes = boxes' }
   _ <- updateShelf (const shelf') shelf'
