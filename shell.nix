@@ -4,7 +4,7 @@ let pkgs =  (import (builtins.fetchTarball {
              url = "https://github.com/nixos/nixpkgs/archive/${import ./.nixpkgs}.tar.gz";
              }) {});
     stack_ghc = ghc;
-in if stack_ghc != null && stack_ghc != pkgs.ghc
+in if stack_ghc != null && stack_ghc.version != pkgs.ghc.version
    then abort ("stack ghc " + stack_ghc.version + " different from " + pkgs.ghc.version)
    else with pkgs;
 let ghc = pkgs.ghc ;

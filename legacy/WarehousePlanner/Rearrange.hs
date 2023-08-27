@@ -13,25 +13,33 @@ import qualified Data.Set as Set
 -- * Type {{{1
 data ShiftStrategy = ShiftAll | StayInPlace deriving (Show, Eq)
 
+data ForUnused = DeleteUnused | KeepUnused 
+     deriving (Show, Eq)
+ 
+data ForGrouping = Don'tGroup | GroupByContent
+     deriving (Show, Eq)
+
 -- * Export {{1
-rearrangeBoxesByContent ::  Bool -> [Tag'Operation] -> (Box s -> Bool) -> BoxSelector s -> [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)] -> WH [Box s] s
-rearrangeBoxesByContent deleteUnused tagOps isUsed boxsel actions = do
+rearrangeBoxesByContent ::  ForUnused -> ForGrouping -> [Tag'Operation] -> (Box s -> Bool) -> BoxSelector s -> [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)] -> WH [Box s] s
+rearrangeBoxesByContent deleteUnused groupByContent tagOps isUsed boxsel actions = do
   boxes <- findBoxByNameAndShelfNames boxsel >>= mapM findBox
   traceShowM ("SEL", boxsel, boxes)
   -- group boxes by style and content
   let onContent = (`on` \b -> (boxStyle b, boxContent b))
-      boxByContent = [boxes] -- groupBy (onContent (==)) $ sortBy (onContent compare) boxes
+      boxByContent = case groupByContent of
+                     GroupByContent ->  groupBy (onContent (==)) $ sortBy (onContent compare) boxes
+                     Don'tGroup ->  [boxes]
   newss <- mapM (\boxes ->  shiftUsedBoxes isUsed boxes actions) boxByContent
   let news = concat newss
       untagOps = negateTagOperations tagOps
       newSet = Set.fromList news
       unMoved = Set.fromList boxes \\ newSet
-  toUntag <- if deleteUnused
-             then do
+  toUntag <- case deleteUnused of
+             DeleteUnused -> do
                 let (toDelete, toKeep) = partition isUsed $ toList unMoved
                 deleteBoxes toDelete
                 return toKeep
-             else 
+             KeepUnused ->  
                   return $ toList unMoved
 
   void $ zipWithM (updateBoxTags untagOps) toUntag [1..]
@@ -64,11 +72,17 @@ shiftUsedBoxes isUsed boxes inBucket'strategies = do
 -- Actions are of the shape
 -- [/][#] selector1 >[!] selector2.1 [|] selector2.2 > [!]selector3
 -- 
-parseActions :: Text -> (Bool, [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)])
+parseActions :: Text -> (ForUnused, ForGrouping, [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)])
 parseActions s0 = let
-  (flags, s1) = span (`elem` t "/#") s0
+  (flags, s1) = span (`elem` t "/-%") s0
   asLocation = '/' `elem` flags
   ss = splitOn ">" s1
+  forUnused = if '-' `elem` flags
+              then DeleteUnused
+              else KeepUnused
+  forGrouping = if '%' `elem` flags
+                then Don'tGroup
+                else GroupByContent
   mkFn ss' = let
     (c, ss) = traceShowId $ span (`elem` t "!_ ") ss'
     strat = if '!' `elem` c
@@ -88,7 +102,7 @@ parseActions s0 = let
        , strat
        )
   in traceShow ("FLAGS", flags, s1, ss)
-     $ ('#' `elem` flags, reverse (map mkFn ss))
+     $ (forUnused, forGrouping, reverse (map mkFn ss))
   
 -- | 
 parseSelectors :: Bool -> Text -> [BoxSelector s]
