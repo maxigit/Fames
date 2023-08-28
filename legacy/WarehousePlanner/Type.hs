@@ -122,7 +122,7 @@ newtype BoxId s = BoxId_ (Arg Int (STRef s (Box s))) deriving (Eq, Ord)
 pattern BoxId s <- BoxId_ (Arg _ s)
 
 instance Show (BoxId s) where
-  show _ = "<<Boxref>>"
+  show (BoxId_ (Arg i _)) = "#" ++ show i
 
 -- Tag equivalent to a page break in a document
 -- Indicate if the given box should start a new row or a new shelf
@@ -145,10 +145,17 @@ data Box s = Box { _boxId      :: BoxId s
                } deriving (Eq)
                
 instance Show (Box s) where
-  show box = unpack (boxStyle box <> "-" <> boxContent box <> "#") -- <> show (boxTags box)
-newtype ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
+  show box = unpack (boxStyle box <> "-" <> boxContent box) <> show (boxId box)
+data ShelfId s = ShelfId_ (Arg Int (STRef s (Shelf s)))  deriving (Eq, Ord)
+{-# COMPLETE ShelfId #-}
+pattern ShelfId s <- ShelfId_ (Arg _ s)
+
+instance Show (ShelfId s) where
+  show (ShelfId_ (Arg i _)) = "#" ++ show i
+
 instance Ord (Box s) where
   compare a b = compare (_boxId a) (_boxId b)
+
 
 -- | Shelf have a min and max dimension. This allows shelf to be overloaded
 -- or boxes to stick out.
@@ -306,8 +313,6 @@ instance Referable (Shelf s) where
 instance Referable (ShelfId s) where
   type Ref (ShelfId s) = STRef s (Shelf s)
   getRef (ShelfId ref) = ref
-instance Show (ShelfId s) where
-  show _ = "<<ShelfId>>"
 
 instance ShelfIdable ShelfId where
     shelfId b = b

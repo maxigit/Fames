@@ -427,12 +427,11 @@ newShelf name tagm minD maxD bottom boxOrientator fillStrat = do
             --   Just [""] -> mempty
             --   Just tags' -> fromMaybe mempty $ modifyTags (map parseTagOperation tags') mempty
             tags = fromMaybe mempty $ fmap parseTagOperations tagm >>= (flip modifyTags mempty)
-        warehouse <- get
-        ref <- lift (newSTRef (error "should never been called. Base.hs:327"))
-        let shelf = Shelf (ShelfId ref) mempty name tags minD maxD LeftToRight boxOrientator fillStrat bottom
+        uniqueRef@(Arg _i ref) <- newUniqueSTRef (error "should never been called. Base.hs:327")
+        let shelf = Shelf (ShelfId_ uniqueRef) mempty name tags minD maxD LeftToRight boxOrientator fillStrat bottom
         lift $ writeSTRef ref shelf
 
-        put warehouse { shelves = shelves warehouse  |> ShelfId ref }
+        modify \warehouse ->  warehouse { shelves = shelves warehouse |> ShelfId_ uniqueRef }
         updateShelfTags [] shelf
 
 newBox :: Shelf' shelf => Text -> Text ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [Text] -> WH (Box s) s
