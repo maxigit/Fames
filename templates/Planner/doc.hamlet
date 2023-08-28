@@ -641,6 +641,59 @@ A planner file is made of different sections. Each section corresponds to an org
               <p> Generates a tag file tagging each box matching "key" with the quantity sold during the given period as well
                   as the "rank" (starting from one). The generated tags are <code>fa-sales</code> and <code>fa-sales-rank</code>.
     <div>
+    <h4>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-rearrange"> Rearrange[_TagOrPatterns]
+    <div.pre.collapse :expanded:.in id=info-section-rearrange>
+      <p> Reposition the boxes in a cyclic manner to rearrange them, ensuring that boxes marked with the tag <code>#dead</code> are either eliminated or relocated to the end. This process involves filling the resultant gap by shifting the necessary boxes.
+      <p> By default, the reorganization occurs exclusively within groups of identical content. This emulates the refilling of vacant slots with boxes of the same content, typically sourced from an alternate shelf, often situated at the top. The retention of dead boxes facilitates the identification of the intended purpose of the empty slot.
+      <p>Moreover, instead of relocating all the boxes, the realignment can be executed in such a way that only a minimal number of boxes need to be shifted, allowing some boxes to remain in their original positions.
+      <pre>boxes,actions
+      <p><code>actions</code> is a list of box selectors indicating where to shift the box with.
+         The syntax is as follow
+         <pre> [-%/] [!]action1 '>' [!]action2 '>' ...
+         
+         <p>Within the actions, box selectors exclusively choose a subset of the main box selector. They are complete box selectors (<code>box-pattern[/shelf-pattern]</code>), unless the entire action begins with <code>/</code>, in which case, all selectors will be shelf selectors (i.e., boxes from the full box selector in the selected shelf).
+
+         <p>If an action begins with <code>!</code>, boxes that remain in the *selection* will stay in their current positions.
+         <p>If an action begins with <code>%</code>, boxes will be treated as a whole rather than by content.
+         <p>If an action begins with <code>-</code>, <code>#dead</code> boxes will be deleted.
+   
+         Example (letters indicate content, lowercase denotes dead boxes):
+         <pre>
+           :RAR:
+           selector,actions
+           T-Shirt,/#top > #bottom -- Shift each box from the top shelf to the bottom shelf based on color
+           --
+           --        A2 B3 C2 C3| #top       a1 b1 C3 c1
+           --        -----------+-------- => -----------
+           --        a1 b1 B2 c1| #bottom    A2 B2 B3 C2
+           --
+           T-Shirt,/#top > !#bottom -- Same, but the box on the bottom shelf (B2) remains in place
+           --
+           --        A2 B3 C2 C3| #top       a1 b1 C3 c1
+           --        -----------+-------- => -----------
+           --        a1 b1 B2 c1| #bottom    A2 B2 B3 C2
+           --
+           T-Shirt,/#top > !#bottom -- B2 and C3 remain in place
+           --
+           --        A2 B3 C2 C3| #top       a1 b1 c1 C3
+           --        -----------+-------- => -----------
+           --        a1 b1 B2 c1| #bottom    A2 B3 B2 C2
+           --
+           T-Shirt,%/#top > #bottom -- All boxes shift
+           --
+           --        A2 B3 C2 C3| #top       C3 a1 b1 c1
+           --        -----------+-------- => -----------
+           --        a1 b1 B2 c1| #bottom    B2 A2 B3 C2
+           --
+           T-Shirt,%/#top > !#bottom -- B2 remains in place
+           --
+           --        A2 B3 C2 C3| #top       C3 a1 b1 c1
+           --        -----------+-------- => -----------
+           --        a1 b1 B2 c1| #bottom    A2 B2 B3 C2
+           --ND:
+
+
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-selectors">
     Boxes and shelves selector
@@ -946,6 +999,19 @@ A planner file is made of different sections. Each section corresponds to an org
                              , year (5) , 3 years (6), more (7)
     &#36;ago^n[date] -- log so that the current date range go from 1 to n
   
+  The index/position o the box in the current selection (taking ordering into account) can be used with <code>$n</code>op<code>[</code>[format]<code>]</code>, <code>$select</code>op<code>[</code>value1<code>|</code>value2<code>|</code>...<code>]</code>, <code>$cycle</code>op<code>[</code>value1<code>|</code>value2<code>|</code>...<code>]</code>.
+  This can be used to generate different values for each boxes
+  <pre>
+    --                       Box1    Box 2  Box3   Box4
+    &#36;n[]              -- 1       2      3      4
+    &#36;n*3[]            -- 3       6      9      12
+    &#36;n%3[]            -- 1       2      3      1
+    &#36;n^3[]            -- 1       2      3      3
+    &#36;n[%02d]          -- 01      02     03     04
+    &#36;select[red|BLUE] -- red     BLUE   BLUE   BLUE
+    &#36;select[red|BLUE|]-- A       BLUE      
+    &#36;cycle[red|BLUE]  -- red     BLUE   red    BLUE
+
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-break">
      Breaks And Slots

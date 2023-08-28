@@ -833,7 +833,6 @@ readOrientations def os = case uncons os of
 readRearrangeBoxes :: [Text] -> FilePath -> IO (WH [Box s] s)
 readRearrangeBoxes tags0 = readFromRecordWithPreviousStyle go
   where go style (Csv.Only (parseActions -> (deleteUnused, grouping, actions))) = do
-           traceShowM("RAR", style)
            rearrangeBoxesByContent deleteUnused grouping tagOps (not . flip tagIsPresent "dead") style actions
         tagOps = parseTagAndPatterns tags0 []
   

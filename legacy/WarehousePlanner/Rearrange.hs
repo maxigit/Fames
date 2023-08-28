@@ -23,7 +23,6 @@ data ForGrouping = Don'tGroup | GroupByContent
 rearrangeBoxesByContent ::  ForUnused -> ForGrouping -> [Tag'Operation] -> (Box s -> Bool) -> BoxSelector s -> [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)] -> WH [Box s] s
 rearrangeBoxesByContent deleteUnused groupByContent tagOps isUsed boxsel actions = do
   boxes <- findBoxByNameAndShelfNames boxsel >>= mapM findBox
-  traceShowM ("SEL", boxsel, boxes)
   -- group boxes by style and content
   let onContent = (`on` \b -> (boxStyle b, boxContent b))
       boxByContent = case groupByContent of
@@ -84,7 +83,7 @@ parseActions s0 = let
                 then Don'tGroup
                 else GroupByContent
   mkFn ss' = let
-    (c, ss) = traceShowId $ span (`elem` t "!_ ") ss'
+    (c, ss) = span (`elem` t "!_ ") ss'
     strat = if '!' `elem` c
             then StayInPlace
             else ShiftAll
@@ -101,8 +100,7 @@ parseActions s0 = let
                           ]
        , strat
        )
-  in traceShow ("FLAGS", flags, s1, ss)
-     $ (forUnused, forGrouping, reverse (map mkFn ss))
+  in (forUnused, forGrouping, reverse (map mkFn ss))
   
 -- | 
 parseSelectors :: Bool -> Text -> [BoxSelector s]
@@ -114,7 +112,7 @@ parseSelectors isLocation s = let
                    then BoxSelector SelectAnything (parseSelector selector) (BoxNumberSelector Nothing Nothing Nothing)
                    else parseBoxSelector selector
   r =  mapMaybe parse ss
-  in traceShow ("SELCE", s, ss, r) r
+  in  r
   
   
   
@@ -153,7 +151,7 @@ shiftUsedInBucketsWithStrategy isUsed bucket'strategies =  let
           -- ^ in order to make a `Set a ` later we without `Ord a` we need ,
           -- to assign each box with local id
           ]
-  rawShifts = shiftUsed (traceShowId . isUsed . fst . fst) box'buckets
+  rawShifts = shiftUsed (isUsed . fst . fst) box'buckets
   -- then we for each bucket, remove boxes which haven't moved
   stayInPlace (_,(source, StayInPlace)) (_,(dest, _)) | source == dest = True
   stayInPlace  _ _ = False
@@ -164,12 +162,7 @@ shiftUsedInBucketsWithStrategy isUsed bucket'strategies =  let
                | ((box, index), _) <- box'buckets
                , index `Set.member` inPlaceSet
                ]
-  in traceShow ("BS", bucket'strategies)
-     $ traceShow ("BB", box'buckets)
-     $ traceShow ("SHIFT", rawShifts)
-     $ traceShow ("IN", inPlaceSet)
-     $ traceShow ("IFN", finalBoxes)
-     $ shiftUsed isUsed finalBoxes
+  in shiftUsed isUsed finalBoxes
   
 
   
