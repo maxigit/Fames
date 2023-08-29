@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Planner.Internal
 ( scenarioKey
 , scenarioLayoutSize
@@ -34,7 +35,7 @@ import qualified Data.Text as Text
 import System.Directory (doesFileExist, listDirectory)
 import System.FilePath (takeExtension)
 import Handler.Util(defaultPathMaker)
-
+import qualified Data.List as List
 import Model.DocumentKey
 import GHC.Generics
 
@@ -116,80 +117,98 @@ extractDrawer s = do
   return $ fmap (\d -> HeaderL d "") drawerE
 
 parseDrawer :: Text -> Either Text HeaderType
-parseDrawer h = case splitOn "_" h of
+parseDrawer h = case splitOn "_" (toLower h) of
   [] -> Left $ "'' not a valid drawer."
-  (x:xs) -> case toLower (strip x):xs of
-    ("layout":[]) -> Right LayoutH
-    ("shelves":[]) -> Right ShelvesH
-    ("initial":[]) -> Right InitialH
-    ("stocktake":tags) -> Right $ StocktakeH tags
-    ("boxes":tags) -> Right $ BoxesH tags
-    ("moves":"and":"tags":tags) -> Right $ MovesAndTagsH tags
-    ("moves":tags) -> Right $ MovesH tags
-    ("tags":tags) -> Right $ TagsH tags
-    ("moves and tags":tags) -> Right $ MovesAndTagsH tags
-    ("movesandtags":tags) -> Right $ MovesAndTagsH tags
-    ("mat":tags) -> Right $ MovesAndTagsH tags
-    ("tags and moves":tags) -> Right $ MovesAndTagsH tags
-    ("tagsandmoves":tags) -> Right $ MovesAndTagsH tags
-    ("tam":tags) -> Right $ MovesAndTagsH tags
-    ("shelf tags":[]) -> Right $ ShelfTagsH
-    ("shelftags":[]) -> Right $ ShelfTagsH
-    ("shelf":"tags":[]) -> Right $ ShelfTagsH
-    ("tag shelves":[]) -> Right $ ShelfTagsH
-    ("tag":"shelves":[]) -> Right $ ShelfTagsH
-    ("shelf":"split":[]) -> Right ShelfSplitH
-    ("shelf split":[]) -> Right ShelfSplitH
-    ("split shelves":[]) -> Right ShelfSplitH
-    ("split":"shelves":[]) -> Right ShelfSplitH
-    ("splitshelves":[]) -> Right ShelfSplitH
-    ("shelf":"join":[]) -> Right ShelfJoinH
-    ("shelf join":[]) -> Right ShelfJoinH
-    ("join shelves":[]) -> Right ShelfJoinH
-    ("update":"shelves":[]) -> Right UpdateShelvesH
-    ("updateshelves":[]) -> Right UpdateShelvesH
-    ("transform tags":tags) -> Right $ TransformTagsH tags
-    ("transform":"tags":tags) -> Right $ TransformTagsH tags
-    ("transform":tags) -> Right $ TransformTagsH tags
-    ("orientations":[]) -> Right OrientationsH
-    ("clone":tags) -> Right $ ClonesH tags
-    ("clones":tags) -> Right $ ClonesH tags
-    ("delete":[]) -> Right DeletesH
-    ("deletes":[]) -> Right DeletesH
-    ("import":[]) -> Right ImportH
-    ("colours":[]) -> Right ColourMapH
-    ("colors":[]) -> Right ColourMapH
-    ("rearrange":tags) -> Right $ RearrangeH tags
-    ("rar":tags) -> Right $ RearrangeH tags
-    _parsed -> Left $ h <> " is not a valid drawer."
+  xs -> let (header, tags) = pre xs 
+        in parseHeader header tags
+  where 
+      pre :: [Text] -> (Text, [Text])
+      pre  [] = ("", [])
+      pre allx@(x:xs) = let options = asum [ (cname,) <$> List.stripPrefix as allx
+                                           | (c, ass) <- aliases
+                                           , let cname = toLower $ writeHeader c
+                                           , as <- [cname]:ass
+                                           ]
+                        in fromMaybe (x, xs) options
+      aliases = [(MovesAndTagsH [],   [ ["moves and tags"]
+                                      , ["moves", "and", "tags"]
+                                      , ["movesandtags"]
+                                      , ["mats"]
+                                      , ["tags and moves"]
+                                      , ["tagsandmoves"]
+                                      , ["tam"]
+                                      ])
+                 ,(ShelfTagsH,        [ ["shelf tags"]
+                                      , ["tag", "shelves"]
+                                      , ["shelves", "tag"]
+                                      , ["tag shelves"]
+                                      ])
+                 ,(ShelfSplitH,       [ ["shelf", "split"]
+                                      , ["shelf split"]
+                                      , ["split shelves"]
+                                      , ["split", "shelves"]
+                                      , ["splitshelves"]
+                                      ])
+                 ,(ShelfJoinH,        [ ["shelf", "join"]
+                                      , ["shelf join"]
+                                      , ["join shelves"]
+                                      ])
+                 ,(UpdateShelvesH,    [ ["update shelves"]])
+                 ,(TransformTagsH [], [ ["transform tags"]
+                                      , ["tranform", "tags"]
+                                      , ["tranform"]
+                                      ])
+                 ,(ClonesH [],        [ ["clone"]])
+                 ,(DeletesH,          [ ["delete"]])
+                 ,(ColourMapH,           [ ["colors"]
+                                         , ["colours"]
+                                      ])
+                 ,(RearrangeH [],     [ ["rar"]])
+                 ]
   
+-- | remove the H and to lower
+cleanCName :: Text -> Text
+cleanCName = toLower . dropEnd 1
+
+
 
 class GHeader f where
   gwriteHeader :: f a -> Text
   gaddTags :: [Text] -> f a -> f a
+  gParse :: Text -> [Text] -> Either Text (f a)
 
 instance GHeader U1 where -- Single constructor
   gwriteHeader _ = ""
   gaddTags _ = id
+  gParse _ _ = Right U1
+
 instance (GHeader a , GHeader b) => GHeader (a :+: b) where -- Sum
   gwriteHeader (L1 x) = gwriteHeader x
   gwriteHeader (R1 x) = gwriteHeader x
   gaddTags tags (L1 x) = L1 (gaddTags tags x)
   gaddTags tags (R1 x) = R1 (gaddTags tags x)
+  gParse header tags = fmap L1 (gParse header tags) <> fmap R1 (gParse header tags)
 instance GHeader (K1 i [Text] ) where -- Constructor with tags
   gwriteHeader (K1 []) = ""
   gwriteHeader (K1 xs) = "_" <> intercalate "_" xs
   gaddTags tags (K1 xs) = K1 (xs <> tags)
+  gParse _header tags = Right $ K1 tags
 instance GHeader a => GHeader (D1 c a) where
   gwriteHeader (M1 x) = gwriteHeader x 
   gaddTags tags (M1 x) = M1 (gaddTags tags x)
+  gParse header tags = M1 <$> gParse header tags
 -- | get the constructor and remove the trailing H
-instance (Constructor c, GHeader a) => GHeader (C1 c a) where
+instance forall a c. (Constructor c, GHeader a) => GHeader (C1 c a) where
   gwriteHeader m@(M1 x) = (Text.init . pack $ conName m) <>  gwriteHeader x
   gaddTags tags (M1 x) = M1 (gaddTags tags x)
+  gParse header tags = if header == cleanCName do pack cname
+                  then M1 <$> (gParse header tags)
+                  else Left $ header <> " invalid header"
+                  where cname = conName @c (error "dummy to get type constructor")
 instance GHeader a => GHeader (S1 c a) where
   gwriteHeader (M1 x) = gwriteHeader x
   gaddTags tags (M1 x) = M1 (gaddTags tags x)
+  gParse header tags = M1 <$> gParse header tags
 
     
 writeHeader :: HeaderType -> Text
@@ -197,12 +216,9 @@ writeHeader = gwriteHeader . from
 
 addTagsToHeader :: [Text] -> HeaderType -> HeaderType
 addTagsToHeader tags g = to . gaddTags tags $ from g
-  -- case header of
-  --       StocktakeH tags -> intercalate "#" ("Stockake":tags)
-  --       BoxesH tags -> intercalate "#" ("Boxes":tags)
-  --       ClonesH tags -> intercalate "#" ("Clones":tags)
-  --       _ -> Text.init $ toUpper (tshow header)
-  --       --    ^ remove the trailing H
+
+parseHeader :: Text -> [Text] -> Either Text HeaderType
+parseHeader header tags = to <$> gParse header tags
 
 -- | Read a scenario text file. Needs IO to cache each sections into
 -- in tempory file. 
