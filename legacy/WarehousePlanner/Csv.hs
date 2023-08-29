@@ -21,6 +21,7 @@ module WarehousePlanner.Csv
 , readWarehouse
 , readColourMap
 , readRearrangeBoxes
+, readFreezeOrder
 , setOrientationRules
 ) where
 
@@ -835,7 +836,16 @@ readRearrangeBoxes tags0 = readFromRecordWithPreviousStyle go
   where go style (Csv.Only (parseActions -> (deleteUnused, grouping, actions))) = do
            rearrangeBoxesByContent deleteUnused grouping tagOps (not . flip tagIsPresent "dead") style actions
         tagOps = parseTagAndPatterns tags0 []
-  
+-- * Freeze order  
+readFreezeOrder :: [Text] -> FilePath -> IO (WH [Box s] s)
+readFreezeOrder tags0 = readFromRecordWith go
+  where go (Csv.Only style) = do
+          boxes <- findBoxByNameAndShelfNames style
+          freezeOrder $ map boxId boxes
+          case parseTagAndPatterns tags0 [] of
+            [] -> return boxes
+            ops -> zipWithM (updateBoxTags ops) boxes [1..]
+
 
 -- * Read Shelf Tags 
 readShelfTags :: FilePath -> IO (WH [Shelf s] s)

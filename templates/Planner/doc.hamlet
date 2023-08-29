@@ -692,8 +692,16 @@ A planner file is made of different sections. Each section corresponds to an org
            --        -----------+-------- => -----------
            --        a1 b1 B2 c1| #bottom    A2 B2 B3 C2
            --ND:
-
-
+    <h4>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-freezeorder"> FreezeOrder[_TagOrPatterns]
+    <div.pre.collapse :expanded:.in id=info-section-freezeorder>
+      Freeze the order boxes are stored internally accordingly to the order boxes are selected.
+      Shouldn't change much but might improve performance or provide with a stable order.
+      <pre>
+         :FreezeOrder:
+         selector
+         * -- resort everything according to priority
+         :END:
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-selectors">
     Boxes and shelves selector

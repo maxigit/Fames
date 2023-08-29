@@ -8,7 +8,9 @@ import  WarehousePlanner.Base
 import Data.Text(splitOn, split)
 -- import qualified Data.Map as Map
 import Control.Monad (zipWithM)
+import Control.Monad.State (modify)
 import qualified Data.Set as Set
+import qualified Data.Sequence as Seq
 
 -- * Type {{{1
 data ShiftStrategy = ShiftAll | StayInPlace deriving (Show, Eq)
@@ -167,5 +169,20 @@ shiftUsedInBucketsWithStrategy isUsed bucket'strategies =  let
 
   
 
-
+-- | Modify the intrinsic order (in Warehouse) of boxes
+-- for given boxes in the given order
+freezeOrder :: [BoxId s] -> WH () s
+freezeOrder boxesInOrder =  do
+  let inOrderSet = Set.fromList boxesInOrder
+      go [] bs = bs
+      go _ [] = []
+      go (o:os) (b:bs) = 
+                -- replace the current box with the first in boxesInOrder  if current
+                -- box is part of the boxesInOrder
+                if b `member` inOrderSet
+                then o : go os bs
+                else b : go os bs
+  modify \warehouse -> warehouse {boxes = Seq.fromList $ go boxesInOrder (toList $ boxes warehouse) }
+            
+  
 

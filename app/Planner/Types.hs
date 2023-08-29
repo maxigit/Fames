@@ -49,6 +49,7 @@ data HeaderType
   | TitleH
   | ColourMapH
   | RearrangeH [Text]
+  | FreezeOrderH [Text]
   deriving (Show, Eq, Ord, Generic)
 
 -- * Scenario 

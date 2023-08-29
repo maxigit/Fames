@@ -458,6 +458,7 @@ executeStep (Step header sha _) = do
           ImportH -> return $ return ()
           ColourMapH -> return $ return ()
           RearrangeH tags -> execute $ readRearrangeBoxes tags path
+          FreezeOrderH tags -> execute $ readFreezeOrder tags path
 
 -- | Retrieve the number of line in the layout file
 scenarioLayoutSize :: MonadIO m => Scenario -> m Int
