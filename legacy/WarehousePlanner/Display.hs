@@ -76,7 +76,9 @@ renderShelf styling@ShelfStyling{..} boxStyling shelf = do
 renderBoxes :: (Box s -> BoxStyling) -> Shelf s -> WH (Diagram B) s
 renderBoxes boxStyling shelf = let 
     in do
-        boxes <- findBoxByShelf shelf
+        boxesNotSorted <- findBoxByShelf shelf
+        let boxes = sortOn (downDepth . boxOffset) boxesNotSorted
+            downDepth (Dimension l w h ) = (l, Down w, h)
         z'diags <-  mapM (renderBox boxStyling shelf) boxes
         let zMap = Map.fromListWith atop (concat z'diags)
         return $ foldl' atop (rect 0 0 ) (Map.elems zMap)
