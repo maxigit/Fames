@@ -700,7 +700,7 @@ A planner file is made of different sections. Each section corresponds to an org
       <pre>
          :FreezeOrder:
          selector
-         * -- resort everything according to priority
+         * -- resort everything according to default priority
          :END:
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-selectors">
@@ -780,8 +780,8 @@ A planner file is made of different sections. Each section corresponds to an org
          ^1 => The first box of each variations (colour)
          ^2^3 =>  The two first boxes of each variations, with a maximum of 3 per shelves.
          
-      Each number specification can also specify a starting number and a tag. If a tag is specified,
-      it will be used to sort the boxes before decidind which are the n first.
+      Each number specification can also specify a starting number and some tags and attribute. If tags/attributes are specified,
+      they will be used to sort the boxes before decidind which are the n first.
       If a "shelf" tag is specified the value of the tag will be used to group boxes instead of using the shelfname.
       
       Example
@@ -790,7 +790,7 @@ A planner file is made of different sections. Each section corresponds to an org
         TShirt^^^1:2 => The first, second box containg a t-shirt
         TShirt^^^[price]1 => The box with the lowest price
         TShirt^^^-[price]5 => the five box with hight price
-        TShirt^^^[price] => sort boxes by price
+        TShirt^^^[price]{coordinate} => sort boxes by price tag and coordinate attributes
 
     <li>
       <h4> Priority and selection order

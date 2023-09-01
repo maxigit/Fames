@@ -51,9 +51,12 @@ data BoxNumberSelector = BoxNumberSelector
 data Limit = Limit 
   { liStart :: !(Maybe Int) -- ^ first box to take, starts a 1
   , liEnd :: !(Maybe Int) -- ^ last box to take
-  , liOrderTag :: !(Maybe Text) -- ^ which tag to use to sort boxes
+  , liOrderingKey :: ![OrderingKey] -- ^ which tag to use to sort boxes
   , liReverse :: !Bool -- ^ if true reverse the sorting order
-  } deriving (Show ,Read)
+  } deriving (Show)
+  
+data OrderingKey = OrdTag Text | OrdAttribute Text
+     deriving Show
 
 -- | How something is oriented. It indicates  the direction of
 -- the normal of the given face.
@@ -178,6 +181,9 @@ data BoxOrientator = DefaultOrientation
     | AddOrientations ![Orientation] ![Orientation]
     deriving (Show, Eq, Ord)
 
+
+-- |
+newtype Shelfname = Shelfname Text deriving Show
 -- | Which way fill shelves
 
 data FillingStrategy = RowFirst | ColumnFirst deriving (Show, Eq, Enum, Ord)

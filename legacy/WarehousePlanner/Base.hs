@@ -91,6 +91,9 @@ import Data.Time (diffDays)
 import Data.Semigroup (Arg(..))
 
 import qualified System.FilePath.Glob as Glob
+import qualified Text.Parsec as P
+import qualified Text.Parsec.Text as P
+import Control.Monad.Fail 
 
 
 -- import qualified Debug.Trace as T
@@ -222,34 +225,38 @@ filterByNameSelector objects objectName selector = do
    let matcher= applyNameSelector selector objectName
    filter matcher <$> objects
 
--- | Syntax content^shelf^total
 parseBoxNumberSelector :: Text -> BoxNumberSelector
 parseBoxNumberSelector "" = BoxNumberSelector Nothing Nothing Nothing
-parseBoxNumberSelector s = let
-  splits = splitOn "^" s
-  parsed = map parseLimit splits 
-  [content, shelves, total] = take 3 $ parsed <> cycle [Nothing]
-  in BoxNumberSelector content shelves total
-  
--- | parse limit like [[[-]'['tag']'][start':']end]
-parseLimit :: Text -> Maybe Limit
-parseLimit "" = Nothing
-parseLimit (uncons  -> Just ('-', s)) = setReverse <$> parseLimit  s where
-           setReverse l = l { liReverse = True }
-parseLimit s = let
-   (tag, limitt) = case break (==']') s of
-                        (uncons -> Just ('[', tag), uncons -> Just (_, l)) -> (Just tag, l)
-                        _ -> (Nothing, s)
-   (start, end) = case map readMay $ splitOn ":" limitt of
-                    [Just end ] -> (Nothing, Just end)
-                    [Nothing, Just end ] -> (Just end, Just end)
-                    [Just start, Nothing] -> (Just start, Just start)
-                    [Just start, Just end] ->  (Just start, Just end)
-                    _ -> (Nothing, Nothing)
-                    -- _ -> error $ show s ++ " is not a valid box number selector"
-   in Just $ Limit start end tag False
-           
-           
+parseBoxNumberSelector s = case P.parse parser (unpack s) s of 
+  Left err -> error (show err)
+  Right expr -> expr
+  where parser = do
+          limits <- P.optionMaybe parseLimit `P.sepBy` P.char '^'
+          case limits of 
+               (_:_:_:_:_) -> fail "Too many limits in"
+               _ -> let (content: shelves: total:_) =  limits ++ cycle [Nothing]
+                    in return $ BoxNumberSelector content shelves total
+                
+-- | Parsel [[tag]|{attribue}][min:][max]
+parseLimit :: P.Parser Limit      
+parseLimit = do
+  reverse <- P.option False (P.char '-' >> return True)
+  keys <- P.many (parseTag <|> parseAttribute)
+  minM <- P.optionMaybe $ P.many1 P.digit
+  maxMM <- P.optionMaybe $ P.char ':' >> P.optionMaybe (P.many1 P.digit)
+  let (start, end) = case (minM >>= readMay,  fmap (>>= readMay) maxMM ) of
+        -- :max or :
+        -- (Nothing, Just maxm) -> (Nothing, maxm)
+        -- max
+        (Just min_, Nothing) -> (Nothing, Just min_)
+        -- min:
+        (Just min_, Just Nothing) -> (Just min_, Nothing)
+        (minm, Just maxm) -> (minm, maxm)
+        (Nothing, Nothing) -> (Nothing, Nothing)
+  return $  Limit start end keys reverse
+  where parseTag = OrdTag . pack <$> do P.char '[' >> P.many1 (P.noneOf "]") <* P.char ']'
+        parseAttribute = OrdAttribute . pack <$> do P.char '{' >> P.many1 (P.noneOf "}") <* P.char '}'
+
 
 -- | TODO Should be true be seems to work like that
 -- this will mean, that we need a normal or 
@@ -290,12 +297,10 @@ findBoxByNameAndShelfNames ( BoxSelector ( Selector (NameMatches [])
 
 
   -- we need the shelf name to sort box by shelves
-  let box'nameS =  [ (box, shelfName shelf) | (box, Just shelf) <- box'shelfms] 
+  let box'shelfS =  [ (box, shelf) | (box, Just shelf) <- box'shelfms] 
         
   -- filter boxes by number
-  return . map fst $ limitByNumber numSel box'nameS
-
-
+  return . map fst $ limitByNumber numSel box'shelfS
 
 
 findBoxByNameAndShelfNames (BoxSelector boxSel shelfSel numSel) = do
@@ -316,45 +321,50 @@ findBoxByNameAndShelfNames (BoxSelector boxSel shelfSel numSel) = do
 
 
   -- we need the shelf name to sort box by shelves
-  let box'nameS =  [ (box, shelfName shelf) | (box, Just shelf) <- box'shelfms] 
+  let box'nameS =  [ (box, shelf) | (box, Just shelf) <- box'shelfms] 
         
   -- filter boxes by number
   return . map fst $ limitByNumber numSel box'nameS
 
 
 -- | Limit a box selections by numbers
-limitByNumber :: BoxNumberSelector -> [(Box s, Text)] -> [(Box s, Text)]
+limitByNumber :: BoxNumberSelector -> [(Box s, Shelf s)] -> [(Box s, Shelf s)]
 limitByNumber selector boxes0 = let
-  sorted = sortBy (comparing  $ boxFinalPriority selector . fst ) boxes0
-  sndOrSel (box, shelf) = keyFromLimitM (nsPerShelf selector) (Right shelf) box
-  boxes1 = maybe id (limitBy (boxSku . fst)) (nsPerContent selector) $ sorted
+  sorted = sortBy (comparing  $ boxFinalPriority selector) boxes0
+  sndOrSel (box, shelf) = keyFromLimitM (nsPerShelf selector) (Right $ shelfName shelf) box shelf
+  boxes1 = maybe id (limitBy (pure . pure . boxSku . fst)) (nsPerContent selector) $ sorted
   boxes2 = maybe id (limitBy sndOrSel) (nsPerShelf selector) $ boxes1
-  boxes3 = maybe id take_ (nsTotal selector) $ sortBy (comparing  $ boxFinalPriority selector . fst ) boxes2
+  boxes3 = maybe id take_ (nsTotal selector) $ sortBy (comparing  $ boxFinalPriority selector) boxes2
   --                            -- ^ things might have been shuffle by previous sorting , so resort them                                                         
-  limitBy :: Ord  k => ((Box s, Text) -> k) -> Limit -> [(Box s, Text)] -> [(Box s, Text)]
+  -- limitBy :: Ord  k => ((Box s, Text) -> k) -> Limit -> [(Box s, Text)] -> [(Box s, Text)]
   limitBy key n boxes = let
-    sorted = sortBy (comparing  $ boxFinalPriority selector . fst ) boxes
+    sorted = sortBy (comparing  $ boxFinalPriority selector) boxes
     group_ = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
-    limited = fmap (take_ n . sortBy (comparing $ snd . boxFinalPriority selector . fst) ) group_
+    limited = fmap (take_ n . sortBy (comparing $ snd . boxFinalPriority selector) ) group_
     in concat (Map'.elems limited)
   take_ :: Limit -> [a] -> [a]
   take_ sel = maybe id (drop . (subtract 1)) (liStart sel) . maybe id take (liEnd sel) . rev
     where rev = if liReverse sel then reverse else id
   in boxes3
 
-keyFromLimitM limit p box =
-  case liOrderTag =<< limit of
-    Nothing -> p
-    Just t -> case getTagValuem box t of
-                   Nothing -> Right $ T.replicate 100 (singleton maxBound)
-                   Just v -> maybe (Right v) Left (readMay v) :: Either Int Text
+keyFromLimitM :: Maybe Limit -> Either Int Text -> Box s -> Shelf s ->  [Either Int Text]
+keyFromLimitM limit def box shelf =
+  case liOrderingKey =<< toList limit of
+    [] -> [def]
+    keys -> map evalKey keys
+  where evalKey k = case k of
+          OrdTag tag -> case getTagValuem box tag of
+                   Nothing -> Right maxString
+                   Just v -> maybe (Right v) Left (readMay v) -- :: Either Int Text
+          OrdAttribute att -> expandIntrinsic att box shelf
+        maxString = T.replicate 100 (singleton maxBound)
 
 
 -- limitBy :: Ord k => (Box s -> k) -> Int -> [Box s] -> [a]
   
-boxFinalPriority :: BoxNumberSelector -> Box s -> (Either Int Text , (Text, Either Int Text, Text , Either Int Text))
-boxFinalPriority BoxNumberSelector{..} box = let -- reader
-  with selm p = keyFromLimitM selm (Left $ p box) box
+boxFinalPriority :: BoxNumberSelector -> (Box s, Shelf s) -> ([Either Int Text] , (Text, [Either Int Text], Text , [Either Int Text]))
+boxFinalPriority BoxNumberSelector{..} (box, shelf) = let -- reader
+  with selm p = keyFromLimitM selm (Left $ p box) box shelf
   global = with nsTotal boxGlobalPriority
   style = with nsPerShelf boxStylePriority
   content = with nsPerContent boxContentPriority
@@ -1412,51 +1422,14 @@ expandAttributeMaybe text = let
      _ -> Nothing
 expandAttribute' :: Text -> Box s -> Int -> WH Text s
 expandAttribute' "" = \_ _ -> return "$"
-expandAttribute' "{shelfname" = \box _i ->  do
-  case boxShelf box of
-    Nothing -> return ""
-    Just sId -> do
-      shelf <- findShelf sId
-      return $ shelfName shelf
-expandAttribute' "{shelftags" = \box _i -> do
-  case boxShelf box of
-    Nothing -> return ""
-    Just sId -> do
-      shelf <- findShelf sId
-      return $ (intercalate "#" . flattenTags $ shelfTag shelf)
-expandAttribute' "{fit" = \box _i -> do
-  case boxShelf box of
-    Nothing -> return ""
-    Just sId -> do
-      shelf <- findShelf sId
-      let   Dimension xn yn zn = minDim shelf
-            Dimension xx yx zx = maxDim shelf
-            -- Dimension xx yx zx = maxDim shelf
-            Dimension l w h = boxDim box
-            Dimension ox oy oz = boxOffset box
-            fit = case ( (ox+l) > xn || (oy+w) > yn || (oz+h) > zn  
-                          , (ox+l) > xx || (oy+w) > yx || (oz+h) > zx
-                          ) of
-                      (_, True) -> "out"
-                      (True, False) -> "tight"
-                      (False, False) -> "fit"
-      return $ fit
-expandAttribute' "{ol" = \box _i -> let (Dimension ol _ _ ) = boxCoordinate box in return . tshow $ round ol
-expandAttribute' "{ow" = \box _i -> let (Dimension _ ow _ ) = boxCoordinate box in return . tshow $ round ow
-expandAttribute' "{oh" = \box _i -> let (Dimension _ _ oh ) = boxCoordinate box in return . tshow $ round oh
-expandAttribute' "{@" = \box _i -> let (global, style, content) = boxPriorities box in return $ tshow content <> "@" <> tshow style <> "@" <> tshow global
-expandAttribute' "{@content" = \box _i -> return $ tshow $ boxContentPriority box
-expandAttribute' "{@style" = \box _i -> return $ tshow $ boxStylePriority box
-expandAttribute' "{@global" = \box _i -> return $ tshow $ boxGlobalPriority box
-expandAttribute' "{style" =  \box _i -> return $ boxStyle box
-expandAttribute' "{content" =  \box _i -> return $ boxContent box
-expandAttribute' "{boxname" =  \box _i -> return $ boxStyleAndContent box
-expandAttribute' "{coordinate" =  \box _i -> let (Dimension ol ow oh) = boxCoordinate box
-                                                 roundi i = (round i) :: Int
-                                             in return $ pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)
-expandAttribute' "{offset" =  \box _i -> return $ printDim $ boxOffset box
-expandAttribute' "{dimension" =  \box _i -> return $ printDim $ _boxDim box
-expandAttribute' "{orientation" = \box _i -> return $ showOrientation (orientation box)
+expandAttribute' (uncons -> Just ('{', prop)) = \box _i -> do
+  shelfId <- case boxShelf box of
+              Just s -> return s
+              Nothing -> defaultShelf
+  shelf <- findShelf shelfId
+  return $ either tshow id $ expandIntrinsic prop box shelf
+  
+
 expandAttribute' (stripPrefix "[" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs'' = \box i -> do
                                ex <- expandAttribute box i xs'
                                pat <- expandAttribute box i pat'
@@ -1527,6 +1500,50 @@ expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box i ->
                                  _ -> i
 
 expandAttribute' text = \_ _ -> return text
+
+expandIntrinsic :: Text -> Box s -> Shelf s -> Either  Int Text
+expandIntrinsic "shelfname" box shelf = do
+  case boxShelf box of
+    Nothing -> Right ""
+    Just _ -> Right $ shelfName shelf
+expandIntrinsic "shelftags" box shelf =do
+  case boxShelf box of
+    Nothing -> Right ""
+    Just _ -> Right $ (intercalate "#" . flattenTags $ shelfTag shelf)
+expandIntrinsic "fit" box shelf =do
+  case boxShelf box of
+    Nothing -> Right ""
+    Just _ -> 
+      let   Dimension xn yn zn = minDim shelf
+            Dimension xx yx zx = maxDim shelf
+            -- Dimension xx yx zx = maxDim shelf
+            Dimension l w h = boxDim box
+            Dimension ox oy oz = boxOffset box
+            fit = case ( (ox+l) > xn || (oy+w) > yn || (oz+h) > zn  
+                          , (ox+l) > xx || (oy+w) > yx || (oz+h) > zx
+                          ) of
+                      (_, True) -> "out"
+                      (True, False) -> "tight"
+                      (False, False) -> "fit"
+      in Right $ fit
+expandIntrinsic "ol" box _shelf =let (Dimension ol _ _ ) = boxCoordinate box in  Left $ round ol
+expandIntrinsic "ow" box _shelf =let (Dimension _ ow _ ) = boxCoordinate box in  Left $ round ow
+expandIntrinsic "oh" box _shelf =let (Dimension _ _ oh ) = boxCoordinate box in  Left $ round oh
+expandIntrinsic "@" box _shelf =let (global, style, content) = boxPriorities box in  Right $ tshow content <> "@" <> tshow style <> "@" <> tshow global
+expandIntrinsic "@content" box _shelf = Left $ boxContentPriority box
+expandIntrinsic "@style" box _shelf = Left $ boxStylePriority box
+expandIntrinsic "@global" box _shelf = Left $ boxGlobalPriority box
+expandIntrinsic "style" box _shelf = Right $ boxStyle box
+expandIntrinsic "content" box _shelf = Right $ boxContent box
+expandIntrinsic "boxname" box _shelf = Right $ boxStyleAndContent box
+expandIntrinsic "coordinate" box _shelf =let (Dimension ol ow oh) = boxCoordinate box
+                                             roundi i = (round i) :: Int
+                                         in  Right $ pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)
+expandIntrinsic "offset" box _shelf = Right $ printDim $ boxOffset box
+expandIntrinsic "dimension" box _shelf = Right $ printDim $ _boxDim box
+expandIntrinsic "orientation" box _shelf = Right $ showOrientation (orientation box)
+expandIntrinsic prop _box _shelf =  Right prop
+
 
 expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> Text -> Text -> WH Text s
 expandStatistic fn arg box prop xs = do
