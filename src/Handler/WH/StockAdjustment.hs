@@ -71,6 +71,8 @@ data FormParam = FormParam
   , quantityBefore :: Map Text Int -- ^ Quantity to substract from qoh
   , minDate :: Maybe Day -- ^ force date
   , maxDate :: Maybe Day -- ^ force date
+  , forcePreviousDate :: Maybe Day -- ^ force previous day
+  , forceNextDate :: Maybe Day -- ^ force previous day
   } deriving (Eq, Show)
 
 
@@ -93,6 +95,8 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
             <*> pure (Map.fromList [])
             <*> aopt dayField "min Date" (Nothing)
             <*> aopt dayField "max Date" (Nothing)
+            <*> aopt dayField "force previous" Nothing
+            <*> aopt dayField "force next" Nothing
 
 -- Holds different information relative to adjusment, lost, new etc ...
 data Carts adj trans = Carts { cNew :: adj, cLost :: trans, cFound :: trans} deriving Show
@@ -188,7 +192,7 @@ postWHStockAdjustmentR = do
                 <> " GROUP BY stock_id "
 
       stocktakes <- runDB $ rawSql sql p
-      results <- catMaybes <$> mapM (qohFor appFADefaultLocation appFALostLocation (minDate param, maxDate param)) stocktakes
+      results <- catMaybes <$> mapM (qohFor appFADefaultLocation appFALostLocation (UnsureRangeArg (forcePreviousDate param) (forceNextDate param)) (minDate param, maxDate param)) stocktakes
       let withDiff = [(abs (quantityTake0 (mainLocation pre) - quantityAt (mainLocation pre)), pre) |  pre <- results]
           f  (q, pre) = (maybe True (q >=) (minQty param))
                    &&  (maybe True (q <=) (maxQty param))
@@ -357,23 +361,25 @@ lastMove pre = max (date (mainLocation pre)) (date (lost pre))
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
-qohFor :: Text -> Text -> (Maybe Day, Maybe Day) ->  (Single Text, Single Int,  Single Day, Single (Maybe Text)) -> Handler (Maybe PreAdjust)
-qohFor mainLoc lostLoc dateRange r@(Single sku, Single __qtake, Single date, Single comment) = do
+qohFor :: Text -> Text -> UnsureRangeArg -> (Maybe Day, Maybe Day) ->  (Single Text, Single Int,  Single Day, Single (Maybe Text)) -> Handler (Maybe PreAdjust)
+qohFor mainLoc lostLoc unsureRange dateRange r@(Single sku, Single __qtake, Single date, Single comment) = do
   adj <-  PreAdjust
          <$> pure sku
-         <*> quantitiesFor mainLoc dateRange r
-         <*> quantitiesFor lostLoc dateRange r
+         <*> quantitiesFor mainLoc unsureRange dateRange r
+         <*> quantitiesFor lostLoc unsureRange dateRange r
          <*> pure date
          <*> pure comment
   return $ if all noInfo (adjustInfos adj)
               then Nothing
               else Just adj
 
+-- | Avoid date blindness
+data UnsureRangeArg = UnsureRangeArg (Maybe Day) (Maybe Day)
 -- | Retrive the quantities available for the given location at the given date
-quantitiesFor :: Text -> (Maybe Day, Maybe Day) -> (Single Text, Single Int, Single Day, Single (Maybe Text)) -> Handler LocationInfo 
-quantitiesFor loc (minDateM, maxDateM) (Single sku, Single take_, Single date, Single __comment) = do
+quantitiesFor :: Text -> UnsureRangeArg -> (Maybe Day, Maybe Day) -> (Single Text, Single Int, Single Day, Single (Maybe Text)) -> Handler LocationInfo 
+quantitiesFor loc unsureArg (minDateM, maxDateM) (Single sku, Single take_, Single date, Single __comment) = do
   -- force date range from URL
-  let (minDate0, maxDate0) = unsureRange date
+  let (minDate0, maxDate0) = unsureRange unsureArg date
       sql = "SELECT SUM(qty) qoh"
             <> ", SUM(qty) qoh_at"
             <> ", MAX(tran_date)  "
@@ -429,8 +435,10 @@ quantitiesFor loc (minDateM, maxDateM) (Single sku, Single take_, Single date, S
 -- In reverse, a item can be picked the day before but only processed on the stocktake day.
 -- In that case, we shouldn't take the move into account.
 -- UnsureRange, computes the previous and next working day.
-unsureRange :: Day -> (Day, Day)
-unsureRange day = (previousWorkingDay day, nextWorkingDay day)
+unsureRange :: UnsureRangeArg -> Day -> (Day, Day)
+unsureRange (UnsureRangeArg prevm nextm) day = ( fromMaybe (previousWorkingDay day) prevm
+                                               , fromMaybe (nextWorkingDay day) nextm
+                                               )
 
 nextWorkingDay :: Day -> Day
 nextWorkingDay day = headEx . filter (isWorkingDay) . drop 1 $  List.iterate (addDays 1) day
@@ -866,12 +874,13 @@ adjustCarts date Carts{..} = do
 -- or today. This can happen if an  item has been found and delivered between the stocktake/transfer and the current day
 findMaxQuantity :: Day -> StockAdjustmentDetail -> Handler (StockAdjustmentDetail, Int)
 findMaxQuantity date detail = do
+  let unsureRange = UnsureRangeArg Nothing Nothing
   case stockAdjustmentDetailFrom detail of
     Nothing -> return (detail, 0)
     Just loc -> do
       let sku = stockAdjustmentDetailStockId detail
           qty = stockAdjustmentDetailQuantity detail
-      locInfo <- quantitiesFor (FA.unLocationKey loc) (Nothing, Nothing)  (Single sku, Single 0, Single date, Single Nothing)
+      locInfo <- quantitiesFor (FA.unLocationKey loc) unsureRange (Nothing, Nothing)  (Single sku, Single 0, Single date, Single Nothing)
 
       
       -- to generate negative quantities, we can move more than the qoh at date
