@@ -748,7 +748,7 @@ processMovesAndTags tagsAndPatterns_ (style, tags_, locationM, orientations) = w
 -- | Parse tags operations from a list a text.
 -- If @include or @exclude is used, the tags on the right
 -- will be used as glob pattern to filter the local tags
--- This allows to read boxes but only set a s
+--lThis allows to read boxes but only set a s
 parseTagAndPatterns :: [Text] ->  [Text] -> [Tag'Operation]
 parseTagAndPatterns tagsAndPatterns localTags = 
   let (defaultTags, pats) = break (`elem` ["@exclude", "@include"]) tagsAndPatterns

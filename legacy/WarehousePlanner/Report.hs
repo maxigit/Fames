@@ -362,27 +362,39 @@ boxStyleWithTags b = let
 shelvesToNames :: [Shelf s ] -> [Text]
 shelvesToNames = List.nub . sort . map shelfName
 
-generateMoves :: (Box s -> Text) -> WH [Text] s
-generateMoves boxName0 = generateMoves' (Just "stock_id,location") (Just . boxName0) printGroup where
+generateMoves :: SortBoxes -> Maybe (BoxSelector s) -> (Box s -> Text) -> WH [Text] s
+generateMoves sortMode selectorm boxName0 = generateMoves' sortMode (Just "stock_id,location") (Just . boxName0) printGroup selectorm where
      printGroup  boxName' _ shelves = boxName' <> "," <> intercalate "|" (groupNames $ shelvesToNames shelves)
 -- generateMoves' :: (Box s -> Text) -> (Box s -> [Text]) -> WH [Text] s
 generateMoves' :: (Ord k, Eq k)
-               => Maybe t --  ^ Header
+               => SortBoxes
+               -> Maybe t --  ^ Header
                -> (Box s -> Maybe k) --  ^ box key
                ->  (k -> [Box s] -> [Shelf s]  -> t) --  ^ string from key, boxes and unique shelfnames
+               -> Maybe (BoxSelector s)
                -> WH [t] s
-generateMoves' header boxKey0 printGroup = do
- s'bS <- shelfBoxes
- generateMovesFor header boxKey0 printGroup s'bS 
-generateMovesFor header boxKey0 printGroup box'shelfs = do
- let groups = Map'.fromListWith (<>) [ (key, [(b, s)])
-                                     | (s,b) <- sortOn (Down . rank) box'shelfs
-                                     , Just key <- [boxKey0 b]
-                                     -- , "mop-exclude" `notElem` boxTags b
-                                     ]
-     rank (_, box) = (boxKey0 box, boxRank box)
+generateMoves' sortMode header boxKey0 printGroup selectorm = do
+ s'bS <- case selectorm of
+          Nothing -> shelfBoxes
+          Just sel -> do
+                   boxes <- findBoxByNameAndShelfNames sel
+                   shelf0 <- defaultShelf
+                   mapM (\b -> (,b) <$> findShelf (fromMaybe shelf0 $ boxShelf b )) boxes
+ generateMovesFor sortMode header boxKey0 printGroup s'bS 
+
+generateMovesFor :: (Ord key , Monad m) => SortBoxes -> Maybe a -> (Box s -> Maybe key) -> (key -> [Box s] -> [b] -> a) -> [(b, Box s)] -> m [a]
+generateMovesFor sortMode header boxKey0 printGroup box'shelfs = do
+ let grouped =  case sortMode of
+             DontSortBoxes -> [(key, [(box, shelf)]) | (shelf, box) <- box'shelfs, Just key <- [boxKey0 box] ]
+             SortBoxes -> let rank (_, box) = (boxKey0 box, boxRank box)
+                          in Map'.toList
+                           $ Map'.fromListWith (<>) [ (key, [(b, s)])
+                                                      | (s,b) <- sortOn (Down . rank) box'shelfs
+                                                      , Just key <- [boxKey0 b]
+                                                      -- , "mop-exclude" `notElem` boxTags b
+                                                      ]
      printGroup' (key, box'shelves) = printGroup key boxes shelves where (boxes, shelves) = unzip box'shelves
- return $ maybe id   (:) header $  map printGroup' (Map'.toList groups)
+ return $ maybe id   (:) header $  map printGroup' grouped
   
 -- | Generates files compatible with MOP
 -- Boxes tagged with "mop-exception" will use their exact location instead of the group
@@ -391,14 +403,15 @@ generateMovesFor header boxKey0 printGroup box'shelfs = do
 -- but use the location as if they were part of the group.
 -- This this achieve by first running the report ignoring the comment (to computes the grouped locations)
 -- and doing a lookup to find the final location.
-generateMOPLocations :: WH [Text] s
-generateMOPLocations = do
-  locationMap <- Map'.fromList . concat <$> generateMoves' (Nothing) (boxName False)
+generateMOPLocations :: Maybe (BoxSelector s) -> WH [Text] s
+generateMOPLocations selectorm = do
+  locationMap <- Map'.fromList . concat <$> generateMoves' SortBoxes (Nothing) (boxName False)
                                                   (\_ boxes shelves -> [ (boxStyleAndContent box, shelves)
                                                                        | box <- boxes
                                                                        ])
+                                                  selectorm
 
-  generateMoves' (Just "stock_id,location") (boxName True) (printGroup locationMap) where
+  generateMoves' SortBoxes (Just "stock_id,location") (boxName True) (printGroup locationMap) selectorm where
   -- use box style unless the box is tagged as exception
   boxName checkComment box  = let comment = getTagValuem box "mop-comment"
                                   hasTag = tagIsPresent box
@@ -467,7 +480,7 @@ generateGenericReport today prefix = do
         
   
 generateGenericReport':: Day -> Text -> [(Shelf s, Box s)] -> WH [Text] s
-generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey0 printGroup s'bs where
+generateGenericReport' today prefix s'bs = generateMovesFor SortBoxes Nothing boxKey0 printGroup s'bs where
   boxKey0 box = getTagValuem box (prefix <> "-key")
   printGroup boxKey_ [] __shelfNames = boxKey_
   printGroup boxKey_ boxes@(box:_) shelfNames = let

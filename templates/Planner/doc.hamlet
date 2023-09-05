@@ -907,6 +907,8 @@ A planner file is made of different sections. Each section corresponds to an org
     A,prop=first --> A boxes have the tag 'prop=first'
     B,prop=second
     ,XXX$[prop] -- create XXXfirst tag for A and XXXsecond for B
+    
+  Tags from the containing shelf can be accessed via <code>$/</code>tag<code>/</code>
 
   Properties can have more than one value, which can be used for example to mix colours. Values are separated by <code>;</code> and can be added or removed using <code>=+</code> or <code>=-</code>
 
@@ -1124,7 +1126,7 @@ A planner file is made of different sections. Each section corresponds to an org
 
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-best-reports">
-     best reports
+     Best reports
 <div.pre.collapse :expanded:.in id=info-section-best-reports>
   Best boxes, best shelves and best available shelves computes respectivily the best boxes to go in a given shelf,
   the best shelves to hold the given boxes. The boxes/shelves to analyses should be set in the parameter field.
@@ -1132,6 +1134,20 @@ A planner file is made of different sections. Each section corresponds to an org
   Fol best shelf reports, a set of boxes and shelves can be given using the <code>boxSelector[,shelfSelector[,orientationRules]]</code> syntax.
   In that case, only the given boxes and shelves will be taken into account for the report.
 
+
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#report-selector">
+    Report Selector
+<div.pre.collapse :expanded:.in id=report-selector>
+  Some reports like <code>GenerateMovesWithTags</code> accept a box selector as a parameter.
+  If an order is given, see (selection order), the specified order of the boxes will be used.
+  Also box tags shown in the report can be filtered using <code>@exclude</code> and <code>@include</code>.
+  
+  For example
+  <pre>
+     T-Shirt^^^[barcode:-4]@exclude#tag1#tag2
+     
+  Generates a report for t-shirt ordered by the last 4 characters of the barcode and doesn't display <code>tag1</code> and <code>tag2</code>.
 
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#tag-or-patterns">

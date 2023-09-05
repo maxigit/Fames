@@ -23,8 +23,9 @@ import WarehousePlanner.Csv (extractModes)
 import WarehousePlanner.Report hiding(report)
 import Yesod.Form.Bootstrap3 (bfs)
 import qualified Yesod.Media.Simple as M
-import Data.Text(splitOn)
+import Data.Text(splitOn, breakOn)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad.State
 import System.Directory (listDirectory)
 
@@ -201,6 +202,18 @@ renderView param0 = do
           -- if there is no extra scenario
           let scenario = mconcat . catMaybes $ (intersperse (Just savePointScenario) $ (scenarioFromFileM : [scenarioM]))
           let param = param0 {pDisplayMode = mode}
+              (boxSelectorM, tagFilter) = case pParameter param of
+                  Nothing -> (Nothing, id)
+                  Just selector -> let (selWithExclude, include) = breakOn "@include" selector
+                                       (sel, exclude) = breakOn "@exclude" selWithExclude
+                                       tagFilter = if 
+                                                   | not (null include) ->  let includes = Set.fromList $ splitOn "#" include
+                                                                          in Map.filterWithKey (\k _ -> k `member` includes)
+                                                   | not (null exclude) ->  let excludes = Set.fromList $ splitOn "#" exclude
+                                                        in Map.filterWithKey (\k _ -> not $ k `member` excludes)
+                                                   | otherwise -> id
+                                   in (Just $ parseBoxSelector sel, tagFilter)
+              filterTagBox box = box {boxTags = tagFilter (boxTags box) }
           w <- case fromMaybe PlannerSummaryView (pViewMode param) of
               PlannerSummaryView-> renderSummaryReport scenario
               PlannerGraphicCompactView-> renderGraphicCompactView imageRoute scenario
@@ -216,9 +229,9 @@ renderView param0 = do
                 (styles, (_, pmode,_,_)) = extractModes $ fromMaybe "" (pParameter param)
                 in renderConsoleReport (bestAvailableShelvesFor pmode styles) (scenario `mappend` extra)
 
-              PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
-              PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
-              PlannerGenerateMOPLocations -> renderConsoleReport (generateMOPLocations) scenario
+              PlannerGenerateMoves -> renderConsoleReport (generateMoves SortBoxes boxSelectorM boxStyle) scenario
+              PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves DontSortBoxes boxSelectorM (boxStyleWithTags . filterTagBox)) scenario
+              PlannerGenerateMOPLocations -> renderConsoleReport (generateMOPLocations boxSelectorM) scenario
               PlannerGenericReport -> renderConsoleReport (generateGenericReport today (fromMaybe "report" $ pParameter param)) scenario
               PlannerBoxGroupReport -> renderBoxGroupReport (pParameter param) scenario
               PlannerExport -> do
