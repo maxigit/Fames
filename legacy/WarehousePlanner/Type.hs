@@ -455,6 +455,12 @@ getTagValues :: HasTags tagged => tagged -> Text -> [ Text ]
 getTagValues box tag = maybe [] (Set.toList) (Map.lookup tag (getTags box))
 getTagValuem :: HasTags tagged => tagged -> Text -> Maybe Text
 getTagValuem box tag = fmap flattenTagValues (Map.lookup tag (getTags box))
+-- | Like getTagValuesWithPresence but return [""] if a tag is set without value
+getTagValuesWithPresence :: HasTags tagged => tagged -> Text -> [Text]
+getTagValuesWithPresence box tag =
+  case getTagValues box tag of
+    [] | tagIsPresent box tag -> [""]
+    values -> values
 tagIsPresent :: HasTags tagged => tagged -> Text -> Bool
 tagIsPresent box tag = Map.member tag (getTags box)
 

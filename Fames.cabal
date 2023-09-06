@@ -181,6 +181,8 @@ library
       TypeApplications
       TypeFamilies
       ViewPatterns
+      MultiWayIf
+      LambdaCase
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -312,6 +314,8 @@ executable DPDDump
       TypeApplications
       TypeFamilies
       ViewPatterns
+      MultiWayIf
+      LambdaCase
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -440,6 +444,8 @@ executable DPDImport
       TypeApplications
       TypeFamilies
       ViewPatterns
+      MultiWayIf
+      LambdaCase
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Fames
@@ -567,6 +573,8 @@ executable FAGenerator
       TypeApplications
       TypeFamilies
       ViewPatterns
+      MultiWayIf
+      LambdaCase
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -719,6 +727,8 @@ executable Fames
       TypeApplications
       TypeFamilies
       ViewPatterns
+      MultiWayIf
+      LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
   build-depends:
       Decimal >=0.5.1 && <0.6
@@ -882,6 +892,8 @@ test-suite test
       TypeApplications
       TypeFamilies
       ViewPatterns
+      MultiWayIf
+      LambdaCase
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal >=0.5.1 && <0.6

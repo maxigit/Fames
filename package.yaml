@@ -119,6 +119,8 @@ default-extensions:
 - TypeApplications
 - TypeFamilies
 - ViewPatterns
+- MultiWayIf
+- LambdaCase
 
 library:
   source-dirs:

@@ -353,9 +353,10 @@ keyFromLimitM limit def box shelf =
     [] -> [def]
     keys -> map evalKey keys
   where evalKey k = case k of
-          OrdTag tag -> case getTagValuem box tag of
-                   Nothing -> Right maxString
-                   Just v -> maybe (Right v) Left (readMay v) -- :: Either Int Text
+          OrdTag tag0 -> let (tag, evaluator) = parseEvaluator tag0
+                         in case evaluator $ getTagValuesWithPresence box tag of
+                                 Nothing -> Right maxString
+                                 Just v -> maybe (Right v) Left (readMay v) -- :: Either Int Text
           OrdAttribute att -> expandIntrinsic att box shelf
         maxString = T.replicate 100 (singleton maxBound)
 
@@ -1433,7 +1434,18 @@ expandAttribute' (uncons -> Just ('{', prop)) = \box _i -> do
 expandAttribute' (stripPrefix "[" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs'' = \box i -> do
                                ex <- expandAttribute box i xs'
                                pat <- expandAttribute box i pat'
-                               return $ maybe ex (<> ex) (getTagValuem box pat)
+                               let (tag, evaluator) = parseEvaluator pat
+                               return $ maybe ex (<> ex) (evaluator $ getTagValuesWithPresence box tag)
+expandAttribute' (stripPrefix "/" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== '/') xs'' = \box i -> do
+                               ex <- expandAttribute box i xs'
+                               pat <- expandAttribute box i pat'
+                               shelfId <- case boxShelf box of
+                                           Just s -> return s
+                                           Nothing -> defaultShelf
+                               shelf <- findShelf shelfId
+                               let (tag, evaluator) = parseEvaluator pat
+                               return $ maybe ex (<> ex) (evaluator $ getTagValuesWithPresence shelf tag)
+                               
 -- get the rank of the tag value
 expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box i -> 
   case stat of
@@ -1502,15 +1514,19 @@ expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box i ->
 expandAttribute' text = \_ _ -> return text
 
 expandIntrinsic :: Text -> Box s -> Shelf s -> Either  Int Text
-expandIntrinsic "shelfname" box shelf = do
+expandIntrinsic prop0 box shelf = let
+  (prop, evaluator) = parseEvaluator prop0
+  in fmap (fromMaybe "" . evaluator . pure) $ expandIntrinsic' prop box shelf
+expandIntrinsic' :: Text -> Box s -> Shelf s -> Either  Int Text
+expandIntrinsic' "shelfname" box shelf = do
   case boxShelf box of
     Nothing -> Right ""
     Just _ -> Right $ shelfName shelf
-expandIntrinsic "shelftags" box shelf =do
+expandIntrinsic' "shelftags" box shelf =do
   case boxShelf box of
     Nothing -> Right ""
     Just _ -> Right $ (intercalate "#" . flattenTags $ shelfTag shelf)
-expandIntrinsic "fit" box shelf =do
+expandIntrinsic' "fit" box shelf =do
   case boxShelf box of
     Nothing -> Right ""
     Just _ -> 
@@ -1526,23 +1542,23 @@ expandIntrinsic "fit" box shelf =do
                       (True, False) -> "tight"
                       (False, False) -> "fit"
       in Right $ fit
-expandIntrinsic "ol" box _shelf =let (Dimension ol _ _ ) = boxCoordinate box in  Left $ round ol
-expandIntrinsic "ow" box _shelf =let (Dimension _ ow _ ) = boxCoordinate box in  Left $ round ow
-expandIntrinsic "oh" box _shelf =let (Dimension _ _ oh ) = boxCoordinate box in  Left $ round oh
-expandIntrinsic "@" box _shelf =let (global, style, content) = boxPriorities box in  Right $ tshow content <> "@" <> tshow style <> "@" <> tshow global
-expandIntrinsic "@content" box _shelf = Left $ boxContentPriority box
-expandIntrinsic "@style" box _shelf = Left $ boxStylePriority box
-expandIntrinsic "@global" box _shelf = Left $ boxGlobalPriority box
-expandIntrinsic "style" box _shelf = Right $ boxStyle box
-expandIntrinsic "content" box _shelf = Right $ boxContent box
-expandIntrinsic "boxname" box _shelf = Right $ boxStyleAndContent box
-expandIntrinsic "coordinate" box _shelf =let (Dimension ol ow oh) = boxCoordinate box
-                                             roundi i = (round i) :: Int
-                                         in  Right $ pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)
-expandIntrinsic "offset" box _shelf = Right $ printDim $ boxOffset box
-expandIntrinsic "dimension" box _shelf = Right $ printDim $ _boxDim box
-expandIntrinsic "orientation" box _shelf = Right $ showOrientation (orientation box)
-expandIntrinsic prop _box _shelf =  Right prop
+expandIntrinsic' "ol" box _shelf =let (Dimension ol _ _ ) = boxCoordinate box in  Left $ round ol
+expandIntrinsic' "ow" box _shelf =let (Dimension _ ow _ ) = boxCoordinate box in  Left $ round ow
+expandIntrinsic' "oh" box _shelf =let (Dimension _ _ oh ) = boxCoordinate box in  Left $ round oh
+expandIntrinsic' "@" box _shelf =let (global, style, content) = boxPriorities box in  Right $ tshow content <> "@" <> tshow style <> "@" <> tshow global
+expandIntrinsic' "@content" box _shelf = Left $ boxContentPriority box
+expandIntrinsic' "@style" box _shelf = Left $ boxStylePriority box
+expandIntrinsic' "@global" box _shelf = Left $ boxGlobalPriority box
+expandIntrinsic' "style" box _shelf = Right $ boxStyle box
+expandIntrinsic' "content" box _shelf = Right $ boxContent box
+expandIntrinsic' "boxname" box _shelf = Right $ boxStyleAndContent box
+expandIntrinsic' "coordinate" box _shelf = let (Dimension ol ow oh) = boxCoordinate box
+                                               roundi i = (round i) :: Int
+                                           in  Right $ pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)
+expandIntrinsic' "offset" box _shelf = Right $ printDim $ boxOffset box
+expandIntrinsic' "dimension" box _shelf = Right $ printDim $ _boxDim box
+expandIntrinsic' "orientation" box _shelf = Right $ showOrientation (orientation box)
+expandIntrinsic' prop _box _shelf =  Right prop
 
 
 expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> Text -> Text -> WH Text s
@@ -1590,6 +1606,56 @@ stripStatFunction xs  = do
           case break cond text of
             (_,"") -> Nothing
             a -> Just a
+
+
+-- | Syntax tag[?]
+parseEvaluator :: Text -> (Text, [Text] -> Maybe Text)
+parseEvaluator tag0 | Right (tag, thenValue) <- P.parse parser (unpack tag0) tag0 = 
+  ( tag 
+  , \case
+      [] -> Nothing
+      _ -> thenValue <|> Just tag
+  )
+  where parser = do
+          tag <- P.many1 $ P.noneOf "?"
+          P.char '?'
+          thenValue <- P.optionMaybe (P.many1 P.anyChar)
+          return (pack tag,  pack <$> thenValue)
+parseEvaluator tag0 | Right (tag, startm, endm) <- P.parse parser (unpack tag0) tag0 =
+  let sub = removePrefix . removeSuffix
+      removePrefix t = case (startm >>= readMay, startm) of
+                            (Just n, _) -> if | n > 0 -> drop n t
+                                              | n == 0 -> t
+                                              | otherwise -> drop (length t + n) t
+                            (Nothing, Just pre) ->  snd $ T.breakOnEnd pre t
+                            _ -> t
+      removeSuffix t = case (endm >>= readMay, endm) of
+                            (Just n, _) -> if | n > 0 -> take n t
+                                              | n == 0 -> t
+                                              | otherwise -> take (length t + n) t
+                            (Nothing, Just suff) ->  fst $ T.breakOn suff t
+                            _ -> t
+
+  in ( tag
+     , \case
+        [] -> Nothing
+        values -> Just $ intercalate ";" $ map sub values
+     )
+  where parser :: P.Parser (Text, Maybe Text, Maybe Text)
+        parser = do
+          tag <- P.many1 $ P.noneOf ":"
+          P.char ':'
+          startm <- P.optionMaybe (P.many1 $ P.noneOf ":")
+          endm <- P.optionMaybe do
+            P.char ':' >> (P.many1 $ P.anyChar)
+          return (pack tag, pack <$> startm, pack <$> endm)
+parseEvaluator tag =
+  ( tag
+  , \case 
+     [] -> Nothing
+     values -> Just $ intercalate ";" values
+  )
+        
 
 printDim :: Dimension -> Text
 printDim  (Dimension l w h) = pack $ printf "%0.1fx%0.1fx%0.1f" l w h
