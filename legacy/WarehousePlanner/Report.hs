@@ -507,7 +507,7 @@ generateStockTakes selectorm= do
                    in intercalate  ","
                       [ shelfName shelf
                       , boxPositionSpec box
-                      , (boxStyleWithTags box) <> "#'id=" <> tshow bId 
+                      , (boxStyleWithTags box) <> "#box_id=" <> tshow bId 
                       , (pack $ printf "%0.2f,%0.2f,%0.f" l w h)
                       , (concat $ map showOrientation $ boxBoxOrientations box)
                       ]
