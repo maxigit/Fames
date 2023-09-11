@@ -239,7 +239,7 @@ renderView param0 = do
                 return [whamlet|#{toHtmlWithBreak fulltext}|]
 
               -- PlannerBoxGroupReport -> renderBoxGroupReport
-              PlannerStocktake -> renderConsoleReport (generateStockTakes) scenario
+              PlannerStocktake -> renderConsoleReport (generateStockTakes boxSelectorM) scenario
           return (param, w)
     
   (formW, encType) <- generateFormPost $ paramForm (Just param)

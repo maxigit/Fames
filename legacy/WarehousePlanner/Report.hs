@@ -36,6 +36,7 @@ import qualified Data.List as List
 import Data.Text(splitOn)
 import Text.Tabular as Tabul
 import Data.Text(replace)
+import Data.Semigroup(Arg(..))
 
 -- pattern (:<) :: Text -> Maybe (Char, Text)
 pattern x :< xs <- (uncons -> Just (x, xs))
@@ -488,9 +489,13 @@ generateGenericReport' today prefix s'bs = generateMovesFor SortBoxes Nothing bo
     value = maybe boxKey_ (expandReportValue today boxes $ shelvesToNames shelfNames ) value0
     in value
 
-generateStockTakes ::  WH [Text] s
-generateStockTakes = do
-    sb <- shelfBoxes
+generateStockTakes :: Maybe (BoxSelector s) ->  WH [Text] s
+generateStockTakes selectorm= do
+    boxes_ <- case selectorm of
+            Nothing -> findBoxByNameSelector (NameMatches [])
+            Just sel -> findBoxByNameAndShelfNames sel
+    shelf0 <- defaultShelf
+    sb <- mapM (\b -> (,b) <$> findShelf (fromMaybe shelf0 $ boxShelf b )) boxes_
     return $ [":STOCKTAKE:"
              ,"Bay No,Position,Style,Length,Width,Height,Orientations"
              ]
@@ -498,10 +503,11 @@ generateStockTakes = do
              ++ [":END:"]
     where printBox (shelf, box) =
                    let Dimension l w h = _boxDim box
+                       BoxId_ (Arg bId _) = boxId box
                    in intercalate  ","
                       [ shelfName shelf
                       , boxPositionSpec box
-                      , (boxStyleWithTags box)
+                      , (boxStyleWithTags box) <> "#'id=" <> tshow bId 
                       , (pack $ printf "%0.2f,%0.2f,%0.f" l w h)
                       , (concat $ map showOrientation $ boxBoxOrientations box)
                       ]
