@@ -1610,17 +1610,19 @@ stripStatFunction xs  = do
 
 -- | Syntax tag[?]
 parseEvaluator :: Text -> (Text, [Text] -> Maybe Text)
-parseEvaluator tag0 | Right (tag, thenValue) <- P.parse parser (unpack tag0) tag0 = 
+parseEvaluator tag0 | Right (tag, thenValue, elseValue) <- P.parse parser (unpack tag0) tag0 = 
   ( tag 
   , \case
-      [] -> Nothing
+      [] -> elseValue
       _ -> thenValue <|> Just tag
   )
   where parser = do
           tag <- P.many1 $ P.noneOf "?"
           P.char '?'
-          thenValue <- P.optionMaybe (P.many1 P.anyChar)
-          return (pack tag,  pack <$> thenValue)
+          thenValue <- P.optionMaybe (P.many1 $ P.noneOf ":")
+          elseValue <- P.optionMaybe do
+                     P.char ':' >> (P.many1 $ P.anyChar)
+          return (pack tag,  pack <$> thenValue, pack <$> elseValue)
 parseEvaluator tag0 | Right (tag, startm, endm) <- P.parse parser (unpack tag0) tag0 =
   let sub = removePrefix . removeSuffix
       removePrefix t = case (startm >>= readMay, startm) of

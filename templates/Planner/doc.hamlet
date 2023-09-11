@@ -1025,7 +1025,7 @@ A planner file is made of different sections. Each section corresponds to an org
   <h4> Evaluation
   Tags and properties can be evaluated in different way resulting in different values. The syntax is the same for properties and tags
    <ul>
-     <li><code>?[value]</code> test if the value is present.
+     <li><code>?[then][:[:else]]</code> test if the value is present.
      <li><code>:[start][:[end]]</code> extract substring. <code>start</code> and <code>end</code> can be a (negative) number.
          In that case, it represent how many character to drop on each side.
          If it is a char, strip until (from) the given char.
@@ -1035,6 +1035,7 @@ A planner file is made of different sections. Each section corresponds to an org
       &#36[top?]  => top
       &#36[bottom?]  => ''
       &#36[top?on]  => on
+      &#36[bottom?Y:N]  => N
       &#36{shelfname} => E01.03/2
       &#36{shelfname:.} => 03/2
       &#36{shelfname::/} => E01.03
