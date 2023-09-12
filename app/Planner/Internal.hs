@@ -155,8 +155,8 @@ parseDrawer h = case splitOn "_" (toLower h) of
                                       ])
                  ,(UpdateShelvesH,    [ ["update shelves"]])
                  ,(TransformTagsH [], [ ["transform tags"]
-                                      , ["tranform", "tags"]
-                                      , ["tranform"]
+                                      , ["transform", "tags"]
+                                      , ["transform"]
                                       ])
                  ,(ClonesH [],        [ ["clone"]])
                  ,(DeletesH,          [ ["delete"]])
