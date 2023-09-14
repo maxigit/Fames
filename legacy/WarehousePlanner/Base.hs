@@ -1453,7 +1453,7 @@ expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box i ->
     "index" -> expandStatistic valueIndex arg box prop xs
     "ago" ->  do
         maxDate <- gets whDay
-        let valuem = getTagValuem box prop
+        valuem <- listToMaybe <$> expandOrdkey box Nothing prop
         stats <- propertyStatsFor prop
         let dates = keys (valueIndex stats)
         return $ case (readMay =<< minimumMay dates, readMay =<< valuem) of
@@ -1488,15 +1488,15 @@ expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box i ->
           _ -> "<not a stat>" <> xs
     "n" -> do
           let v = evalArg arg i
-              format = if null prop  then "%d" else unpack prop
+              format = if null propText  then "%d" else unpack propText
           return $ (pack $ printf format v) <> xs
     "select" -> do
-             let e = case splitOn "|" prop of
+             let e = case splitOn "|" propText of
                           [] -> tshow i
                           values -> values List.!! (min (length values) (evalArg arg i) - 1)
              return $ e <> xs
     "cycle" -> do
-                 let e = case splitOn "|" prop of
+                 let e = case splitOn "|" propText of
                        [] -> tshow i
                        values -> values List.!! mod (evalArg arg i - 1) (length values)
                  return $ e <> xs
@@ -1510,6 +1510,10 @@ expandAttribute' (stripStatFunction -> Just (stat, arg, prop, xs))  = \box i ->
                                  Just ('/', n) -> i `div` n
                                  Just ('^', n) -> min i n
                                  _ -> i
+          propText = case prop of
+                      OrdTag tag -> tag
+                      OrdAttribute att -> att
+
 
 expandAttribute' text = \_ _ -> return text
 
@@ -1561,9 +1565,9 @@ expandIntrinsic' "orientation" box _shelf = Right $ showOrientation (orientation
 expandIntrinsic' prop _box _shelf =  Right prop
 
 
-expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> Text -> Text -> WH Text s
+expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> OrderingKey -> Text -> WH Text s
 expandStatistic fn arg box prop xs = do
-  let values = getTagValues box prop
+  values <- expandOrdkey box Nothing prop
   stats <- propertyStatsFor prop
   return $ case values of
     [] -> xs
@@ -1574,6 +1578,16 @@ expandStatistic fn arg box prop xs = do
         Just ('^', n) -> round $ fromIntegral i / fromIntegral (totalCount stats) * fromIntegral n
         _ -> i
       in maybe xs (\i -> tshow (adjust i) <> xs) (lookup value $ fn stats) 
+
+-- | Expand Tag or Attribute. Fetch the shelf if not provided
+expandOrdkey :: Box s -> Maybe (Shelf s) ->  OrderingKey -> WH [Text] s
+expandOrdkey box shelfm key = do
+   case key of
+    OrdTag tag -> return$ getTagValues box tag
+    OrdAttribute att -> do
+      shelf <- maybe (defaultShelf >>= findShelf) return shelfm
+      let e = expandIntrinsic att box shelf
+      return [either tshow id e]
 
 replaceSlash '/' = '\''
 replaceSlash c  = c
@@ -1594,9 +1608,24 @@ defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)
 stripStatFunction :: Text --  ^ text  to parse
                   -> Maybe (Text -- stat function
                            , Maybe (Char, Int) -- operator number
-                           , Text  -- property 
+                           , OrderingKey  -- Tag or Attribute
                            , Text) -- left over
-stripStatFunction xs  = do
+stripStatFunction xs = either (const Nothing) Just $  P.parse parser  (unpack xs) xs where
+  parser = do
+        stat <- asum $ map P.string  ["rank", "index", "ago", "n", "select", "cycle"]
+        opM <- P.optionMaybe  do
+                op <- P.oneOf "-+*/%^"
+                Just n <- readMay <$> P.many1 P.digit
+                return (op, n)
+        att <- parseTag <|> parseAttribute
+        leftOver <- P.many P.anyChar
+        return $ (pack stat, opM, att, pack leftOver)
+  parseTag = OrdTag . pack <$> do P.char '[' >> P.many (P.noneOf "]") <* P.char ']'
+  parseAttribute = OrdAttribute . pack <$> do P.char '{' >> P.many1 (P.noneOf "}") --  <* P.char '}'
+  -- The trailing } has been stripped already
+                  
+    
+_stripStatFunction xs  = do
   (prefix, drop 1 -> xs') <- breakm (== '[') xs -- rank-100 [name]
   (prop, drop 1 -> xs'') <- breakm (==']') xs'
   case breakm (not . isLetter) prefix of
@@ -1941,28 +1970,26 @@ parsePositionSpec spec =  do -- Maybe
 -- * Warehouse Cache 
 -- ** Property stats 
 -- | Retrieve property stats (and compute if needed)
-propertyStatsFor :: Text -> WH PropertyStats s
+propertyStatsFor :: OrderingKey -> WH PropertyStats s
 propertyStatsFor prop = do
   cacheRef <- whCache
   cache <- lift $ readSTRef cacheRef
-  case lookup prop (propertyStats cache) of
+  case lookup (tshow prop) (propertyStats cache) of
     Just stat -> return stat
     Nothing -> computePropertyStats prop
 
 -- | Computes or refresh the statistics for the given property
-computePropertyStats :: Text -> WH PropertyStats s
+computePropertyStats :: OrderingKey -> WH PropertyStats s
 computePropertyStats prop = do
   -- scann all object and make a map of the different values
   wh <- get
   boxList <- mapM findBox $ toList (boxes wh)
-  let values = [ value
-               | box <- boxList
-               , value <- getTagValues box prop
-               ]
-      stats = mkPropertyStats values
+  values <- mapM do \box -> expandOrdkey box Nothing prop
+                 do boxList
+  let stats = mkPropertyStats $ concat values
   -- update cache
   cacheRef <- whCache
-  lift $ modifySTRef cacheRef  (\cache -> cache {propertyStats = Map.insert prop stats (propertyStats cache) })
+  lift $ modifySTRef cacheRef  (\cache -> cache {propertyStats = Map.insert (tshow prop) stats (propertyStats cache) })
   return stats
   
 mkPropertyStats :: [Text] -> PropertyStats
