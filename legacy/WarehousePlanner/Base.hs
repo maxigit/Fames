@@ -1652,6 +1652,7 @@ parseEvaluator tag0 | Right (tag, thenValue, elseValue) <- P.parse parser (unpac
           elseValue <- P.optionMaybe do
                      P.char ':' >> (P.many1 $ P.anyChar)
           return (pack tag,  pack <$> thenValue, pack <$> elseValue)
+-- parse value:start:end
 parseEvaluator tag0 | Right (tag, startm, endm) <- P.parse parser (unpack tag0) tag0 =
   let sub = removePrefix . removeSuffix
       removePrefix t = case (startm >>= readMay, startm) of
@@ -1680,6 +1681,19 @@ parseEvaluator tag0 | Right (tag, startm, endm) <- P.parse parser (unpack tag0) 
           endm <- P.optionMaybe do
             P.char ':' >> (P.many1 $ P.anyChar)
           return (pack tag, pack <$> startm, pack <$> endm)
+parseEvaluator tag0 | Right (tag, format) <- P.parse parser (unpack tag0) tag0 =
+  let f ::  Int -> Text
+      f =  pack . printf format
+  in ( pack tag
+     , \case
+        [] -> Nothing
+        values -> Just . f $ sum $ mapMaybe readMay values
+     )
+  where parser :: P.Parser (String, String)
+        parser = do
+           tag <-  P.many1 $ P.noneOf "%"
+           format <- P.char '%' >> do P.many P.anyChar
+           return (tag, '%':format)
 parseEvaluator tag =
   ( tag
   , \case 

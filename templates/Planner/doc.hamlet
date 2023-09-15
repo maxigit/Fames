@@ -1029,6 +1029,7 @@ A planner file is made of different sections. Each section corresponds to an org
      <li><code>:[start][:[end]]</code> extract substring. <code>start</code> and <code>end</code> can be a (negative) number.
          In that case, it represent how many character to drop on each side.
          If it is a char, strip until (from) the given char.
+     <li><code>%format</code> integer formatting (as in <a href="https://hackage.haskell.org/package/base-4.18.0.0/docs/Text-Printf.html">printf</a>)
      
    For example, given box inh shelf <code>E01.03/2</code>, and <code>#top</code> is present
    <pre>
@@ -1042,6 +1043,7 @@ A planner file is made of different sections. Each section corresponds to an org
       &#36{shelfname:.:/} => 2
       &#36{shelfname:2} E01.03
       &#36{shelfname:-2} /2
+      &#36[@global%05d] 00100
    This can be used in ordering as well.
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-break">
