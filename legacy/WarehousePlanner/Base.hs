@@ -1562,7 +1562,7 @@ expandIntrinsic' "coordinate" box _shelf = let (Dimension ol ow oh) = boxCoordin
 expandIntrinsic' "offset" box _shelf = Right $ printDim $ boxOffset box
 expandIntrinsic' "dimension" box _shelf = Right $ printDim $ _boxDim box
 expandIntrinsic' "orientation" box _shelf = Right $ showOrientation (orientation box)
-expandIntrinsic' prop _box _shelf =  Right prop
+expandIntrinsic' prop _box _shelf =  Right $ "${" <> prop <> "}"
 
 
 expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> OrderingKey -> Text -> WH Text s
