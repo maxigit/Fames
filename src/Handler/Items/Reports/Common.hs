@@ -820,7 +820,7 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
         "WHERE item_code LIKE '" <> stockLike <> "'" :
         ( case qtyMode of
             OOrderedQuantity -> "AND quantity_ordered != 0"
-            OQuantityLeft -> "AND quantity_received != 0"
+            OQuantityLeft -> "AND quantity_received != quantity_ordered"
         ) :
         []
       (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
@@ -833,7 +833,10 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
                                   in [ (" AND category.value " <> keyw, v)
                                      , (" AND category.category = ? ", [PersistText catToFilter])
                                      ]
-                                     <> toT'Ps (generateTranDateIntervals param)
+                        <> toT'Ps (generateDateIntervals dateField param)
+      dateField = case orderDateColumn of
+                       OOrderDate -> "ord_date"
+                       ODeliveryDate -> "delivery_date"
   pos <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map (poToTransInfo orderDateColumn qtyMode ) pos
 
