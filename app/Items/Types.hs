@@ -331,7 +331,8 @@ tkSupplier = (either (const Nothing) Just) <=< tkCustomerSupplier
 data ItemInitialInfo = ItemInitialInfo
   { iiStandardCost :: Maybe Double
   , iiSalesPrice :: Maybe Double
-  , iiInitialStock :: Maybe Double
+  , iiInitialStock :: [(Day, Double)]
+  -- If multiple period, we need the initial stock for each period
   } deriving Show
 
 -- | different type of axis. correspond roughly to unit

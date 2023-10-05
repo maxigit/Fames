@@ -600,9 +600,9 @@ loadItemTransactions param grouper = do
 
   return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups <> orderGroups <> purchaseOrderGroups
 
-createInitialStock infoMap day = mapMaybe go (mapToList infoMap) where
+createInitialStock infoMap = mapToList infoMap >>= go where
   go (sku, info) = do --maybe
-    qoh <- iiInitialStock info
+    (day, qoh) <- iiInitialStock info
     guard (qoh /= 0)
     let key = TranKey day
                 Nothing
@@ -616,7 +616,7 @@ createInitialStock infoMap day = mapMaybe go (mapToList infoMap) where
         tqp = tranQP QPAdjustment (mkQPrice Inward qoh 0)
 
 
-    Just  (key, tqp)
+    [(key, tqp)]
   
 computeCategory :: (Text -> (Text, Text))
                 -> [Text]
@@ -644,10 +644,28 @@ computeCategory skuToStyleVar categories catFinder custCategories custCatFinder 
 -- | Allows to load similar slices of time depending on the param
 -- example the first 3 months of each year
 generateTranDateIntervals :: ReportParam -> [(Text, PersistValue)]
-generateTranDateIntervals = generateDateIntervals "tran_date"
-generateDateIntervals :: Text -> ReportParam -> [(Text, PersistValue)]
-generateDateIntervals date_column param = let
-  intervals = case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
+generateTranDateIntervals = generateDateCondition "tran_date"
+generateDateCondition :: Text -> ReportParam -> [(Text, PersistValue)]
+generateDateCondition date_column param = let
+  -- we need AND ((d>= from and d < to) OR (.. and ..))
+  -- and some hack to use persist value even if not needed
+  in  join $ [(" AND ? AND (", PersistBool True )] :
+             [ ( maybe (" (?", PersistBool True)
+                       (\d -> (" (" <> date_column <> " >= ?", PersistDay d))
+                       fromM
+               ) :
+               ( maybe (" AND ?) OR ", PersistBool True)
+                       (\d -> (" AND " <> date_column <> " < ?) OR", PersistDay d))
+                       toM
+               ) :
+               []
+             | (fromM, toM) <- generateDateIntervals param
+             ]
+             <> [[("?) ", PersistBool False)]] -- close the or clause
+      
+generateDateIntervals :: ReportParam -> [(Maybe Day, Maybe Day)]
+generateDateIntervals param =
+  case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
     (Nothing, Nothing, _)  -> [ (Nothing, Nothing) ]
     (fromM, toM, Nothing)  -> [ (fromM, toM) ]
     -- (Just from, Nothing, Just n) -> -- go n year_ ago
@@ -669,23 +687,6 @@ generateDateIntervals date_column param = let
            )
          | i <- [0..n]
          ]
-  -- we need AND ((d>= from and d < to) OR (.. and ..))
-  -- and some hack to use persist value even if not needed
-  in  join $ [(" AND ? AND (", PersistBool True )] :
-             [ ( maybe (" (?", PersistBool True)
-                       (\d -> (" (" <> date_column <> " >= ?", PersistDay d))
-                       fromM
-               ) :
-               ( maybe (" AND ?) OR ", PersistBool True)
-                       (\d -> (" AND " <> date_column <> " < ?) OR", PersistDay d))
-                       toM
-               ) :
-               []
-             | (fromM, toM) <- intervals
-             ]
-             <> [[("?) ", PersistBool False)]] -- close the or clause
-      
-
 -- | Adapt the return type of generateTranDateIntervals for 
 toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
 toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
@@ -693,15 +694,17 @@ toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
-  let sqlSelect = "SELECT ??, 0_debtor_trans.tran_date, 0_debtor_trans.debtor_no, 0_debtor_trans.branch_code, 0_debtor_trans.order_ "
+  let sqlSelect = "SELECT ??, 0_debtor_trans.tran_date, 0_debtor_trans.debtor_no, 0_debtor_trans.branch_code, 0_debtor_trans.order_, loc_code"
   let sql0 = intercalate " " $
           " FROM 0_debtor_trans_details " :
           "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
           " AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
+          " LEFT JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
           "WHERE type IN ("  :
-          (tshow $ fromEnum ST_SALESINVOICE) :
+          (tshow $ fromEnum ST_CUSTDELIVERY) :
           ",":
           (tshow $ fromEnum ST_CUSTCREDIT) :
           ") " :
@@ -726,7 +729,7 @@ loadItemSales param = do
   orderCategoryMap <- if rpLoadOrderInfo param
                       then loadOrderCategoriesFor "0_debtor_trans.order_ " sql p
                       else return mempty
-  return $ map (detailToTransInfo (rpDeduceTax param) orderCategoryMap) sales
+  return $ concatMap (detailToTransInfo (rpDeduceTax param) defaultLocation orderCategoryMap) sales
 
 loadOrderCategoriesFor :: Text -> Text -> [PersistValue] -> Handler (Map Int (Map Text Text))
 loadOrderCategoriesFor order_field orderSql params = do
@@ -768,7 +771,7 @@ loadItemOrders param io orderDateColumn qtyMode = do
                                  in [ (" AND category.value " <> keyw, v)
                                     , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
-                       <> toT'Ps (generateDateIntervals orderDateField param)
+                       <> toT'Ps (generateDateCondition orderDateField param)
       sql = sql0 <> intercalate " " w
   details <- runDB $ rawSql (sqlSelect <> sql) p
   orderCategoryMap <- loadOrderCategoriesFor "0_sales_orders.order_no AS order_" sql p
@@ -776,8 +779,20 @@ loadItemOrders param io orderDateColumn qtyMode = do
 
   
 loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
-loadItemPurchases param = do
+loadItemPurchases param0 = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  -- in case of date offset, we need to filter the purchase
+  -- not on the purchase date ,but the offsetted date.
+  -- Instead of doing that, we just shift the date range in the other direction.
+  -- For example, if the range is october but we offset by 30 days.
+  -- September purchases should be shown (because they will be shown as october)
+  -- October purchases won't be shown, because out of range.
+  let param = case rpPurchasesDateOffset param0 of
+                   Nothing -> param0
+                   Just offset -> let adj = addDays $ fromIntegral ( - offset)
+                                  in param0 { rpFrom = fmap adj (rpFrom param0)
+                                            , rpTo = fmap adj (rpTo param0)
+                                            }
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
   let sql = intercalate " " $
           "SELECT ??, 0_supp_trans.tran_date, 0_supp_trans.rate, 0_supp_trans.supplier_id  FROM 0_supp_invoice_items " :
@@ -806,7 +821,7 @@ loadItemPurchases param = do
                        <> toT'Ps (generateTranDateIntervals param)
       alterDate = maybe id (addDays . fromIntegral)  (rpPurchasesDateOffset param)
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
-  return $ map (purchToTransInfo alterDate) purch
+  return $ concatMap (purchToTransInfo alterDate (rpLoadAdjustment param)) purch
 
 loadPurchaseOrders :: ReportParam -> OrderDateColumn -> OrderQuantityMode -> Handler [(TranKey, TranQP)]
 loadPurchaseOrders param orderDateColumn qtyMode = do
@@ -833,7 +848,7 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
                                   in [ (" AND category.value " <> keyw, v)
                                      , (" AND category.category = ? ", [PersistText catToFilter])
                                      ]
-                        <> toT'Ps (generateDateIntervals dateField param)
+                        <> toT'Ps (generateDateCondition dateField param)
       dateField = case orderDateColumn of
                        OOrderDate -> "ord_date"
                        ODeliveryDate -> "delivery_date"
@@ -844,24 +859,16 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
 
 loadStockAdjustments :: Map Text ItemInitialInfo -> ReportParam -> Handler [(TranKey, TranQP)]
 loadStockAdjustments infoMap param = do
-  -- We are only interested in what's going in or out of the LOST location
-  -- checking what's in DEF doesn't work, as it mixes
-  -- transfers from incoming containers  with real adjusment
-  lostLocation <- appFALostLocation . appSettings <$> getYesod
+  -- We are only interested in what's going in or out of the DEF location
+  defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
   let sql = intercalate " " $
           "SELECT ??" :
           "FROM 0_stock_moves" :
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
-          ("WHERE ( (type = " <> tshow  (fromEnum ST_INVADJUST)) :
-                 (      "AND loc_code != '" <> lostLocation <> "'") : -- lost items are already lost,
-                 -- we don't need to kno wif they are written off
-                  ")" :
-                 (" OR ( type = " <> tshow (fromEnum ST_LOCTRANSFER)) :
-                 (      "AND loc_code = '" <> lostLocation <> "'") : --  lost of found item
-                 "    )" :
-                 ")" :
+          ("WHERE type IN ('" <> tshow (fromEnum ST_INVADJUST) <> "', '" <> tshow (fromEnum ST_LOCTRANSFER) <> "')") :
+          (" AND loc_code = '" <> defaultLocation <> "'") : 
           " AND qty != 0" :
           ("AND stock_id LIKE '" <> stockLike <> "'") : 
           []
@@ -879,7 +886,7 @@ loadStockAdjustments infoMap param = do
                        <> toT'Ps (generateTranDateIntervals param)
 
   moves <- runDB $ rawSql (sql <> intercalate " " w) p
-  let initials = createInitialStock infoMap (rpJustFrom param)
+  let initials = createInitialStock infoMap
 
   return $ map (moveToTransInfo infoMap) moves <> initials
 
@@ -914,7 +921,9 @@ loadValidSkus  param =  do
 -- | Basic item information, cost, price initital, stock at the start day (-1)
 loadStockInfo :: ReportParam -> Handler (Map Text ItemInitialInfo)
 loadStockInfo param = do
-  let stockDay = rpJustFrom param
+  let stockDays = case mapMaybe fst $ generateDateIntervals param of
+                   [] -> [rpJustFrom param]
+                   days -> days
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
   base <- basePriceList
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -939,10 +948,17 @@ loadStockInfo param = do
                                     , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
       qoh = "SELECT stock_id, SUM(qty) as qty FROM 0_stock_moves WHERE tran_date < ? AND loc_code = ? GROUP BY stock_id"
-      toInfo (Single sku, Single cost, Single price, Single qoh_ ) = (sku, ItemInitialInfo cost price qoh_)
-  rows <- runDB $ rawSql (sql <> intercalate " " w <> order) (toPersistValue base: toPersistValue stockDay : toPersistValue defaultLocation:  p)
-  -- traceShowM("Stock Info", rows)
-  return . Map.fromList $ map toInfo rows
+      toInfo day (Single sku, Single cost, Single price, Single qoh_ ) = (sku, ItemInitialInfo cost price $ maybe [] (pure . (day,)) qoh_)
+  -- OPTIMIZE if slow. Price and cost is only needed twice, but qoh for each period date.
+  -- Instead of doing two query and then joining the map, we load the price and cost many time
+  -- and discard it when merging the information
+  rowss <- mapM (\stockDay -> do
+                  rows <- runDB $ rawSql (sql <> intercalate " " w <> order) (toPersistValue base: toPersistValue stockDay : toPersistValue defaultLocation:  p)
+                  return $ map (toInfo stockDay) rows
+                )
+                stockDays
+  return . Map.fromListWith mergeInfo $ concat rowss
+  where mergeInfo (ItemInitialInfo cost price qohs) (ItemInitialInfo cost' price' qohs') = ItemInitialInfo (cost <|> cost') (price <|> price') (qohs <|> qohs')
   
 -- * Converter 
 -- ** StockMove 
@@ -961,19 +977,20 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
     -- indeed a positiv adjustment, means that we found some (therefore should go toward the stock  : Inward)
     -- However, they didn't cost anything so the amount should go towards the sales : Outward
     ST_INVADJUST -> tranQP QPAdjustment (mkQPrice Inward stockMoveQty (-stockMoveStandardCost))
-  -- transfers are relative to the LOST location so should be taking as Outward : +ve quantity = loss
-    ST_LOCTRANSFER -> tranQP QPAdjustment (mkQPrice Outward stockMoveQty $ fromMaybe 0 costPrice)
+    ST_LOCTRANSFER -> tranQP QPAdjustment (mkQPrice Inward stockMoveQty $ fromMaybe 0 costPrice)
     _ -> error $ "unexpected transaction type " ++ show (toEnum stockMoveType :: FATransType) ++ " for stock adjustment "
   costPrice = iiStandardCost =<< lookup stockMoveStockId infoMap  
   
 -- ** Sales Details 
-detailToTransInfo :: Bool -> Map Int (Map Text Text)
-                  -> (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64, Single (Maybe Int))
-                  -> (TranKey, TranQP)
-detailToTransInfo deduceTax orderCategoryMap
+detailToTransInfo :: Bool -> Text -> Map Int (Map Text Text)
+                  -> (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64, Single (Maybe Int), Single (Maybe Text))
+                  -> [(TranKey, TranQP)]
+detailToTransInfo deduceTax defaultLocation orderCategoryMap
         ( Entity _ FA.DebtorTransDetail{..}
                   , Single debtorTranTranDate
-                  , Single debtorNo, Single branchCode, Single orderM)  = (key, tqp) where
+                  , Single debtorNo, Single branchCode, Single orderM
+                  , Single locm
+        )  = [(key, tqp) | tqp <- tqps] where
   key' = TranKey debtorTranTranDate
                 (Just $ Left (debtorNo,  branchCode))
                 debtorTransDetailStockId Nothing Nothing  mempty mempty
@@ -981,9 +998,16 @@ detailToTransInfo deduceTax orderCategoryMap
   key = case flip lookup orderCategoryMap =<<  orderM of
     Nothing -> key' Nothing Nothing mempty
     Just cat -> key' (readMay =<< "date" `lookup` cat) (readMay =<< "delivery-date" `lookup` cat) cat
-  (tqp, transType) = case toEnum <$> debtorTransDetailDebtorTransType of
-    Just ST_SALESINVOICE -> (tranQP QPSalesInvoice  (qp Outward), ST_SALESINVOICE)
-    Just ST_CUSTCREDIT -> (tranQP QPSalesCredit (qp Inward), ST_CUSTCREDIT)
+  (transType, tqps) = case toEnum <$> debtorTransDetailDebtorTransType of
+    Just ST_CUSTDELIVERY -> (ST_SALESINVOICE, [tranQP QPSalesInvoice  (qp Outward)])
+    Just ST_CUSTCREDIT -> ( ST_CUSTCREDIT
+                          , [tranQP QPSalesCredit (qp Inward)] 
+                            ++ if locm /= Just defaultLocation
+                               -- Not returned in stock (damaged?)
+                               -- generate a opposit stock adjustoment
+                               then [tranQP QPAdjustment (qp Outward)]
+                               else []
+                          )
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp io = mkQPrice io debtorTransDetailQuantity price
   price = (if deduceTax
@@ -1016,21 +1040,32 @@ orderDetailToTransInfo io qtyMode orderCategoryMap (Entity _ FA.SalesOrderDetail
 
 -- ** Purchase info 
 purchToTransInfo :: (Day -> Day)
+                 -> Bool
                  -> (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)
-                 -> (TranKey, TranQP)
-purchToTransInfo alterDate ( Entity _ FA.SuppInvoiceItem{..}
+                 -> [(TranKey, TranQP)]
+purchToTransInfo alterDate revert ( Entity _ FA.SuppInvoiceItem{..}
                   , Single suppTranTranDate
                   , Single suppTranRate
-                  , Single supplierId) = (key, tqp) where
+                  , Single supplierId) = [(key, tqp) | tqp <- tqps] where
   suppTranType = fromMaybe (error "supplier transaction should have a ty B") suppInvoiceItemSuppTransType
   key = TranKey (alterDate suppTranTranDate) (Just $ Right supplierId)
                 suppInvoiceItemStockId Nothing Nothing  mempty mempty
                 (toEnum suppTranType)
                 Nothing Nothing mempty
                    
-  tqp = case toEnum suppTranType of
+  -- if we load adjustments
+  -- generate a reverse stock adjustment so that 
+  -- the purchase doesn't impact the stock
+  tqps = case toEnum suppTranType of
     ST_SUPPINVOICE -> tranQP QPPurchInvoice (qp Inward)
-    ST_SUPPCREDIT -> tranQP QPPurchCredit (qp Outward)
+                      : if revert
+                         then [tranQP QPAdjustment (qp Outward) ]
+                         else []
+    ST_SUPPCREDIT -> tranQP QPPurchCredit (qp Outward) 
+                      : if revert
+                         then [tranQP QPAdjustment (qp Inward) ]
+                         else []
+                     
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp io = mkQPrice io suppInvoiceItemQuantity price
   price = suppInvoiceItemUnitPrice*suppTranRate
