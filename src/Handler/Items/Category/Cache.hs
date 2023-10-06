@@ -149,7 +149,7 @@ refreshCategoryFor textm stockFilterM = do
     -- might be better to delete for a given sku in the form loop
     deleteWhere (criteria <> filterE id ItemCategoryStockId stockFilterM)
     forM_ stockMasters $ \stockMaster0 -> do
-      deliveries <- loadItemDeliveryForSku (smStockId stockMaster0)
+      deliveries <- return [] -- loadItemDeliveryForSku (smStockId stockMaster0)
       let stockMaster = stockMaster0 { smDeliveries = deliveries}
     -- (loadItemDeliveryForSku . smStockId) 
       -- if we are only computing one category

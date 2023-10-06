@@ -110,6 +110,8 @@ data AppSettings = AppSettings
     -- each subdirectory containing one a "collection_profiles.csv" file
     -- and one or more "*sku_speed.csv" Files
     , appForecastCollectionCategory :: Text -- ^ The category used in collection profile file
+    , appForecastDefaultProfile :: FilePath -- ^ current profile for forecast report
+    , appForecastPreviousProfile :: FilePath -- ^ previous year profile
     , appPlannerDir :: FilePath -- ^ path to directory containing subdirectories with planner files.
     -- each files will be concatenated in alphabetical order.
     , appReceiptTemplates :: Map Text ReceiptTemplate
@@ -243,6 +245,8 @@ instance FromJSON AppSettings  where
         appBankStatements <-  (o .: "bank-statements" <&> Map.singleton "Main") <|>  (o .:? "bank-statements" .!= mempty)
         appForecastProfilesDir <- o .:? "forecast-profiles-dir" .!= "Forecast"
         appForecastCollectionCategory <- o .:? "forecast-collection-category" .!= "forecast-profile"
+        appForecastDefaultProfile <- o .:? "forecast-default-profile" .!= "Repeat"
+        appForecastPreviousProfile <- o .:? "forecast-default-profile" .!= "Previous"
         appPlannerDir <- o .:? "planner-dir" .!= "Planner"
         appReceiptTemplates <- o .:? "receipt-templates" .!= Map.fromList []
         appReportDeduceTax <- o .:? "report-deduce-tax" .!= False

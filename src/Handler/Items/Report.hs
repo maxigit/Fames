@@ -7,6 +7,9 @@ module Handler.Items.Report
 , postItemsReport2R
 , getItemsReport3R
 , postItemsReport3R
+, getItemsReportSalesForecastR
+, getItemsReportSalesForecastByStyleR
+, getItemsReportSalesForecastByColourR
 ) where
 
 import Import
@@ -107,6 +110,27 @@ reportForm cols paramM extra = do
   return (report , form)
  
   
+allTraces traceN = 
+         [ noneOption
+         , ("QA-Sales", quantityAmountStyle traceN Outward)
+         , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSum)] )
+         , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSumBack)] )
+         , ("CumulAmount (In)" ,   [(qpAmount Inward, VAmount, cumulAmountStyle traceN, RunSum)] )
+         , ("Stock (In)" ,   [(qpQty Inward, VQuantity , quantityStyle traceN `nameStyle` "Stock"
+                         , RunSum)] )
+         , amountOutOption traceN
+         , amountInOption traceN
+         , ("Amount (Bare)",   [(_qpAmount, VAmount, amountStyle traceN, RSNormal)])
+         , ("CumulAmount (Bare)" ,   [(_qpAmount, VAmount, cumulAmountStyle traceN, RunSum)] )
+         , ("Quantity (Out)",  [(qpQty Outward, VQuantity, quantityStyle traceN, RSNormal)])
+         , ("Quantity (In)",   [(qpQty Inward, VQuantity, quantityStyle traceN, RSNormal)])
+         , ("Quantity (Bare)", [(_qpQty, VQuantity,           quantityStyle traceN, RSNormal)] )
+         , ("CumulQuantity (Out)" ,   [(qpQty Outward, VQuantity , quantityStyle traceN, RunSum)])
+         , ("Avg Price",       [(qpAveragePrice, VPrice,   priceStyle, RSNormal)])
+         , ("Min Price",       [(qpMinPrice, VPrice,       priceStyle, RSNormal)])
+         , ("Max Price",       [(qpMaxPrice, VPrice,       priceStyle, RSNormal)])
+         , ("Price Band",          pricesStyle)
+         ]
 {-# NOINLINE mkReport #-}
 mkReport today deduceTax fFrom  fTo
    fPeriod  fPeriodN
@@ -131,26 +155,7 @@ traceForm traceN nomode suffix p = do
   let
     dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
     dataValueOptions = map (\(t_, tps'runsum) -> (t_, Identifiable (t_, (map mkTraceParam tps'runsum))))
-                                    [ noneOption
-                                    , ("QA-Sales", quantityAmountStyle traceN Outward)
-                                    , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSum)] )
-                                    , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSumBack)] )
-                                    , ("CumulAmount (In)" ,   [(qpAmount Inward, VAmount, cumulAmountStyle traceN, RunSum)] )
-                                    , ("Stock (In)" ,   [(qpQty Inward, VQuantity , quantityStyle traceN `nameStyle` "Stock"
-                                                    , RunSum)] )
-                                    , amountOutOption traceN
-                                    , amountInOption traceN
-                                    , ("Amount (Bare)",   [(_qpAmount, VAmount, amountStyle traceN, RSNormal)])
-                                    , ("CumulAmount (Bare)" ,   [(_qpAmount, VAmount, cumulAmountStyle traceN, RunSum)] )
-                                    , ("Quantity (Out)",  [(qpQty Outward, VQuantity, quantityStyle traceN, RSNormal)])
-                                    , ("Quantity (In)",   [(qpQty Inward, VQuantity, quantityStyle traceN, RSNormal)])
-                                    , ("Quantity (Bare)", [(_qpQty, VQuantity,           quantityStyle traceN, RSNormal)] )
-                                    , ("CumulQuantity (Out)" ,   [(qpQty Outward, VQuantity , quantityStyle traceN, RunSum)])
-                                    , ("Avg Price",       [(qpAveragePrice, VPrice,   priceStyle, RSNormal)])
-                                    , ("Min Price",       [(qpMinPrice, VPrice,       priceStyle, RSNormal)])
-                                    , ("Max Price",       [(qpMaxPrice, VPrice,       priceStyle, RSNormal)])
-                                    , ("Price Band",          pricesStyle)
-                                    ]
+                           (allTraces traceN)
   (tType, vType) <-  mreq (selectField dataTypeOptions)
                            (fromString $ "type" <> suffix)
                            (dpDataType <$> p) 
@@ -259,6 +264,71 @@ getItemsReport2R _ = do
 getItemsReport3R mode = do 
   renderReportForm ItemsReport3R mode Nothing ok200 Nothing
 
+
+salesForecastParam :: Day -> FilePath -> ReportParam
+salesForecastParam today forecastPath =
+  (defaultReportParam today Nothing)
+    { rpToday = today
+    , rpFrom = Just from
+    , rpTo = Just $ calculateDate (AddYears 1) from
+    , rpPeriod' = Just PFSlidingYearFrom
+    , rpNumberOfPeriods = Just 1
+    , rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing True
+    , rpColumnRupture = ColumnRupture  (Just monthlyColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing False
+    , rpDataParam = DataParams QPSales (t 1 "Quantity (Out)")  Nothing
+    , rpDataParam2 = DataParams QPSales (t 2 "CumulQuantity (Out)")  Nothing
+    , rpLoadSalesAndInfo = Just SSalesOnly
+    , rpLoadAdjustment = True
+    , rpForecast = (Just forecastPath , Just Outward, Just (calculateDate (AddDays 1) today))
+    }
+  where from = calculateDate BeginningOfMonth today
+        i0 = Identifiable ("Column", [])
+        t n name = Identifiable ( name
+                                , concat [ map mkTraceParam tp
+                                  | (_, tp) <- (filter ((== name) . fst) (allTraces n))
+                                  ]
+                                )
+                   
+{-# NOINLINE getItemsReportSalesForecastR #-}
+getItemsReportSalesForecastR = do
+  today <- todayH
+  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
+  forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
+  forecastProfileColumnM  <- getProfileColumnM
+  let param = (salesForecastParam today $ forecastDir </> forecastPath)
+               { rpBand = ColumnRupture forecastProfileColumnM bestSalesTrace Nothing Nothing False
+               }
+  postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
+  
+
+getItemsReportSalesForecastByStyleR = do
+  today <- todayH
+  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
+  forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
+  forecastProfileColumnM  <- getProfileColumnM
+  let param = (salesForecastParam today $ forecastDir </> forecastPath)
+               { rpPanelRupture = ColumnRupture forecastProfileColumnM bestSalesTrace Nothing Nothing False
+               , rpBand = ColumnRupture (Just styleColumn) bestSalesTrace (Just RMResidualAvg) (Just 20) False
+               }
+  postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
+
+getItemsReportSalesForecastByColourR = do
+  today <- todayH
+  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
+  forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
+  forecastProfileColumnM  <- getProfileColumnM
+  let param = (salesForecastParam today $ forecastDir </> forecastPath)
+               { rpPanelRupture = ColumnRupture forecastProfileColumnM bestSalesTrace Nothing Nothing False
+               , rpBand = ColumnRupture (Just variationColumn) bestSalesTrace (Just RMResidualAvg) (Just 20) False
+               }
+  postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
+getProfileColumnM = do
+  catColumns <- categoryColumnsH
+  catProfile <- appForecastCollectionCategory <$> getsYesod appSettings
+  let colProfile =  "item:" ++ catProfile
+  return $ headMay $ filter (\c -> colName c == colProfile) catColumns
+  
+
 runFormAndGetAction form = do
   fromPost@((resp, _), _) <- runFormPostNoToken form
   case resp of
@@ -290,62 +360,63 @@ adjustParamDates param = do
   
 
 -- | React on post. Actually used GET So should be removed
-postItemsReportR = postItemsReportFor ItemsReportR 
-postItemsReportFor route mode = do
+postItemsReportR mode = postItemsReportFor ItemsReportR mode Nothing
+postItemsReportFor route mode paramM= do
   cols <- getCols
   (formRan, actionM) <- runFormAndGetAction (reportForm cols Nothing)
   let ((resp, _), _) = formRan
-  case resp of
-    FormMissing -> error "form missing"
-    FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess param0 -> do
-      param <- adjustParamDates param0
-      let panel_ = rpPanelRupture param
-          band = rpBand param
-          serie = rpSerie param
-          col = rpColumnRupture param
-          -- for table, the exact meaning of the rupture doesn't matter
-          tableGrouper = panel_ : filter (isJust . cpColumn) [band, serie]
-          grouper = [ panel_, band, serie, col]
-      case readMay =<< actionM of
+  param <- case (paramM, resp) of
+                   (Just p, _) -> return p
+                   (Nothing, FormMissing) -> error "form missing"
+                   (Nothing, FormFailure a) -> error $ "Form failure : " ++ show a
+                   (Nothing, FormSuccess param0) -> do
+                     adjustParamDates param0
+  let panel_ = rpPanelRupture param
+      band = rpBand param
+      serie = rpSerie param
+      col = rpColumnRupture param
+      -- for table, the exact meaning of the rupture doesn't matter
+      tableGrouper = panel_ : filter (isJust . cpColumn) [band, serie]
+      grouper = [ panel_, band, serie, col]
+  case readMay =<< actionM of
 
-        Just ReportCsv -> do
-              let (grouper', formatter) = case fromMaybe ReportTable mode  of
-                    ReportTable ->  (tableGrouper, summaryToCsv QPMinMax)
-                    _ -> (grouper, tracesToCsv)
-              result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
-              let source = yieldMany (map (<> "\n") (formatter param result))
-              setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
-                                              <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
-              respondSource "text/csv" (source .| mapC toFlushBuilder)
-        Just ReportRaw -> do
-             let grouper' = grouper <> map mkRupture (filter (`notElem` columnInGrouper) cols) -- all columns with grouper first
-                 columnInGrouper = mapMaybe cpColumn grouper
-                 mkRupture cols_ = emptyRupture  {cpColumn = Just cols_}
-                 formatter = summaryToCsv QPAvg
-             result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
-             let source = yieldMany (map (<> "\n") (formatter param result))
-             setAttachment . fromStrict $ "items-report-raw-" <> tshowM (rpFrom param) <> "-" 
-                                                               <> tshowM (rpTo param) <> ".csv"
-             respondSource "text/csv" (source .| mapC toFlushBuilder)
-        _ -> do
-              report <- case mode of
-                    Just ReportChart -> itemReportWithRank param grouper (chartProcessor param)
-                    Just ReportPivot -> itemReport param pivotProcessor
-                    Just ReportBubble -> itemReportWithRank param grouper (bubbleProcessor param)
-                    Just ReportScatter -> itemReportWithRank param grouper (scatterProcessor param)
-                    _ -> itemReportWithRank param tableGrouper (tableProcessor param)
-                    -- _                -> itemReportWithRank param grouper (pivotProcessorXXX param)
-              renderReportForm route mode (Just param) ok200 (Just report)
+    Just ReportCsv -> do
+          let (grouper', formatter) = case fromMaybe ReportTable mode  of
+                ReportTable ->  (tableGrouper, summaryToCsv QPMinMax)
+                _ -> (grouper, tracesToCsv)
+          result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
+          let source = yieldMany (map (<> "\n") (formatter param result))
+          setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
+                                          <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
+          respondSource "text/csv" (source .| mapC toFlushBuilder)
+    Just ReportRaw -> do
+         let grouper' = grouper <> map mkRupture (filter (`notElem` columnInGrouper) cols) -- all columns with grouper first
+             columnInGrouper = mapMaybe cpColumn grouper
+             mkRupture cols_ = emptyRupture  {cpColumn = Just cols_}
+             formatter = summaryToCsv QPAvg
+         result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
+         let source = yieldMany (map (<> "\n") (formatter param result))
+         setAttachment . fromStrict $ "items-report-raw-" <> tshowM (rpFrom param) <> "-" 
+                                                           <> tshowM (rpTo param) <> ".csv"
+         respondSource "text/csv" (source .| mapC toFlushBuilder)
+    _ -> do
+          report <- case mode of
+                Just ReportChart -> itemReportWithRank param grouper (chartProcessor param)
+                Just ReportPivot -> itemReport param pivotProcessor
+                Just ReportBubble -> itemReportWithRank param grouper (bubbleProcessor param)
+                Just ReportScatter -> itemReportWithRank param grouper (scatterProcessor param)
+                _ -> itemReportWithRank param tableGrouper (tableProcessor param)
+                -- _                -> itemReportWithRank param grouper (pivotProcessorXXX param)
+          renderReportForm route mode (Just param) ok200 (Just report)
 
 
 {-# NOINLINE postItemsReport2R #-}
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
-postItemsReport2R mode = postItemsReportFor ItemsReport2R  (mode <|> Just ReportCsv)
+postItemsReport2R mode = postItemsReportFor ItemsReport2R  (mode <|> Just ReportCsv) Nothing
 
 {-# NOINLINE postItemsReport3R #-}
 postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
-postItemsReport3R = postItemsReportFor ItemsReport3R 
+postItemsReport3R mode = postItemsReportFor ItemsReport3R  mode Nothing
 -- ** Renders 
 
 renderReportForm :: (Maybe ReportMode -> ItemsR)
