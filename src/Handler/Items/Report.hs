@@ -136,7 +136,7 @@ traceForm traceN nomode suffix p = do
                                     , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSum)] )
                                     , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSumBack)] )
                                     , ("CumulAmount (In)" ,   [(qpAmount Inward, VAmount, cumulAmountStyle traceN, RunSum)] )
-                                    , ("Stock" ,   [(qpQty Inward, VQuantity , quantityStyle traceN `nameStyle` "Stock"
+                                    , ("Stock (In)" ,   [(qpQty Inward, VQuantity , quantityStyle traceN `nameStyle` "Stock"
                                                     , RunSum)] )
                                     , amountOutOption traceN
                                     , amountInOption traceN
@@ -145,6 +145,7 @@ traceForm traceN nomode suffix p = do
                                     , ("Quantity (Out)",  [(qpQty Outward, VQuantity, quantityStyle traceN, RSNormal)])
                                     , ("Quantity (In)",   [(qpQty Inward, VQuantity, quantityStyle traceN, RSNormal)])
                                     , ("Quantity (Bare)", [(_qpQty, VQuantity,           quantityStyle traceN, RSNormal)] )
+                                    , ("CumulQuantity (Out)" ,   [(qpQty Outward, VQuantity , quantityStyle traceN, RunSum)])
                                     , ("Avg Price",       [(qpAveragePrice, VPrice,   priceStyle, RSNormal)])
                                     , ("Min Price",       [(qpMinPrice, VPrice,       priceStyle, RSNormal)])
                                     , ("Max Price",       [(qpMaxPrice, VPrice,       priceStyle, RSNormal)])
