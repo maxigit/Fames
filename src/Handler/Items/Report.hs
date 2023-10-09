@@ -277,7 +277,7 @@ salesForecastParam today forecastPath =
   (defaultReportParam today Nothing)
     { rpToday = today
     , rpFrom = Just from
-    , rpTo = Just $ calculateDate (AddYears 1) from
+    , rpTo = Just $ calculateDate (Chain [AddDays $ -1, AddYears 1]) from
     , rpPeriod' = Just PFSlidingYearFrom
     , rpNumberOfPeriods = Just 1
     , rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing True
