@@ -127,9 +127,12 @@
   /report/#Maybe-ReportMode ItemsReportR GET POST !report !group=Reporting !title=Report
   /report2/#Maybe-ReportMode ItemsReport2R GET POST !report !group=Reporting !title=Charts
   /report3/#Maybe-ReportMode ItemsReport3R GET POST !report !group=Reporting !title=Styles_by_Colour
-  /forecast/by-profile ItemsReportSalesForecastR GET !report !group=Reporting !title=Sales_Forecast
-  /forecast/by-style ItemsReportSalesForecastByStyleR GET !report !group=Reporting !title=Forecast_By_Style
-  /forecast/by-colour ItemsReportSalesForecastByColourR GET !report !group=Reporting !title=Forecast_By_Colour
+  /forecast/by-profile ItemsReportSalesForecastR GET !report !group=Forecast !title=Sales_Forecast
+  /forecast/by-style ItemsReportSalesForecastByStyleR GET !report !group=Forecast !title=By_Style
+  /forecast/by-colour ItemsReportSalesForecastByColourR GET !report !group=Forecast !title=By_Colour
+  /forecast/stock ItemsReportSalesForecastStockR GET !report !group=Forecast !title=Stock
+  /forecast/review ItemsReportSalesForecastReviewR GET !report !group=Forecast !title=Review
+  /forecast/review-scatter ItemsReportSalesForecastReviewScatterR GET !report !group=Forecast !title=Review_Scatter
 
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /category ItemsCategoryR GET !title=Categories
