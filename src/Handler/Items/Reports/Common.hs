@@ -1386,8 +1386,9 @@ renderPanelWith reportId grouped panelProcessor =  do
          panel = panelProcessor grouped plotId nmap
      [whamlet|
       <div.panel.panel-info>
-        <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
-          <h2>#{panelName}
+        <div.panel-heading>
+          <h2>
+             <span.data-toggler data-toggle="collapse" data-target="##{panelId}"> #{panelName}
         <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
           ^{panel}
             |]
