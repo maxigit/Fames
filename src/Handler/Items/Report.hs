@@ -380,6 +380,7 @@ getItemsReportSalesForecastStockR = do
   let start = calculateDate BeginningOfMonth today
   let param = (salesForecastParam start $ forecastDir </> forecastPath)
                { rpPanelRupture = emptyRupture
+               , rpFrom = Just $ calculateDate (AddYears $ -1) start -- 2 years
                , rpBand = ColumnRupture (Just skuColumn)
                                         (DataParams QPSummary (tr 2 "Stock (In)" []) Nothing)
                                         Nothing
