@@ -13,6 +13,7 @@ module Handler.Items.Report
 , getItemsReportSalesForecastReviewR
 , getItemsReportSalesForecastReviewScatterR
 , getItemsReportSalesForecastStockR
+, getItemsReportSalesForecastStock6R
 ) where
 
 import Import
@@ -381,6 +382,33 @@ getItemsReportSalesForecastStockR = do
   let param = (salesForecastParam start $ forecastDir </> forecastPath)
                { rpPanelRupture = emptyRupture
                , rpFrom = Just $ calculateDate (AddYears $ -1) start -- 2 years
+               , rpBand = ColumnRupture (Just skuColumn)
+                                        (DataParams QPSummary (tr 2 "Stock (In)" []) Nothing)
+                                        Nothing
+                                        (Just 100)
+                                        False 
+               -- display first the item most needed, indeed most negative stock quantity*amount at the end
+               , rpSerie = emptyRupture
+               , rpPeriod' = Nothing
+               , rpNumberOfPeriods = Nothing
+               , rpDataParam = DataParams QPSales (tr 1 "Quantity (Out)" ["Sales & Forecast"])  Nothing
+               , rpDataParam2 = DataParams QPSummary (tr 2 "Stock (In)" ["Stock"])  Nothing
+               , rpDataParam3 = DataParams QPPurchase (tr 2 "Quantity (In)" ["Purchases"])  Nothing
+               , rpLoadPurchases = True
+               , rpLoadPurchaseOrders = Just (ODeliveryDate, OQuantityLeft)
+               , rpLoadAdjustment = True
+               }
+  postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
+
+getItemsReportSalesForecastStock6R = do
+  today <- todayH
+  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
+  forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
+  let start = calculateDate BeginningOfMonth today
+  let param = (salesForecastParam start $ forecastDir </> forecastPath)
+               { rpPanelRupture = emptyRupture
+               , rpFrom = Just $ calculateDate (AddMonths $ -6) start
+               , rpTo = Just $ calculateDate (Chain [AddDays $ -1, AddMonths  6]) start 
                , rpBand = ColumnRupture (Just skuColumn)
                                         (DataParams QPSummary (tr 2 "Stock (In)" []) Nothing)
                                         Nothing

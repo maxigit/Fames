@@ -130,7 +130,8 @@
   /forecast/by-profile ItemsReportSalesForecastR GET !report !group=Forecast !title=Sales_Forecast
   /forecast/by-style ItemsReportSalesForecastByStyleR GET !report !group=Forecast !title=By_Style
   /forecast/by-colour ItemsReportSalesForecastByColourR GET !report !group=Forecast !title=By_Colour
-  /forecast/stock ItemsReportSalesForecastStockR GET !report !group=Forecast !title=Stock
+  /forecast/stock ItemsReportSalesForecastStockR GET !report !group=Forecast !title=Stock_12_Months
+  /forecast/stock-6 ItemsReportSalesForecastStock6R GET !report !group=Forecast !title=Stock_6_Months
   /forecast/review ItemsReportSalesForecastReviewR GET !report !group=Forecast !title=Review
   /forecast/review-scatter ItemsReportSalesForecastReviewScatterR GET !report !group=Forecast !title=Review_Scatter
 
