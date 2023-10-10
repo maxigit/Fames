@@ -350,6 +350,7 @@ periodOptions = let
      ,("Weekly", PFWeekly)
      ]
 rpPeriod :: ReportParam -> Maybe PeriodFolding
+rpPeriod rp | fromMaybe 0 (rpNumberOfPeriods rp) == 0 = Nothing
 rpPeriod rp = let
   today = rpToday rp
   beginYear = fromGregorian (currentYear) 1 1

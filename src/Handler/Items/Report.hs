@@ -273,22 +273,27 @@ getItemsReport3R mode = do
   renderReportForm ItemsReport3R mode Nothing ok200 Nothing
 
 
-salesForecastParam :: Day -> FilePath -> ReportParam
-salesForecastParam today forecastPath =
-  (defaultReportParam today Nothing)
-    { rpToday = today
-    , rpFrom = Just from
-    , rpTo = Just $ calculateDate (Chain [AddDays $ -1, AddYears 1]) from
-    , rpPeriod' = Just PFSlidingYearFrom
-    , rpNumberOfPeriods = Just 1
-    , rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing True
-    , rpColumnRupture = ColumnRupture  (Just monthlyColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing False
-    , rpDataParam = DataParams QPSales (tr 1 "Quantity (Out)" [])  Nothing
-    , rpDataParam2 = DataParams QPSales (tr 2 "CumulQuantity (Out)" [])  Nothing
-    , rpLoadSalesAndInfo = Just SSalesOnly
-    , rpLoadAdjustment = False
-    , rpForecast = (Just forecastPath , Just Outward, Just (calculateDate (AddDays 1) today))
-    }
+salesForecastParamH :: Day -> FilePath -> Maybe Int -> Handler ReportParam
+salesForecastParamH today forecastPath periodm = do
+  catProfile <- appForecastCollectionCategory <$> getsYesod appSettings
+  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
+  return 
+    (defaultReportParam today Nothing)
+      { rpToday = today
+      , rpFrom = Just from
+      , rpTo = Just $ calculateDate (Chain [AddDays $ -1, AddYears 1]) from
+      , rpPeriod' = fmap  (const PFSlidingYearFrom) periodm
+      , rpNumberOfPeriods = periodm
+      , rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing True
+      , rpColumnRupture = ColumnRupture  (Just monthlyColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing False
+      , rpDataParam = DataParams QPSales (tr 1 "Quantity (Out)" [])  Nothing
+      , rpDataParam2 = DataParams QPSales (tr 2 "CumulQuantity (Out)" [])  Nothing
+      , rpLoadSalesAndInfo = Just SSalesOnly
+      , rpLoadAdjustment = False
+      , rpForecast = (Just $ forecastDir </> forecastPath , Just Outward, Just (calculateDate (AddDays 1) today))
+      , rpCategoryToFilter = Just catProfile
+      , rpCategoryFilter = Just $ LikeFilter "_%"
+      }
   where from = calculateDate BeginningOfMonth today
 i0 = Identifiable ("Column", [])
 tr :: Int -> Text -> [Text] -> Identifiable [TraceParam]
@@ -304,10 +309,10 @@ tr n name names = Identifiable ( name
 {-# NOINLINE getItemsReportSalesForecastR #-}
 getItemsReportSalesForecastR = do
   today <- todayH
-  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
   forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
   forecastProfileColumnM  <- getProfileColumnM
-  let param = (salesForecastParam today $ forecastDir </> forecastPath)
+  param0 <- salesForecastParamH today forecastPath (Just 2)
+  let param = param0
                { rpBand = ColumnRupture forecastProfileColumnM bestSalesTrace Nothing Nothing False
                }
   postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
@@ -315,10 +320,10 @@ getItemsReportSalesForecastR = do
 
 getItemsReportSalesForecastByStyleR = do
   today <- todayH
-  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
   forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
   forecastProfileColumnM  <- getProfileColumnM
-  let param = (salesForecastParam today $ forecastDir </> forecastPath)
+  param0 <- salesForecastParamH today forecastPath (Just 2)
+  let param = param0
                { rpPanelRupture = ColumnRupture forecastProfileColumnM bestSalesTrace Nothing Nothing False
                , rpBand = ColumnRupture (Just styleColumn) bestSalesTrace (Just RMResidualAvg) (Just 20) False
                }
@@ -326,10 +331,10 @@ getItemsReportSalesForecastByStyleR = do
 
 getItemsReportSalesForecastByColourR = do
   today <- todayH
-  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
   forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
   forecastProfileColumnM  <- getProfileColumnM
-  let param = (salesForecastParam today $ forecastDir </> forecastPath)
+  param0 <- salesForecastParamH today forecastPath (Just 2)
+  let param = param0
                { rpPanelRupture = ColumnRupture forecastProfileColumnM bestSalesTrace Nothing Nothing False
                , rpBand = ColumnRupture (Just variationColumn) bestSalesTrace (Just RMResidualAvg) (Just 20) False
                }
@@ -337,49 +342,43 @@ getItemsReportSalesForecastByColourR = do
 
 getItemsReportSalesForecastReviewR = do
   today <- todayH
-  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
   forecastPath <- appForecastPreviousProfile <$> getsYesod appSettings
   forecastProfileColumnM  <- getProfileColumnM
   forecastStartM <- appForecastPreviousProfileStart <$> getsYesod appSettings
   let start = calculateDate BeginningOfMonth $ fromMaybe (calculateDate (AddYears $ -1) today) forecastStartM
-  let param = (salesForecastParam start $ forecastDir </> forecastPath)
+  param0 <- salesForecastParamH start forecastPath Nothing
+  let param = param0
                { rpPanelRupture = ColumnRupture forecastProfileColumnM bestSalesTrace Nothing Nothing False
                , rpBand = ColumnRupture (Just styleColumn) bestSalesTrace (Just RMResidualAvg) (Just 20) False
                , rpSerie = emptyRupture
-               , rpPeriod' = Nothing
-               , rpNumberOfPeriods = Nothing
                , rpDataParam = DataParams QPSales (tr 1 "QuantityWithCumul (Out)" ["Sales", "Sales"])  Nothing
                , rpDataParam2 = DataParams QPSalesForecast (tr 2 "QuantityWithCumul (In)" ["Forecast", "Forecast"])  Nothing
-               , rpForecast = (Just $ forecastDir </> forecastPath , Just Inward, Just (calculateDate (AddDays 1) start))
                }
   postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
 
 getItemsReportSalesForecastReviewScatterR = do
   today <- todayH
-  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
   forecastPath <- appForecastPreviousProfile <$> getsYesod appSettings
   forecastProfileColumnM  <- getProfileColumnM
   forecastStartM <- appForecastPreviousProfileStart <$> getsYesod appSettings
   let start = calculateDate BeginningOfMonth $ fromMaybe (calculateDate (AddYears $ -1) today) forecastStartM
-  let param = (salesForecastParam start $ forecastDir </> forecastPath)
+  param0 <- salesForecastParamH start forecastPath Nothing
+  let param = param0
                { rpPanelRupture = ColumnRupture forecastProfileColumnM bestSalesTrace Nothing Nothing False
                , rpBand = emptyRupture
                , rpSerie = ColumnRupture (Just styleColumn) bestSalesTrace Nothing (Just 200) False -- set colour
                , rpColumnRupture = ColumnRupture (Just skuColumn) bestSalesTrace Nothing (Just 200) False
-               , rpPeriod' = Nothing
-               , rpNumberOfPeriods = Nothing
                , rpDataParam = DataParams QPSales (tr 1 "QuantityWithCumul (Out)" ["Sales", "Sales"])  Nothing
                , rpDataParam2 = DataParams QPSalesForecast (tr 2 "QuantityWithCumul (In)" ["Forecast", "Forecast"])  Nothing
-               , rpForecast = (Just $ forecastDir </> forecastPath , Just Inward, Just (calculateDate (AddDays 1) start))
                }
   postItemsReportFor ItemsReportR (Just ReportScatter) (Just param)
 
 getItemsReportSalesForecastStockR = do
   today <- todayH
-  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
   forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
   let start = calculateDate BeginningOfMonth today
-  let param = (salesForecastParam start $ forecastDir </> forecastPath)
+  param0 <- salesForecastParamH start forecastPath Nothing
+  let param = param0
                { rpPanelRupture = emptyRupture
                , rpFrom = Just $ calculateDate (AddYears $ -1) start -- 2 years
                , rpBand = ColumnRupture (Just skuColumn)
@@ -389,8 +388,6 @@ getItemsReportSalesForecastStockR = do
                                         False 
                -- display first the item most needed, indeed most negative stock quantity*amount at the end
                , rpSerie = emptyRupture
-               , rpPeriod' = Nothing
-               , rpNumberOfPeriods = Nothing
                , rpDataParam = DataParams QPSales (tr 1 "Quantity (Out)" ["Sales & Forecast"])  Nothing
                , rpDataParam2 = DataParams QPSummary (tr 2 "Stock (In)" ["Stock"])  Nothing
                , rpDataParam3 = DataParams QPPurchase (tr 2 "Quantity (In)" ["Purchases"])  Nothing
@@ -402,10 +399,10 @@ getItemsReportSalesForecastStockR = do
 
 getItemsReportSalesForecastStock6R = do
   today <- todayH
-  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
   forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
   let start = calculateDate BeginningOfMonth today
-  let param = (salesForecastParam start $ forecastDir </> forecastPath)
+  param0 <- salesForecastParamH start forecastPath Nothing
+  let param = param0
                { rpPanelRupture = emptyRupture
                , rpFrom = Just $ calculateDate (AddMonths $ -6) start
                , rpTo = Just $ calculateDate (Chain [AddDays $ -1, AddMonths  6]) start 
@@ -416,8 +413,6 @@ getItemsReportSalesForecastStock6R = do
                                         False 
                -- display first the item most needed, indeed most negative stock quantity*amount at the end
                , rpSerie = emptyRupture
-               , rpPeriod' = Nothing
-               , rpNumberOfPeriods = Nothing
                , rpDataParam = DataParams QPSales (tr 1 "Quantity (Out)" ["Sales & Forecast"])  Nothing
                , rpDataParam2 = DataParams QPSummary (tr 2 "Stock (In)" ["Stock"])  Nothing
                , rpDataParam3 = DataParams QPPurchase (tr 2 "Quantity (In)" ["Purchases"])  Nothing
