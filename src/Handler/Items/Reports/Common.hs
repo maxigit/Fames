@@ -831,7 +831,7 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
         "SELECT ??, ??" :
         "FROM 0_purch_order_details" :
         "JOIN 0_purch_orders USING (order_no)" :
-        (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (stock_id == item_code)" else "" ) :
+        (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (stock_id = item_code)" else "" ) :
         "WHERE item_code LIKE '" <> stockLike <> "'" :
         ( case qtyMode of
             OOrderedQuantity -> "AND quantity_ordered != 0"
