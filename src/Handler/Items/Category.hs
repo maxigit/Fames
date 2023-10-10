@@ -6,6 +6,7 @@ import Handler.Table
 import Handler.Items.Category.Cache
 import Data.Yaml(decodeEither', encode)
 import qualified FA as FA
+import qualified Data.Map.Strict as Map
 
 -- * List of categories 
 -- | Displays the list of categories
@@ -120,6 +121,7 @@ allFields = [ "description"
             , "cogsAccount"
             , "inventoryAccount"
             , "adjustmentAccount"
+            , "runningStatus"
             , "fifo-deliveries"
             , "fifo-deliveries-with-qoh"
             , "fifo-deliveries-with-short-qoh"
@@ -145,8 +147,12 @@ loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFie
 
             in (f, [])
       stockMasters <- loadStockMasterRuleInfos stockFilter
+      faRunningStatus <- runDB $ loadFARunningStatus (Just stockFilter) ShowAll
+      let faRunningStatusMap = Map.fromList faRunningStatus
       sku'categories <- forM (take 100 stockMasters) $ \sm -> do
             deliveries <- runDB $ loadItemDeliveryForSku (smStockId sm)
-            return $ applyCategoryRules [] deliveryRules rules (sm { smDeliveries = deliveries })
+            return $ applyCategoryRules [] deliveryRules rules (sm { smDeliveries = deliveries
+                                                                   , smRunningStatus =  Map.lookup (FA.unStockMasterKey $ smStockId sm) faRunningStatusMap
+                                                                   })
       return $ displayTable categories headerFn (map makeRow sku'categories)
 

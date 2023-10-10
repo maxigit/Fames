@@ -54,8 +54,6 @@ data IndexParam = IndexParam
   , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
   } deriving (Eq, Show)
 
-data ShowInactive = ShowActive | ShowInactive | ShowAll
-  deriving (Eq, Show, Bounded, Enum)
 
 data IndexColumn = GLColumn Text
             | PriceColumn Int
@@ -674,56 +672,14 @@ suppliersToKeep cache params = let
 -- This includes if items have been even ran, still in stock, on demand (sales) or on order (purchase)
 loadStatus :: (?skuToStyleVar :: Text -> (Text,Text))
               => IndexParam ->  SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
-loadStatus param = do 
-  case (ipSKU param) of
-    Just styleF -> do
-      let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(all_qoh, 0)"
-              <> " , COALESCE(on_demand, 0), COALESCE(all_on_demand, 0) "
-              <> " , COALESCE(on_order,0) "
-              <> " , ordered, demanded "
-              <> " FROM 0_stock_master  "
-              <> " LEFT  JOIN (SELECT stock_id, SUM(qty*stock_weight) as qoh, SUM(qty) as all_qoh"
-              <> "       FROM 0_stock_moves JOIN 0_locations USING(loc_code) "
-              <> "       GROUP BY stock_id"
-              <> "      ) qoh USING(stock_id)"
-              <> " LEFT JOIN (SELECT stk_code stock_id, SUM((quantity-qty_sent)*order_weight) as on_demand "
-              <> "                                    , SUM((quantity-qty_sent)) as all_on_demand "
-              <> "                                    , 1 AS demanded "
-              <> "       FROM 0_sales_order_details "
-              <> "       JOIN 0_sales_orders USING (order_no, trans_type)"
-              <> "       JOIN 0_locations ON(from_stk_loc = loc_code) "
-              <> "       WHERE trans_type = 30 "
-              <> "              AND expiry_date > (NOW())" -- filter expired order
-              <> "       GROUP BY stk_code"
-              <> "      ) demand USING (stock_id)"
-              <> " LEFT JOIN (SELECT item_code AS stock_id "
-              <> "                   , SUM(quantity_ordered-quantity_received) on_order"
-              <> "                   , 1 AS ordered "
-              <> "            FROM 0_purch_order_details "
-              <> "            GROUP BY stock_id"
-              <> "           ) on_order USING (stock_id)"
-              <> " WHERE stock_id " <> fKeyword
-              <> inactive
-          (fKeyword, p) = filterEKeyword styleF
-          inactive = case ipShowInactive param of
-                        ShowActive -> " AND inactive = 0"
-                        ShowInactive -> " AND inactive = 1"
-                        ShowAll -> ""
-      rows <- rawSql sql p
-      return [ ItemInfo style var master
-             | (Single sku, Single qoh, Single allQoh
-               , Single onDemand, Single allOnDemand, Single onOrder
-               , Single ordered, Single demanded
-               ) <- rows
-             , let (style, var) = ?skuToStyleVar sku
-             , let used = (demanded <|> ordered) == Just True
-             , let status = ItemStatusF (pure qoh) (pure allQoh)
-                                       (pure onDemand) (pure allOnDemand)
-                                       (pure onOrder)
-                                       (pure used)
-             , let master = mempty { impFAStatus = Just status}
-             ]
-    _ -> return []
+loadStatus param = do
+  rows <- loadFAStatus (ipSKU param) (ipShowInactive param)
+  return [ ItemInfo style var master
+         | (sku, status) <- rows
+         , let (style, var) = ?skuToStyleVar sku
+         , let master = mempty { impFAStatus = Just status}
+         ]
+
 
 loadVariationsToKeep :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexCache -> IndexParam

@@ -15,6 +15,9 @@ module Handler.Items.Category.Cache
 , refreshOrderCategoryCache
 , refreshNewOrderCategoryCache 
 , StockMasterRuleInfo(..)
+, loadFAStatus
+, loadFARunningStatus
+, ShowInactive(..)
 ) where
 
 import  Import hiding(leftover, force)
@@ -31,6 +34,8 @@ import Lens.Micro
 import Data.These.Lens
 import Text.Printf(printf) 
 import Data.Time (diffDays)
+import Items.Types
+import Items.Internal (faRunningStatus)
 import qualified GHC.Exts as List
 {-# NOINLINE  categoryFinderCached #-}
 {-# NOINLINE  categoryFinderCachedFor #-}
@@ -65,6 +70,7 @@ data StockMasterRuleInfo = StockMasterRuleInfo
   , smAdjustmentAccount :: !String
   , smSalesPrice :: !(Maybe Double)
   , smDeliveries :: [StockMove'Batch]
+  , smRunningStatus :: !(Maybe FARunningStatus)
   } deriving Show
 
 stockMasterRuleInfoToTuple StockMasterRuleInfo{..} =
@@ -74,7 +80,7 @@ stockMasterRuleInfoToTuple StockMasterRuleInfo{..} =
   , (Single smSalesAccount, Single smCogsAccount, Single smInventoryAccount, Single smAdjustmentAccount)
   , Single smSalesPrice
   )
-stockMasterRuleInfoFromTuple smDeliveries ( smStockId
+stockMasterRuleInfoFromTuple smDeliveries smRunningStatus ( smStockId
                              , (Single smDescription, Single smLongDescription, Single smUnit, Single smMbFlag, Single smInactive)
                              , (Single smTaxTypeName, Single smCategoryDescription, Single smDimension1, Single smDimension2)
                              , (Single smSalesAccount, Single smCogsAccount, Single smInventoryAccount, Single smAdjustmentAccount)
@@ -84,7 +90,7 @@ stockMasterRuleInfoFromTuple smDeliveries ( smStockId
 instance RawSql StockMasterRuleInfo where
   rawSqlCols f = rawSqlCols f . stockMasterRuleInfoToTuple
   rawSqlColCountReason = rawSqlColCountReason . stockMasterRuleInfoToTuple
-  rawSqlProcessRow = stockMasterRuleInfoFromTuple [] <$$> rawSqlProcessRow
+  rawSqlProcessRow = stockMasterRuleInfoFromTuple [] Nothing <$$> rawSqlProcessRow
   
 
 -- ** Customers 
@@ -141,7 +147,10 @@ refreshCategoryFor textm stockFilterM = do
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
   deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
   stockMasters <- loadStockMasterRuleInfos stockFilter 
+  faRunningStatus <- runDB $ loadFARunningStatus (Just stockFilter) ShowAll
+
   let rules = map (first unpack) $ concatMap mapToList rulesMaps
+  let faRunningStatusMap = Map.fromList faRunningStatus
 
   runDB $ do
     let criteria = map (ItemCategoryCategory ==.) (maybeToList textm)
@@ -149,8 +158,10 @@ refreshCategoryFor textm stockFilterM = do
     -- might be better to delete for a given sku in the form loop
     deleteWhere (criteria <> filterE id ItemCategoryStockId stockFilterM)
     forM_ stockMasters $ \stockMaster0 -> do
-      deliveries <- return [] -- loadItemDeliveryForSku (smStockId stockMaster0)
-      let stockMaster = stockMaster0 { smDeliveries = deliveries}
+      deliveries <- loadItemDeliveryForSku (smStockId stockMaster0)
+      let stockMaster = stockMaster0 { smDeliveries = deliveries
+                                     , smRunningStatus =  Map.lookup (unStockMasterKey $ smStockId stockMaster0) faRunningStatusMap
+                                     }
     -- (loadItemDeliveryForSku . smStockId) 
       -- if we are only computing one category
       -- load the other from the db instead of computing them
@@ -264,6 +275,7 @@ applyCategoryRules extraInputs deliveryRules rules =
               ,"cogsAccount"
               ,"inventoryAccount"
               ,"adjustmentAccount"
+              , "runningStatus"
               ] <> deliveryKeys -- inputMap key, outside of the lambda so it can be optimised and calculated only once
       (deliveryKeys, mkDeliveryCategories) = mkItemDeliveryInput deliveryRules
       catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys  <> map fst extraInputs <>  map fst rules))
@@ -285,7 +297,8 @@ applyCategoryRules extraInputs deliveryRules rules =
                                       ("cogsAccount", smCogsAccount) :
                                       ("inventoryAccount", smInventoryAccount) :
                                       ("adjustmentAccount", smAdjustmentAccount) :
-                                    extraInputs <> mkDeliveryCategories smDeliveries
+                                      (("runningStatus",) . drop 2 . show <$> smRunningStatus) ?:
+                                      extraInputs <> mkDeliveryCategories smDeliveries
                                     )
                                   )
                                   smSalesPrice
@@ -650,3 +663,62 @@ applyOrderCategoryRules rules =
                  ((("comment",) . unpack) <$> salesOrderComments) ?:
                  []
         in (salesOrderOrderNo, computeCategories catRegexCache rules ruleInput (unpack salesOrderReference))
+        
+        
+
+-- * FA running status
+data ShowInactive = ShowActive | ShowInactive | ShowAll
+  deriving (Eq, Show, Bounded, Enum)
+
+loadFAStatus :: Maybe FilterExpression -> ShowInactive -> SqlHandler [(Text, ItemStatusF Identity)]
+loadFAStatus param showInactive = do 
+  case (param) of
+    Just styleF -> do
+      let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(all_qoh, 0)"
+              <> " , COALESCE(on_demand, 0), COALESCE(all_on_demand, 0) "
+              <> " , COALESCE(on_order,0) "
+              <> " , ordered, demanded "
+              <> " FROM 0_stock_master  "
+              <> " LEFT  JOIN (SELECT stock_id, SUM(qty*stock_weight) as qoh, SUM(qty) as all_qoh"
+              <> "       FROM 0_stock_moves JOIN 0_locations USING(loc_code) "
+              <> "       GROUP BY stock_id"
+              <> "      ) qoh USING(stock_id)"
+              <> " LEFT JOIN (SELECT stk_code stock_id, SUM((quantity-qty_sent)*order_weight) as on_demand "
+              <> "                                    , SUM((quantity-qty_sent)) as all_on_demand "
+              <> "                                    , 1 AS demanded "
+              <> "       FROM 0_sales_order_details "
+              <> "       JOIN 0_sales_orders USING (order_no, trans_type)"
+              <> "       JOIN 0_locations ON(from_stk_loc = loc_code) "
+              <> "       WHERE trans_type = 30 "
+              <> "              AND expiry_date > (NOW())" -- filter expired order
+              <> "       GROUP BY stk_code"
+              <> "      ) demand USING (stock_id)"
+              <> " LEFT JOIN (SELECT item_code AS stock_id "
+              <> "                   , SUM(quantity_ordered-quantity_received) on_order"
+              <> "                   , 1 AS ordered "
+              <> "            FROM 0_purch_order_details "
+              <> "            GROUP BY stock_id"
+              <> "           ) on_order USING (stock_id)"
+              <> " WHERE stock_id " <> fKeyword
+              <> inactive
+          (fKeyword, p) = filterEKeyword styleF
+          inactive = case showInactive of
+                        ShowActive -> " AND inactive = 0"
+                        ShowInactive -> " AND inactive = 1"
+                        ShowAll -> ""
+      rows <- rawSql sql p
+      return [ (sku, status)
+             | (Single sku, Single qoh, Single allQoh
+               , Single onDemand, Single allOnDemand, Single onOrder
+               , Single ordered, Single demanded
+               ) <- rows
+             , let used = (demanded <|> ordered) == Just True
+             , let status = ItemStatusF (pure qoh) (pure allQoh)
+                                       (pure onDemand) (pure allOnDemand)
+                                       (pure onOrder)
+                                       (pure used)
+             ]
+    _ -> return []
+
+loadFARunningStatus :: Maybe FilterExpression -> ShowInactive -> SqlHandler [(Text, FARunningStatus)]
+loadFARunningStatus param showInactive = fmap (fmap $ runIdentity . faRunningStatus) <$> loadFAStatus param showInactive
