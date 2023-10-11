@@ -134,10 +134,10 @@ allTraces traceN =
          , ("Min Price",       [(qpMinPrice, VPrice,       priceStyle, RSNormal)])
          , ("Max Price",       [(qpMaxPrice, VPrice,       priceStyle, RSNormal)])
          , ("Price Band",          pricesStyle)
-         , ("QuantityWithCumul (Out)", [ (qpQty Outward, VQuantity, quantityStyle 1, RSNormal)
-                                      , (qpQty Outward, VQuantity , smoothStyle CumulQuantityAxis , RunSum)])
-         , ("QuantityWithCumul (In)", [ (qpQty Inward, VQuantity, quantityStyle 1, RSNormal)
-                                      , (qpQty Inward, VQuantity , smoothStyle CumulQuantityAxis , RunSum)])
+         , ("QuantityWithCumul (Out)", [ (qpQty Outward, VQuantity, smoothStyle QuantityAxis, RSNormal)
+                                      , (qpQty Outward, VQuantity , hvNoMarkerStyle CumulQuantityAxis , RunSum)])
+         , ("QuantityWithCumul (In)", [ (qpQty Inward, VQuantity, smoothStyle QuantityAxis, RSNormal)
+                                      , (qpQty Inward, VQuantity , hvNoMarkerStyle CumulQuantityAxis , RunSum)])
          ]
 {-# NOINLINE mkReport #-}
 mkReport today deduceTax fFrom  fTo
@@ -292,7 +292,7 @@ salesForecastParamH today forecastPath periodm = do
       , rpLoadAdjustment = False
       , rpForecast = (Just $ forecastDir </> forecastPath , Just Outward, Just (calculateDate (AddDays 1) today))
       , rpCategoryToFilter = Just catProfile
-      , rpCategoryFilter = Just $ LikeFilter "_%"
+      , rpCategoryFilter = Nothing
       }
   where from = calculateDate BeginningOfMonth today
 i0 = Identifiable ("Column", [])
@@ -353,6 +353,7 @@ getItemsReportSalesForecastReviewR = do
                , rpSerie = emptyRupture
                , rpDataParam = DataParams QPSales (tr 1 "QuantityWithCumul (Out)" ["Sales", "Sales"])  Nothing
                , rpDataParam2 = DataParams QPSalesForecast (tr 2 "QuantityWithCumul (In)" ["Forecast", "Forecast"])  Nothing
+               , rpForecast = let (path, _, day) = rpForecast param0 in (path, Just Inward, day)
                }
   postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
 

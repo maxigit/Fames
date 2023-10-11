@@ -244,6 +244,16 @@ smoothStyle axis color = [("type", String "scatter")
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square"}|])
               ]
+smoothLineStyle axis color = [("type", String "scatter")
+                             ,("mode", String "lines")
+                             ,("name", String "Sales")
+                             , axisFor axis
+                             ,("line", [aesonQQ|{
+                                      shape:"spline", 
+                                      color: #{color},
+                                      width: 1
+                                       }|])
+                     ]
 smoothDotStyle axis color = [("type", String "scatter")
                       ,("mode", String "lines+markers")
                       ,("name", String "Sales")
@@ -276,6 +286,17 @@ hvStyle axis color = [("type", String "scatter")
                                width: 1
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square-open"}|])
+                , axisFor axis
+                -- , ("showlegend", toJSON False)
+              ]
+hvNoMarkerStyle axis color = [("type", String "scatter")
+                      ,("name", String "Quantity")
+                      ,("line", [aesonQQ|{
+                               shape:"hv",
+                               color: #{color},
+                               width: 1
+                                }|])
+                , ("mode", String "lines")
                 , axisFor axis
                 -- , ("showlegend", toJSON False)
               ]
@@ -1634,7 +1655,7 @@ seriesChartProcessor all panel rupture mono groupTrace params name plotId groupe
            map (traceFor textValuesFor ysFor) (traceParamForChart mono groupTrace asList_  params colours)
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
-                    , #{toJSON jsData} 
+                    , #{toJSON jsData}.concat({name: "dummy", x: [], y: [], yaxis: ''})
                     , { margin: { t: 30 }
                       , title: #{toJSON name}
                       , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
