@@ -267,6 +267,7 @@ applyCategoryRules extraInputs deliveryRules rules =
               ,"longDescription"
               ,"unit"
               ,"mbFlag"
+              ,"active"
               ,"taxType"
               ,"category"
               ,"dimension1"
