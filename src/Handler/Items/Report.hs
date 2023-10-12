@@ -292,7 +292,7 @@ salesForecastParamH today forecastPath periodm = do
       , rpLoadAdjustment = False
       , rpForecast = (Just $ forecastDir </> forecastPath , Just Outward, Just (calculateDate (AddDays 1) today))
       , rpCategoryToFilter = Just catProfile
-      , rpCategoryFilter = Nothing
+      , rpCategoryFilter = Just $ LikeFilter "_%"
       }
   where from = calculateDate BeginningOfMonth today
 i0 = Identifiable ("Column", [])
