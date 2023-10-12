@@ -87,7 +87,7 @@ data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
 data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
 data OrderQuantityMode = OOrderedQuantity | OQuantityLeft deriving (Eq, Show)
 data ColourMode = Panel'Band'Serie | Band'Colour'Serie | Panel'Colour'Serie | TraceColour deriving (Eq, Show, Bounded, Enum, Ord)
-data TraceGroupMode = GroupSeries | GroupTraces deriving (Eq, Show, Bounded, Enum, Ord)
+data TraceGroupMode = GroupSeries | GroupTraces | GroupParams deriving (Eq, Show, Bounded, Enum, Ord)
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
@@ -1466,7 +1466,7 @@ plotChartDiv param heightForBands all plotId0 panels = do
         in seriesChartProcessor all panels (rpSerie param)
                              ((isNothing $ cpColumn $ rpSerie param) || rpColourMode param == TraceColour) -- mono use a different colour for each trace instead of each serie
                              (rpTraceGroupMode param)
-                             (rpDataParam0s param) bandName plotId band'colours
+                             (rpDataParam0ss param) bandName plotId band'colours
   renderPlotDiv plotSeries heightForBands plotId0 (if rpColourMode param == Panel'Colour'Serie then insertNullNMapLevel panels else panels)
 
 -- | Draw a plot per band within a panel
@@ -1622,10 +1622,19 @@ formatSerieValuesNMap formatAmount_ formatPercent mode all panel band f nmap =
   nmap' = convert nmap
   convert xs = ((),) <$> xs
 
-traceParamForChart mono traceGroupMode asList_ params colorIds =  let
+-- | cartesion product between series and traces
+-- allocate the colour accordingly to arguments
+traceParamForChart  :: Bool
+                    -> Maybe TraceGroupMode
+                    -> [((Int, NMapKey), NMap (Sum Double, TranQP))]
+                    -> [[DataParam]]
+                    -> [(Text, Int)]
+                    -> [(DataParam, ((Int, NMapKey), NMap (Sum Double, TranQP)), Text, Maybe Int)]
+traceParamForChart mono traceGroupMode asList_ paramss colorIds =  let
     colorIds0 = zip (map fst colorIds) [1..]
     in [ (param, name'group, color :: Text, groupId :: Maybe Int)
-       | (param, pcId) <- zip params colorIds0
+       | (params, pcId) <- zip paramss colorIds0
+       , (param, pId) <- zip params [1..]
        , (name'group, gcId) <- zip asList_ colorIds
        -- if there is only one series, we don't need to group_ legend and colour by serie
        , let (color, _groupId) = if mono {-length grouped == 1-} then pcId else gcId
@@ -1633,17 +1642,18 @@ traceParamForChart mono traceGroupMode asList_ params colorIds =  let
                Nothing -> Nothing
                Just GroupTraces -> Just (snd pcId)
                Just GroupSeries -> Just (snd gcId)
+               Just GroupParams -> Just pId
        ] 
 
 seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture
   -> Bool -> Maybe TraceGroupMode
-  -> [DataParam]
+  -> [[DataParam]]
   -> Text
   -> Text
   -> [((NMap (Sum Double, TranQP), Maybe Text), [(Text, Int)] )] --  ^ Series , colour fun
   -> Widget 
-seriesChartProcessor all panel rupture mono groupTrace params name plotId grouped'colour = do
+seriesChartProcessor all panel rupture mono groupTrace paramss name plotId grouped'colour = do
      let -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
          jsData = do -- List
            ((grouped, tracePrefix), colours) <- grouped'colour
@@ -1654,7 +1664,7 @@ seriesChartProcessor all panel rupture mono groupTrace params name plotId groupe
                                                                                Nothing -> key
                                                                                Just pre -> mkNMapKey $ intercalate " - " . filter (not . null) $ [ pre, pvToText (nkKey key)]
                                                                        ]
-           map (traceFor textValuesFor ysFor) (traceParamForChart mono groupTrace asList_  params colours)
+           map (traceFor textValuesFor ysFor) (traceParamForChart mono groupTrace asList_  paramss colours)
          yaxises = mapMaybe extractAxis jsData
          firstY = minimumEx yaxises
          overlay axis = if axis == firstY then "" else firstY

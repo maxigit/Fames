@@ -354,6 +354,7 @@ getItemsReportSalesForecastReviewR = do
                , rpDataParam = DataParams QPSales (tr 1 "QuantityWithCumul (Out)" ["Sales", "Sales"])  Nothing
                , rpDataParam2 = DataParams QPSalesForecast (tr 2 "QuantityWithCumul (In)" ["Forecast", "Forecast"])  Nothing
                , rpForecast = let (path, _, day) = rpForecast param0 in (path, Just Inward, day)
+               , rpTraceGroupMode = Just GroupParams
                }
   postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
 
