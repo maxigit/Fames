@@ -6,6 +6,8 @@ where
 import Import hiding(computeCategory, formatAmount, formatQuantity, panel, trace, all)
 import Items.Types
 import Data.Aeson.Key (fromText)
+import qualified Data.Aeson as JSON
+import qualified Data.Aeson.Types as JSON
 import Handler.Items.Common
 import Handler.Items.Reports.Forecast
 import Handler.Items.Category.Cache
@@ -1653,18 +1655,23 @@ seriesChartProcessor all panel rupture mono groupTrace params name plotId groupe
                                                                                Just pre -> mkNMapKey $ intercalate " - " . filter (not . null) $ [ pre, pvToText (nkKey key)]
                                                                        ]
            map (traceFor textValuesFor ysFor) (traceParamForChart mono groupTrace asList_  params colours)
+         yaxises = mapMaybe extractAxis jsData
+         firstY = minimumEx yaxises
+         overlay axis = if axis == firstY then "" else firstY
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
-                    , #{toJSON jsData}.concat({name: "dummy", x: [], y: [], yaxis: ''})
+                    , #{toJSON jsData}
                     , { margin: { t: 30 }
                       , title: #{toJSON name}
-                      , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
-                      , yaxis3 : {overlaying: 'y', title: "Amount(T)", side: "right"}
-                      , yaxis4 : {overlaying: 'y', title: "Quantities(T)", side: "left"}
-                      , yaxis5 : {overlaying: 'y', title: "Price"}
+                      , yaxis2 : {overlaying: #{overlay "y2"}, title: "Quantities", side: "right"}
+                      , yaxis3 : {overlaying: #{overlay "y3"}, title: "Amount(T)", side: "right"}
+                      , yaxis4 : {overlaying: #{overlay "y4"}, title: "Quantities(T)", side: "left"}
+                      , yaxis5 : {overlaying: #{overlay "y5"}, title: "Price"}
                       }
                     );
                 |]
+extractAxis :: Value -> Maybe Text
+extractAxis v = JSON.parseMaybe  (JSON.withObject "" \o -> o .: "yaxis") v
   
 textValuesFor = map (toJSON . pvToText . fst)
 

@@ -135,9 +135,9 @@ allTraces traceN =
          , ("Max Price",       [(qpMaxPrice, VPrice,       priceStyle, RSNormal)])
          , ("Price Band",          pricesStyle)
          , ("QuantityWithCumul (Out)", [ (qpQty Outward, VQuantity, smoothStyle QuantityAxis, RSNormal)
-                                      , (qpQty Outward, VQuantity , hvNoMarkerStyle CumulQuantityAxis , RunSum)])
+                                      , (qpQty Outward, VQuantity , hvNoMarkerStyle QuantityAxis , RunSum)])
          , ("QuantityWithCumul (In)", [ (qpQty Inward, VQuantity, smoothStyle QuantityAxis, RSNormal)
-                                      , (qpQty Inward, VQuantity , hvNoMarkerStyle CumulQuantityAxis , RunSum)])
+                                      , (qpQty Inward, VQuantity , hvNoMarkerStyle QuantityAxis , RunSum)])
          ]
 {-# NOINLINE mkReport #-}
 mkReport today deduceTax fFrom  fTo
