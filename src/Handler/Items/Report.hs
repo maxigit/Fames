@@ -286,13 +286,14 @@ salesForecastParamH today forecastPath periodm = do
       , rpNumberOfPeriods = periodm
       , rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing True
       , rpColumnRupture = ColumnRupture  (Just monthlyColumn) (DataParams QPSummary i0 Nothing) Nothing Nothing False
-      , rpDataParam = DataParams QPSales (tr 1 "Quantity (Out)" [])  Nothing
-      , rpDataParam2 = DataParams QPSales (tr 2 "CumulQuantity (Out)" [])  Nothing
+      , rpDataParam = DataParams QPSales (tr 1 "QuantityWithCumul (Out)" [])  Nothing
+      -- , rpDataParam2 = DataParams QPSales (tr 2 "CumulQuantity (Out)" [])  Nothing
       , rpLoadSalesAndInfo = Just SSalesOnly
       , rpLoadAdjustment = False
       , rpForecast = (Just $ forecastDir </> forecastPath , Just Outward, Just (calculateDate (AddDays 1) today))
       , rpCategoryToFilter = Just catProfile
       , rpCategoryFilter = Just $ LikeFilter "_%"
+      , rpTraceGroupMode = Just GroupParams
       }
   where from = calculateDate BeginningOfMonth today
 i0 = Identifiable ("Column", [])
@@ -354,7 +355,6 @@ getItemsReportSalesForecastReviewR = do
                , rpDataParam = DataParams QPSales (tr 1 "QuantityWithCumul (Out)" ["Sales", "Sales"])  Nothing
                , rpDataParam2 = DataParams QPSalesForecast (tr 2 "QuantityWithCumul (In)" ["Forecast", "Forecast"])  Nothing
                , rpForecast = let (path, _, day) = rpForecast param0 in (path, Just Inward, day)
-               , rpTraceGroupMode = Just GroupParams
                }
   postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
 
