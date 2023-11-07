@@ -830,12 +830,6 @@ tmBoundingBox (TilingCombo dir m1 m2) box = let
 
 
 type SimilarBoxes s = SimilarBy Dimension (Box s)
-data Position = Position
-              { pOffset :: Dimension
-              , pOrientation :: Orientation
-              }
-     deriving (Eq, Show, Ord)
-
 -- | An ordered list. Modifying it using fmap doesn't reorder it.
 -- It is so that we can work with infinite list.
 -- Therefore fmap should be used with caution and make sure
@@ -1963,7 +1957,7 @@ applyPattern pat value = case pat of
 parsePositionSpec :: Text -> Maybe (Orientation, Dimension -> Dimension)
 parsePositionSpec spec =  do -- Maybe
   (orientationC, offsets) <-  uncons spec
-  let orientation = readOrientation orientationC
+  orientation <- readOrientationMaybe orientationC
   case splitOn ("+") offsets of
     [] -> Nothing
     (pos:abs) -> let 

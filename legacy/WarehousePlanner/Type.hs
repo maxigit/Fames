@@ -21,6 +21,7 @@ import qualified System.FilePath.Glob as Glob
 import Data.Text hiding(map)
 import Data.Time (Day)
 import Data.Semigroup(Arg(..))
+import Data.Maybe(fromMaybe)
 
 -- * Types 
 data Dimension = Dimension { dLength :: !Double
@@ -61,6 +62,12 @@ data OrderingKey = OrdTag Text | OrdAttribute Text
 -- | How something is oriented. It indicates  the direction of
 -- the normal of the given face.
 data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
+
+data Position = Position
+              { pOffset :: Dimension
+              , pOrientation :: Orientation
+              }
+     deriving (Eq, Show, Ord)
 
 data HowMany = HowMany 
              { perShelf :: Int
@@ -404,14 +411,17 @@ showOrientation' o | o == up             =  "^"
                   | otherwise           =  "tA"
 
 readOrientation :: Char -> Orientation
-readOrientation c = case c of
-    '^' -> up
-    '=' -> tiltedForward
-    '>' -> tiltedRight
-    '|' -> tiltedFR
-    '\'' -> rotatedUp
-    '@' -> rotatedSide
-    _ -> error ("can't parse orientation '" <> show c )
+readOrientation c = fromMaybe (error ("can't parse orientation '" <> show c )) $ readOrientationMaybe c
+
+readOrientationMaybe :: Char -> Maybe Orientation
+readOrientationMaybe c = case c of
+    '^' -> Just up
+    '=' -> Just tiltedForward
+    '>' -> Just tiltedRight
+    '|' -> Just tiltedFR
+    '\'' -> Just rotatedUp
+    '@' -> Just rotatedSide
+    _ -> Nothing 
 
 allOrientations :: [Orientation]
 allOrientations = [ up
@@ -559,5 +569,6 @@ selectAllBoxes = BoxSelector SelectAnything
                              (BoxNumberSelector Nothing Nothing Nothing)
 
 -- ** Warehouse 
+
 
 -- ** Similar 

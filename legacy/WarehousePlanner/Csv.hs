@@ -973,31 +973,50 @@ readStockTake tagOrPatterns newBoxOrientations splitStyle filename = do
             return (concat boxes, concat errors)
 
 -- | Like stocktake but put boxes at the given position (without checking overlapps)
+-- or execute a list of FillCommands to place the box depending on the previous one
 processStockTakeWithPosition :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> [(Text, Text, Text, Double, Double, Double, Text)] -> WH ([Box s], [Text]) s
 processStockTakeWithPosition tagOrPatterns newBoxOrientations splitter rows  =  do
   s0 <- defaultShelf
-  let go (shelfname, posSpec, style', l, w, h, os) =  do
-              let (name, tags ) = extractTags style'
+  let -- go :: Map Text FillState -> _ -> WH (FillState, _) s
+      go fillStateMap (shelfname, posSpec, style', l, w, h, os) =  do
+              let fillState = findWithDefault emptyFillState shelfname fillStateMap
+                  (name, tags ) = extractTags style'
                   (style, content) = splitter name
                   dim = Dimension l w h
                   boxOrientations = readOrientations newBoxOrientations os
               shelfs <- findShelfBySelector (Selector (matchName shelfname) [])
-              let shelf = headEx $ shelfs ++ [s0]
-              case parsePositionSpec posSpec of 
-                Nothing -> return . Left $ posSpec <> " is not a valid position."
-                Just (or, toPos) ->  do
-                      box <- newBox style
-                                    content
-                                    dim
-                                    or
-                                    (shelfId shelf)
-                                    boxOrientations
-                                   (readTagAndPatterns tagOrPatterns tags)
-                      fmap Right $ updateBox  (\b -> b { boxOffset = toPos dim} ) box
+              shelf <- findShelf $ headEx $ shelfs ++ [s0]
+              -- If not orientation is provided, use the best possible as if the shelf was empty
+              let (bestOrientation, _, _) = bestArrangement [ OrientationStrategy orientation 1 1 Nothing Nothing False 
+                                                            | orientation <- case boxOrientations of
+                                                                                  [] -> newBoxOrientations
+                                                                                  os -> os
+                                                            ]
+                                                            [(minDim shelf, maxDim shelf, ())]
+                                                            dim
+              box <- newBox style
+                            content
+                            dim
+                            bestOrientation
+                            (shelfId shelf)
+                            boxOrientations
+                           (readTagAndPatterns tagOrPatterns tags)
+              let commandsE = case parsePositionSpec posSpec of
+                                  Just (or, toPos) -> let pos = Position (toPos (_boxDim box)) or
+                                                      in Right [FCBoxWithPosition box pos]
+                                  Nothing -> case parseFillCommands posSpec of 
+                                               [] | not (null posSpec) -> Left $ posSpec <> " is not a valid position."
+                                               coms -> Right $ coms <> [FCBox box Nothing]
+                  updateM st = Map.insert shelfname st fillStateMap
+              case commandsE of
+                  Left e -> return $ (updateM fillState, Left e)
+                  Right commands -> do
+                        (newState, boxems) <- mapAccumLM executeFillCommand fillState commands
+                        return $ (updateM newState, Right $ catMaybes boxems)
 
-  boxeEs <- mapM go rows
+  (_, boxeEs) <- mapAccumLM go mempty rows
   let (errors, boxes) = partitionEithers boxeEs
-  return $ (boxes, errors)
+  return $ (concat boxes, errors)
       
       
 

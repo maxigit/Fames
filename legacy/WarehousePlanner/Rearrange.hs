@@ -11,6 +11,7 @@ import Control.Monad (zipWithM)
 import Control.Monad.State (modify)
 import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
+import GHC.Utils.Monad (mapAccumLM)
 
 -- * Type {{{1
 data ShiftStrategy = ShiftAll | StayInPlace deriving (Show, Eq)
@@ -186,3 +187,79 @@ freezeOrder boxesInOrder =  do
             
   
 
+-- * Filling shelve
+-- | Misc command to fill a shelf
+data FillCommand s = FCBox (Box s) (Maybe Orientation)
+                 | FCBoxWithPosition (Box s) Position
+                 | FCNewDepth
+                 -- | FCSetOffset Dimension
+                 | FCNextColumn
+     deriving (Show)
+     
+-- | Internal state used to keep track of the filling state process
+data FillState = FillState
+               { fOffset :: Dimension
+               , fLastBox :: Dimension -- last offset + box dimension
+               , fMaxDepth :: Double
+               }
+
+emptyFillState :: FillState
+emptyFillState = FillState { fOffset = Dimension 0 0 0
+                           , fLastBox  = Dimension 0 0 0
+                           , fMaxDepth = 0
+                           }
+-- | Fill shelf with box in the given order. regardless if boxes fit or not.
+-- Checking can be done later if needed.
+-- This is used force boxes in a shelf when we know (from barcode scanning
+-- that the box is there.
+fillShelf:: [FillCommand s] -> Shelf s -> WH [Box s] s
+fillShelf commands shelf = do
+  -- empty the shelf first
+  existingBoxes <- findBoxByShelf shelf
+  s0 <- defaultShelf
+  mapM (assignShelf $ Just s0) existingBoxes
+  fmap (catMaybes . snd)  $ mapAccumLM executeFillCommand emptyFillState commands 
+
+executeFillCommand :: FillState -> FillCommand s -> WH (FillState, Maybe (Box s)) s
+executeFillCommand state@FillState{..} = \case
+           FCBox box orm -> do
+               let or = fromMaybe (orientation box) orm
+               executeFillCommand state $ FCBoxWithPosition box (Position fOffset or)
+           FCBoxWithPosition box (Position offset or) -> do
+
+                 box' <- updateBox (\b -> b { orientation = or
+                                            , boxOffset = offset 
+                                            }
+                                   ) box
+                 let dim = boxDim box'
+                     offset' = offset <> Dimension 0 0 (dHeight dim)
+                 -- assignShelf (Just shelf) box'
+                 return ( FillState{ fOffset=offset'
+                                   , fLastBox = dim 
+                                   , fMaxDepth = max fMaxDepth (dWidth offset' + dWidth dim)
+                                   }
+                        , Just box'
+                        )
+                
+                             
+           FCNextColumn -> do
+                 let Dimension l _w _h = fLastBox
+                     Dimension ol ow _oh = fOffset
+                 return ( FillState{fOffset = Dimension (ol+l) ow 0,..}
+                        , Nothing
+                        )
+           FCNewDepth -> 
+                 return ( FillState{fOffset = Dimension 0 fMaxDepth 0, ..}
+                        , Nothing
+                        )
+                            
+parseFillCommand :: Text -> Maybe (FillCommand s)
+parseFillCommand command = case toLower command of
+  "next column" -> Just FCNextColumn
+  "nc" -> Just FCNextColumn
+  "new depth" -> Just FCNewDepth
+  "nd" -> Just FCNewDepth
+  _ -> Nothing
+
+parseFillCommands :: Text -> [FillCommand s]
+parseFillCommands = mapMaybe parseFillCommand . words
