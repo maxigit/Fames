@@ -145,7 +145,7 @@ importPackingList key tags =  runDB $ do
 importActiveBoxtakes :: [Text] -> Handler Section
 importActiveBoxtakes tags = do
   today <- todayH
-  let source = Box.boxSourceToCsv Box.plannerSource
+  let source = Box.plannerSource .| Box.boxSourceToCsv 
   content <- (runDB $ runConduit $ source .| consume)
   return $ Section (StocktakeH tags) (Right content) ("* Stocktake from Fames DB [" <> tshow today <> "]")
 
@@ -162,7 +162,7 @@ importBoxStatus whichBoxes prefix a_tags = do
   operators <- allOperators
   let source = case whichBoxes of
         AllBoxes -> selectSource [] []
-        ActiveBoxes -> Box.plannerSource  .| mapC fst
+        ActiveBoxes -> error "TODO" -- Box.plannerSource  .| mapC fst
       -- prefix = fromMaybe "" a_prefix
       getTags (Entity _ Boxtake{..}) = "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
               where
@@ -393,7 +393,8 @@ importActiveBoxtakesLive todaym tags = do
               , let extraTags = mconcat tags
 
               ]
-      source  =  Box.boxSourceToCsv (sourceList boxes)
+      source  =  sourceList [Box.HasPosition False boxes] .| Box.boxSourceToCsv
+      _use = sourceList
   content <- (runDB $ runConduit $ source .| consume)
   return $ Section (StocktakeH tags) (Right content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
   

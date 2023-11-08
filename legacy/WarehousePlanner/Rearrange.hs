@@ -12,6 +12,7 @@ import Control.Monad.State (modify)
 import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
 import GHC.Utils.Monad (mapAccumLM)
+import Data.List (unfoldr)
 
 -- * Type {{{1
 data ShiftStrategy = ShiftAll | StayInPlace deriving (Show, Eq)
@@ -194,6 +195,8 @@ data FillCommand s = FCBox (Box s) (Maybe Orientation)
                  | FCNewDepth
                  -- | FCSetOffset Dimension
                  | FCNextColumn
+                 | FCSetOrientation Orientation
+                 | FCResetOrientation
      deriving (Show)
      
 -- | Internal state used to keep track of the filling state process
@@ -201,12 +204,14 @@ data FillState = FillState
                { fOffset :: Dimension
                , fLastBox :: Dimension -- last offset + box dimension
                , fMaxDepth :: Double
+               , fLastOrientation :: Maybe Orientation
                }
 
 emptyFillState :: FillState
 emptyFillState = FillState { fOffset = Dimension 0 0 0
                            , fLastBox  = Dimension 0 0 0
                            , fMaxDepth = 0
+                           , fLastOrientation = Nothing
                            }
 -- | Fill shelf with box in the given order. regardless if boxes fit or not.
 -- Checking can be done later if needed.
@@ -223,7 +228,7 @@ fillShelf commands shelf = do
 executeFillCommand :: FillState -> FillCommand s -> WH (FillState, Maybe (Box s)) s
 executeFillCommand state@FillState{..} = \case
            FCBox box orm -> do
-               let or = fromMaybe (orientation box) orm
+               let or = fromMaybe (orientation box) $ orm <|> fLastOrientation
                executeFillCommand state $ FCBoxWithPosition box (Position fOffset or)
            FCBoxWithPosition box (Position offset or) -> do
 
@@ -237,6 +242,7 @@ executeFillCommand state@FillState{..} = \case
                  return ( FillState{ fOffset=offset'
                                    , fLastBox = dim 
                                    , fMaxDepth = max fMaxDepth (dWidth offset' + dWidth dim)
+                                   , fLastOrientation = Just or
                                    }
                         , Just box'
                         )
@@ -252,14 +258,30 @@ executeFillCommand state@FillState{..} = \case
                  return ( FillState{fOffset = Dimension 0 fMaxDepth 0, ..}
                         , Nothing
                         )
+           FCSetOrientation o -> 
+                 return ( FillState {fLastOrientation = Just o,..}
+                        , Nothing
+                        )
+           FCResetOrientation  -> 
+                 return ( FillState {fLastOrientation = Nothing,..}
+                        , Nothing
+                        )
                             
-parseFillCommand :: Text -> Maybe (FillCommand s)
-parseFillCommand command = case toLower command of
-  "next column" -> Just FCNextColumn
-  "nc" -> Just FCNextColumn
-  "new depth" -> Just FCNewDepth
-  "nd" -> Just FCNewDepth
+parseFillCommand :: [Text] -> Maybe (FillCommand s, [Text])
+parseFillCommand = \case 
+  ("" : coms) -> parseFillCommand coms
+  ("next": "column" : coms)  -> Just (FCNextColumn, coms)
+  ("nc" : coms) -> Just (FCNextColumn, coms)
+  ("new": "depth" : coms) -> Just (FCNewDepth, coms)
+  ("nd" : coms) -> Just (FCNewDepth, coms)
+  ("reset" :  "orientation" : coms) -> Just (FCResetOrientation, coms)
+  ("ro" : coms)  -> Just (FCResetOrientation, coms)
+  (com : coms) | Just (c, "") <- uncons com, Just o <- readOrientationMaybe c -> Just (FCSetOrientation o, coms)
   _ -> Nothing
 
 parseFillCommands :: Text -> [FillCommand s]
-parseFillCommands = mapMaybe parseFillCommand . words
+parseFillCommands command = let
+  commands = splitOn " " $ toLower command
+  in unfoldr parseFillCommand commands
+  
+

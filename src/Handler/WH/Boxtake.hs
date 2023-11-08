@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Handler.WH.Boxtake
 ( getWHBoxtakeR
 , postWHBoxtakeR
@@ -12,6 +13,7 @@ module Handler.WH.Boxtake
 , getWHBoxtakeAdjustmentForR
 , boxSourceToCsv
 , plannerSource
+, HasPosition(..)
 ) where
 
 import Import hiding(Planner)
@@ -97,7 +99,7 @@ postWHBoxtakeSaveR :: Handler TypedContent
 postWHBoxtakeSaveR = do
   actionM <- lookupPostParam "action"
   case actionM of
-    Just "Planner" -> spreadSheetToCsv (\Session{..} box -> box {boxtakeLocation = sessionLocation}) renderPlannerCsv
+    Just "Planner" -> processBoxtakeSheet' Save uploadPlannerCsv
     Just "Stocktake" -> let adjust Session{..} box = box { boxtakeLocation = sessionLocation
                                                          , boxtakeOperator = entityKey sessionOperator
                                                          , boxtakeDate = sessionDate
@@ -111,29 +113,71 @@ getWHBoxtakePlannerR :: Handler TypedContent
 getWHBoxtakePlannerR = do
   let source = plannerSource
   renderPlannerCsv source
-  
+renderPlannerCsv :: ConduitM () (HasPosition [(Entity Boxtake, [Text])]) SqlHandler () -> Handler TypedContent
 renderPlannerCsv boxSources = do
   today <- todayH
   let source = boxSourceToSection today boxSources
   setAttachment ("10-Planner-" <> fromStrict (tshow today) <> ".org")
   respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
 
+uploadPlannerCsv :: SavingMode -> UploadParam -> ([Session], [StyleMissing]) -> Handler TypedContent
+uploadPlannerCsv _ _ (sessions, _) = do
+  let source = sourceList sessions .| mapC sessionToBoxes .| boxSourceToCsv
+  setAttachment "boxscan.org"
+  respondSource "text/plain" (source .| mapC toFlushBuilder)
+  where sessionToBoxes session = HasPosition (sessionHasPosition session)
+                                             (mapMaybe (go $ sessionLocation session)
+                                                       (sessionRows session)
+                                             )
+        go location row = case rowBoxtake $ row of
+                       Nothing -> Nothing
+                       Just (Entity boxId boxtake) ->
+                            let loc = intercalate " " (location : rowForPlanner row)
+                            in  Just ( Entity boxId $ boxtake {boxtakeLocation = loc}
+                                     , []
+                                     )
+                     
+
+          
+ 
+ 
+           
+
+  
+-- | Has a position or not
+-- equivalent to (Bool, a) without Boolean blindness
+data HasPosition a = HasPosition Bool a 
+     deriving (Show, Eq)
 -- plannerSource :: _ => Source m Text
-plannerSource :: ConduitM () (Entity Boxtake, [Text]) SqlHandler ()
+plannerSource :: ConduitM () (HasPosition [(Entity Boxtake, [Text])]) SqlHandler ()
 plannerSource = do
     param <- liftHandler defaultAdjustmentParamH
     skuToStyle <- liftHandler skuToStyleVarH
     boxMap <- lift $ loadBoxForAdjustment param
-    sourceList  $ [ (boxE,  map (snd . skuToStyle . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake]))
-                | (boxE, stocktakes) <- concat $ Map.elems boxMap 
-                , boxtakeActive (entityVal boxE)
-                ]
+    -- group by shelves and check if every boxtake in a shelf 
+    let boxWithContentAndPos =
+          [ ( shelfname, [((boxE, contents), posm)])
+          | (boxE, stocktakes) <- concat $ Map.elems boxMap 
+          , boxtakeActive (entityVal boxE)
+          , let contents =  map (snd . skuToStyle . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake])
+          , let (shelfname, posm ) = extractPosition (boxtakeLocation $ entityVal boxE)
+          ]
+        groupedByShelf = Map.fromListWith (<>) $ boxWithContentAndPos
+    sourceList $ map (mkHasPosition . reverse) $ toList groupedByShelf
+
+-- | Take  group of boxes decide if all of it have a position or not
+mkHasPosition :: [((Entity Boxtake, [Text]), Maybe a)] -> HasPosition [(Entity Boxtake, [Text])]
+mkHasPosition box'content'posm = HasPosition hasPosition $ map fst box'content'posm
+  where hasPosition = not $ any (isNothing . snd) box'content'posm
   
-toPlanner :: (Entity Boxtake, [Text]) -> Text
-toPlanner (Entity _ Boxtake{..}, colours) = 
-  boxtakeLocation
-  <> "," <> (fromMaybe "" boxtakeDescription) <> (mconcat $ map ("#" <>) tags )
-  <> ",1"
+
+toPlanner :: HasPosition (Entity Boxtake, [Text]) -> Text
+toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) = 
+  location
+  <> ( if hasPosition
+       then "," <> position <> "," <> style
+       else "," <> style <> ",1"
+     )
   <> "," <> tshow boxtakeLength
   <> "," <> tshow boxtakeWidth
   <> "," <> tshow boxtakeHeight
@@ -141,25 +185,41 @@ toPlanner (Entity _ Boxtake{..}, colours) =
   <> "\n"
   where tags= [ "barcode=" <> boxtakeBarcode 
               , "date=" <> tshow boxtakeDate
-              , "location=" <> boxtakeLocation
+              , "location=" <> location
               ] ++ mixed ::  [Text]
+        (location, position ) =
+            case extractPosition boxtakeLocation of
+               (loc, Just (om, pos)) -> (loc, cons (fromMaybe ':' om) pos)
+               (_, Nothing) -> case words boxtakeLocation of
+                                 (loc:pos@(_:_)) -> (loc, unwords pos)
+                                 _ -> (boxtakeLocation, "")
         mixed = case colours of
                      (_:_:_) -> "mixed" : [ "content" <> tshow index <> "=" <> colour
                                      |  (colour, index) <- zip colours [1..]
                                      ]
                      _ -> []
+        style = (fromMaybe "" boxtakeDescription) <> (mconcat $ map ("#" <>) tags)
                          
 
+boxSourceToSection :: Monad m => Day -> ConduitM () (HasPosition [(Entity Boxtake, [Text])]) m () -> ConduitM () Text m ()
 boxSourceToSection today boxSources = do
   yield ("* Stocktake from Planner  [" <> tshow today <> "]\n")
-  yield (":STOCKTAKE:\n")
-  boxSourceToCsv boxSources
-  yield (":END:\n")
+  boxSources .| boxSourceToCsv
 
-boxSourceToCsv :: Monad m => ConduitM i (Entity Boxtake, [Text]) m () -> ConduitT i Text m ()
-boxSourceToCsv boxSources = do
-  yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
-  boxSources .| mapC toPlanner
+boxSourceToCsv :: Monad m => ConduitT (HasPosition [(Entity Boxtake, [Text])]) Text m ()
+boxSourceToCsv  = awaitForever go
+  where go (HasPosition hasPosition boxes) = do
+         if hasPosition
+         then  do
+            forM_ (headMay boxes) \(Entity _ box, _) ->  yield ("** " <> fst (extractPosition (boxtakeLocation box)) <> "\n")
+            yield (":STOCKTAKE:\n")
+            yield ("Bay No,Position,Style,Length,Width,Height,Orientations\n" :: Text)
+         else do
+            yield ("** Without position\n")
+            yield (":STOCKTAKE:\n")
+            yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
+         sourceList boxes .| mapC (toPlanner . HasPosition hasPosition)
+         yield (":END:\n")
   
 spreadSheetToCsv :: (Session -> Boxtake -> Boxtake) ->  _conduit -> Handler TypedContent
 spreadSheetToCsv adjust renderCsv = processBoxtakeSheet' Save go
@@ -529,7 +589,7 @@ table.collapse.in
       <td> #{tshow $ length sessionMissings } Missings
       <td> #{formatDouble volume} m<sup>3
       <td><span style="float:right">  #{operatorNickname (entityVal sessionOperator)} - #{tshow sessionDate}
-  <table.table.table-hover.collapse id="#{sessionId}">
+  <table.table.table-hover.collapse id="#{sessionId}" *{datatableNoPage}>
     ^{rowsW}
     $forall missing <- sessionMissings
       ^{renderMissingBoxRow renderUrl missing}
@@ -542,6 +602,7 @@ renderMissingBoxRow renderUrl (Entity _ missing) = [whamlet|
         <td> #{fromMaybe "" (boxtakeDescription missing)}
         <td.text-danger> #{boxtakeLocation missing}
         <td> ∅
+        <td>
         <td> #{boxtakeActive missing}
         <td> #{tshow (boxtakeDate missing)}
         |]

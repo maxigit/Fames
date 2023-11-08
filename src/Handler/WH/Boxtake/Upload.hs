@@ -1,10 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-module Handler.WH.Boxtake.Upload where
+module Handler.WH.Boxtake.Upload 
+( parseScan
+, renderRows
+, saveFromSession
+-- * Helper
+, rowIsFound
+, rowVolume
+, boxVolume
+, renderBarcode
+-- * Types
+, Session(..)
+, StyleMissing(..)
+, WipeMode(..)
+, Row(..)
+) where
 
 import Import hiding(all)
 import Handler.CsvUtils
-import Data.List(mapAccumL, (!!))
+import Data.List(mapAccumL, (!!), all, mapAccumL)
 import Handler.Table
 import WH.Barcode (isBarcodeValid)
 import qualified Data.Csv as Csv
@@ -13,18 +27,24 @@ import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Either
+import Handler.WH.Boxtake.Common (extractPosition)
+import WarehousePlanner.SimilarBy
 -- * Type 
 -- | The raw result of a scanned row
 data RawScanRow = RawDate Day
              | RawOperator Text
              | RawLocation Text
              | RawBarcode Text
+             | RawDepth Int
+             | RawOrientation Text
              deriving (Eq, Show)
 
-data ScanRow = DateRow Day
+data ScannedRow = DateRow Day
              | OperatorRow (Entity Operator)
              | LocationRow Text
              | BoxRow (Entity Boxtake)
+             | DepthRow Int
+             | OrientationRow Text
              deriving (Eq, Show)
 
 -- | The result of a scan
@@ -34,6 +54,18 @@ data Row = Row
   , rowLocation :: Text
   , rowDate :: Day
   , rowOperator :: (Entity Operator)
+  , rowDepth :: Int
+  , rowForPlanner :: [Text]
+  } deriving (Eq, Show)
+
+-- | As Row but with maybe
+data LastScanned = LastScanned 
+  { lastBoxtake :: Maybe (Entity Boxtake)
+  , lastLocation :: Maybe Text
+  , lastDate :: Maybe Day
+  , lastOperator :: Maybe (Entity Operator)
+  , lastDepth :: Int
+  , lastForPlanner :: [Text]
   } deriving (Eq, Show)
 
 -- | A grouped version of rows by locations
@@ -44,7 +76,14 @@ data Session = Session
   , sessionLocation :: Text
   , sessionRows :: [Row]
   , sessionMissings :: [Entity Boxtake] -- ^ boxes not present
+  , sessionHasPosition :: Bool -- ^ Needed to export to planner 
   }
+
+data RowWithPosition = RowWithPosition
+  { row :: Row
+  , rowL :: Int
+  , rowH :: Int
+  } deriving (Eq, Show)
 
 data StyleMissing = StyleMissing
   { missingStyle :: Text
@@ -66,6 +105,8 @@ rawText (RawDate d) = tshow d
 rawText (RawOperator o) = o
 rawText (RawLocation l) = "LC" <> l
 rawText (RawBarcode b) = b
+rawText (RawDepth d) = "W=" <> tshow d
+rawText (RawOrientation o) = "O=" <> tshow o
 
 rowVolume :: Row -> Double
 rowVolume row = maybe 0 volume (rowBoxtake row) where
@@ -81,6 +122,8 @@ rowIsFound row = not $ maybe False (boxtakeActive . entityVal) (rowBoxtake row)
 parseRawScan :: Text -> RawScanRow
 parseRawScan line' = let line = strip line' in  case () of
       () | Just location <- stripPrefix "LC" line -> RawLocation location
+      () | Just s <- stripPrefix "D=" line, Just depth <- readMay s -> RawDepth depth
+      () | Just s <- stripPrefix "O=" line -> RawOrientation s
       () | (isPrefixOf "DL" line || isPrefixOf "ST" line)
            && isBarcodeValid (fromStrict line)  -> RawBarcode line
       () | Just day <- parseDay (unpack line) -> RawDate (allFormatsDay day)
@@ -88,7 +131,7 @@ parseRawScan line' = let line = strip line' in  case () of
 
 loadRow :: (Text -> Bool) --  ^ Location validator
         -> (Text -> Maybe (Entity Operator)) --  ^ Operator finder
-        -> RawScanRow -> Handler (Either InvalidField ScanRow)
+        -> RawScanRow -> Handler (Either InvalidField ScannedRow)
 loadRow isLocationValid findOperator row = do
   case row of
        RawDate day -> return $ Right (DateRow day)
@@ -109,13 +152,16 @@ loadRow isLocationValid findOperator row = do
                 Just box -> Right (BoxRow box)
                 Nothing ->  Left (InvalidValueError ("Barcode " <> barcode <> " not found.")
                                                     barcode)
+       RawDepth depth -> return $ Right $ DepthRow depth
+       RawOrientation orientation -> return . Right $ OrientationRow orientation
+        
 
 -- parseScan :: Text -> Handler (ParsingResult I-(Either ))
 
 parseScan
   :: WipeMode
   -> ByteString
-  -> Handler (ParsingResult (Either InvalidField ScanRow) ([Session], [StyleMissing]))
+  -> Handler (ParsingResult (Either InvalidField ScannedRow) ([Session], [StyleMissing]))
 parseScan wipeMode spreadsheet = do -- Either
       let rawsE = parseSpreadsheet (mapFromList [("Barcode", [])]) Nothing spreadsheet
       case rawsE of
@@ -132,7 +178,7 @@ parseScan wipeMode spreadsheet = do -- Either
             Left _ -> -- there is some error
               return $ InvalidData [] (filter isLeft rows) rows
             Right rights_ -> do
-              let (_, fullEs) = mapAccumL makeRow (Nothing, Nothing, if wipeMode == Deactivate then Just "LOST" else Nothing, Nothing) rights_
+              let (_, fullEs) = mapAccumL makeRow emptyLastScanned {lastLocation = if wipeMode == Deactivate then Just "LOST" else Nothing} rights_
               case  sequence (catMaybes fullEs) of
                 Left _ -> let -- errors, we need to join them with initial rows
                   joinError raw _ (Just (Left e)) = Left (InvalidValueError e (rawText raw))
@@ -159,79 +205,128 @@ parseScan wipeMode spreadsheet = do -- Either
 -- complete a new section or should reset everything
 -- Also, a location can be empty. In that case the location needs to be scanned twice in a row.
 -- We check that there is no barcode after it.
-makeRow :: (Maybe Day, Maybe (Entity Operator), Maybe Text, Maybe (Entity Boxtake)) --  ^ last day, operator , and location and barcode (last box)
-        -> ScanRow
-        -> ((Maybe Day, Maybe (Entity Operator), Maybe Text, Maybe (Entity Boxtake))
-           , Maybe (Either Text Row))
-makeRow (daym ,opm, locm, lastbox) row = case (row, lastbox) of
+makeRow :: LastScanned --  ^ last day, operator , and location and barcode (last box)
+        -> ScannedRow
+        -> (LastScanned , Maybe (Either Text Row))
+makeRow lastScan row = case (row, lastBoxtake lastScan) of
   -- start new section Reset
-  (DateRow day, Just _) -> ((Just day, Nothing, Nothing, Nothing), Nothing) -- reset
-  (OperatorRow op, Just _) -> ((Nothing, Just op, Nothing, Nothing), Nothing) -- reset
+  (DateRow day, Just _) -> (emptyLastScanned {lastDate = Just day}, Nothing) -- reset
+  (OperatorRow op, Just _) -> (emptyLastScanned {lastOperator = Just op}, Nothing) -- reset
   -- append to new section
-  (DateRow day, Nothing) -> ((Just day, opm, locm, Nothing), Nothing) -- append
-  (OperatorRow op, Nothing) -> ((daym, Just op, locm, Nothing), Nothing)
-  -- check if the same location is called twice
-  (LocationRow newLoc, _) | (Just day, Just op, Just loc) <- (daym, opm, locm)
+  (DateRow day, Nothing) -> (lastScan {lastDate = Just day}, Nothing) -- append
+  (OperatorRow op, Nothing) -> (lastScan {lastOperator = Just op}, Nothing)
+  -- check if the same location is called twice in a row  with nothing
+  -- this means an empty shelf
+  (LocationRow newLoc, Nothing) | LastScanned{lastDate=Just day, lastOperator=Just op, lastLocation =Just loc} <- lastScan
                           , loc == newLoc
                     -- clear the next location so it needs be provide again
-                    -> ((daym, opm, Nothing, lastbox), Just $ Right (Row Nothing loc day op))
-  (LocationRow loc, lastbox_) -> ((daym, opm, Just loc, lastbox_), Nothing)
-  (BoxRow box, _) | (Just day, Just op, Just loc) <- (daym, opm, locm)
-                    -> ((daym, opm, locm, Just box), Just $ Right (Row (Just box) loc day op))
+                    -> ( lastScan {lastLocation = Nothing, lastForPlanner = []}
+                       , Just . Right $ Row Nothing loc day op
+                                           (lastDepth lastScan)
+                                           (lastForPlanner lastScan)
+                       )
+  (LocationRow loc, _) -> (lastScan {lastLocation = Just loc, lastDepth= 1, lastForPlanner = [] }, Nothing)
+  (DepthRow d, _) -> (lastScan {lastDepth = d }, Nothing)
+  (OrientationRow or, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> [or]}, Nothing)
+  (BoxRow box, _) | LastScanned{lastDate=Just day, lastOperator=Just op, lastLocation=Just loc} <- lastScan
+                    -> ( lastScan {lastBoxtake = Just box, lastForPlanner = []}
+                       , Just . Right $ Row (Just box) loc day op
+                                            (lastDepth lastScan)
+                                            (lastForPlanner lastScan)
+                       )
   (BoxRow _  , _)   -> let messages = execWriter $ do
+                             let LastScanned{..} = lastScan
                              tell ["Barcode not expected there."]
-                             when (isNothing daym) (tell ["Date is missing."])
-                             when (isNothing opm) (tell ["Operator is missing)."])
-                             when (isNothing locm) (tell ["Location is missing."])
+                             when (isNothing lastDate) (tell ["Date is missing."])
+                             when (isNothing lastOperator) (tell ["Operator is missing)."])
+                             when (isNothing lastLocation) (tell ["Location is missing."])
                            msg = unlines messages
-                       in ((daym, opm, locm, Nothing), Just $ Left  msg)
+                       in (lastScan{lastBoxtake=Nothing}, Just $ Left  msg)
 
-{- Obsolete
--- | Extract all expanded location. As well as a empty one.
--- | An empty location is a location which has been scanned twice in a row.
-extractLocations :: [Row] -> Either Text ([Text] , [Text])
-extractLocations rows = let
-  (emptys, nonEmptys) = partition (isNothing . rowBoxtake) rows
-  [fromEmpty, fromNonEmpty] = map (setFromList . map rowLocation) [emptys, nonEmptys] :: [Set Text]
-  -- detect if there are collision 
-  common = fromEmpty \\ fromNonEmpty
-  in case toList common of
-    [] -> Right (toList fromNonEmpty, toList fromEmpty)
-    commons -> Left $ "The following locations are empty and non empty : " <> intercalate ", " commons
--}
-                                        
-                                        
+emptyLastScanned :: LastScanned
+emptyLastScanned = LastScanned{ lastDate=Nothing
+                              , lastBoxtake = Nothing
+                              , lastOperator = Nothing
+                              , lastLocation = Nothing
+                              , lastDepth = 1
+                              , lastForPlanner = []
+                              }
+
+newtype Location = Location {unLocation :: Text}
+  deriving (Show, Eq, Ord)
 
 groupBySession :: [Row] -> Either [Text] [Session]
 groupBySession rows = do -- Either
-  let rowByLocs = Map.fromListWith (<>) [(rowLocation row, [row]) | row <- rows]
+  let rowByLocs = groupSimilar (Location . rowLocation) rows
       sessionEs = map makeSession (toList rowByLocs)
   case sequence sessionEs of
     Left _ -> Left $ lefts sessionEs
     Right sessions -> Right sessions
 
-
 -- | Create a session from the given rows. Rows are supposed
 -- to belong to the same session/shelf , ie same location , date
-makeSession :: [Row] -> Either Text Session
-makeSession rows = do
-  location <- extractUnique "location" id id rowLocation  rows
+makeSession :: (SimilarBy Location Row) -> Either Text Session
+makeSession sim = do
+  let rows_ = unSimilar sim
+      -- remove consecutive duplicates in case of double scan
+      _rows = removeConsecutiveDuplicates rows_
+      -- At the moment we allow duplicate and even triplicate
+      -- to show skip
+      rows = rows_
+      location = unLocation $ similarKey sim
+      (woboxes, withboxes) = partition (isNothing . rowBoxtake) rows
   date <- extractUnique "date" (tshow) id rowDate rows
-    <|&> (<> ("For location" <> location))
+      <|&> (<> ("For location" <> location))
   operator <- extractUnique "operator" (operatorNickname . entityVal)  entityKey rowOperator rows
-    <|&> (<> ("For location" <> location))
+      <|&> (<> ("For location" <> location))
+  -- if position are not required only one set of scans per location should be allowed
   -- check if shelve is empty or not
-  rows' <- case partition (isNothing . rowBoxtake) rows of
-    ([], _) -> Right rows
-    (_, []) -> Right []
+  (rows', hasPosition) <- case (woboxes, withboxes) of
+    ([], wboxes) -> Right $ adjustForPlanner wboxes 
+    (_, []) -> Right ([], False)
     _ -> Left $ "Shelf " <> location <> " is at the same time empty and contains boxes"
 
-  Right $ Session date operator location rows' []
+  Right $ Session date operator location rows' [] hasPosition
+  where removeConsecutiveDuplicates = concatMap (take 1) . groupBy ((==) `on` rowBoxtake)
     
     
+-- | Add planner export specifif tag, ie new depth , and next column
+-- depending on the depth and the box has been scanned twice (indicated first of a column)
+adjustForPlanner :: [Row] -> ([Row], Bool)
+adjustForPlanner rows = let
+  row'counts = processDuplicateRows $ sortOn rowDepth rows
+  in if all ((==) 1 . snd) row'counts
+     then (rows, False)
+     else  ( snd $ mapAccumL go Nothing  row'counts
+           , True
+           )
+  where go :: Maybe Row -> (Row, Int) -> (Maybe Row, Row)
+        go lastm (row, count) = let 
+                  extra = if
+                          | depthDiff <- rowDepth row - maybe 1 rowDepth lastm , depthDiff > 0 -> replicate depthDiff "NEW DEPTH"
+                          | Just _ <- lastm, count > 1 -> replicate (count - 1) "NEXT COLUMN"
+                          | count > 2 -> replicate (count - 2) "NEXT COLUMN"
+                          | otherwise -> []
+                  in ( Just row
+                     , row {rowForPlanner = rowForPlanner row <> extra }
+                     )
 
--- extractUnique :: Ord b => Text -> (b -> Text) -> (a -> b) -> [a] -> Either Text b
+-- | count similar row and keep only the first occurence
+processDuplicateRows :: [Row] -> [(Row, Int)]
+processDuplicateRows rows = let
+  countMap = Map.fromListWith (+) $ map ((,1) . key) rows
+  key = fmap entityKey . rowBoxtake
+  keep (toKeep, used) row =
+       let k = key row 
+       in if k `member` used
+          then (toKeep, used)
+          else case Map.lookup k countMap of
+               Nothing -> error "The unexpected happened. Contact your adminintrator!"
+               Just count -> (toKeep <> [(row, count)], Set.insert k used)
+  in fst $ foldl' keep ([], mempty) rows
+  
 
+-- | extractUnique :: Ord b => Text -> (b -> Text) -> (a -> b) -> [a] -> Either Text b
 extractUnique :: (Ord k) => Text -> (b -> Text) -> (b -> k) -> (a -> b) -> [a] -> Either Text b
 extractUnique fieldname toText toKey field rows = let
   all = Map.fromList $ [(toKey f, f) | r <- rows, let f = field r ]
@@ -241,7 +336,7 @@ extractUnique fieldname toText toKey field rows = let
 
 -- ** Validation 
 -- * Rendering 
-instance Renderable [Either InvalidField ScanRow] where
+instance Renderable [Either InvalidField ScannedRow] where
   render rows = do
     displayTable indexes colnameF (map mkRowF rows)
     invFieldEmptyWidget
@@ -253,6 +348,8 @@ instance Renderable [Either InvalidField ScanRow] where
         DateRow day -> (const $ Just (toHtml $ tshow day, []), ["day-row", "bg-info"])
         OperatorRow (Entity _ op) -> (const $ Just (toHtml $ operatorNickname op, []), ["operator-row", "bg-info"])
         LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row", "bg-success"])
+        DepthRow d -> (const $ Just (toHtml $ d, []), ["depth-row", "bg-info"])
+        OrientationRow or -> (const $ Just (toHtml $ or, []), ["orientation-row", "bg-info"])
         BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
 
 
@@ -262,10 +359,10 @@ renderBarcode renderUrl barcode =
          |] renderUrl
 renderRows :: _ -> [Row] -> Widget
 renderRows renderUrl rows  =
-    displayTableRows indexes colnameF (map mkRowF rows)
+    displayTableRowsAndHeader indexes colnameF (map mkRowF rows)
     where
-      indexes = [1..6]
-      colnameF i = map (,[]) ["Barcode", "Description", "Old Location", "New Location", "Active", "Date"] !! (i-1)
+      indexes = [1..7]
+      colnameF i = map (,[]) ["Barcode", "Description", "Old Location", "New Location", "For Planner", "Active", "Date"] !! (i-1)
       mkRowF row@Row{..}  =
         case rowBoxtake of 
           Just (Entity _ Boxtake{..}) -> let
@@ -273,11 +370,12 @@ renderRows renderUrl rows  =
             value 2 = Just ( toHtml $ fromMaybe "" $ boxtakeDescription, [])
             value 3 = Just ( toHtml $ oldLocation, if inOld then [] else ["text-danger"])
             value 4 = Just ( toHtml $ newLocation, [])
-            value 5 = Just ( toHtml $ boxtakeActive, if rowIsFound row then ["text-danger"] else [])
-            value 6 = Just ( toHtml . tshow $ boxtakeDate, [])
+            value 5 =  Just  (toHtml $ intercalate " " rowForPlanner , [])
+            value 6 = Just ( toHtml $ boxtakeActive, if rowIsFound row then ["text-danger"] else [])
+            value 7 = Just ( toHtml . tshow $ boxtakeDate, [])
             value _ = Nothing
             oldLocation = boxtakeLocation 
-            locationSet_ = Set.fromList $ (splitOn "|" oldLocation)
+            locationSet_ = Set.fromList $ map (fst . extractPosition) $ (splitOn "|" oldLocation)
             inOld = newLocation `elem` locationSet_  || oldLocation == "DEF"
             newLocation = rowLocation
             rowClasses = case (inOld, rowIsFound row ) of
@@ -347,7 +445,7 @@ loadMissingFromStyles sessions = do
 
 sessionStyles :: Session -> Set Text
 sessionStyles Session{..} = let
-  descriptions = mapMaybe (boxtakeDescription . entityVal <=< rowBoxtake ) sessionRows
+  descriptions = mapMaybe (boxtakeDescription . entityVal <=< rowBoxtake) sessionRows
   -- TODO: remove hardcoded value
   styles = map (take 8) descriptions
   in Set.fromList styles
@@ -383,9 +481,14 @@ saveFromSession Session{..} = do
   mapM_ saveLocation (sessionRows)
   mapM_ (setActivateBoxtake False sessionDate) sessionMissings
 
+-- | Save the location only if the location is different
+-- Keep position in DB if location (without positon) is the same.
 saveLocation :: Row  -> SqlHandler ()
-saveLocation Row{..} = do
-  forM_ rowBoxtake $ updateBoxtakeLocation rowLocation
-                                           (entityKey rowOperator)
-                                           rowDate
-
+saveLocation Row{..} = 
+  forM_ rowBoxtake $ \boxe@(Entity _ boxtake) -> do
+        let (oldLocation, oldPosM) = extractPosition $ boxtakeLocation boxtake
+        when  (oldLocation /= rowLocation || (isJust oldPosM)) do
+          updateBoxtakeLocation (rowLocation)
+                                (entityKey rowOperator)
+                                (rowDate)
+                                boxe

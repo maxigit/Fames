@@ -1960,6 +1960,8 @@ parsePositionSpec spec =  do -- Maybe
   orientation <- readOrientationMaybe orientationC
   case splitOn ("+") offsets of
     [] -> Nothing
+    [""] -> Nothing
+    (pos:_) | Just (' ', _) <- T.uncons pos -> Nothing
     (pos:abs) -> let 
       mul :: Double -> Maybe Int -> Double
       mul d m = case m of 
