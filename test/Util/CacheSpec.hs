@@ -94,7 +94,7 @@ spec = describe "Cache" $ before_ clearLogs $ do
       _ <- startDelayed  delayed
       sleepMilli 250
       logsShouldBe ["starting", "done"]
-    it "@focus is aborted when purged" $ do
+    it "is aborted when purged" $ do
       cache <- newExpiryCache
       delayed <- preCache False cache "A" (
         do

@@ -4,6 +4,7 @@ module WarehousePlanner.Rearrange
 where 
 
 import ClassyPrelude;
+import qualified Prelude
 import  WarehousePlanner.Base
 import Data.Text(splitOn, split)
 -- import qualified Data.Map as Map
@@ -197,23 +198,34 @@ data FillCommand s = FCBox (Box s) (Maybe Orientation)
                  | FCNextColumn
                  | FCSetOrientation Orientation
                  | FCResetOrientation
-                 -- | FCSetOrientationStrategy OrientationStrategy
+                 | FCSetIgnoreDimension Bool
+                 | FCSetOrientationStrategy PartitionMode OrientationStrategy
+                 | FCClearNextPositions
+                 | FCSetLastBox (Maybe Double) (Maybe Double) (Maybe Double)
+                 | FCSetOffset (Maybe Double) (Maybe Double) (Maybe Double)
      deriving (Show)
      
 -- | Internal state used to keep track of the filling state process
 data FillState = FillState
                { fOffset :: Dimension
-               , fLastBox :: Dimension -- last offset + box dimension
+               , fLastBox_ :: Dimension -- ^ last orientated box
                , fMaxCorner :: Dimension
                , fLastOrientation :: Maybe Orientation
                -- , fNextPositions :: [Position] -- positions to use next in case of complex orientation strategy
+               , fIgnoreDimension :: Bool -- ^ If true reuse the dimension of the lats box instead of the current one
+               -- Usefull to force slightly bigger box or fit smaller box without altering the overall layout
+               , fNextPositions :: Slices Double Position 
+               , fLastOrientationStrategy :: Maybe (PartitionMode, OrientationStrategy)
                }
 
 emptyFillState :: FillState
 emptyFillState = FillState { fOffset = Dimension 0 0 0
-                           , fLastBox  = Dimension 0 0 0
+                           , fLastBox_  = Dimension 0 0 0
                            , fMaxCorner = Dimension 0 0 0
                            , fLastOrientation = Nothing
+                           , fIgnoreDimension = False
+                           , fNextPositions = mempty
+                           , fLastOrientationStrategy = Nothing
                            }
 -- | Fill shelf with box in the given order. regardless if boxes fit or not.
 -- Checking can be done later if needed.
@@ -225,40 +237,34 @@ fillShelf commands shelf = do
   existingBoxes <- findBoxByShelf shelf
   s0 <- defaultShelf
   mapM (assignShelf $ Just s0) existingBoxes
-  fmap (catMaybes . snd)  $ mapAccumLM executeFillCommand emptyFillState commands 
+  fmap (catMaybes . snd)  $ mapAccumLM (executeFillCommand shelf) emptyFillState commands 
 
-executeFillCommand :: FillState -> FillCommand s -> WH (FillState, Maybe (Box s)) s
-executeFillCommand state@FillState{..} = \case
-           FCBox box orm -> do
-               let or = fromMaybe (orientation box) $ orm <|> fLastOrientation
-               executeFillCommand state $ FCBoxWithPosition box (Position fOffset or)
-           FCBoxWithPosition box (Position offset or) -> do
+executeFillCommand :: Shelf s -> FillState -> FillCommand s -> WH (FillState, Maybe (Box s)) s
+executeFillCommand shelf state@FillState{..} = \case
+           FCBox box orm -> 
+                 case unconsSlices fNextPositions of
+                  Nothing -> let or = fromMaybe (orientation box) $ orm <|> fLastOrientation
+                             in executeFillCommand shelf state $ FCBoxWithPosition box (Position fOffset or)
+                  Just (next,_, nexts) -> doBox state {fNextPositions = nexts} box next
 
-                 box' <- updateBox (\b -> b { orientation = or
-                                            , boxOffset = offset 
-                                            }
-                                   ) box
-                 let dim = boxDim box'
-                     offset' = offset <> Dimension 0 0 (dHeight dim)
-                 -- assignShelf (Just shelf) box'
-                 return ( FillState{ fOffset=offset'
-                                   , fLastBox = dim 
-                                   , fMaxCorner = maxDimension fMaxCorner (offset' <> dim)
-                                   , fLastOrientation = Just or
-                                   }
-                        , Just box'
-                        )
-                
-                             
+           FCBoxWithPosition box position -> doBox state { fNextPositions = dropTillSlot  fNextPositions } box position
            FCNextColumn -> do
-                 let Dimension _ol ow _oh = fOffset
-                 return ( FillState{fOffset = Dimension (dLength fMaxCorner) ow 0,..}
+                 -- try to pop one slice
+                 return ( case dropTillSlice fNextPositions of
+                            nexts | nexts == mempty -> let Dimension _ol ow _oh = fOffset
+                                       in  FillState{fOffset = Dimension (dLength fMaxCorner) ow 0,..}
+                            nexts -> FillState {fNextPositions = nexts, ..}
                         , Nothing
                         )
-           FCNewDepth -> 
-                 return ( FillState{fOffset = Dimension 0 (dWidth fMaxCorner) 0, ..}
-                        , Nothing
-                        )
+           FCNewDepth -> do
+                 let newOffset = Dimension 0 (dWidth fMaxCorner) 0 
+                 case fLastOrientationStrategy of
+                  Nothing -> return ( FillState{ fOffset = newOffset
+                                               , fNextPositions = mempty
+                                               , ..}
+                                    , Nothing
+                                    )
+                  Just (partitionMode, strategy) -> doStrategy partitionMode strategy newOffset
            FCSetOrientation o -> 
                  return ( FillState {fLastOrientation = Just o,..}
                         , Nothing
@@ -267,7 +273,82 @@ executeFillCommand state@FillState{..} = \case
                  return ( FillState {fLastOrientation = Nothing,..}
                         , Nothing
                         )
-                            
+           FCSetIgnoreDimension ignore ->
+                 return ( FillState {fIgnoreDimension = ignore,..}
+                        , Nothing
+                        )
+           FCSetOrientationStrategy partitionMode strategy  ->  
+            doStrategy partitionMode strategy mempty
+           FCClearNextPositions -> 
+                 return ( FillState {fNextPositions = mempty, ..}
+                        , Nothing
+                        )
+           FCSetLastBox lm wm wh ->
+                 let Dimension l w h = fLastBox_
+                 in return ( FillState {fLastBox_ = Dimension (fromMaybe l lm)
+                                                              (fromMaybe w wm)
+                                                              (fromMaybe h wh)
+                                       , ..
+                                       }
+
+                           , Nothing
+                           )
+           FCSetOffset lm wm wh ->
+                 let Dimension l w h = fOffset
+                 in return ( FillState {fOffset = Dimension (fromMaybe l lm)
+                                                              (fromMaybe w wm)
+                                                              (fromMaybe h wh)
+                                       , ..
+                                       }
+
+                           , Nothing
+                           )
+
+    where doBox state box (Position offset or) = do
+                 let dim = dimensionFor box (Just or) state
+                     offset' = offset <> Dimension 0 0 (dHeight dim)
+                     -- tag box if dimension is different
+                     tagOps = if dimensionSame dim (_boxDim box)
+                            then []
+                            else [("@size-forced", SetTag)]
+                 box' <- updateBox (\b -> b { orientation = or
+                                            , boxOffset = offset 
+                                            }
+                                   ) (updateBoxTags' tagOps box)
+                 -- assignShelf (Just shelf) box'
+                 return ( state { fOffset=offset'
+                                , fLastBox_ = _boxDim box 
+                                , fMaxCorner = maxDimension [fMaxCorner, boxCorner box']
+                                , fLastOrientation = Just or
+                                }
+                        , Just box'
+                        )
+          doStrategy partitionMode strategy offset = do
+              -- find the next positions 
+              used <- case partitionMode of
+                        POverlap -> map boxAffDimension <$> findBoxByShelf shelf
+                        _ -> return [AffDimension mempty fMaxCorner]
+              let positions = bestPositions' partitionMode [strategy] shelf offset used fLastBox_
+              if  Prelude.length positions == 0
+              then error $ "Strategy "  <> show partitionMode <> " " <> show strategy <> " doesn't allow any boxes. Check if the shelf is deep enough :"
+                           <>  show shelf <> " " <> show fLastBox_
+              else return ( FillState { fNextPositions = positions
+                                      , fLastOrientationStrategy = Just (partitionMode, strategy)
+                                      , .. }
+                          , Nothing
+                          )
+
+           
+
+-- | get the box dimension unless overriden 
+dimensionFor :: Box s -> Maybe Orientation -> FillState -> Dimension
+dimensionFor box forcedOrientation FillState{..} = 
+    case (fIgnoreDimension, fLastBox_) of
+         (_, Dimension 0 0 0) -> boxDim box'
+         (False, _) -> boxDim box'
+         (True, last) -> last
+    where box' =  box {orientation = fromMaybe (orientation box) (forcedOrientation <|> fLastOrientation) }
+   
 parseFillCommand :: [Text] -> Maybe (FillCommand s, [Text])
 parseFillCommand = \case 
   ("" : coms) -> parseFillCommand coms
@@ -277,8 +358,31 @@ parseFillCommand = \case
   ("nd" : coms) -> Just (FCNewDepth, coms)
   ("reset" :  "orientation" : coms) -> Just (FCResetOrientation, coms)
   ("ro" : coms)  -> Just (FCResetOrientation, coms)
+  ("ignore" : "dimension" : coms)  -> Just (FCSetIgnoreDimension True, coms)
+  ("id" : coms)  -> Just (FCSetIgnoreDimension True, coms)
+  ("use" : "dimension" : coms)  -> Just (FCSetIgnoreDimension False, coms)
+  ("ud" : coms)  -> Just (FCSetIgnoreDimension False, coms)
+  ("set" : "strategy": coms ) | strat@(Just _) <- parseStrategyCommand coms -> strat
+  ("ss" : coms ) | strat@(Just _) <- parseStrategyCommand coms -> strat
+  ("clear" : "position" : coms) -> Just (FCResetOrientation, coms)
+  ("cp" : coms) -> Just (FCResetOrientation, coms)
+  ("set": "box" : l : w : h : coms) -> Just (FCSetLastBox (to l) (to w) (to h), coms)
+  ("sb": l : w : h : coms) -> Just (FCSetLastBox (to l) (to w) (to h), coms)
+  ("set": "offset" : l : w : h : coms) -> Just (FCSetOffset (to l) (to w) (to h), coms)
+  ("so": l : w : h : coms) -> Just (FCSetOffset (to l) (to w) (to h), coms)
   (com : coms) | Just (c, "") <- uncons com, Just o <- readOrientationMaybe c -> Just (FCSetOrientation o, coms)
   _ -> Nothing
+  where to "%" = Nothing
+        to s = readMay s
+
+parseStrategyCommand :: [Text] -> Maybe (FillCommand s, [Text])
+parseStrategyCommand [] = Nothing
+parseStrategyCommand (com:coms) = do -- maybe
+   let (orientations, (_,partitionMode, _, _)) = extractModes com 
+   case parseOrientationRule [] orientations of
+    [strategy] -> Just (FCSetOrientationStrategy partitionMode strategy, coms)
+    _ -> Nothing
+    
 
 parseFillCommands :: Text -> [FillCommand s]
 parseFillCommands command = let

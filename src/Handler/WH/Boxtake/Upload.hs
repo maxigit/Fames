@@ -13,7 +13,10 @@ module Handler.WH.Boxtake.Upload
 , Session(..)
 , StyleMissing(..)
 , WipeMode(..)
+-- * For tests
 , Row(..)
+, ScannedRow(..)
+, makeRow
 ) where
 
 import Import hiding(all)

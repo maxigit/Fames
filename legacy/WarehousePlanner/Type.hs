@@ -11,6 +11,7 @@ import Control.Monad.State
 import Diagrams.Prelude(Colour)
 import Data.STRef
 import Control.Monad.ST
+import Data.List(sort, foldl')
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
@@ -18,10 +19,10 @@ import qualified Data.Map as Map
 import Data.Sequence (Seq)
 import qualified System.FilePath.Glob as Glob
 -- import Data.List(intercalate)
-import Data.Text hiding(map)
+import Data.Text hiding(map, foldl', any)
 import Data.Time (Day)
 import Data.Semigroup(Arg(..))
-import Data.Maybe(fromMaybe)
+import Data.Maybe(fromMaybe, isJust)
 
 -- * Types 
 data Dimension = Dimension { dLength :: !Double
@@ -32,8 +33,6 @@ data Dimension = Dimension { dLength :: !Double
 invert :: Dimension -> Dimension
 invert (Dimension l w h) = Dimension (negate l) (negate w) (negate h)
 
-maxDimension :: Dimension -> Dimension -> Dimension
-maxDimension (Dimension l w h) (Dimension l' w' h') = Dimension (max l l') (max w w') (max h h')
 data Direction = Vertical | Depth | Horizontal deriving (Show, Eq, Ord, Enum)
 data Flow = LeftToRight | RightToLeft deriving (Show, Eq, Ord, Enum)
 
@@ -70,6 +69,49 @@ data Position = Position
               , pOrientation :: Orientation
               }
      deriving (Eq, Show, Ord)
+
+data AffDimension = AffDimension { aBottomLeft , aTopRight :: Dimension }
+     deriving (Eq, Show, Ord)
+     
+instance Semigroup AffDimension where 
+         (AffDimension bl tr)  <> (AffDimension bl' tr') = AffDimension (minDimension [bl, bl']) (maxDimension [tr, tr'])
+instance Monoid AffDimension where
+  mempty = AffDimension mempty mempty
+  
+-- | Check weither a point is within
+-- the rectange boundaries (excluding top and right edge)
+inAffDimension :: Dimension -> AffDimension -> Bool
+inAffDimension (Dimension x y z ) rec = let
+  Dimension x' y' z' = aBottomLeft rec
+  Dimension x'' y'' z'' = aTopRight rec
+  in x' <= x && x < x''
+    && y' <= y && y < y''
+    && z' <= z && z < z''
+    
+-- | Check weither two rectangle overlaps
+affDimensionOverlap :: AffDimension -> AffDimension -> Bool
+affDimensionOverlap a b = isJust $ affDimensionIntersection a b
+affDimensionIntersection :: AffDimension -> AffDimension -> Maybe AffDimension
+affDimensionIntersection a b = let
+  bottomLeft = maxDimension [aBottomLeft a, aBottomLeft b]
+  topRight = minDimension [aTopRight a, aTopRight b]
+  in
+     if and $ Prelude.zipWith (<) (dimensionToList bottomLeft) (dimensionToList topRight)
+     then Just (AffDimension bottomLeft topRight)
+     else Nothing
+
+
+  
+affineToDimensions :: AffDimension -> [Dimension]
+affineToDimensions rec = let
+  Dimension x' y' z' = aBottomLeft rec
+  Dimension x'' y'' z'' = aTopRight rec
+  in [ Dimension x y z 
+     | x <- [x',x'']
+     , y <- [y', y'']
+     , z <- [z', z'']
+     ]
+  
 
 data HowMany = HowMany 
              { perShelf :: Int
@@ -226,6 +268,8 @@ data PartitionMode
   = PAboveOnly -- ^ max used height only
   | PRightOnly -- ^ max used weight only
   | PBestEffort -- ^ try to find all available rectangles
+  | POverlap -- ^ partition as if shelf was empty then removed used slots.
+  | PBehind
   | POr PartitionMode PartitionMode -- ^ combination
   deriving (Show, Eq, Ord)
 
@@ -359,8 +403,24 @@ instance Monoid (ShelfGroup s) where
 -- ** Dimensions 
 volume :: Dimension -> Double
 volume (Dimension l w h) = l*w*h
+
 floorSpace :: Dimension -> Double
 floorSpace (Dimension l w _) = l*w
+
+maxDimension :: [Dimension] -> Dimension
+maxDimension dims = foldl' overlap mempty dims where
+             overlap (Dimension l w h) (Dimension l' w' h') = Dimension (max l l') (max w w') (max h h')
+
+minDimension :: [Dimension] -> Dimension
+minDimension [] = mempty
+minDimension (dim:dims) = foldl' overlap dim dims where
+             overlap (Dimension l w h) (Dimension l' w' h') = Dimension (min l l') (min w w') (min h h')
+
+dimensionToList :: Dimension -> [Double]
+dimensionToList (Dimension l w h) = [l, w, h]
+
+dimensionSame :: Dimension -> Dimension -> Bool
+dimensionSame d1 d2 = sort (dimensionToList d1) == sort (dimensionToList d2)
 -- ** Tiling
 tmTotal :: TilingMode -> Int
 tmTotal (Regular hmany) = perShelf hmany
@@ -486,9 +546,12 @@ boxVolume :: Box s -> Double
 boxVolume = volume . boxDim
 
 -- | Returns box offset <> box itself
-boxOffset' :: Box s -> Dimension
-boxOffset' b = boxOffset b <> boxDim b
+boxCorner :: Box s -> Dimension
+boxCorner b = boxOffset b <> boxDim b
 
+
+boxAffDimension :: Box s -> AffDimension
+boxAffDimension b = AffDimension (boxOffset b) (boxOffset b <> boxDim b)
 -- ** Tags 
 flattenTagValues :: Set Text -> Text
 flattenTagValues = intercalate ";" . Set.toList

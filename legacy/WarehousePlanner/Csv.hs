@@ -37,7 +37,7 @@ import qualified Data.Map as Map
 import Control.Monad hiding(mapM_,foldM)
 -- import Data.List.Split (splitOn)
 import qualified Data.List as List
-import Data.Char(isDigit,ord,chr)
+import Data.Char(ord,chr)
 import ClassyPrelude hiding(readFile)
 import Text.Read(readMaybe)
 import qualified Text.Parsec as P
@@ -763,27 +763,6 @@ readTagAndPatterns :: [Text] -> [Text] -> [Text]
 readTagAndPatterns tagsAndPatterns localTags = maybe [] flattenTags $ modifyTags (parseTagAndPatterns tagsAndPatterns localTags) mempty 
   
 
-extractModes :: Text -> (Text, (ExitMode, PartitionMode, AddOldBoxes, Maybe SortBoxes))
-extractModes modeLoc = 
-  let (modes, location) = break (`notElem` ("%~:^@+" :: String)) $ unpack modeLoc
-      (others, parModes) = partition (`notElem` ("%~:" :: String)) modes 
-      exitM = if '^' `elem` others
-              then ExitOnTop
-              else ExitLeft
-      (addOldBoxes, sortm) = if '@' `elem` others
-                             then (AddOldBoxes, Just SortBoxes)
-                             else if '+' `elem` others
-                                  then (AddOldBoxes, Just DontSortBoxes)
-                                  else (NewBoxesOnly, Nothing)
-      readMode m = case m of 
-                    '~' -> PAboveOnly
-                    ':' -> PRightOnly
-                    '%' -> PBestEffort
-                    _   -> error $ "The impossible happended: " ++ [m] ++ " not a valid partition mode."
-      partitionM = case map readMode parModes of
-                    [] -> POr PAboveOnly PRightOnly
-                    m:ms -> foldr POr m ms
-  in (pack location, (exitM, partitionM, addOldBoxes, sortm))
 
 -- | read a file assigning tags to styles
 -- returns left boxes
@@ -822,13 +801,6 @@ splitTagsAndLocation tag'locations
          just s = Just s
     
 
-
-readOrientations :: [Orientation] -> Text -> [Orientation]
-readOrientations def os = case uncons os of
-    Nothing -> []
-    Just ('*', _) -> allOrientations -- all
-    Just ('%', os') -> def `List.union` readOrientations def os'  -- def
-    Just (o, os') -> [readOrientation o] `List.union` readOrientations def os'
 
 -- * Read Rearrange Boxes
 readRearrangeBoxes :: [Text] -> FilePath -> IO (WH [Box s] s)
@@ -979,7 +951,7 @@ processStockTakeWithPosition tagOrPatterns newBoxOrientations splitter rows  =  
   s0 <- defaultShelf
   let -- go :: Map Text FillState -> _ -> WH (FillState, _) s
       go fillStateMap (shelfname, posSpec, style', l, w, h, os) =  do
-              let fillState = findWithDefault emptyFillState shelfname fillStateMap
+              let fillState = findWithDefault emptyFillState {fLastBox_ = Dimension l w h} shelfname fillStateMap
                   (name, tags ) = extractTags style'
                   (style, content) = splitter name
                   dim = Dimension l w h
@@ -1011,7 +983,7 @@ processStockTakeWithPosition tagOrPatterns newBoxOrientations splitter rows  =  
               case commandsE of
                   Left e -> return $ (updateM fillState, Left e)
                   Right commands -> do
-                        (newState, boxems) <- mapAccumLM executeFillCommand fillState commands
+                        (newState, boxems) <- mapAccumLM (executeFillCommand shelf) fillState commands
                         return $ (updateM newState, Right $ catMaybes boxems)
 
   (_, boxeEs) <- mapAccumLM go mempty rows
@@ -1070,39 +1042,4 @@ setOrientationRules defOrs filename = do
 --     _ -> fromTags
 
   
--- | Orientation rules follow this syntax
--- [!] [min : ][max] [or1] [or2] ...
--- example:
--- 9 -- max 9
--- 1:9 -- min 1
--- ! don't use diagonal mode
-parseOrientationRule:: [Orientation] -> Text -> [OrientationStrategy]
-parseOrientationRule defOrs cs0 = let
-  (diag,limitsOrs) = case uncons cs0 of
-                Just ('!', s) -> (False, s)
-                _ -> (True, cs0)
-  (limits, orsS) = span (\c -> c `elem`( "0123456789:x" :: String)) limitsOrs
-  (l, cs, h) = case splitOn "x" limits of
-            [w] -> ("", w, "")
-            [w,h] -> ("", w, h)
-            (l:w:h:_) -> (l, w , h)
-            [] -> ("","","")
-
-  (ns, cs') = span (isDigit) cs
-  n0 = fromMaybe 1 $ readMay ns
-  nM = case uncons cs' of
-                  Just (':', s) -> Just ( readMay s :: Maybe Int)
-                  _ -> Nothing
-  -- if only one number, use it as the maximum
-  (min_, max_) = case nM of
-    Nothing -> (0, n0)
-    Just Nothing -> (n0, n0)
-    Just (Just n) -> (n0, n)
-  minHM = readMay h
-  minLM = readMay l
-
-  ors = case orsS of
-    "" -> defOrs
-    s -> readOrientations defOrs s
-  in [(OrientationStrategy o  min_  max_ minLM minHM (rotateO o `elem` ors && diag)) | o <- ors ]
   

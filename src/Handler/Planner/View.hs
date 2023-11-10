@@ -19,7 +19,6 @@ import Planner.Types
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import Util.Cache
 import WarehousePlanner.Base
-import WarehousePlanner.Csv (extractModes)
 import WarehousePlanner.Report hiding(report)
 import Yesod.Form.Bootstrap3 (bfs)
 import qualified Yesod.Media.Simple as M

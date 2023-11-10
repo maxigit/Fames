@@ -9,6 +9,7 @@ module WarehousePlanner.Base
 , aroundArrangement 
 , assignShelf
 , bestArrangement
+, bestPositions, bestPositions'
 , boxCoordinate
 , boxContentPriority
 , boxPosition
@@ -26,6 +27,7 @@ module WarehousePlanner.Base
 , expandAttributeMaybe
 , extractTag
 , extractTags
+, extractModes
 , filterBoxByTag
 , filterShelfByTag
 , findBoxByNameAndShelfNames
@@ -53,7 +55,9 @@ module WarehousePlanner.Base
 , parseTagOperations
 , parseTagSelector
 , parsePositionSpec
+, parseOrientationRule
 , printDim
+, readOrientations
 , replaceSlashes
 , shelfBoxes
 , stairsFromCorners
@@ -61,13 +65,18 @@ module WarehousePlanner.Base
 , Tag'Operation
 , updateBox
 , updateBoxTags
+, updateBoxTags'
 , updateShelf
 , updateShelfTags
 , usedDepth
+, Slices
+, unconsSlices
+, dropTillSlice, dropTillSlot
 , withBoxOrientations
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix, unzip)
+import qualified Prelude
 import Text.Printf(printf)
 import qualified Data.Map.Strict as Map'
 import qualified Data.Map.Lazy as Map
@@ -82,11 +91,12 @@ import Data.Sequence ((|>))
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import WarehousePlanner.Type
+import WarehousePlanner.Slices
 import WarehousePlanner.SimilarBy
 import Diagrams.Prelude(white, black, darkorange, royalblue, steelblue)
 import Data.Text (splitOn, uncons, stripPrefix)
 import qualified Data.Text as T 
-import Data.Char (isLetter)
+import Data.Char (isLetter, isDigit)
 import Data.Time (diffDays)
 import Data.Semigroup (Arg(..))
 
@@ -118,10 +128,7 @@ type Tag'Operation = (Text, TagOperation)
 maxUsedOffset ::  Shelf s -> WH Dimension s
 maxUsedOffset shelf = do
     boxes <- findBoxByShelf shelf
-    let [l, w, h] = map (\proj -> 
-                     foldr (\box r -> max r ((proj.boxOffset') box)) 0 boxes
-                    ) [dLength, dWidth, dHeight]
-    return $ Dimension l w h
+    return $ maxDimension $ map boxCorner boxes
 
 -- | Nested groups of shelves, used for display
 
@@ -830,68 +837,6 @@ tmBoundingBox (TilingCombo dir m1 m2) box = let
 
 
 type SimilarBoxes s = SimilarBy Dimension (Box s)
--- | An ordered list. Modifying it using fmap doesn't reorder it.
--- It is so that we can work with infinite list.
--- Therefore fmap should be used with caution and make sure
--- the order is kept.
-newtype OrderedList a = OrderedList [a] deriving (Eq, Show, Foldable, Functor)
-
-newtype Slot k a = Slot (OrderedList (k, a))
-  deriving (Eq, Show, Functor)
-newtype Slice k a = Slice (OrderedList (k, Slot k a))
-  deriving (Eq, Show, Functor)
--- | Everything within slices are supposed to be sorted according
--- the k. When using fmap (etc) only monotone function should be used.
-newtype Slices k a = Slices (OrderedList (k, Slice k a))
-  deriving (Eq, Show, Functor)
-
-{-# COMPLETE SlotO #-}
-pattern SlotO xs = Slot (OrderedList xs)
-{-# COMPLETE SliceO #-}
-pattern SliceO xs  = Slice (OrderedList xs)
-{-# COMPLETE SlicesO #-}
-pattern SlicesO xs = Slices (OrderedList xs)
-  
-mergeWith :: Ord k => (a -> a -> [a]) -> OrderedList (k, a) -> OrderedList (k, a) -> OrderedList (k, a)
-mergeWith combine (OrderedList xs) (OrderedList ys) = OrderedList (go xs ys) where
-    go [] ys = ys
-    go xs [] = xs
-    go (x:xs) (y:ys) = 
-      case compare (fst x) (fst y) of
-        LT -> x : go xs (y:ys)
-        EQ -> (map (\v -> (fst x,v)) ( snd x `combine` snd y)) <> go xs ys
-        GT -> y : go (x:xs) ys
-
-
-instance Ord k => Semigroup (Slot k a) where
-  Slot xs <> Slot ys = Slot (mergeWith (\a b -> [a,b]) xs ys)
-  
-instance Ord k => Monoid (Slot k a) where
-  mempty = Slot (OrderedList [])
-  
-instance Ord k => Semigroup (Slice k a) where
-  Slice xs <> Slice ys = Slice (mergeWith (\a b -> [a <> b]) xs ys)
-  
-instance Ord k => Monoid (Slice k a) where
-  mempty = Slice (OrderedList [])
-  
-instance Ord k => Semigroup (Slices k a) where
-  Slices xs <> Slices ys = Slices (mergeWith (\a b -> [a <> b]) xs ys)
-  
-instance Ord k => Monoid (Slices k a) where
-  mempty = Slices (OrderedList [])
-  
-instance Bifunctor Slot where
-  bimap l r (Slot key'poss) = Slot $ fmap (bimap l r) key'poss
-  
-instance Bifunctor Slice where
-  bimap l r (Slice key'slots) = Slice $ fmap (bimap l (bimap l r)) key'slots
-  
-instance Bifunctor Slices where
-  bimap l r (Slices key'slices) = Slices $ fmap (bimap l (bimap l r)) key'slices
-  
-
-         
 
 
 -- | Find the  best box positions for similar boxes and a given shelf.
@@ -900,39 +845,54 @@ instance Bifunctor Slices where
 bestPositions :: PartitionMode -> Shelf s -> SimilarBoxes s -> WH (Slices Double Position) s
 bestPositions partitionMode shelf simBoxes = do
   let SimilarBy dim box _ = simBoxes
-  Dimension lused _wused hused <- maxUsedOffset shelf
   boxesInShelf <- findBoxByShelf shelf
   boxo <- gets boxOrientations
   let orientations = boxo box shelf
-      (bestO, tilingMode, (lused', hused')) =
+  return $ bestPositions' partitionMode orientations shelf mempty (map boxAffDimension boxesInShelf) dim 
+
+bestPositions' :: PartitionMode -> [OrientationStrategy] -> Shelf s -> Dimension -> [AffDimension] -> Dimension -> Slices Double Position
+bestPositions' POverlap orientations shelf start used dim = let
+   -- try each orientation strategy individually as if the box was empty
+   -- and remove the "used" positions. Then get the best one
+  solutions = [ removeUsed $ bestPositions' PRightOnly [strategy]  shelf start [] dim 
+              | strategy <- orientations
+              ]
+  sorted = sortOn (Down . Prelude.length) solutions
+  in  case sorted of
+     [] -> mempty
+     (best:_) -> best
+  where removeUsed :: Slices Double Position -> Slices Double Position
+        removeUsed = filterSlices (not . isUsed) 
+        isUsed :: Position -> Bool
+        isUsed (Position offset orientation) = any (affDimensionOverlap $ AffDimension offset (offset <> rotate orientation dim)) used
+
+  
+bestPositions' partitionMode orientations shelf start used dim = let
+  topRightCorners = map aTopRight used
+  Dimension lused wused hused = maxDimension $ topRightCorners
+  (bestO, tilingMode, (lused', wused', hused')) =
                       bestArrangement orientations
-                                        [( minDim shelf <> used, maxDim shelf <> used, (l,h))
+                                        [( minDim shelf <> start <> used, maxDim shelf <> start <> used, (l,w,h))
                                         -- [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
                                         -- | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
                                       -- try min and max. Choose min if  possible
-                                        | (l,h) <- let go pmode =
+                                        | (l,w,h) <- let go pmode =
                                                           case pmode of
-                                                            PAboveOnly -> [(0,hused)]
-                                                            PRightOnly -> [(lused, 0)]
-                                                            PBestEffort -> case bestEffort boxesInShelf of
+                                                            PAboveOnly -> [(0,0,hused)]
+                                                            PRightOnly -> [(lused,0, 0)]
+                                                            PBehind -> [(0,wused, 0)]
+                                                            PBestEffort -> case map (\(x,y) -> (x,0,y)) $ bestEffort topRightCorners of
                                                                             -- remove corners if more than 3 options
                                                                             xs@(_:_:_:_) -> drop 1 $ dropEnd 1 $ xs
                                                                             xs -> xs
                                                             POr m1 m2 -> go m1 ++ go m2
+                                                            POverlap -> error "POverlap not implemented"
                                                    in go partitionMode
-                                        , let used = Dimension (min 0 (0-l)) 0 (min 0 (0-h))
+                                        , let used = Dimension (min 0 (0-l)) (min 0 (0-w)) (min 0 (0-h))
                                         ] dim
-      rotated = rotate bestO dim
-      base = Dimension lused' 0 hused'
-  return $ generatePositions base (shelfFillingStrategy shelf) bestO rotated tilingMode
-  
-buildSlices :: Int -> Int -> Int -> (Int -> k) -> (Int -> Int -> k) ->  (Int -> Int -> Int -> (k, a)) -> Slices k a
-buildSlices nbOfSlices nbOfSlots nbPerSlot mkSliceIndex mkSlotIndex mkPos = let
-  mkSlice sliceIndex = 
-    (mkSliceIndex sliceIndex, Slice . OrderedList $ map (mkSlot sliceIndex) [0..nbOfSlots - 1])
-  mkSlot sliceIndex slotIndex =
-    (mkSlotIndex sliceIndex slotIndex, Slot . OrderedList $ map (mkPos sliceIndex slotIndex ) [0..nbPerSlot - 1])
-  in Slices . OrderedList $ map mkSlice [0..nbOfSlices - 1]
+  rotated = rotate bestO dim
+  base = Dimension lused' wused' hused'
+  in generatePositions base (shelfFillingStrategy shelf) bestO rotated tilingMode
 
 
 generatePositions :: Dimension -> FillingStrategy -> Orientation -> Dimension -> TilingMode -> Slices Double Position
@@ -1116,46 +1076,6 @@ combineSlices exitMode shelf'slicess = let
        | ((i, shelf), slices) <- s'is1 : s'i'slices
        ]
   in foldMap concat withGroupN
-  
-
--- unconsSlicesTo :: Maybe BoxBreak -> Slices (Int, k) a -> Maybe (a, ((Int, k),(Int, k),(Int, k)), Slices (Int, k) a)
-unconsSlicesTo _ Nothing slices = unconsSlices slices
-unconsSlicesTo _ _ (Slices (OrderedList [])) = Nothing
-unconsSlicesTo Nothing (Just StartNewShelf) slices = unconsSlicesTo Nothing (Just StartNewSlice) slices
-unconsSlicesTo js@(Just prevShelf) (Just StartNewShelf) slices = 
-  -- try next slice until different shelf
-  case unconsSlicesTo Nothing (Just StartNewSlice) slices of
-    Nothing -> Nothing
-    Just new@((shelf, _), _, _) | shelf /= prevShelf -> Just new
-    Just (_, _, newSlices) -> 
-      unconsSlicesTo js (Just StartNewShelf) newSlices
-unconsSlicesTo _ (Just StartNewSlice) slices =
-  case unconsSlices slices of
-    Nothing -> Nothing
-    Just new@(_, (_,(0,_),_), _) -> Just new
-    --               ^
-    --               +-- new slices mean slot number = 0
-    _ -> unconsSlices (dropTillSlice slices)
-unconsSlicesTo _ (Just StartNewSlot) slices =
-  case unconsSlices slices of
-    Nothing -> Nothing
-    Just new@(_, (_,_,(0,_)), _) -> Just new
-    _ -> unconsSlices (dropTillSlot slices)
-
-dropTillSlice (SlicesO slices) = cleanSlices $ SlicesO (drop 1 slices)
-dropTillSlice :: Slices k a -> Slices k a
-dropTillSlot (SlicesO ((i, SliceO (_:slots)):slices)) = cleanSlices $ SlicesO (slice:slices) where
-  slice = (i, SliceO slots)
-dropTillSlot _ = SlicesO []
-
-cleanSlice (SliceO ((_, SlotO []):slots)) = cleanSlice $ SliceO slots
-cleanSlice slice = slice
-cleanSlices (SlicesO ((_, SliceO []):slices)) = cleanSlices $ SlicesO (map (second cleanSlice) slices)
-cleanSlices slices = slices
-
--- | Remove empty sublists
--- cleanSlices :: Slices k a -> Slices k a
-  
 -- | Assign boxes to positions in order (like a zip) but with respect to box breaks.
 -- (skip to the next column if column break for example)
 assignBoxesToPositions :: Slices _ (Shelf s, Position) -> SimilarBoxes s -> WH (Maybe (SimilarBoxes s)) s
@@ -1163,7 +1083,7 @@ assignBoxesToPositions slices simBoxes = do
   let boxes = unSimilar simBoxes
   let go _ _ [] = return []
       go prevShelf slices allboxes@(box:boxes) =
-        case (unconsSlicesTo prevShelf (boxBreak box) slices) of
+        case (unconsSlicesTo fst prevShelf (boxBreak box) slices) of
              Nothing -> return allboxes
              Just ((shelf'pos), _, newSlices) ->
               shiftBox box shelf'pos >> go (Just $ fst shelf'pos) newSlices boxes 
@@ -1174,34 +1094,6 @@ assignBoxesToPositions slices simBoxes = do
   leftOver <- go Nothing (numSlices slices) boxes 
   return $ dropSimilar (length boxes - length leftOver) simBoxes
   
-numSlices (SlicesO slices) = SlicesO $ [bimap (i,) numSlice slice | (slice, i) <- zip slices [0..]]
-numSlice (SliceO slots) = SliceO $ [bimap (i,) numSlot slot | (slot, i) <- zip slots [0..]]
-numSlot (SlotO poss) = SlotO $ [bimap (i,) id pos | (pos, i) <- zip poss [0..]]
-unconsSlot :: Slot k a -> Maybe (a,k, Slot k a)
-unconsSlot (Slot (OrderedList key'poss)) =
-  case key'poss of
-    [] -> Nothing
-    ((key,pos):kps) -> Just (pos,key, Slot (OrderedList kps))
-    
-unconsSlice :: Slice k a -> Maybe (a,(k,k), Slice k a)
-unconsSlice (Slice (OrderedList key'slots)) =
-  case key'slots of
-    [] -> Nothing
-    ((key, slot0):kss) -> 
-      case unconsSlot slot0 of
-        Nothing -> unconsSlice (Slice $ OrderedList kss)
-        Just (pos, k1, slot) -> Just (pos, (key, k1), Slice (OrderedList $ (key, slot):kss))
-    
-unconsSlices :: Slices k a -> Maybe (a, (k,k,k), Slices k a)
-unconsSlices (Slices (OrderedList key'slices)) =
-  case key'slices of
-    [] -> Nothing
-    ((key, slice0):kss) ->
-      case unconsSlice slice0 of
-        Nothing -> unconsSlices (Slices $ OrderedList kss)
-        Just (pos, (k1,k2), slice) -> Just (pos, (key,k1,k2), Slices (OrderedList $ (key, slice):kss))
-
-
 boxRank :: Box s -> (Text, Int, Text, Int)
 boxRank box = ( boxStyle box , boxStylePriority box, boxContent box, boxContentPriority box)
 -- | get the priority of a box. At the moment it is extracted from the tag.
@@ -1749,7 +1641,7 @@ usedDepth :: Shelf' shelf => shelf s -> WH (Text, Double) s
 usedDepth s = do
   boxes <- findBoxByShelf s
   return $ List.maximumBy (comparing snd) (("<empty>",0)
-                         :[(boxStyle box, dWidth (boxOffset' box))
+                         :[(boxStyle box, dWidth (boxCorner box))
                    | box <- boxes
                    ])
 
@@ -1977,6 +1869,98 @@ parsePositionSpec spec =  do -- Maybe
                                 (compute h nh z)
       in Just (orientation, toPos)
 
+readOrientations :: [Orientation] -> Text -> [Orientation]
+readOrientations def os = case uncons os of
+    Nothing -> []
+    Just ('*', _) -> allOrientations -- all
+    Just ('%', os') -> def `List.union` readOrientations def os'  -- def
+    Just (o, os') -> [readOrientation o] `List.union` readOrientations def os'
+
+-- | Orientation rules follow this syntax
+-- [!] [min : ][max] [or1] [or2] ...
+-- example:
+-- 9 -- max 9
+-- 1:9 -- min 1
+-- ! don't use diagonal mode
+parseOrientationRule:: [Orientation] -> Text -> [OrientationStrategy]
+parseOrientationRule defOrs cs0 = let
+  (diag,limitsOrs) = case uncons cs0 of
+                Just ('!', s) -> (False, s)
+                _ -> (True, cs0)
+  (limits, orsS) = span (\c -> c `elem`( "0123456789:x" :: String)) limitsOrs
+  (l, cs, h) = case splitOn "x" limits of
+            [w] -> ("", w, "")
+            [w,h] -> ("", w, h)
+            (l:w:h:_) -> (l, w , h)
+            [] -> ("","","")
+
+  (ns, cs') = span (isDigit) cs
+  n0 = fromMaybe 1 $ readMay ns
+  nM = case uncons cs' of
+                  Just (':', s) -> Just ( readMay s :: Maybe Int)
+                  _ -> Nothing
+  -- if only one number, use it as the maximum
+  (min_, max_) = case nM of
+    Nothing -> (0, n0)
+    Just Nothing -> (n0, n0)
+    Just (Just n) -> (n0, n)
+  minHM = readMay h
+  minLM = readMay l
+
+  ors = case orsS of
+    "" -> defOrs
+    s -> readOrientations defOrs s
+  in [(OrientationStrategy o  min_  max_ minLM minHM (rotateO o `elem` ors && diag)) | o <- ors ]
+
+extractModes :: Text -> (Text, (ExitMode, PartitionMode, AddOldBoxes, Maybe SortBoxes))
+extractModes modeLoc = case P.parse ((,) <$> modesParser <*> P.getInput) (unpack modeLoc) modeLoc of
+  Left _ -> error "The unexpected happend. Contact your administrator" -- parser should succeed
+  Right (r,e) -> (e,r)
+modesParser :: P.Parser (ExitMode, PartitionMode, AddOldBoxes, Maybe SortBoxes)
+modesParser = do
+  exitMaybe <- P.optionMaybe (const ExitOnTop <$> P.char '^')
+  es <- P.many (fmap Left partitionP <|> fmap Right boxesP)
+  let (parts, boxes) = partitionEithers es
+      (oldBoxes, sortBoxes) = fromMaybe boxesDefault (headMay boxes)
+      partitionMode = case parts of
+                      [] -> partitionDefault
+                      [p] -> p
+                      p:ps -> foldr POr p ps
+  return ( fromMaybe exitDefault exitMaybe
+         , partitionMode
+         , oldBoxes
+         , sortBoxes
+         )
+
+
+  where partitionP = asum $ map go
+                          [ (P.char '~', PAboveOnly)
+                          , (P.char ':', PRightOnly)
+                          , (P.char '%', PBestEffort)
+                          , (P.char '-', POverlap)
+                          , (P.char '_', PBehind)
+                          ]
+                          <> map go
+                          [ (P.string "right", PRightOnly)
+                          , (P.string "above", PAboveOnly)
+                          , (P.string "best", PBestEffort)
+                          , (P.string "overlap", POverlap)
+                          , (P.string "behind", PBehind)
+                          ]
+        go (p, v) = const v <$> P.try p
+        boxesP = asum $ map go
+                [ (P.char '@', (AddOldBoxes, Just SortBoxes))
+                , (P.char '+', (AddOldBoxes, Just DontSortBoxes))
+                ]
+        exitDefault = ExitLeft
+        boxesDefault = (NewBoxesOnly, Nothing)
+        partitionDefault = PRightOnly
+          
+                 
+
+          
+    
+  
 -- * Warehouse Cache 
 -- ** Property stats 
 -- | Retrieve property stats (and compute if needed)
@@ -2091,10 +2075,9 @@ stairsFromCorners corners =
   in zipWith (,) (0:xs) (ys ++ [0]) 
 
 
-bestEffort :: [Box s] -> [(Double, Double)]
+bestEffort :: [Dimension] -> [(Double, Double)]
 bestEffort boxes = let
-  allCorners = map boxCorner boxes
-  boxCorner box = let (Dimension x _ y ) = boxDim box <> boxOffset box
-                  in (x,y)
+  allCorners = map xy boxes
+  xy (Dimension x _ y ) = (x,y)
   in stairsFromCorners $ cornerHull allCorners
   

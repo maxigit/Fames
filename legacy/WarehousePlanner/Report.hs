@@ -23,7 +23,6 @@ module WarehousePlanner.Report
 
 import WarehousePlanner.Base
 import WarehousePlanner.Optimum
-import WarehousePlanner.Csv (parseOrientationRule)
 import ClassyPrelude hiding(or)
 import Control.Monad.ST.Unsafe(unsafeSTToIO)
 import System.IO.Unsafe(unsafePerformIO)
