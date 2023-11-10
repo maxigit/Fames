@@ -32,6 +32,8 @@ data Dimension = Dimension { dLength :: !Double
 invert :: Dimension -> Dimension
 invert (Dimension l w h) = Dimension (negate l) (negate w) (negate h)
 
+maxDimension :: Dimension -> Dimension -> Dimension
+maxDimension (Dimension l w h) (Dimension l' w' h') = Dimension (max l l') (max w w') (max h h')
 data Direction = Vertical | Depth | Horizontal deriving (Show, Eq, Ord, Enum)
 data Flow = LeftToRight | RightToLeft deriving (Show, Eq, Ord, Enum)
 

@@ -197,20 +197,22 @@ data FillCommand s = FCBox (Box s) (Maybe Orientation)
                  | FCNextColumn
                  | FCSetOrientation Orientation
                  | FCResetOrientation
+                 -- | FCSetOrientationStrategy OrientationStrategy
      deriving (Show)
      
 -- | Internal state used to keep track of the filling state process
 data FillState = FillState
                { fOffset :: Dimension
                , fLastBox :: Dimension -- last offset + box dimension
-               , fMaxDepth :: Double
+               , fMaxCorner :: Dimension
                , fLastOrientation :: Maybe Orientation
+               -- , fNextPositions :: [Position] -- positions to use next in case of complex orientation strategy
                }
 
 emptyFillState :: FillState
 emptyFillState = FillState { fOffset = Dimension 0 0 0
                            , fLastBox  = Dimension 0 0 0
-                           , fMaxDepth = 0
+                           , fMaxCorner = Dimension 0 0 0
                            , fLastOrientation = Nothing
                            }
 -- | Fill shelf with box in the given order. regardless if boxes fit or not.
@@ -241,7 +243,7 @@ executeFillCommand state@FillState{..} = \case
                  -- assignShelf (Just shelf) box'
                  return ( FillState{ fOffset=offset'
                                    , fLastBox = dim 
-                                   , fMaxDepth = max fMaxDepth (dWidth offset' + dWidth dim)
+                                   , fMaxCorner = maxDimension fMaxCorner (offset' <> dim)
                                    , fLastOrientation = Just or
                                    }
                         , Just box'
@@ -249,13 +251,12 @@ executeFillCommand state@FillState{..} = \case
                 
                              
            FCNextColumn -> do
-                 let Dimension l _w _h = fLastBox
-                     Dimension ol ow _oh = fOffset
-                 return ( FillState{fOffset = Dimension (ol+l) ow 0,..}
+                 let Dimension _ol ow _oh = fOffset
+                 return ( FillState{fOffset = Dimension (dLength fMaxCorner) ow 0,..}
                         , Nothing
                         )
            FCNewDepth -> 
-                 return ( FillState{fOffset = Dimension 0 fMaxDepth 0, ..}
+                 return ( FillState{fOffset = Dimension 0 (dWidth fMaxCorner) 0, ..}
                         , Nothing
                         )
            FCSetOrientation o -> 
