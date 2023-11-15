@@ -90,9 +90,13 @@ depthBar :: ShelfStyling -> Double -> Double -> Diagram B
 depthBar ShelfStyling{..} w used = let
   shelfBar = depthBar'' (lc black . lwL 1) w 0 background
   usedBar = depthBar'' (lc black . lwL 1)  used 0 barBackground
+  extraUsedBar = if used > w
+                 then depthBar'' (lc black . lwL 1)  w 0 red
+                 else mempty
   -- threshold1 = depthBar' (w*0.70) 0 red 
   -- threshold2 = depthBar' (w*0.85) 0 orange 
-  in mconcat ( map alignL [ usedBar
+  in mconcat ( map alignL [ extraUsedBar 
+                          , usedBar
                           -- , threshold1 
                           -- , threshold2 
                           , shelfBar 
