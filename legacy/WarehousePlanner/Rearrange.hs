@@ -193,8 +193,8 @@ freezeOrder boxesInOrder =  do
 -- | Misc command to fill a shelf
 data FillCommand s = FCBox (Box s) (Maybe Orientation)
                  | FCBoxWithPosition (Box s) Position
+                 | FCSkip
                  | FCNewDepth
-                 -- | FCSetOffset Dimension
                  | FCNextColumn
                  | FCSetOrientation Orientation
                  | FCResetOrientation
@@ -248,6 +248,19 @@ executeFillCommand shelf state@FillState{..} = \case
                   Just (next,_, nexts) -> doBox state {fNextPositions = nexts} box next
 
            FCBoxWithPosition box position -> doBox state { fNextPositions = dropTillSlot  fNextPositions } box position
+           FCSkip -> let
+              (Position offset or, nexts) = 
+                  case unconsSlices fNextPositions of
+                    Nothing -> (Position fOffset (fromMaybe up fLastOrientation), mempty)
+                    Just (next,_,nexts) -> (next, nexts)
+              dim = rotate or fLastBox_
+              offset' = offset <> Dimension 0 0 (dHeight dim)
+              in return ( state { fOffset = offset'
+                                , fMaxCorner = maxDimension [ fMaxCorner, offset' <> dim ]
+                                , fNextPositions = nexts
+                                }
+                        , Nothing
+                        )
            FCNextColumn -> do
                  -- try to pop one slice
                  return ( case dropTillSlice fNextPositions of
@@ -352,6 +365,8 @@ dimensionFor box forcedOrientation FillState{..} =
 parseFillCommand :: [Text] -> Maybe (FillCommand s, [Text])
 parseFillCommand = \case 
   ("" : coms) -> parseFillCommand coms
+  ("skip" : coms) -> Just (FCSkip, coms)
+  ("sk" : coms) -> Just (FCSkip, coms)
   ("next": "column" : coms)  -> Just (FCNextColumn, coms)
   ("nc" : coms) -> Just (FCNextColumn, coms)
   ("new": "depth" : coms) -> Just (FCNewDepth, coms)
@@ -371,7 +386,10 @@ parseFillCommand = \case
   ("set": "offset" : l : w : h : coms) -> Just (FCSetOffset (to l) (to w) (to h), coms)
   ("so": l : w : h : coms) -> Just (FCSetOffset (to l) (to w) (to h), coms)
   (com : coms) | Just (c, "") <- uncons com, Just o <- readOrientationMaybe c -> Just (FCSetOrientation o, coms)
-  _ -> Nothing
+  ("comment" : _ : coms) -> parseFillCommand coms
+  ("cc" : _ : coms) -> parseFillCommand coms
+  [] -> Nothing
+  coms -> error $ "Cant' parse " ++ unpack (unwords coms)
   where to "%" = Nothing
         to s = readMay s
 

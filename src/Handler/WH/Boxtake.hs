@@ -27,6 +27,7 @@ import Handler.WH.Boxtake.Adjustment
 import Data.Conduit.List(sourceList)
 import Database.Persist.Sql (fromSqlKey)
 import Handler.Items.Common(skuToStyleVarH)
+import Data.Text(strip)
 -- * Types 
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Show, Enum, Bounded)
@@ -189,7 +190,7 @@ toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) =
               ] ++ mixed ::  [Text]
         (location, position ) =
             case extractPosition boxtakeLocation of
-               (loc, Just (om, pos)) -> (loc, cons (fromMaybe ':' om) pos)
+               (loc, Just (om, pos)) -> (strip loc, cons (fromMaybe ':' om) pos)
                (_, Nothing) -> case words boxtakeLocation of
                                  (loc:pos@(_:_)) -> (loc, unwords pos)
                                  _ -> (boxtakeLocation, "")
