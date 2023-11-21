@@ -490,7 +490,7 @@ saveLocation :: Row  -> SqlHandler ()
 saveLocation Row{..} = 
   forM_ rowBoxtake $ \boxe@(Entity _ boxtake) -> do
         let (oldLocation, oldPosM) = extractPosition $ boxtakeLocation boxtake
-        when  (oldLocation /= rowLocation || (isJust oldPosM)) do
+        when  (oldLocation /= rowLocation || (isJust oldPosM) || (not $ boxtakeActive boxtake)) do
           updateBoxtakeLocation (rowLocation)
                                 (entityKey rowOperator)
                                 (rowDate)
