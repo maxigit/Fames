@@ -980,10 +980,17 @@ processStockTakeWithPosition tagOrPatterns newBoxOrientations splitter rows  =  
                                                [] | not (null posSpec) -> Left $ posSpec <> " is not a valid position."
                                                coms -> Right $ coms <> [FCBox box Nothing]
                   updateM st = Map.insert shelfname st fillStateMap
+                  -- we need to set the lastBox to the current box unless we ignore the dimension
+                  addBoxDimToCommands coms =           
+                    let ignores = [ t | FCSetIgnoreDimension t <- coms ]
+                    in if fromMaybe (fIgnoreDimension fillState) (lastMay ignores)
+                       then coms
+                       else FCSetLastBox (Just l) (Just w) (Just h) : coms
+                     
               case commandsE of
                   Left e -> return $ (updateM fillState, Left e)
                   Right commands -> do
-                        (newState, boxems) <- mapAccumLM (executeFillCommand shelf) fillState commands
+                        (newState, boxems) <- mapAccumLM (executeFillCommand shelf) fillState $ addBoxDimToCommands commands
                         return $ (updateM newState, Right $ catMaybes boxems)
 
   (_, boxeEs) <- mapAccumLM go mempty rows
