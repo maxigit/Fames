@@ -299,7 +299,9 @@ adjustForPlanner :: [Row] -> ([Row], Bool)
 adjustForPlanner rows = let
   row'counts = processDuplicateRows $ sortOn rowDepth rows
   in if all ((==) 1 . snd) row'counts
-     then (rows, False)
+     then -- if forPlanner is present return True
+          let hasPosition = not . null $ concatMap rowForPlanner rows
+          in (rows, hasPosition) 
      else  ( snd $ mapAccumL go Nothing  row'counts
            , True
            )

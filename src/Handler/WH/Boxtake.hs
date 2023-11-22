@@ -27,7 +27,6 @@ import Handler.WH.Boxtake.Adjustment
 import Data.Conduit.List(sourceList)
 import Database.Persist.Sql (fromSqlKey)
 import Handler.Items.Common(skuToStyleVarH)
-import Data.Text(strip)
 -- * Types 
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Show, Enum, Bounded)
@@ -189,11 +188,9 @@ toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) =
               , "location=" <> location
               ] ++ mixed ::  [Text]
         (location, position ) =
-            case extractPosition boxtakeLocation of
-               (loc, Just (om, pos)) -> (strip loc, cons (fromMaybe ':' om) pos)
-               (_, Nothing) -> case words boxtakeLocation of
-                                 (loc:pos@(_:_)) -> (loc, unwords pos)
-                                 _ -> (boxtakeLocation, "")
+               case words boxtakeLocation of
+                    (loc:pos@(_:_)) -> (loc, unwords pos)
+                    _ -> (boxtakeLocation, "")
         mixed = case colours of
                      (_:_:_) -> "mixed" : [ "content" <> tshow index <> "=" <> colour
                                      |  (colour, index) <- zip colours [1..]
@@ -577,6 +574,9 @@ renderSession renderUrl sessionId Session{..} = do
                  (_, [], _) -> "success" :: Text
                  (_,_:_, _) -> "danger" -- some missing
       volume = sum (map rowVolume sessionRows)
+      hasPosition = if sessionHasPosition
+                    then "Has Positions" :: Text
+                    else "No Position"
   toWidget [cassius|
 table.collapse.in
   display: table
@@ -589,6 +589,7 @@ table.collapse.in
       <td> #{tshow $ length sessionRows} Boxes
       <td> #{tshow $ length sessionMissings } Missings
       <td> #{formatDouble volume} m<sup>3
+      <td> #{hasPosition}
       <td><span style="float:right">  #{operatorNickname (entityVal sessionOperator)} - #{tshow sessionDate}
   <table.table.table-hover.collapse id="#{sessionId}" *{datatableNoPage}>
     ^{rowsW}
