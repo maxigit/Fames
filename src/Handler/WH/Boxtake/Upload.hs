@@ -40,6 +40,8 @@ data RawScanRow = RawDate Day
              | RawBarcode Text
              | RawDepth Int
              | RawOrientation Text
+             | RawStrategy Text
+             | RawForPlanner Text
              deriving (Eq, Show)
 
 data ScannedRow = DateRow Day
@@ -48,6 +50,8 @@ data ScannedRow = DateRow Day
              | BoxRow (Entity Boxtake)
              | DepthRow Int
              | OrientationRow Text
+             | StrategyRow Text
+             | ForPlannerRow Text
              deriving (Eq, Show)
 
 -- | The result of a scan
@@ -108,8 +112,10 @@ rawText (RawDate d) = tshow d
 rawText (RawOperator o) = o
 rawText (RawLocation l) = "LC" <> l
 rawText (RawBarcode b) = b
-rawText (RawDepth d) = "W=" <> tshow d
+rawText (RawDepth d) = "D=" <> tshow d
 rawText (RawOrientation o) = "O=" <> tshow o
+rawText (RawStrategy s) = "S=" <> tshow s
+rawText (RawForPlanner s) = ">>" <> tshow s
 
 rowVolume :: Row -> Double
 rowVolume row = maybe 0 volume (rowBoxtake row) where
@@ -127,6 +133,8 @@ parseRawScan line' = let line = strip line' in  case () of
       () | Just location <- stripPrefix "LC" line -> RawLocation location
       () | Just s <- stripPrefix "D=" line, Just depth <- readMay s -> RawDepth depth
       () | Just s <- stripPrefix "O=" line -> RawOrientation s
+      () | Just s <- stripPrefix "S=" line -> RawStrategy s
+      () | Just s <- stripPrefix ">>" line -> RawForPlanner s
       () | (isPrefixOf "DL" line || isPrefixOf "ST" line)
            && isBarcodeValid (fromStrict line)  -> RawBarcode line
       () | Just day <- parseDay (unpack line) -> RawDate (allFormatsDay day)
@@ -157,6 +165,8 @@ loadRow isLocationValid findOperator row = do
                                                     barcode)
        RawDepth depth -> return $ Right $ DepthRow depth
        RawOrientation orientation -> return . Right $ OrientationRow orientation
+       RawStrategy strategy -> return . Right $ StrategyRow strategy
+       RawForPlanner forPlanner -> return . Right $ ForPlannerRow forPlanner
         
 
 -- parseScan :: Text -> Handler (ParsingResult I-(Either ))
@@ -231,6 +241,8 @@ makeRow lastScan row = case (row, lastBoxtake lastScan) of
   (LocationRow loc, _) -> (lastScan {lastLocation = Just loc, lastDepth= 1, lastForPlanner = [] }, Nothing)
   (DepthRow d, _) -> (lastScan {lastDepth = d }, Nothing)
   (OrientationRow or, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> [or]}, Nothing)
+  (StrategyRow strat, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> ["SET STRATEGY", strat]}, Nothing)
+  (ForPlannerRow for, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> words for}, Nothing)
   (BoxRow box, _) | LastScanned{lastDate=Just day, lastOperator=Just op, lastLocation=Just loc} <- lastScan
                     -> ( lastScan {lastBoxtake = Just box, lastForPlanner = []}
                        , Just . Right $ Row (Just box) loc day op
@@ -355,6 +367,8 @@ instance Renderable [Either InvalidField ScannedRow] where
         LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row", "bg-success"])
         DepthRow d -> (const $ Just (toHtml $ d, []), ["depth-row", "bg-info"])
         OrientationRow or -> (const $ Just (toHtml $ or, []), ["orientation-row", "bg-info"])
+        StrategyRow or -> (const $ Just (toHtml $ or, []), ["orientation-row", "bg-info"])
+        ForPlannerRow or -> (const $ Just (toHtml $ or, []), ["orientation-row", "bg-info"])
         BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
 
 
