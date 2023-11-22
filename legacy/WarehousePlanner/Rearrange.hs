@@ -343,8 +343,10 @@ executeFillCommand shelf state@FillState{..} = \case
                         _ -> return [AffDimension mempty fMaxCorner]
               let positions = bestPositions' partitionMode [strategy] shelf offset used fLastBox_
               if  Prelude.length positions == 0
-              then error $ "Strategy "  <> show partitionMode <> " " <> show strategy <> " doesn't allow any boxes. Check if the shelf is deep enough :"
-                           <>  show shelf <> " " <> show fLastBox_
+              then error . unpack $ "Strategy "  <> tshow partitionMode <> " " <> tshow strategy <> " doesn't allow any boxes.\nCheck if the shelf is deep enough: "
+                           <>  (shelfName shelf)
+                           <> " " <> printDim (maxDim shelf)
+                           <> " " <> printDim fLastBox_
               else return ( FillState { fNextPositions = positions
                                       , fLastOrientationStrategy = Just (partitionMode, strategy)
                                       , .. }
