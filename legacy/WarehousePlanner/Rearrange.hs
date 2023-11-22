@@ -279,11 +279,15 @@ executeFillCommand shelf state@FillState{..} = \case
                                     )
                   Just (partitionMode, strategy) -> doStrategy partitionMode strategy newOffset
            FCSetOrientation o -> 
-                 return ( FillState {fLastOrientation = Just o,..}
+                 return ( FillState { fLastOrientation = Just o
+                                    , fNextPositions = mempty
+                                    , ..}
                         , Nothing
                         )
            FCResetOrientation  -> 
-                 return ( FillState {fLastOrientation = Nothing,..}
+                 return ( FillState { fLastOrientation = Nothing
+                                    , fNextPositions = mempty
+                                    , ..}
                         , Nothing
                         )
            FCSetIgnoreDimension ignore ->
@@ -381,8 +385,8 @@ parseFillCommand = \case
   ("ud" : coms)  -> Just (FCSetIgnoreDimension False, coms)
   ("set" : "strategy": coms ) | strat@(Just _) <- parseStrategyCommand coms -> strat
   ("ss" : coms ) | strat@(Just _) <- parseStrategyCommand coms -> strat
-  ("clear" : "position" : coms) -> Just (FCResetOrientation, coms)
-  ("cp" : coms) -> Just (FCResetOrientation, coms)
+  ("clear" : "position" : coms) -> Just (FCClearNextPositions, coms)
+  ("cp" : coms) -> Just (FCClearNextPositions, coms)
   ("set": "box" : l : w : h : coms) -> Just (FCSetLastBox (to l) (to w) (to h), coms)
   ("sb": l : w : h : coms) -> Just (FCSetLastBox (to l) (to w) (to h), coms)
   ("set": "offset" : l : w : h : coms) -> Just (FCSetOffset (to l) (to w) (to h), coms)
