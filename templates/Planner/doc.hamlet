@@ -160,6 +160,8 @@ A planner file is made of different sections. Each section corresponds to an org
           <pre>Bay No,Style,QTY,Length,Width,Height,Orientations
           Tags provided in the section name, will be applied to the created boxes.
           For example, all boxes created in the section <code>:Stocktake-tag1-tag2</code> will be tagged with <code>tag1</code> and <code>tag2</code>
+          If the <code>@throwError</code> is given and box doesn't fit in the given shelf. Instead of moving the box to the error shelf,
+          the planner will stop and generate an error message.
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-boxes"> Boxes[_TagOrPatterns]
