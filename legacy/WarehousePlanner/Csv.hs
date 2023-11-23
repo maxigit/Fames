@@ -927,7 +927,10 @@ readStockTake tagOrPatterns newBoxOrientations splitStyle filename = do
                         leftOvers <- moveBoxes ExitLeft pmode SortBoxes boxes shelves
 
                         let errs = if not (null leftOvers)
-                                      then map (\b -> "ERROR: box " <> tshow b <> " doesn't fit in " <> shelf) leftOvers
+                                      then map (\b -> unlines [ "ERROR: box " <> tshow b <> " doesn't fit in " <> shelf
+                                                              , printDim dim <> " " <> (unwords $ map (printDim . maxDim) shelves)
+                                                              ]
+                                               ) leftOvers
                                       else []
 
                         -- detect if any error occurs
