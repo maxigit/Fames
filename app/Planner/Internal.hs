@@ -441,7 +441,12 @@ executeStep (Step header sha _) = do
           LayoutH -> return $ return ()
           ShelvesH -> execute $ readShelves BoxOrientations path
           InitialH -> return $ return ()
-          StocktakeH tags -> execute $ readStockTake tags defaultOrientations splitStyle path
+          StocktakeH tags -> execute $ do
+                             wh <- readStockTake tags defaultOrientations splitStyle path
+                             return (wh >>= \case
+                                        (_,[]) -> return ()
+                                        (_,errors) -> error . unpack $ unlines errors
+                                    )
           BoxesH tags -> execute $ readBoxes tags defaultOrientations splitStyle path
           MovesH tags -> execute $ readMoves tags path
           TagsH tags -> execute $ readTags tags path

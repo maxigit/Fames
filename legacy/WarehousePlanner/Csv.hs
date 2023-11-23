@@ -977,7 +977,7 @@ processStockTakeWithPosition tagOrPatterns newBoxOrientations splitter rows  =  
                                   Just (or, toPos) -> let pos = Position (toPos (_boxDim box)) or
                                                       in Right [FCBoxWithPosition box pos]
                                   Nothing -> case parseFillCommands posSpec of 
-                                               [] | not (null posSpec) -> Left $ posSpec <> " is not a valid position."
+                                               -- [] | not (null posSpec) -> Left $ posSpec <> " is not a valid position."
                                                coms -> Right $ coms <> [FCBox box Nothing]
                   updateM st = Map.insert shelfname st fillStateMap
                   -- we need to set the lastBox to the current box unless we ignore the dimension
