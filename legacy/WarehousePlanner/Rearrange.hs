@@ -217,6 +217,7 @@ data FillState = FillState
                , fNextPositions :: Slices Double Position 
                , fLastOrientationStrategy :: Maybe (PartitionMode, OrientationStrategy)
                }
+               deriving Show
 
 emptyFillState :: FillState
 emptyFillState = FillState { fOffset = Dimension 0 0 0
@@ -262,11 +263,19 @@ executeFillCommand shelf state@FillState{..} = \case
                         , Nothing
                         )
            FCNextColumn -> do
-                 -- try to pop one slice
-                 return ( case dropTillSlice fNextPositions of
-                            nexts | nexts == mempty -> let Dimension _ol ow _oh = fOffset
-                                       in  FillState{fOffset = Dimension (dLength fMaxCorner) ow 0,..}
-                            nexts -> FillState {fNextPositions = nexts, ..}
+                 let (Position offset or, nexts) = 
+                         case unconsSlices fNextPositions of
+                           Nothing -> (Position fOffset (fromMaybe up fLastOrientation), mempty)
+                           Just (next,_,nexts) -> (next, nexts)
+                     dim = rotate or fLastBox_
+                    -- try to pop one slice
+                 return ( case nexts of
+                            _ | nexts == mempty -> let Dimension _ol ow _oh = fOffset
+                                                       in  FillState{ fOffset = Dimension (dLength fMaxCorner) ow 0
+                                                                                                             , fMaxCorner = fMaxCorner <> Dimension (dLength dim) 0 0
+                                                                                                             , fNextPositions = mempty
+                                                                                                             , ..}
+                            _ -> FillState {fNextPositions = nexts, ..}
                         , Nothing
                         )
            FCNewDepth -> do
@@ -281,6 +290,9 @@ executeFillCommand shelf state@FillState{..} = \case
            FCSetOrientation o -> 
                  return ( FillState { fLastOrientation = Just o
                                     , fNextPositions = mempty
+                                    , fMaxCorner = if fMaxCorner == mempty
+                                                   then rotate o fLastBox_
+                                                   else fMaxCorner
                                     , ..}
                         , Nothing
                         )
