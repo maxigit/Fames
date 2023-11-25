@@ -213,7 +213,8 @@ boxSourceToCsv  = awaitForever go
             yield (":STOCKTAKE:\n")
             yield ("Bay No,Position,Style,Length,Width,Height,Orientations\n" :: Text)
          else do
-            yield ("** Without position\n")
+            forM_ (headMay boxes) \(Entity _ box, _) ->  yield ("** " <> fst (extractPosition (boxtakeLocation box)) <> "\n")
+            yield ("*** Without position\n")
             yield (":STOCKTAKE:\n")
             yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
          sourceList boxes .| mapC (toPlanner . HasPosition hasPosition)
