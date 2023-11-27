@@ -973,7 +973,7 @@ processStockTakeWithPosition tagOrPatterns newBoxOrientations splitter rows  =  
                             content
                             dim
                             bestOrientation
-                            (shelfId shelf)
+                            (shelfId s0)
                             boxOrientations
                            (readTagAndPatterns tagOrPatterns tags)
               let commandsE = case parsePositionSpec posSpec of
@@ -984,11 +984,18 @@ processStockTakeWithPosition tagOrPatterns newBoxOrientations splitter rows  =  
                                                coms -> Right $ coms <> [FCBox box Nothing]
                   updateM st = Map.insert shelfname st fillStateMap
                   -- we need to set the lastBox to the current box unless we ignore the dimension
+                  -- also if  "BOXDIM" is present insert the current box there
                   addBoxDimToCommands coms =           
                     let ignores = [ t | FCSetIgnoreDimension t <- coms ]
+                        setCurrent = FCSetLastBox $ MakeDimension (\_ _ _ -> Dimension l w h) "current box"
+                        isUseCurrentBox FCUseCurrentBox = True
+                        isUseCurrentBox _ = False
+
                     in if fromMaybe (fIgnoreDimension fillState) (lastMay ignores)
                        then coms
-                       else FCSetLastBox (Just l) (Just w) (Just h) : coms
+                       else case break isUseCurrentBox coms of
+                              (before, _:after) -> before ++ (setCurrent : after)
+                              _ ->  setCurrent : coms
                      
               case commandsE of
                   Left e -> return $ (updateM fillState, Left e)

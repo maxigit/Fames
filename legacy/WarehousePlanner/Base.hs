@@ -867,12 +867,13 @@ bestPositions' POverlap orientations shelf start used dim = let
         isUsed (Position offset orientation) = any (affDimensionOverlap $ AffDimension offset (offset <> rotate orientation dim)) used
 
   
-bestPositions' partitionMode orientations shelf start used dim = let
-  topRightCorners = map aTopRight used
+bestPositions' partitionMode orientations shelf start usedBoxes dim = let
+  starti = invert start
+  topRightCorners = map ((starti <>) . aTopRight) usedBoxes
   Dimension lused wused hused = maxDimension $ topRightCorners
   (bestO, tilingMode, (lused', wused', hused')) =
                       bestArrangement orientations
-                                        [( minDim shelf <> start <> used, maxDim shelf <> start <> used, (l,w,h))
+                                        [( minDim shelf <> starti <> used, maxDim shelf <> starti <> used, (l,w,h))
                                         -- [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
                                         -- | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
                                       -- try min and max. Choose min if  possible
@@ -891,7 +892,7 @@ bestPositions' partitionMode orientations shelf start used dim = let
                                         , let used = Dimension (min 0 (0-l)) (min 0 (0-w)) (min 0 (0-h))
                                         ] dim
   rotated = rotate bestO dim
-  base = Dimension lused' wused' hused'
+  base = Dimension lused' wused' hused' <> start
   in generatePositions base (shelfFillingStrategy shelf) bestO rotated tilingMode
 
 

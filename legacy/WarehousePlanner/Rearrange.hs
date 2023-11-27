@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, ViewPatterns #-}
 {-# Language CPP #-}
 module WarehousePlanner.Rearrange
 where 
@@ -6,7 +6,9 @@ where
 import ClassyPrelude;
 import qualified Prelude
 import  WarehousePlanner.Base
+import  WarehousePlanner.Expr
 import Data.Text(splitOn, split)
+import qualified Data.Text as Text
 -- import qualified Data.Map as Map
 import Control.Monad (zipWithM)
 import Control.Monad.State (modify)
@@ -190,6 +192,14 @@ freezeOrder boxesInOrder =  do
   
 
 -- * Filling shelve
+data MakeDimension = MakeDimension 
+                     { mdShelfBoxToDim :: Dimension -> Dimension -> Dimension -> Dimension -- ^ shelf box dimension to update
+                     , mdDescription :: Text
+                     } 
+instance Show MakeDimension where show =  unpack .  mdDescription
+mkDim0 :: MakeDimension
+mkDim0 = MakeDimension (\_ _ _ -> mempty) "0" 
+
 -- | Misc command to fill a shelf
 data FillCommand s = FCBox (Box s) (Maybe Orientation)
                  | FCBoxWithPosition (Box s) Position
@@ -199,10 +209,11 @@ data FillCommand s = FCBox (Box s) (Maybe Orientation)
                  | FCSetOrientation Orientation
                  | FCResetOrientation
                  | FCSetIgnoreDimension Bool
-                 | FCSetOrientationStrategy PartitionMode OrientationStrategy
+                 | FCSetOrientationStrategy PartitionMode OrientationStrategy MakeDimension
                  | FCClearNextPositions
-                 | FCSetLastBox (Maybe Double) (Maybe Double) (Maybe Double)
-                 | FCSetOffset (Maybe Double) (Maybe Double) (Maybe Double)
+                 | FCSetLastBox MakeDimension
+                 | FCSetOffset MakeDimension
+                 | FCUseCurrentBox -- marker to insert current box dimension
      deriving (Show)
      
 -- | Internal state used to keep track of the filling state process
@@ -215,7 +226,7 @@ data FillState = FillState
                , fIgnoreDimension :: Bool -- ^ If true reuse the dimension of the lats box instead of the current one
                -- Usefull to force slightly bigger box or fit smaller box without altering the overall layout
                , fNextPositions :: Slices Double Position 
-               , fLastOrientationStrategy :: Maybe (PartitionMode, OrientationStrategy)
+               , fLastOrientationStrategy :: Maybe (PartitionMode, OrientationStrategy, Dimension) -- ^ with initial offset
                }
                deriving Show
 
@@ -263,10 +274,11 @@ executeFillCommand shelf state@FillState{..} = \case
                         , Nothing
                         )
            FCNextColumn -> do
-                 let (Position offset or, nexts) = 
-                         case unconsSlices fNextPositions of
+                 let droped = dropTillSlice fNextPositions
+                     (Position _offset or, nexts) = 
+                         case unconsSlices droped of
                            Nothing -> (Position fOffset (fromMaybe up fLastOrientation), mempty)
-                           Just (next,_,nexts) -> (next, nexts)
+                           Just (next,_,_) -> (next, droped)
                      dim = rotate or fLastBox_
                     -- try to pop one slice
                  return ( case nexts of
@@ -286,7 +298,7 @@ executeFillCommand shelf state@FillState{..} = \case
                                                , ..}
                                     , Nothing
                                     )
-                  Just (partitionMode, strategy) -> doStrategy partitionMode strategy newOffset
+                  Just (partitionMode, strategy, initialOffset) -> doStrategy partitionMode strategy (initialOffset <> Dimension 0 (dWidth $ fLastBox) 0)
            FCSetOrientation o -> 
                  return ( FillState { fLastOrientation = Just o
                                     , fNextPositions = mempty
@@ -306,32 +318,29 @@ executeFillCommand shelf state@FillState{..} = \case
                  return ( FillState {fIgnoreDimension = ignore,..}
                         , Nothing
                         )
-           FCSetOrientationStrategy partitionMode strategy  ->  
-            doStrategy partitionMode strategy mempty
+           FCSetOrientationStrategy partitionMode strategy mkOffset  ->  
+            doStrategy partitionMode strategy (mdShelfBoxToDim mkOffset (maxDim shelf) (rotate (osOrientations strategy) fLastBox_) fMaxCorner)
            FCClearNextPositions -> 
                  return ( FillState {fNextPositions = mempty, ..}
                         , Nothing
                         )
-           FCSetLastBox lm wm wh ->
-                 let Dimension l w h = fLastBox_
-                 in return ( FillState {fLastBox_ = Dimension (fromMaybe l lm)
-                                                              (fromMaybe w wm)
-                                                              (fromMaybe h wh)
+           FCSetLastBox mkDim ->
+                 let dim = (mdShelfBoxToDim mkDim) (maxDim shelf) fLastBox_  fLastBox_
+                 in return ( FillState {fLastBox_ = dim
                                        , ..
                                        }
 
                            , Nothing
                            )
-           FCSetOffset lm wm wh ->
-                 let Dimension l w h = fOffset
-                 in return ( FillState {fOffset = Dimension (fromMaybe l lm)
-                                                              (fromMaybe w wm)
-                                                              (fromMaybe h wh)
+           FCSetOffset mkDim ->
+                 let offset = (mdShelfBoxToDim mkDim) (maxDim shelf) fLastBox fOffset
+                 in return ( FillState {fOffset = offset
                                        , ..
                                        }
 
                            , Nothing
                            )
+           FCUseCurrentBox -> return (state, Nothing)
 
     where doBox state box (Position offset or) = do
                  let dim = dimensionFor box (Just or) state
@@ -344,6 +353,7 @@ executeFillCommand shelf state@FillState{..} = \case
                                             , boxOffset = offset 
                                             }
                                    ) (updateBoxTags' tagOps box)
+                         >>= assignShelf (Just shelf)
                  -- assignShelf (Just shelf) box'
                  return ( state { fOffset=offset'
                                 , fLastBox_ = _boxDim box 
@@ -361,13 +371,15 @@ executeFillCommand shelf state@FillState{..} = \case
               if  Prelude.length positions == 0
               then error . unpack $ "Strategy "  <> tshow partitionMode <> " " <> tshow strategy <> " doesn't allow any boxes.\nCheck if the shelf is deep enough: "
                            <>  (shelfName shelf)
-                           <> " " <> printDim (maxDim shelf)
+                           <> " " <> printDim (maxDim shelf) <> "/" <> printDim offset
                            <> " " <> printDim fLastBox_
+
               else return ( FillState { fNextPositions = positions
-                                      , fLastOrientationStrategy = Just (partitionMode, strategy)
+                                      , fLastOrientationStrategy = Just (partitionMode, strategy, offset)
                                       , .. }
                           , Nothing
                           )
+          fLastBox = rotate (fromMaybe up fLastOrientation) fLastBox_
 
            
 
@@ -383,40 +395,58 @@ dimensionFor box forcedOrientation FillState{..} =
 parseFillCommand :: [Text] -> Maybe (FillCommand s, [Text])
 parseFillCommand = \case 
   ("" : coms) -> parseFillCommand coms
+  --
   ("skip" : coms) -> Just (FCSkip, coms)
   ("sk" : coms) -> Just (FCSkip, coms)
+  --
   ("next": "column" : coms)  -> Just (FCNextColumn, coms)
   ("nc" : coms) -> Just (FCNextColumn, coms)
+  --
   ("new": "depth" : coms) -> Just (FCNewDepth, coms)
   ("nd" : coms) -> Just (FCNewDepth, coms)
+  --
   ("reset" :  "orientation" : coms) -> Just (FCResetOrientation, coms)
   ("ro" : coms)  -> Just (FCResetOrientation, coms)
+  --
   ("ignore" : "dimension" : coms)  -> Just (FCSetIgnoreDimension True, coms)
   ("id" : coms)  -> Just (FCSetIgnoreDimension True, coms)
+  --
   ("use" : "dimension" : coms)  -> Just (FCSetIgnoreDimension False, coms)
   ("ud" : coms)  -> Just (FCSetIgnoreDimension False, coms)
-  ("set" : "strategy": coms ) | strat@(Just _) <- parseStrategyCommand coms -> strat
-  ("ss" : coms ) | strat@(Just _) <- parseStrategyCommand coms -> strat
+  --
+  ("set" : "strategy": "WITH": l : w : h :coms ) | strat@(Just _) <- parseStrategyCommand l w h coms -> strat
+  ("ssw" : l : w : h :coms ) | strat@(Just _) <- parseStrategyCommand l w h coms -> strat
+  --
+  ("set" : "strategy": coms ) | strat@(Just _) <- parseStrategyCommand "0" "0" "0" coms -> strat
+  ("ss" : coms ) | strat@(Just _) <- parseStrategyCommand "0" "0" "0" coms -> strat
+  --
   ("clear" : "position" : coms) -> Just (FCClearNextPositions, coms)
   ("cp" : coms) -> Just (FCClearNextPositions, coms)
-  ("set": "box" : l : w : h : coms) -> Just (FCSetLastBox (to l) (to w) (to h), coms)
-  ("sb": l : w : h : coms) -> Just (FCSetLastBox (to l) (to w) (to h), coms)
-  ("set": "offset" : l : w : h : coms) -> Just (FCSetOffset (to l) (to w) (to h), coms)
-  ("so": l : w : h : coms) -> Just (FCSetOffset (to l) (to w) (to h), coms)
+  --
+  ("set": "box" : l : w : h : coms) -> Just (FCSetLastBox $ parseMakeDimension l w h, coms)
+  ("sb": l : w : h : coms) -> Just (FCSetLastBox $ parseMakeDimension l w h, coms)
+  --
+  ("set": "offset" : l : w : h : coms) -> Just (FCSetOffset (parseMakeDimension l w h), coms)
+  ("so": l : w : h : coms) -> Just (FCSetOffset (parseMakeDimension l w h), coms)
+  --
   (com : coms) | Just (c, "") <- uncons com, Just o <- readOrientationMaybe c -> Just (FCSetOrientation o, coms)
+  --
   ("comment" : _ : coms) -> parseFillCommand coms
   ("cc" : _ : coms) -> parseFillCommand coms
+  --
+  (";": coms) -> Just (FCUseCurrentBox, coms)
+  ("use": "current": "box": coms) -> Just (FCUseCurrentBox, coms)
+  ("ucb": coms) -> Just (FCUseCurrentBox, coms)
+  --
   [] -> Nothing
   coms -> error $ "Cant' parse " ++ unpack (unwords coms)
-  where to "%" = Nothing
-        to s = readMay s
 
-parseStrategyCommand :: [Text] -> Maybe (FillCommand s, [Text])
-parseStrategyCommand [] = Nothing
-parseStrategyCommand (com:coms) = do -- maybe
+parseStrategyCommand :: Text -> Text -> Text -> [Text] -> Maybe (FillCommand s, [Text])
+parseStrategyCommand _ _ _ [] = Nothing
+parseStrategyCommand l w h (com:coms) = do -- maybe
    let (orientations, (_,partitionMode, _, _)) = extractModes com 
    case parseOrientationRule [] orientations of
-    [strategy] -> Just (FCSetOrientationStrategy partitionMode strategy, coms)
+    [strategy] -> Just (FCSetOrientationStrategy partitionMode strategy (parseMakeDimension l w h), coms)
     _ -> Nothing
     
 
@@ -425,4 +455,33 @@ parseFillCommands command = let
   commands = splitOn " " $ toLower command
   in unfoldr parseFillCommand commands
   
+
+parseMakeDimension :: Text -> Text -> Text -> MakeDimension
+parseMakeDimension l w h = MakeDimension{..} where
+  mdShelfBoxToDim shelf box current = Dimension (parseEvaluator l shelf box $ dLength current)
+                                                (parseEvaluator w shelf box $ dWidth current)
+                                                (parseEvaluator h shelf box $ dHeight current)
+  mdDescription = Text.unwords [l, w, h]
+
+parseEvaluator :: Text -> (Dimension -> Dimension -> Double -> Double)
+parseEvaluator "" = \_ _ x -> x
+parseEvaluator s =
+  case parseExprE s of
+    Left _ -> \_ _ x -> x
+    Right expr -> \shelf box def ->  evalExpr (fmap (evalWith shelf box def) expr)
+    
+  where evalWith :: Dimension -> Dimension -> Double -> Text -> Double
+        evalWith shelf box def varname = let
+          vars :: Map Text Double
+          vars = mapFromList [("l", dLength shelf)
+                         ,("w", dWidth shelf)
+                         ,("h", dHeight shelf)
+                         ,("lb", dLength box)
+                         ,("wb", dWidth box)
+                         ,("hb", dHeight box)
+                         ,("%", def)
+                         ]
+
+          in findWithDefault (error $ unpack varname ++ " is no't a valid key") varname vars
+          
 

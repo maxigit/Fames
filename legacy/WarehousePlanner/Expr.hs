@@ -1,8 +1,8 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, DeriveTraversable #-}
 module WarehousePlanner.Expr
 ( Expr(..)
 , parseExpr
-, parseExpr'
+, parseExprE
 , evalExpr
 ) where
 import ClassyPrelude hiding(readFile)
@@ -18,17 +18,21 @@ data Expr extra = AddE (Expr extra) (Expr extra)
           | MaxE (Expr extra) (Expr extra)
           | ValE Double
           | ExtraE extra --
-     deriving (Show, Functor)
+     deriving (Show, Functor, Foldable, Traversable)
           
           
 -- * Parsing
-parseExpr :: Text -> (Expr Text)
-parseExpr s =  case P.parse (parseExpr' <* P.eof) (unpack s) s of
+parseExpr :: Text -> Expr Text
+parseExpr s =  case parseExprE s of
   Left err -> error (show err)
   Right expr -> expr
+  
 
-parseExpr' :: P.Parser (Expr Text)
-parseExpr'  = (P.try (parseMMOp ))
+parseExprE :: Text -> Either P.ParseError (Expr Text)
+parseExprE s =  P.parse (exprParser <* P.eof) (unpack s) s 
+
+exprParser :: P.Parser (Expr Text)
+exprParser   = (P.try (parseMMOp ))
                     <|> parseTerminalExpr 
 
 parseTerminalExpr :: P.Parser (Expr Text)
@@ -46,7 +50,7 @@ parseGroup :: P.Parser (Expr Text)
 parseGroup  = do
   _ <- P.char '('
   P.spaces
-  e <- parseExpr' 
+  e <- exprParser  
   P.spaces
   _ <- P.char ')'
   return e
