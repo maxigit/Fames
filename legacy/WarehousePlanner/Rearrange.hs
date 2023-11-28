@@ -295,6 +295,7 @@ executeFillCommand shelf state@FillState{..} = \case
                  case fLastOrientationStrategy of
                   Nothing -> return ( FillState{ fOffset = newOffset
                                                , fNextPositions = mempty
+                                               , fMaxCorner = newOffset
                                                , ..}
                                     , Nothing
                                     )
