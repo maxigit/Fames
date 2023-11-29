@@ -239,7 +239,13 @@ makeRow lastScan row = case (row, lastBoxtake lastScan) of
                                            (lastForPlanner lastScan)
                        )
   (LocationRow loc, _) -> (lastScan {lastLocation = Just loc, lastDepth= 1, lastForPlanner = [] }, Nothing)
-  (DepthRow d, _) -> (lastScan {lastDepth = d }, Nothing)
+  (DepthRow d, _) -> (lastScan { lastDepth = d 
+                               , lastForPlanner = lastForPlanner lastScan ++ if d > 1 && d /= lastDepth lastScan
+                                                                             then ["NEW", "DEPTH"]
+                                                                             else []
+                                                                          ++ [ "COMMENT", "depth=" <> tshow d]
+                               }
+                     , Nothing)
   (OrientationRow or, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> [or]}, Nothing)
   (StrategyRow strat, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> ["SET STRATEGY", strat]}, Nothing)
   (ForPlannerRow for, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> words for}, Nothing)
