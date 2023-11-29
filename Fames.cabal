@@ -115,6 +115,7 @@ library
       WarehousePlanner.Base
       WarehousePlanner.Csv
       WarehousePlanner.Display
+      WarehousePlanner.Expr
       WarehousePlanner.Optimum
       WarehousePlanner.Rearrange
       WarehousePlanner.Report

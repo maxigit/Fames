@@ -14,6 +14,7 @@ module Handler.WH.Boxtake
 , boxSourceToCsv
 , plannerSource
 , HasPosition(..)
+, WithHeader(..)
 ) where
 
 import Import hiding(Planner)
@@ -122,7 +123,7 @@ renderPlannerCsv boxSources = do
 
 uploadPlannerCsv :: SavingMode -> UploadParam -> ([Session], [StyleMissing]) -> Handler TypedContent
 uploadPlannerCsv _ _ (sessions, _) = do
-  let source = sourceList sessions .| mapC sessionToBoxes .| boxSourceToCsv
+  let source = sourceList sessions .| mapC sessionToBoxes .| boxSourceToCsv WithHeader
   setAttachment "boxscan.org"
   respondSource "text/plain" (source .| mapC toFlushBuilder)
   where sessionToBoxes session = HasPosition (sessionHasPosition session)
@@ -202,23 +203,28 @@ toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) =
 boxSourceToSection :: Monad m => Day -> ConduitM () (HasPosition [(Entity Boxtake, [Text])]) m () -> ConduitM () Text m ()
 boxSourceToSection today boxSources = do
   yield ("* Stocktake from Planner  [" <> tshow today <> "]\n")
-  boxSources .| boxSourceToCsv
+  boxSources .| boxSourceToCsv WithHeader
 
-boxSourceToCsv :: Monad m => ConduitT (HasPosition [(Entity Boxtake, [Text])]) Text m ()
-boxSourceToCsv  = awaitForever go
+data WithHeader = WithHeader | WithoutHeader 
+  deriving (Show, Eq)
+boxSourceToCsv :: Monad m => WithHeader -> ConduitT (HasPosition [(Entity Boxtake, [Text])]) Text m ()
+boxSourceToCsv  ((== WithHeader) -> withHeader) = awaitForever go
   where go (HasPosition hasPosition boxes) = do
          if hasPosition
          then  do
             forM_ (headMay boxes) \(Entity _ box, _) ->  yield ("** " <> fst (extractPosition (boxtakeLocation box)) <> "\n")
-            yield (":STOCKTAKE:\n")
-            yield ("Bay No,Position,Style,Length,Width,Height,Orientations\n" :: Text)
+            when withHeader $ void do
+              yield ":STOCKTAKE:\n"
+              yield ("Bay No,Position,Style,Length,Width,Height,Orientations\n" :: Text)
          else do
             forM_ (headMay boxes) \(Entity _ box, _) ->  yield ("** " <> fst (extractPosition (boxtakeLocation box)) <> "\n")
-            yield ("*** Without position\n")
-            yield (":STOCKTAKE:\n")
-            yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
+            when withHeader  $ void do
+               yield ("*** Without position\n")
+               yield ":STOCKTAKE:\n"
+               yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
          sourceList boxes .| mapC (toPlanner . HasPosition hasPosition)
-         yield (":END:\n")
+         when withHeader $ void do
+              yield ":END:\n"
   
 spreadSheetToCsv :: (Session -> Boxtake -> Boxtake) ->  _conduit -> Handler TypedContent
 spreadSheetToCsv adjust renderCsv = processBoxtakeSheet' Save go

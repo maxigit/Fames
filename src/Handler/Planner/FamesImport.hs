@@ -145,7 +145,7 @@ importPackingList key tags =  runDB $ do
 importActiveBoxtakes :: [Text] -> Handler Section
 importActiveBoxtakes tags = do
   today <- todayH
-  let source = Box.plannerSource .| Box.boxSourceToCsv 
+  let source = Box.plannerSource .| Box.boxSourceToCsv Box.WithoutHeader
   content <- (runDB $ runConduit $ source .| consume)
   return $ Section (StocktakeH tags) (Right content) ("* Stocktake from Fames DB [" <> tshow today <> "]")
 
@@ -393,7 +393,7 @@ importActiveBoxtakesLive todaym tags = do
               , let extraTags = mconcat tags
 
               ]
-      source  =  sourceList [Box.HasPosition False boxes] .| Box.boxSourceToCsv
+      source  =  sourceList [Box.HasPosition False boxes] .| Box.boxSourceToCsv Box.WithoutHeader
       _use = sourceList
   content <- (runDB $ runConduit $ source .| consume)
   return $ Section (StocktakeH tags) (Right content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
