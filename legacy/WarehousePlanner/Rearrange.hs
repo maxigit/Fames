@@ -295,7 +295,6 @@ executeFillCommand shelf state@FillState{..} = \case
                         )
            FCNewDepth -> do
                  let newOffset = Dimension 0 (dWidth fMaxCorner) 0 
-                 traceShowM("NEW DEPTH", newOffset)
                  case fLastOrientationStrategy of
                   Nothing -> return ( FillState{ fOffset = newOffset
                                                , fNextPositions = mempty
@@ -381,6 +380,7 @@ executeFillCommand shelf state@FillState{..} = \case
 
               else return ( FillState { fNextPositions = positions
                                       , fLastOrientationStrategy = Just (partitionMode, strategy, offset)
+                                      , fMaxCorner = offset
                                       , .. }
                           , Nothing
                           )
@@ -419,7 +419,7 @@ parseFillCommand = \case
   ("use" : "dimension" : coms)  -> Just (FCSetIgnoreDimension False, coms)
   ("ud" : coms)  -> Just (FCSetIgnoreDimension False, coms)
   --
-  ("set" : "strategy": "WITH": l : w : h :coms ) | strat@(Just _) <- parseStrategyCommand l w h coms -> strat
+  ("set" : "strategy": "with": l : w : h :coms ) | strat@(Just _) <- parseStrategyCommand l w h coms -> strat
   ("ssw" : l : w : h :coms ) | strat@(Just _) <- parseStrategyCommand l w h coms -> strat
   --
   ("set" : "strategy": coms ) | strat@(Just _) <- parseStrategyCommand "0" "0" "0" coms -> strat

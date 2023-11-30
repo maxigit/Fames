@@ -62,7 +62,9 @@ data OrderingKey = OrdTag Text | OrdAttribute Text
 
 -- | How something is oriented. It indicates  the direction of
 -- the normal of the given face.
-data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
+data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Eq, Ord)
+
+instance Show Orientation where show = unpack . showOrientation
 
 data Position = Position
               { pOffset :: Dimension

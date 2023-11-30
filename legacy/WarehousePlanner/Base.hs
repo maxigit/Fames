@@ -869,7 +869,9 @@ bestPositions' POverlap orientations shelf start used dim = let
   
 bestPositions' partitionMode orientations shelf start usedBoxes dim = let
   starti = invert start
-  topRightCorners = map ((starti <>) . aTopRight) usedBoxes
+  topRightCorners = filter (not . outOfBound)
+                  . map ((starti <>) . aTopRight)
+                  $ usedBoxes
   Dimension lused wused hused = maxDimension $ topRightCorners
   (bestO, tilingMode, (lused', wused', hused')) =
                       bestArrangement orientations
@@ -894,6 +896,7 @@ bestPositions' partitionMode orientations shelf start usedBoxes dim = let
   rotated = rotate bestO dim
   base = Dimension lused' wused' hused' <> start
   in generatePositions base (shelfFillingStrategy shelf) bestO rotated tilingMode
+  where outOfBound dim = minimumEx (dimensionToList dim) <= 0
 
 
 generatePositions :: Dimension -> FillingStrategy -> Orientation -> Dimension -> TilingMode -> Slices Double Position
