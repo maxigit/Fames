@@ -283,9 +283,10 @@ executeFillCommand shelf state@FillState{..} = \case
                     -- try to pop one slice
                  return ( case nexts of
                             _ | nexts == mempty -> let Dimension ol ow _oh = fOffset
-                                                       newOffset = case dLength fMaxCorner of
-                                                                        0 -> Dimension (ol +dLength dim) ow 0
-                                                                        l -> Dimension l ow 0
+                                                       l = dLength fMaxCorner
+                                                       newOffset = if l <= dLength fOffset
+                                                                   then Dimension (ol +dLength dim) ow 0
+                                                                   else Dimension l ow 0
                                                        in  FillState{ fOffset = newOffset
                                                                     , fMaxCorner =  maxDimension [fMaxCorner, newOffset]
                                                                     , fNextPositions = mempty
