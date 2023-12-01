@@ -456,8 +456,9 @@ newBox :: Shelf' shelf => Text -> Text ->  Dimension -> Orientation -> shelf s  
 newBox style content dim or_ shelf ors tagTexts = do
     let tags' = map (parseTagOperation . omap replaceSlash) tagTexts
         dtags = dimensionTagOps dim
+        -- create "'content" tag
         contentTag = (omap replaceSlash $ cons '\'' content, SetTag)
-        tags = fromMaybe mempty $ modifyTags (contentTag : tags' <> dtags) mempty
+        tags = fromMaybe mempty $ modifyTags (contentTag : makeContentTags content <> tags' <> dtags) mempty
                                   --   ^ apply dimension tags after tags so dimension override tags
 
     uniqueRef@(Arg _ ref) <- newUniqueSTRef (error "should never been called. undefined. Base.hs:338")
@@ -467,6 +468,14 @@ newBox style content dim or_ shelf ors tagTexts = do
     lift $ writeSTRef ref box
     modify \warehouse ->  warehouse { boxes = boxes warehouse |> BoxId_ uniqueRef }
     return box
+-- |  create #content1=A, #content2=B from A&B
+makeContentTags :: Text -> [Tag'Operation]
+makeContentTags content = 
+  case splitOn "&" content of
+   [_] -> []
+   contents -> ("mixed", SetTag) : [ ("content" <> tshow i, SetValues [c])
+                                   | (c, i) <- zip contents [1..] 
+                                   ]
 
 newUniqueSTRef :: a s -> WH (Arg Int (STRef s (a s))) s
 newUniqueSTRef object = do
