@@ -1,6 +1,4 @@
 {-# LANGUAGE ImplicitParams #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
-{-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
 module Handler.Planner.FamesImport
 ( importFamesDispatch
 ) where
@@ -162,14 +160,15 @@ importBoxStatus whichBoxes prefix a_tags = do
   operators <- allOperators
   let source = case whichBoxes of
         AllBoxes -> selectSource [] []
-        ActiveBoxes -> error "TODO" -- Box.plannerSource  .| mapC fst
+        ActiveBoxes -> Box.plannerSource  .| concatMapC (\(Box.HasPosition _ boxE'_s) -> map fst boxE'_s)
+        -- ActiveBoxes -> Box.plannerSource  .| concatMapC _
       -- prefix = fromMaybe "" a_prefix
       getTags (Entity _ Boxtake{..}) = "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
               where
                 tags = [ prefix <> "location="  <> boxtakeLocation
                        , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
                        , prefix <> "date=" <> tshow boxtakeDate
-                       , prefix <> "reference=" <> boxtakeReference
+                       , prefix <> "reference=" <> unwords (lines boxtakeReference)
                        , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
                                                         operatorNickname
                                                         (lookup boxtakeOperator operators)
@@ -343,8 +342,8 @@ importBoxStatusLive todaym which prefix __tags = do
                <> intercalate "#" [ prefix <> "live-status=" <> tshow (Box.boxStatus statusbox)
                                   , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
                                   , prefix <> "date=" <> tshow boxtakeDate
-                                  , prefix <> "location=" <> tshow boxtakeLocation
-                                  , prefix <> "reference=" <> boxtakeReference
+                                  , prefix <> "location=" <> boxtakeLocation
+                                  , prefix <> "reference=" <> unwords (lines boxtakeReference)
                                   , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
                                                         operatorNickname
                                                         (lookup boxtakeOperator operators)
