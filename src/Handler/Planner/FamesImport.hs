@@ -352,7 +352,7 @@ importBoxStatusLive todaym which prefix __tags = do
              , statusbox <- Box.ssBoxes summary
              , let (Entity _ Boxtake{..}, _) = Box.usedSubject statusbox
              , case which of
-                 AllBoxes -> True
+                 AllBoxes -> Box.boxStatus statusbox /= Box.BoxInactive
                  ActiveBoxes -> boxtakeActive
              ]
 
