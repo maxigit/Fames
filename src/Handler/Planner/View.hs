@@ -67,7 +67,7 @@ postPViewR _ viewMode = do
 
 {-# NOINLINE getPImageR #-}
 getPImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
-getPImageR sha i width = do
+getPImageR sha width i = do
   scenarioM <- cacheScenarioOut sha
   -- traceShowM ("IMAGE", scenarioM)
   case scenarioM of
@@ -92,10 +92,10 @@ getPDocR = do
   --                       |]
 {-# NOINLINE getPScenarioImageR #-}
 getPScenarioImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
-getPScenarioImageR path i width = do
+getPScenarioImageR path width i = do
   Right scenario <-  readScenarioFromPath importFamesDispatch $ unpack path
   (sha, _) <- cacheScenarioIn scenario
-  getPImageR sha i width
+  getPImageR sha width i
   
 
 -- * Form 
@@ -294,7 +294,7 @@ renderGraphicCompactView imageRoute scenario = do
   return [whamlet|
 <div>
   $forall i <- is
-    <tr><td><a href="@{imgRoute i 4000}" ><img src=@{PlannerR $ PImageR sha i 350} style="width:800;">
+    <tr><td><a href="@{imgRoute 4000 i}"><img src=@{PlannerR $ PImageR sha 350 i} style="width:800;">
 |]
 
 renderGraphicBigView :: (Text-> _) -> Scenario -> Handler Widget
@@ -305,7 +305,7 @@ renderGraphicBigView imageRoute scenario = do
   return [whamlet|
 <table>
   $forall i <- is
-    <tr><td><a href="@{imgRoute i 4000}" ><img src=@{PlannerR $ PImageR sha i 750} style="width:800;">
+    <tr><td><a href="@{imgRoute 4000 i}"><img src=@{PlannerR $ PImageR sha 750 i} style="width:800;">
 |]
 
 -- ** Summary report 
