@@ -51,11 +51,13 @@ module WarehousePlanner.Base
 , parseBoxSelector
 , parseShelfSelector
 , parseSelector
+, parseNameSelector
 , parseTagOperation
 , parseTagOperations
 , parseTagSelector
 , parsePositionSpec
 , parseOrientationRule
+, parseMatchPattern
 , printDim
 , readOrientations
 , replaceSlashes
@@ -1796,6 +1798,7 @@ parseSelector s = case splitOn "#" s of
   [] -> Selector(NameMatches []) []
   (name:tags) -> Selector (parseNameSelector name) (mapMaybe parseTagSelector tags)
 
+parseNameSelector :: Text -> NameSelector a
 parseNameSelector selector = let
   (constr, pat) = case uncons selector of
        Just ('!', sel) -> (,) NameDoesNotMatch sel

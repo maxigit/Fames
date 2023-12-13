@@ -12,6 +12,7 @@ import Data.List((!!))
 import Data.Dynamic
 import Diagrams.Prelude hiding(iso, width, size)
 import Handler.Planner.Exec
+import WarehousePlanner.Csv(readLayout)
 import Handler.Planner.FamesImport(importFamesDispatch)
 import Import
 import Planner.Internal
@@ -91,12 +92,37 @@ getPDocR = do
   --    ^{plannerDoc'}
   --                       |]
 {-# NOINLINE getPScenarioImageR #-}
-getPScenarioImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
-getPScenarioImageR path width i = do
+getScenarioImageByNumber :: Text -> Int64 -> Int64 -> Handler TypedContent
+getScenarioImageByNumber path width i = do
   Right scenario <-  readScenarioFromPath importFamesDispatch $ unpack path
   (sha, _) <- cacheScenarioIn scenario
   getPImageR sha width i
   
+-- | Find layout image matching shelf name
+getScenarioImageByPattern :: Text -> Int64 -> Text -> Handler TypedContent
+getScenarioImageByPattern path width pattern_ = do
+  Right scenario <- readScenarioFromPath importFamesDispatch $ unpack path
+  case sLayout scenario of
+    Nothing     ->  error $ "No Layout provided"
+    Just layout -> do
+           contentPath <- contentPathM
+           shelvesss <- liftIO $ readLayout $ contentPath layout
+           case filter good $ zip shelvesss [0..] of
+                (_, i):_ -> getScenarioImageByNumber path width i
+                _        -> getScenarioImageByNumber path width 0
+  where good (shelvess, _i) = any (any (applyNameSelector toMatch id)) shelvess
+        toMatch = parseNameSelector (pattern_ <> "*.*/*")
+
+
+getPScenarioImageR :: Text -> Int64 -> Text -> Handler TypedContent
+getPScenarioImageR path width iOrPattern = do
+  case readMay iOrPattern of
+    Just i -> getScenarioImageByNumber path width i
+    _      -> getScenarioImageByPattern path width iOrPattern
+      
+
+
+                          
 
 -- * Form 
 
@@ -187,7 +213,7 @@ renderView param0 = do
   let mode = modeS >>=readMay
       vmode = pViewMode param0
       imageRoute = case (pPlannerPath param0, fullOrgfile param0) of
-        (Just path, Nothing) -> \_ -> PScenarioImageR $ pack path
+        (Just path, Nothing) -> \_ width i -> PScenarioImageR (pack path) width (tshow i)
         _ -> \sha -> PImageR sha
               
   scenarioFromFileEM <-  forM (pPlannerPath param0) (readScenarioFromPath importFamesDispatch) 
