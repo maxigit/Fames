@@ -111,7 +111,7 @@ getScenarioImageByPattern path width pattern_ = do
                 (_, i):_ -> getScenarioImageByNumber path width i
                 _        -> getScenarioImageByNumber path width 0
   where good (shelvess, _i) = any (any (applyNameSelector toMatch id)) shelvess
-        toMatch = parseNameSelector (pattern_ <> "*.*/*")
+        toMatch = parseNameSelector (pattern_ <> "|" <> pattern_ <> "*.*/*")
 
 
 getPScenarioImageR :: Text -> Int64 -> Text -> Handler TypedContent
