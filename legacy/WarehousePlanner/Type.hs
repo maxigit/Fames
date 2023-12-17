@@ -4,6 +4,7 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable #-}
 module WarehousePlanner.Type where
 import Prelude
 import Data.NonNull
@@ -242,7 +243,7 @@ newtype Shelfname = Shelfname Text deriving Show
 data FillingStrategy = RowFirst | ColumnFirst deriving (Show, Eq, Enum, Ord)
 data ShelfGroup' s = ShelfGroup [ShelfGroup' s] Direction
                 | ShelfProxy (s)
-                deriving (Show)
+                deriving (Show, Functor, Foldable)
 type ShelfGroup s = ShelfGroup' (ShelfId s)
 
 -- | State containing bays of boxes

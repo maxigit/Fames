@@ -178,9 +178,11 @@
   /doc PDocR GET !title=Help
   /image/#Text/#Int64/#Int64 PImageR GET
   /scenario/#Text/image/#Int64/#Text PScenarioImageR GET
+  /scenario/#Text/image-for/#Text/+[Text] PScenarioImageForR GET
+
   
 /dashboard DashboardR !dashboard:
-  / DMainR GET !group=Dashboard !title=Sales
+  / DMainR GET !group=Dashboard !tite=Sales
   /mainFull DMainFullR GET !title=Sales_Full
   /custom/#Text/#Int64/#Int64 DCustomR GET
   /year DYearR GET !title=sales_year

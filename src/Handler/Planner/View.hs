@@ -4,17 +4,18 @@ module Handler.Planner.View
 , getPImageR
 , getPDocR
 , getPScenarioImageR
+, getPScenarioImageForR
 )
 
 where
 
-import Data.List((!!))
+import Data.List((!!), intersect)
 import Data.Dynamic
 import Diagrams.Prelude hiding(iso, width, size)
 import Handler.Planner.Exec
-import WarehousePlanner.Csv(readLayout)
+import WarehousePlanner.Csv(readLayout, readWarehouse)
 import Handler.Planner.FamesImport(importFamesDispatch)
-import Import
+import Import hiding(intersect)
 import Planner.Internal
 import Planner.Types
 import Text.Blaze.Html.Renderer.Text(renderHtml)
@@ -29,6 +30,7 @@ import qualified Data.Set as Set
 import Control.Monad.State
 import System.Directory (listDirectory)
 
+import qualified Data.Foldable as F
 -- * Type 
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
 data FormParam = FormParam
@@ -122,6 +124,36 @@ getPScenarioImageR path width iOrPattern = do
       
 
 
+-- | Displays all images which contains boxes or given shelves
+getPScenarioImageForR :: Text -> Text -> [Text] -> Handler Html
+getPScenarioImageForR path forBox forShelf = do
+  Right scenario <- readScenarioFromPath importFamesDispatch $ unpack path
+  case sLayout scenario of 
+    Nothing -> error $ "No Layout provide"
+    Just layout -> do
+      wh0 <- execWithCache scenario
+      (sha, _) <- cacheScenarioIn scenario -- maybe redundate
+      let imgRoute w i = PlannerR $ PImageR sha w i
+      contentPath <- contentPathM
+      groupW <- liftIO $ readWarehouse (contentPath layout)
+      is <- execWH wh0 do
+                  ShelfGroup groups _ <- groupW
+                  -- find shelves to display
+                  let shelfSelector = parseShelfSelector $ forBox <> "/" <> intercalate "/" forShelf
+                      
+                  goodShelves <- map shelfId <$> findShelvesByBoxNameAndNames shelfSelector
+                  return [ i
+                         | (i, group) <- zip [0..] groups
+                         , let ids = F.toList group
+                         , not $ null ( ids `intersect` goodShelves )
+                         ]
+      defaultLayout [whamlet|
+         <table>
+            $forall i <- is
+              <tr><td><a href="@{imgRoute 4000 i}"><img src=@{imgRoute 750 i} style="width:800;">
+      |]
+
+  
                           
 
 -- * Form 
@@ -280,6 +312,8 @@ renderView param0 = do
     $forall nav <- navs
       <li class="#{navClass nav}">
         <a.view-mode href="#" data-url="@{PlannerR (PViewR (pPlannerPath param) (Just nav))}">#{splitSnake $ drop 7 (tshow nav)}
+$maybe path <- pPlannerPath param
+       <a href="@{PlannerR (PScenarioImageForR (pack path) "" [])}">Image for
 <div#planner-view-view>
   ^{widget}
 |]
