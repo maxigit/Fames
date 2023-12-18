@@ -132,8 +132,7 @@ getPScenarioImageForR path forBox forShelf = do
     Nothing -> error $ "No Layout provide"
     Just layout -> do
       wh0 <- execWithCache scenario
-      (sha, _) <- cacheScenarioIn scenario -- maybe redundate
-      let imgRoute w i = PlannerR $ PImageR sha w i
+      let imgRoute w i = PlannerR $ PScenarioImageR path w (tshow i)
       contentPath <- contentPathM
       groupW <- liftIO $ readWarehouse (contentPath layout)
       is <- execWH wh0 do
