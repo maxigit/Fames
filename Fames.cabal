@@ -112,17 +112,6 @@ library
       Util.Transformable
       Util.ValidField
       BankReconciliate
-      WarehousePlanner.Base
-      WarehousePlanner.Csv
-      WarehousePlanner.Display
-      WarehousePlanner.Expr
-      WarehousePlanner.Optimum
-      WarehousePlanner.Rearrange
-      WarehousePlanner.Report
-      WarehousePlanner.ShelfOp
-      WarehousePlanner.SimilarBy
-      WarehousePlanner.Slices
-      WarehousePlanner.Type
       Curl
       Customers.Settings
       FATransType
@@ -141,9 +130,6 @@ library
       Items
       Items.Internal
       Items.Types
-      Planner.Colour
-      Planner.Internal
-      Planner.Types
       WH.Barcode
       WH.FA
       WH.FA.Curl
@@ -253,7 +239,6 @@ library
     , shakespeare ==2.0.*
     , split
     , streaming-commons
-    , tabular >=0.2.2.7 && <0.3
     , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
@@ -268,6 +253,7 @@ library
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
+    , warehouse-planner
     , warp >=3.0 && <3.3
     , yaml ==0.8.*
     , yesod >=1.4.1 && <1.5
@@ -387,7 +373,6 @@ executable DPDDump
     , shakespeare ==2.0.*
     , split
     , streaming-commons
-    , tabular >=0.2.2.7 && <0.3
     , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
@@ -402,6 +387,7 @@ executable DPDDump
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
+    , warehouse-planner
     , warp >=3.0 && <3.3
     , webdriver
     , yaml ==0.8.*
@@ -518,7 +504,6 @@ executable DPDImport
     , shakespeare ==2.0.*
     , split
     , streaming-commons
-    , tabular >=0.2.2.7 && <0.3
     , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
@@ -533,6 +518,7 @@ executable DPDImport
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
+    , warehouse-planner
     , warp >=3.0 && <3.3
     , webdriver
     , yaml ==0.8.*
@@ -645,7 +631,6 @@ executable FAGenerator
     , shakespeare ==2.0.*
     , split
     , streaming-commons
-    , tabular >=0.2.2.7 && <0.3
     , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
@@ -660,6 +645,7 @@ executable FAGenerator
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
+    , warehouse-planner
     , warp >=3.0 && <3.3
     , yaml ==0.8.*
     , yesod >=1.4.1 && <1.5
@@ -693,9 +679,6 @@ executable Fames
       Items
       Items.Internal
       Items.Types
-      Planner.Colour
-      Planner.Internal
-      Planner.Types
       WH.Barcode
       WH.FA
       WH.FA.Curl
@@ -801,7 +784,6 @@ executable Fames
     , shakespeare ==2.0.*
     , split
     , streaming-commons
-    , tabular >=0.2.2.7 && <0.3
     , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
@@ -816,6 +798,7 @@ executable Fames
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
+    , warehouse-planner
     , warp >=3.0 && <3.3
     , yaml ==0.8.*
     , yesod >=1.4.1 && <1.5
@@ -856,10 +839,6 @@ test-suite test
       Items.CategorySpec
       Items.InternalSpec
       Legacy.BankReconciliateSpec
-      Planner.InternalSpec
-      Planner.OptimumSpec
-      Planner.RearrangeSpec
-      Planner.WarehouseSpec
       RoleSpec
       TestImport
       Util.CacheSpec
@@ -970,7 +949,6 @@ test-suite test
     , shakespeare
     , split
     , streaming-commons
-    , tabular >=0.2.2.7 && <0.3
     , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
@@ -986,6 +964,7 @@ test-suite test
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
+    , warehouse-planner
     , warp >=3.0 && <3.3
     , yaml
     , yesod

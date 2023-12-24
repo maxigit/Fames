@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
+{-# LANGUAGE ImplicitParams #-}
 -- TODO remove:
 module Handler.WH.PackingList
 ( getWHPackingListR
@@ -47,7 +48,6 @@ import Handler.Items.Common(skuToStyleVarH, dutyForH)
 import Data.Char (isAlphaNum)
 import qualified Handler.Planner.Exec as Planner
 import qualified WarehousePlanner.Base as Planner
-import qualified Planner.Internal as Planner
 import qualified Handler.Planner.FamesImport as Planner
 import Handler.WH.PLToPlanner
 
@@ -1817,8 +1817,11 @@ normQ (DetailInfo qty vol cost) = DetailInfo 1 (forQ vol) (fmap forQ cost)
 -- | Join packing list detail with planner information, location and extra tags
 joinWithPlanner :: Int64 -> [Entity PackingListDetail] -> Handler [(Entity PackingListDetail, PlannerInfo)]
 joinWithPlanner plId eDetails = do
+  today <- todayH
   let path = "pl-" <> show plId <> ".org"
       defInfo = PlannerInfo Nothing mempty
+  let ?cache = Planner.memoryCache
+      ?today = today
   plannerDir <- appPlannerDir <$> getsYesod appSettings
   scenarioE <- Planner.readScenarioFromPath Planner.importFamesDispatch (plannerDir </> path)
   case scenarioE of 

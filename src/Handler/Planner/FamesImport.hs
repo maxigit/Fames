@@ -4,14 +4,14 @@ module Handler.Planner.FamesImport
 ) where
 -- Import methods connecting Fames live database to the planner
 import Import
-import Planner.Types
-import Planner.Internal
+import WarehousePlanner.Org.Types
+import WarehousePlanner.Org -- as Exec
 import WarehousePlanner.Report
 import WarehousePlanner.Base (replaceSlashes)
+import Handler.Planner.Exec
 import qualified Handler.WH.PLToPlanner as PL
 import qualified Handler.WH.Boxtake as Box
 import qualified Handler.WH.Boxtake.Adjustment as Box
-import qualified Handler.Planner.Exec as Exec
 import qualified Handler.Items.Index as I
 import qualified Handler.Items.Common as I
 import qualified Items.Internal as I
@@ -20,7 +20,6 @@ import Database.Persist.Sql (toSqlKey)
 import Data.Conduit.List (consume, sourceList)
 import Data.Text(splitOn)
 import Data.List (nubBy, nub)
-import System.FilePath.Glob(globDir1, compile, match)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import qualified Data.Map as Map
 import GL.Utils
@@ -46,8 +45,6 @@ mkYesodSubData "FI" [parseRoutes|
 /boxStatus/live/#Text FIBoxStatusLive
 /boxStatus/live/at/#Day/#Text FIBoxStatusLiveAt
 /boxStatus/live/ago/#Int/#Text FIBoxStatusLiveAgo
-/files/+[FilePath] FILocalFiles
-/file/+[FilePath] FILocalFile
 /plannerReport FIPlannerReport:
   /tags/+[FilePath] TagReport
   /boxes/+[FilePath] BoxReport
@@ -70,10 +67,12 @@ mkYesodSubData "FI" [parseRoutes|
 __avoid_unused_warning_for_resourcesFI = resourcesFI 
 -- *  Dispatcher 
 importFamesDispatch :: Section -> Handler (Either Text [Section])
-importFamesDispatch (Section ImportH (Right content) _) = do
-  sectionss <- forM content $ \uri ->  do
-    let (main:tags) = splitOn "#" uri
-        pieces = splitOn "/" main
+importFamesDispatch section = do
+  plannerDir <- appPlannerDir <$> getsYesod appSettings
+  importDispatch plannerDir dispatch section
+  where
+  dispatch main tags = do
+    let pieces = splitOn "/" main
         ret :: Handler Section -> Handler (Either Text [Section])
         ret m = Right . (:[]) <$> m
         calcDate :: Int -> Handler Day
@@ -82,7 +81,7 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           return $ calculateDate (AddDays $ -days) today
     case (parseRoute (pieces, []) <|> parseRoute (pieces ++ [""], [])) of
       --                                                  ^ similutate missing / to url which needs it
-      Nothing -> return $ Left $ uri <> " is not a valid import"
+      Nothing -> return $ Left $ intercalate "#" (main:tags) <> " is not a valid import"
       Just fi -> case fi of
           FIPackingList plId -> ret $ importPackingList (toSqlKey plId) tags
           FIActiveBoxes -> ret $ importActiveBoxtakes tags
@@ -94,14 +93,6 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIBoxStatusLive prefix -> ret $ importBoxStatusLive Nothing AllBoxes prefix tags
           FIBoxStatusLiveAt date prefix -> ret $ importBoxStatusLive (Just date) AllBoxes prefix tags
           FIBoxStatusLiveAgo days prefix -> calcDate days >>= \date -> ret $ importBoxStatusLive (Just date) AllBoxes prefix tags
-          FILocalFile path -> hxtoHe $ do
-            sectionsX <- heToHx $ readLocalFile (intercalate "/" path) tags
-            ssx <- mapM (heToHx . importFamesDispatch) sectionsX
-            return $ concat ssx
-          FILocalFiles path -> hxtoHe $ do
-            sectionsX <- heToHx $ readLocalFiles (intercalate "/" path) tags
-            ssx <- mapM (heToHx . importFamesDispatch) sectionsX
-            return $ concat ssx
           FIPlannerReport report -> let
             reportParam = headMay tags
             tagsLeft = drop 1 tags
@@ -122,8 +113,6 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FICategory skus categories -> ret $ importCategory skus categories
           FISalesBetween start end skus -> ret $ importSales start end skus Nothing
           FISalesWithKeyBetween start end skus for -> ret $ importSales start end skus (Just for)
-  return $ (fmap concat) $  sequence sectionss
-importFamesDispatch section = return $ Right [section]
 
 
 -- * Importers 
@@ -178,42 +167,21 @@ importBoxStatus whichBoxes prefix a_tags = do
   let content = header:rows
   return $ Section (TagsH []) (Right content) ("* Tags from Fames DB [" <> tshow today <> "]")
   
-
--- | Read local files using glob pattern(s)
--- Uses the same directory as the planner
-readLocalFiles :: FilePath -> [Text] -> Handler (Either Text [Section])
-readLocalFiles pat excluded = do
-  plannerDir <- appPlannerDir <$> getsYesod appSettings
-  files <- liftIO $ globDir1 (compile pat) plannerDir
-  let orgs = filter valid $ sort files
-      exPats = map (compile . unpack . ("/**/" <>) ) excluded
-      valid f =  all ($ f) $ fileValid : map (\p -> not . match p) exPats
-  contents <- mapM readFile orgs
-  let sectionss = traverse (parseScenarioFile . decodeUtf8)  contents
-  return $ fmap concat sectionss
-
-readLocalFile :: FilePath -> [Text] -> Handler (Either Text [Section])
-readLocalFile path tags = do
-  plannerDir <- appPlannerDir <$> getsYesod appSettings
-  content <- readFile $ plannerDir </> path
-  let sections = parseScenarioFile . decodeUtf8 $ content
-      addTags section = section {sectionType = addTagsToHeader tags (sectionType section) }
-  return $ fmap (map addTags) sections
-
-
 --  | Execute the report from another planner
 executeReport :: HeaderType -> [FilePath] -> Maybe Text -> Handler (Either Text [Section])
 executeReport headerType paths reportParamM = do
+  today <- todayH
+  let ?today = today
+      ?cache = memoryCache
   let path = intercalate "/" paths
   plannerDir <- appPlannerDir <$> getsYesod appSettings
   let reportParam = fromMaybe "report" reportParamM
   scenarioE <- readScenarioFromPath importFamesDispatch (plannerDir </> path)
-  today <- todayH
   content <- case scenarioE of
     Left _ ->  error $ "Scenario: " <> unpack path <> " doesn't exist"
     Right scenario -> do
       let report = generateGenericReport today reportParam
-      rows <- Exec.renderReport scenario report 
+      rows <- renderReport scenario report 
       return rows
   -- add a dummy csv header if needed
   let addHeader content =

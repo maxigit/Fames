@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Handler.Planner.View
 ( getPViewR
 , postPViewR
@@ -16,8 +17,6 @@ import Handler.Planner.Exec
 import WarehousePlanner.Csv(readLayout, readWarehouse)
 import Handler.Planner.FamesImport(importFamesDispatch)
 import Import hiding(intersect)
-import Planner.Internal
-import Planner.Types
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import Util.Cache
 import WarehousePlanner.Base
@@ -71,6 +70,9 @@ postPViewR _ viewMode = do
 {-# NOINLINE getPImageR #-}
 getPImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
 getPImageR sha width i = do
+  today <- todayH
+  let ?cache = memoryCache
+      ?today = today
   scenarioM <- cacheScenarioOut sha
   -- traceShowM ("IMAGE", scenarioM)
   case scenarioM of
@@ -96,6 +98,7 @@ getPDocR = do
 {-# NOINLINE getPScenarioImageR #-}
 getScenarioImageByNumber :: Text -> Int64 -> Int64 -> Handler TypedContent
 getScenarioImageByNumber path width i = do
+  let ?cache = memoryCache
   Right scenario <-  readScenarioFromPath importFamesDispatch $ unpack path
   (sha, _) <- cacheScenarioIn scenario
   getPImageR sha width i
@@ -127,10 +130,15 @@ getPScenarioImageR path width iOrPattern = do
 -- | Displays all images which contains boxes or given shelves
 getPScenarioImageForR :: Text -> Text -> [Text] -> Handler Html
 getPScenarioImageForR path forBox forShelf = do
+  today <- todayH
+  let ?today = today
+      ?cache = memoryCache
   Right scenario <- readScenarioFromPath importFamesDispatch $ unpack path
   case sLayout scenario of 
     Nothing -> error $ "No Layout provide"
     Just layout -> do
+      today <- todayH
+      let ?today = today
       wh0 <- execWithCache scenario
       let imgRoute w i = PlannerR $ PScenarioImageR path w (tshow i)
       contentPath <- contentPathM
@@ -347,6 +355,7 @@ sendResponseDiag width diag =  do
 -- ** Graphical View 
 renderGraphicCompactView :: (Text -> _) ->  Scenario -> Handler Widget
 renderGraphicCompactView imageRoute scenario = do
+  let ?cache = memoryCache
   (sha, layoutSize) <- cacheScenarioIn scenario
   let imgRoute i width = PlannerR (imageRoute sha i width)
       is = [0..fromIntegral (layoutSize-1)]
@@ -358,6 +367,7 @@ renderGraphicCompactView imageRoute scenario = do
 
 renderGraphicBigView :: (Text-> _) -> Scenario -> Handler Widget
 renderGraphicBigView imageRoute scenario = do
+  let ?cache = memoryCache
   (sha, layoutSize) <- cacheScenarioIn scenario
   let imgRoute i width = PlannerR (imageRoute sha i width)
       is = [0..fromIntegral (layoutSize-1)]
@@ -370,6 +380,9 @@ renderGraphicBigView imageRoute scenario = do
 -- ** Summary report 
 renderSummaryReport :: Scenario -> Handler Widget
 renderSummaryReport scenario = do
+  today <- todayH
+  let ?today = today
+      ?cache = memoryCache
   (header:rows, total) <- renderReport scenario summary
   
   return $ [whamlet|
@@ -390,6 +403,9 @@ renderSummaryReport scenario = do
   
 renderShelvesReport :: Scenario -> Handler Widget
 renderShelvesReport scenario = do
+  today <- todayH
+  let ?cache = memoryCache
+      ?today = today
   (header':rows') <- renderReport scenario shelvesReport
   let header = splitOn "," header'
       rows = map (splitOn ",") rows'
@@ -421,6 +437,9 @@ renderBoxGroupReport selectorM = renderConsoleReport report where
 
 renderConsoleReport ::  WH [Text] __RealWord -> Scenario -> Handler Widget
 renderConsoleReport report scenario = do
+  today <- todayH
+  let ?cache = memoryCache
+      ?today = today
   (rows) <- renderReport scenario report
   return [whamlet|
 $forall row <- rows
