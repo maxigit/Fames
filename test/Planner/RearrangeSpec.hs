@@ -1,12 +1,10 @@
 module Planner.RearrangeSpec (spec) where
 
 import TestImport
-import ClassyPrelude
 import WarehousePlanner.Rearrange
 import Data.Char (isLower)
 import qualified Data.Map as Map
 import Data.List.Split (splitOn)
-import qualified Data.Set as Set
 
 spec :: Spec
 spec = parallel pureSpec

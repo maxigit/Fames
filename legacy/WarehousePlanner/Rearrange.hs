@@ -152,12 +152,15 @@ shiftUsedInBucketsWithStrategy isUsed bucket'strategies =  let
   ----------------------------------------------------------
   -- first we need to shiftUsed all the boxes regardless of their bucket.
   -- Assign a number to a bucket and link it to the box
-  box'buckets = [(box, (bucketNumber, strategy))
-          | ((boxes, strategy), bucketNumber) <- zip bucket'strategies [1..]
-          , box <- zip boxes [1..]
+  box'bucketsWithoutN = [(box, (bucketNumber, strategy))
+                | ((boxes, strategy), bucketNumber) <- zip bucket'strategies [1..]
+                , box <- boxes
           -- ^ in order to make a `Set a ` later we without `Ord a` we need ,
           -- to assign each box with local id
-          ]
+                ]
+  box'buckets = zipWith (\(b, bucket's) i -> ((b, i), bucket's))
+                        box'bucketsWithoutN
+                        [1..]
   rawShifts = shiftUsed (isUsed . fst . fst) box'buckets
   -- then we for each bucket, remove boxes which haven't moved
   stayInPlace (_,(source, StayInPlace)) (_,(dest, _)) | source == dest = True
