@@ -67,7 +67,7 @@ shiftUsedBoxes isUsed isSticky boxes inBucket'strategies = do
         doSwap (source, dest) = do
                  let (sticky, nonSticky) = Map.partitionWithKey (\k _ -> isSticky k) (boxTags source)
                  when (not $ null sticky) do
-                   void $ updateBox (\b -> b { boxTags = nonSticky} ) dest
+                   void $ updateBox (\b -> b { boxTags = nonSticky} ) source
                       
                  new <- updateBox (\s -> s { boxOffset = boxOffset  dest
                                   , boxBoxOrientations = boxBoxOrientations dest
