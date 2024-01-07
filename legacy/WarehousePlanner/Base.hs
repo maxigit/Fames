@@ -1314,9 +1314,10 @@ expandAttributeMaybe :: Text -> Maybe (Box s -> Int -> WH Text s)
 expandAttributeMaybe text = let
   wrap :: Box s -> Int -> (Text -> Box s -> Int -> WH Text s) -> Text -> WH Text s
   wrap box index f subtext =
-    case T.breakOn "}" subtext of
+    case (uncons subtext, T.breakOn "}" subtext) of
       -- (_, "") -> f subtext box
-      (key, leftOver) -> (<> drop 1 leftOver) <$> f key box index
+      (Just ('{', _) , (key, leftOver)) -> (<> drop 1 leftOver) <$> f key box index
+      _ -> f subtext box index
   in case splitOn "$" text of
      prefix:segments -> Just $ \box i -> do
       expandeds <- mapM (wrap box i expandAttribute') segments

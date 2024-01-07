@@ -90,6 +90,15 @@ expandAttributes = describe "expand box attributes" $ do
           "min rank = $rank-1[tag]." `shouldExpandTo` "min rank = 1."
       it "keeps $$" do
          "^full $$match$" `shouldExpandTo` "^full $match$"
+      it "keeps { }" do
+         "{I am between curly}" `shouldExpandTo` "{I am between curly}"
+      it "keeps after { }" do
+         "${shelfname} {I am between curly}" `shouldExpandTo` "Shelf S {I am between curly}"
+      it "keeps prop { }" do
+         "{ ${shelfname} is between curly}" `shouldExpandTo` "{ Shelf S is between curly}"
+      it "keeps prop { }" do
+         "{ $[tag] is between curly}" `shouldExpandTo` "{ X is between curly}"
+
 
   -- empty
   -- existing tags
