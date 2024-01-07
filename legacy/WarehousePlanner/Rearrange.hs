@@ -13,6 +13,7 @@ import qualified Data.Text as Text
 import Control.Monad (zipWithM)
 import Control.Monad.State (modify)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import GHC.Utils.Monad (mapAccumLM)
 import Data.List (unfoldr)
@@ -27,15 +28,15 @@ data ForGrouping = Don'tGroup | GroupByContent
      deriving (Show, Eq)
 
 -- * Export {{1
-rearrangeBoxesByContent ::  ForUnused -> ForGrouping -> [Tag'Operation] -> (Box s -> Bool) -> BoxSelector s -> [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)] -> WH [Box s] s
-rearrangeBoxesByContent deleteUnused groupByContent tagOps isUsed boxsel actions = do
+rearrangeBoxesByContent ::  ForUnused -> ForGrouping -> [Tag'Operation] -> (Box s -> Bool) -> (Text -> Bool) -> BoxSelector s -> [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)] -> WH [Box s] s
+rearrangeBoxesByContent deleteUnused groupByContent tagOps isUsed isSticky boxsel actions = do
   boxes <- findBoxByNameAndShelfNames boxsel >>= mapM findBox
   -- group boxes by style and content
   let onContent = (`on` \b -> (boxStyle b, boxContent b))
       boxByContent = case groupByContent of
                      GroupByContent ->  groupBy (onContent (==)) $ sortBy (onContent compare) boxes
                      Don'tGroup ->  [boxes]
-  newss <- mapM (\boxes ->  shiftUsedBoxes isUsed boxes actions) boxByContent
+  newss <- mapM (\boxes ->  shiftUsedBoxes isUsed isSticky boxes actions) boxByContent
   let news = concat newss
       untagOps = negateTagOperations tagOps
       newSet = Set.fromList news
@@ -54,8 +55,8 @@ rearrangeBoxesByContent deleteUnused groupByContent tagOps isUsed boxsel actions
 
         
   
-shiftUsedBoxes :: forall s . (Box s -> Bool) -> [Box s] -> [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)] -> WH [Box s] s
-shiftUsedBoxes isUsed boxes inBucket'strategies = do
+shiftUsedBoxes :: forall s . (Box s -> Bool) -> (Text -> Bool) -> [Box s] -> [(Box s -> Maybe (Shelf s) -> Bool, ShiftStrategy)] -> WH [Box s] s
+shiftUsedBoxes isUsed isSticky boxes inBucket'strategies = do
   box'shelves <- mapM (\b -> (return $ boxShelf b) >>= mapM findShelf >>= \s -> return (b, s)) boxes
   let swaps = shiftUsedInBucketsWithStrategy isUsed (map mkBucket inBucket'strategies)
       mkBucket (inBucket, strategy) = (map fst $ filter (uncurry inBucket) box'shelves, strategy)
@@ -64,13 +65,19 @@ shiftUsedBoxes isUsed boxes inBucket'strategies = do
   where doSwap :: (Box s, Box s) -> WH (Maybe (Box s)) s
         doSwap (source, dest) | source == dest = return Nothing
         doSwap (source, dest) = do
+                 let (sticky, nonSticky) = Map.partitionWithKey (\k _ -> isSticky k) (boxTags source)
+                 when (not $ null sticky) do
+                   void $ updateBox (\b -> b { boxTags = nonSticky} ) dest
+                      
                  new <- updateBox (\s -> s { boxOffset = boxOffset  dest
                                   , boxBoxOrientations = boxBoxOrientations dest
                                   , orientation = orientation dest
                                   , boxBreak = boxBreak dest
+                                  , boxTags = boxTags dest <> sticky
                                   }
                                   ) source
                                   >>= assignShelf (boxShelf dest)
+                 -- keep sticky tags
 
                  return $ Just new
 

@@ -804,10 +804,13 @@ splitTagsAndLocation tag'locations
 
 -- * Read Rearrange Boxes
 readRearrangeBoxes :: [Text] -> FilePath -> IO (WH [Box s] s)
-readRearrangeBoxes tags0 = readFromRecordWithPreviousStyle go
+readRearrangeBoxes tags'Sticky = readFromRecordWithPreviousStyle go
   where go style (Csv.Only (parseActions -> (deleteUnused, grouping, actions))) = do
-           rearrangeBoxesByContent deleteUnused grouping tagOps (not . flip tagIsPresent "dead") style actions
+           rearrangeBoxesByContent deleteUnused grouping tagOps isUsed isSticky style actions
         tagOps = parseTagAndPatterns tags0 []
+        (tags0, drop 1 -> sticky) = break (== "@sticky") tags'Sticky
+        isUsed = not . flip tagIsPresent "dead" 
+        isSticky = (`List.elem` sticky)
 -- * Freeze order  
 readFreezeOrder :: [Text] -> FilePath -> IO (WH [Box s] s)
 readFreezeOrder tags0 = readFromRecordWith go
