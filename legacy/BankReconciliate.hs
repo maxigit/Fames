@@ -322,6 +322,16 @@ sToS SantanderTransaction{..} pos = HSBCDaily
          _stAmount
          pos
          
+         
+sToT :: SantanderTransaction -> Int -> HSBCTransactions
+sToT SantanderTransaction{..} pos = HSBCTransactions
+         _stDate
+         ""
+         _stDescription
+         _stAmount
+         (Just $ Provided _stBalance)
+         pos
+
 -- ** Parsec parser 
 
 parseSantanderStatement :: P.Stream s m Char
@@ -453,7 +463,11 @@ readHSBCTransactions discardPatM path = do
     ps <- readCsv' discardPatM path :: IO (Either String [PaypalTransaction])
     let phs = fmap (map (dailyToHTrans . pToS)) ps :: Either String [HSBCTransactions]
     case hs <|> phs  of
-      Left s -> error $ "can't parse Transactions:" ++ path ++ "\n" ++ s
+      Left s -> do
+               content <- readWithFilter discardPatM path
+               case P.parse parseSantanderStatement path content of
+                 Left _ -> error $ "can't parse Transactions:" ++ path ++ "\n" ++ s
+                 Right s -> return $ zipWith sToT  (_stTrans s) [1..]  
       Right v -> return v
       
 
