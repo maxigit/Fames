@@ -253,7 +253,7 @@ library
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
-    , warehouse-planner
+    , warehouse-planner >=1.1.0
     , warp >=3.0 && <3.3
     , yaml ==0.8.*
     , yesod >=1.4.1 && <1.5
@@ -387,7 +387,7 @@ executable DPDDump
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
-    , warehouse-planner
+    , warehouse-planner >=1.1.0
     , warp >=3.0 && <3.3
     , webdriver
     , yaml ==0.8.*
@@ -518,7 +518,7 @@ executable DPDImport
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
-    , warehouse-planner
+    , warehouse-planner >=1.1.0
     , warp >=3.0 && <3.3
     , webdriver
     , yaml ==0.8.*
@@ -645,7 +645,7 @@ executable FAGenerator
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
-    , warehouse-planner
+    , warehouse-planner >=1.1.0
     , warp >=3.0 && <3.3
     , yaml ==0.8.*
     , yesod >=1.4.1 && <1.5
@@ -798,7 +798,7 @@ executable Fames
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
-    , warehouse-planner
+    , warehouse-planner >=1.1.0
     , warp >=3.0 && <3.3
     , yaml ==0.8.*
     , yesod >=1.4.1 && <1.5
@@ -964,7 +964,7 @@ test-suite test
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
-    , warehouse-planner
+    , warehouse-planner >=1.1.0
     , warp >=3.0 && <3.3
     , yaml
     , yesod
