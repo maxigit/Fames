@@ -377,7 +377,7 @@ getItemsReportSalesForecastReviewScatterR = do
 getItemsReportSalesForecastStockR = do
   today <- todayH
   forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
-  let start = calculateDate BeginningOfMonth today
+  let start = calculateDate (AddMonths 1) $ calculateDate BeginningOfMonth today
   param0 <- salesForecastParamH start forecastPath Nothing
   let param = param0
                { rpPanelRupture = emptyRupture
@@ -401,7 +401,7 @@ getItemsReportSalesForecastStockR = do
 getItemsReportSalesForecastStock6R = do
   today <- todayH
   forecastPath <- appForecastDefaultProfile <$> getsYesod appSettings
-  let start = calculateDate BeginningOfMonth today
+  let start = calculateDate (AddMonths 1) $ calculateDate BeginningOfMonth today
   param0 <- salesForecastParamH start forecastPath Nothing
   let param = param0
                { rpPanelRupture = emptyRupture
