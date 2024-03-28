@@ -338,7 +338,7 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
               <> "LEFT JOIN 0_grn_batch AS b ON (b.id = trans_no and type =?) "
               <> "LEFT JOIN 0_purch_orders AS po ON (b.purch_order_no = po.order_no) "
               <> "LEFT JOIN 0_grn_items AS gi ON (gi.grn_batch_id = b.id AND gi.item_code = stock_id) "
-              <> "LEFT JOIN 0_supp_invoice_items as ii ON (ii.grn_item_id = gi.id ) "
+              <> "LEFT JOIN 0_supp_invoice_items as ii ON (ii.grn_item_id = gi.id AND ii.quantity > 0 ) "
               <> "LEFT JOIN fames_transaction_map tm ON (fa_trans_type = ii.supp_trans_type AND fa_trans_no = ii.supp_trans_no AND event_type = ? ) "
               <> "LEFT JOIN fames_packinglist ON (event_no = packinglist_id) "
               <> "WHERE type IN (?,?) AND 0_stock_moves.stock_id = ? AND qty >0 "
