@@ -65,7 +65,7 @@ dependencies:
 - one-liner >= 1.0 && <2
 - Metamorphosis >= 0.1.0.1
 - fames-persist
-- warehouse-planner >= 1.1.1
+- warehouse-planner >= 1.2.2
 - microlens >= 0.4.1.1 && < 0.5
 - microlens-th >= 0.4.1.1 && < 0.5
 - curl >= 1.3.8 && < 1.4
@@ -174,8 +174,26 @@ executables:
       else:
         ghc-options:
         - -O2
-
-
+  FPlanner:
+    main: Planner.hs
+    source-dirs: tools
+    other-modules: []
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    dependencies:
+    - warehouse-planner
+    - Fames
+    when:
+    - condition: flag(library-only)
+      buildable: false
+    - condition: (flag(dev))
+      then:
+        ghc-options:
+        - -O0
+      else:
+        ghc-options:
+        - -O2
   FAGenerator:
     main: FAGenerator.hs
     source-dirs: tools

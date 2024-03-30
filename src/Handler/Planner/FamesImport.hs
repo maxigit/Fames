@@ -1,6 +1,7 @@
 {-# LANGUAGE ImplicitParams #-}
 module Handler.Planner.FamesImport
 ( importFamesDispatch
+, importFamesDispatch'
 ) where
 -- Import methods connecting Fames live database to the planner
 import Import
@@ -69,6 +70,9 @@ __avoid_unused_warning_for_resourcesFI = resourcesFI
 importFamesDispatch :: Section -> Handler (Either Text [Section])
 importFamesDispatch section = do
   plannerDir <- appPlannerDir <$> getsYesod appSettings
+  importFamesDispatch' plannerDir section
+importFamesDispatch' :: FilePath -> Section -> Handler (Either Text [Section])
+importFamesDispatch' plannerDir section = do
   importDispatch plannerDir dispatch section
   where
   dispatch main tags = do

@@ -19,7 +19,7 @@ extra-deps:
 - git: https://github.com/maxigit/metamorphosis
   commit: cf6931606f96ef150f65626c7cc69b3b6d542aa8
 - github: maxigit/warehouse-planner
-  commit:  dc101f3a44b2e7e0f8372a757d6df49371af4298
+  commit: bf644be2db06e9d56a685fd5fc38aa624ce9bd30
 - /home/max/Hackage/yesod-fay
 #- git: https://github.com/fpco/yesod-fay
 #commit: 7c87550a3450b1d476737eee34bf2a09b9048751
@@ -60,6 +60,8 @@ extra-deps:
 flags:
   Fames:
     dev: true
+  warehouse-planner:
+    brick: true
 
 # Extra package databases containing global packages
 extra-package-dbs: []

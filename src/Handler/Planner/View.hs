@@ -29,7 +29,6 @@ import qualified Data.Set as Set
 import Control.Monad.State
 import System.Directory (listDirectory)
 
-import qualified Data.Foldable as F
 -- * Type 
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
 data FormParam = FormParam
@@ -112,7 +111,7 @@ getScenarioImageByPattern path width pattern_ = do
     Just layout -> do
            contentPath <- contentPathM
            shelvesss <- liftIO $ readLayout $ contentPath layout
-           case filter good $ zip shelvesss [0..] of
+           case filter good $ zip (toList shelvesss) [0..] of
                 (_, i):_ -> getScenarioImageByNumber path width i
                 _        -> getScenarioImageByNumber path width 0
   where good (shelvess, _i) = any (any (applyNameSelector toMatch id)) shelvess
@@ -144,14 +143,14 @@ getPScenarioImageForR path forBox forShelf = do
       contentPath <- contentPathM
       groupW <- liftIO $ readWarehouse (contentPath layout)
       is <- execWH wh0 do
-                  ShelfGroup groups _ <- groupW
+                  groups <- groupW -- ShelfGroup groups _ <- groupW
                   -- find shelves to display
                   let shelfSelector = parseShelfSelector $ forBox <> "/" <> intercalate "/" forShelf
                       
                   goodShelves <- map shelfId <$> findShelvesByBoxNameAndNames shelfSelector
                   return [ i
-                         | (i, group) <- zip [0..] groups
-                         , let ids = F.toList group
+                         | (i, group) <- zip [0..] $ toList groups
+                         , let ids = concatMap toList group
                          , not $ null ( ids `intersect` goodShelves )
                          ]
       defaultLayout [whamlet|
