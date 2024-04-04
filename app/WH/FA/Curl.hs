@@ -799,7 +799,22 @@ postSalesOrder connectInfo SalesOrder{..} = do
             setNowOrNever item = item { soiNowOrNever = soiNowOrNever item <|> nowOrNever }
             salesType = fmap unpack soSalesType <|> lookup "sales_type" selected
 
-        mapM_ (addSalesOrderItem salesType) (map setNowOrNever soItems)
+        -- reset the price list to default so we can change it later
+        --   As we are giving a price to an item (via soiPrice)
+        --   this price is used instead of the price list's price.
+        --   To get the price list price, we need to enter all items
+        --   and the change the price list to the correct one to trigger
+        --   a price recalculation.
+        --   However to work , the price list need to change so
+        --   before setting it correctly (on the last item)
+        --   we have to set in incorrectly artificialy
+        void $ curlSoup (toAjax salesOrderURL) customerFields [200] "Problem trying to set Customer"
+        case fromNullable soItems of
+             Nothing -> return ()
+             Just items  -> do
+               mapM_ (addSalesOrderItem Nothing) (map setNowOrNever $ init items)
+               void $ addSalesOrderItem (salesType) (setNowOrNever $ last items)
+
         
         let process = curlPostFields [ "customer_id" <=> soCustomerId
                                      , "branch_id" <=> soBranchNo
