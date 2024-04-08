@@ -17,6 +17,17 @@ displayTable columns colDisplay rows = do
   ^{displayTableRowsAndHeader columns colDisplay rows}
 |]
  
+displayTable200 :: [col] --  ^ index of columns to display
+                -> (col -> (Html, [Text])) --  ^ column index to header and class
+                -> [ (col -> Maybe (Html, [Text])
+                     , [Text]
+                     )] --  ^ rows, given column index, return a value and classes
+                -> Widget
+displayTable200 columns colDisplay rows = do
+  [whamlet|
+<table data-page-length=200 *{datatable}>
+  ^{displayTableRowsAndHeader columns colDisplay rows}
+|]
 
 displayTableRows :: [col] --  ^ index of columns to display
              -> (col -> (Html, [Text])) --  ^ column index to header and class

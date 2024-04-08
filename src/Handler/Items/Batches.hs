@@ -281,7 +281,7 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
       let style''var'batchs = map (skuToStyle''var'Batch skuToStyleVar rowBatches) sku'batchIds
 
       case mtRowAggregationMode of
-               Nothing -> return $ displayTable `uncurry3` buildTableForSku (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+               Nothing -> return $ displayTable200 `uncurry3` buildTableForSku (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
                Just mergeMode -> do
                  varMap <- appVariations <$> getsYesod appSettings
                  let (col0,title,rows_) = buildTableForSkuMerged mergeMode (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
@@ -291,7 +291,7 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
                                                 fn row@((_, var), __batches) = getter row  <|> (Right . toPersistValue <$> lookup var varMap) 
                                                 in (colName, fn)
                      hack c = c 
-                 return $ displayTable col title rows_
+                 return $ displayTable200 col title rows_
   return tableW
    
 
@@ -315,7 +315,7 @@ loadMatchTable MatchTableParam{..} = do
                          then Nothing
                          else Just (/= "Style/Batch")
       
-      return $ displayTable cols colDisplay tableRows
+      return $ displayTable200 cols colDisplay tableRows
 
   return tableW
       
