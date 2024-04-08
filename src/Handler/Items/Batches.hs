@@ -256,13 +256,17 @@ getMatchTableParam = do
 loadMatchTable :: MatchTableParam -> Handler Widget -- [Entity BatchMatch]
 loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
   -- TODO factorize  
-  let columns = map fst $ filter ((== AsColumn) . snd) mtBatchRole
+  let columns' = map fst $ filter ((== AsColumn) . snd) mtBatchRole
   skuToStyleVar <- skuToStyleVarH
   opMap' <- allOperators
   let opMap = operatorNickname <$> opMap'
   tableW <- runDB $ do
       sku'batchIds <- loadSkuBatches mtBatchCategory skuFilter
       let rows = List.nub $ sort $ map snd sku'batchIds
+          columns = if columns' == []
+                    then rows
+                    else columns'
+                    
       -- load batch the correct way
       normal <- selectList (BatchMatchSource <-?. rows <> BatchMatchTarget <-?. columns) []
       wrongWay <- selectList (BatchMatchSource <-?. columns <>  BatchMatchTarget <-?. rows) []
