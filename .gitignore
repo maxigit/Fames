@@ -39,3 +39,4 @@ new-lts
 stack.yaml.lock
 .trash
 nogit
+.crew

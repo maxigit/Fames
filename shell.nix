@@ -19,6 +19,7 @@ let ghc = pkgs.ghc ;
                     cairo
                     pango
                     glabels-qr
+                    ncurses6
 		   barcode
                ] ;
     barcode-libs = [qrencode ];

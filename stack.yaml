@@ -57,11 +57,11 @@ extra-deps:
 
 
 # Override default flag values for local packages and extra-deps
-flags:
-  Fames:
-    dev: true
-  warehouse-planner:
-    brick: true
+# flags:
+#   Fames:
+#     dev: true
+#   warehouse-planner:
+#     brick: true
 
 # Extra package databases containing global packages
 extra-package-dbs: []
