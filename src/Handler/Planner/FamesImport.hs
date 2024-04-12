@@ -20,10 +20,11 @@ import qualified Items.Types as I
 import Database.Persist.Sql (toSqlKey)
 import Data.Conduit.List (consume, sourceList)
 import Data.Text(splitOn)
-import Data.List (nubBy, nub)
+import Data.List (nub)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import qualified Data.Map as Map
 import GL.Utils
+import qualified Data.HashMap.Strict as HashMap
 -- * Type 
 -- data FamesImport
 --   = ImportPackingList (Key PackingList) --  ^ import packing list
@@ -71,6 +72,7 @@ importFamesDispatch :: Section -> Handler (Either Text [Section])
 importFamesDispatch section = do
   plannerDir <- appPlannerDir <$> getsYesod appSettings
   importFamesDispatch' plannerDir section
+{-# NOINLINE importFamesDispatch' #-}
 importFamesDispatch' :: FilePath -> Section -> Handler (Either Text [Section])
 importFamesDispatch' plannerDir section = do
   importDispatch plannerDir dispatch section
@@ -350,8 +352,8 @@ importActiveBoxtakesLive todaym tags = do
   today <- maybe todayH return todaym
   skuToStyleVar <- I.skuToStyleVarH
   summaries <- loadLiveSummaries todaym
-  let sameBarcode op (Entity _ a, _) (Entity _ b, _) = boxtakeBarcode a `op` boxtakeBarcode b
-  let boxes = nubBy (sameBarcode (==)). sortBy (sameBarcode compare) $
+  -- let sameBarcode op (Entity _ a, _) (Entity _ b, _) = boxtakeBarcode a `op` boxtakeBarcode b
+  let boxes = myNubBy (boxtakeBarcode . entityVal . fst) $
               [ ( Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
                 , map (snd . skuToStyleVar . stocktakeStockId . entityVal) stocktakes
                 )
@@ -369,6 +371,10 @@ importActiveBoxtakesLive todaym tags = do
   content <- (runDB $ runConduit $ source .| consume)
   return $ Section (StocktakeH tags) (Right content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
   
+myNubBy :: Hashable k => (a -> k) -> [a] -> [a]
+-- myNubBy f = nubBy ((==)`on` f) . sortOn f
+-- myNubBy f xs = Map.elems $ mapFromList [(f x, x) | x <- xs ]
+myNubBy f xs = HashMap.elems $ HashMap.fromList [(f x, x) | x <- xs ]
 
 
   
