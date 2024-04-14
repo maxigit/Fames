@@ -1,0 +1,1 @@
+FailureReport {failureReportSeed = 1633749373, failureReportMaxSuccess = 100, failureReportMaxSize = 100, failureReportMaxDiscardRatio = 10, failureReportPaths = [(["Handler.WHPackingList","@editpl updating packing list details","#valid","#replaces"],"replace with mixed box"),(["Items.Internal","Forecast","#SeasonProfile"],"sums to one")]}

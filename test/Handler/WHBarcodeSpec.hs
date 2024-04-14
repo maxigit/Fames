@@ -11,7 +11,7 @@ pureSpec =  return ()
 
 appSpec = withAppWipe BypassAuth $ do
   describe "@Barcodes" $ do
-    parallel $ context "Utils" $ do
+    context "Utils" $ do
         it "create new prefix in the database sequence" $ do
           barcodes <- runDB $ generateBarcodes "TA" (Just $ fromGregorian 2016 11 02) 100
           liftIO $ do

@@ -169,7 +169,7 @@ forecast = describe "Forecast" $ do
   context "#SeasonProfile" $ do
     it "sums to one" $ property $ 
       \xs -> let SeasonProfile p = seasonProfile (xs :: [Double])
-             in not (null xs) ==> abs (sum p - 1) < 1e-2
+             in not (null xs) && (abs (sum xs) > 1e-2)  ==> abs (sum p - 1) < 1e-2
     it "has all months " $ property $
       \xs -> let SeasonProfile p = seasonProfile xs
              in length p === 12

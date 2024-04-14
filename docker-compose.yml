@@ -1,7 +1,7 @@
-version: '2'
+version: '2.1'
 services:
   db:
-     image: mariadb:10.1.18
+     image: mariadb:10.7.1
      environment:
        # assign a different root password for each environments.
        # Prevent to log my mistake on the wrong environment.
