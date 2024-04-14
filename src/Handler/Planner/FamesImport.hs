@@ -223,7 +223,7 @@ importVariationStatus which skuLike = do
               ]
       content = [ style <> "#'" <> var <> ",fa-status=" <> tagFor status
                 --           ^ the variaton is a special tag
-                | (style, var, status) <- rows
+                | (Style style, Var var, status) <- rows
                 ]
       tagFor = drop 2 . toLower . tshow
 
@@ -249,7 +249,7 @@ cloneVariationStatus which qty skuLike toClonem tags = do
               , Just (_, runningStatus) <- [I.faRunningStatus <$> I.impFAStatus info]
               ]
       content = [ style <> "#" <> toClone <> "," <> tshow qty <> "," <> var <> "#fa-status=" <> tagFor status 
-                | (style, var, status) <- rows
+                | (Style style, Var var, status) <- rows
                 ]
       tagFor = drop 2 . toLower . tshow
   return $ Section (ClonesH tags) (Right $ "selector,qty,tags" : content) ("* Clone FA variations") 
@@ -265,7 +265,7 @@ importStockStatus which skus = do
         ActiveBoxes -> sql0 <> " AND inactive = 0"
   rows <- runDB $ rawSql sql p
   let content = map go rows
-      go (Single (skuToStyleVar ->  (style, var)), Single status) = style <> "#'" <> var <> ",stock-status=" <> status
+      go (Single (skuToStyleVar . Sku ->  (Style style, Var var)), Single status) = style <> "#'" <> var <> ",stock-status=" <> status
                                                                                          <> "#stock-status-colour=" <> colorFor status
                                                                                          <> "#stock-short-status=" <> short status
       colorFor status = case status of
@@ -355,7 +355,7 @@ importActiveBoxtakesLive todaym tags = do
   -- let sameBarcode op (Entity _ a, _) (Entity _ b, _) = boxtakeBarcode a `op` boxtakeBarcode b
   let boxes = myNubBy (boxtakeBarcode . entityVal . fst) $
               [ ( Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
-                , map (snd . skuToStyleVar . stocktakeStockId . entityVal) stocktakes
+                , map (unVar . snd . skuToStyleVar . Sku . stocktakeStockId . entityVal) stocktakes
                 )
               | summary <- summaries
               , statusbox <- Box.ssBoxes summary
@@ -393,7 +393,7 @@ importCategory skus categories = do
                              ]
       content =  [ style <> "#'"  <> var <> "," <> (intercalate "#" (map mkTag cat'values))
                  | (sku, cat'values) <- Map.toList grouped
-                 , let (style,var) = skuToStyleVar sku
+                 , let (Style style, Var var) = skuToStyleVar $ Sku sku
                  ]
       mkTag (category, value) = "cat-" <> category <> "=" <> value
   return $ Section (TagsH []) (Right $ "selector,tags" : content) ("* Categories " <> intercalate " " categories) 
@@ -414,7 +414,7 @@ importSales startDate endDate skus forStyle = do
   let _types = raws :: [(Single Text, Single Double)]
   let rows = [ (style, (var, qty))
              | (Single sku, Single qty) <- raws
-             , let (style, var) = skuToStyleVar sku
+             , let (Style style, Var var) = skuToStyleVar $ Sku sku
              ] 
       maxRank = length rows + 1
 

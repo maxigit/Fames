@@ -19,8 +19,8 @@ import Import.NoFoundation
 -- | Holder for miscellaneous information relative to an item.
 -- Allows mainly to call operation which need to group by style and or variations.
 data ItemInfo a = ItemInfo
-  { iiStyle :: Text
-  , iiVariation:: Text
+  { iiStyle :: Style
+  , iiVariation:: Var
   , iiInfo :: a
   } deriving Functor
 deriving instance (Show a) => Show (ItemInfo a)
@@ -294,9 +294,9 @@ collapseQPs tqs = Just . mconcat $ map (uncurry tranQP) tqs
 data TranKey = TranKey
   { tkDay :: Day
   , tkCustomerSupplier :: Maybe (Either (Int64, Int64) Int64)
-  , tkSku :: Text
-  , tkStyle :: Maybe Text
-  , tkVar :: Maybe Text
+  , tkSku :: Sku
+  , tkStyle :: Maybe Style
+  , tkVar :: Maybe Var
   , tkCategory :: Map Text Text
   , tkCustomerCategory :: Map Text Text
   , tkType :: FATransType

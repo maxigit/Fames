@@ -57,12 +57,12 @@ readProfiles path = do
 -- * Sku Speed 
 -- | Row coming from a sku speed file.
 data SkuSpeedRow = SkuSpeedRow
-  { ssSku :: Text
+  { ssSku :: Sku
   , ssWeight :: Double
   }deriving (Show)
 instance Csv.FromNamedRecord SkuSpeedRow where
-  parseNamedRecord m = SkuSpeedRow  <$> m Csv..: "stock_id"
-                                       <*> m Csv..: "eQty"
+  parseNamedRecord m = SkuSpeedRow  <$> fmap Sku (m Csv..: "stock_id")
+                                    <*> m Csv..: "eQty"
 
                   
 -- | Load sku speed from a csv
@@ -74,12 +74,12 @@ loadSkuSpeed filepath = do
     Right rows -> return rows
 
 -- | Generate fake transactions corresponding to forecast sales
-loadItemForecast ::  Maybe InOutward -> FilePath -> (Map Text ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
+loadItemForecast ::  Maybe InOutward -> FilePath -> (Map Sku ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
 loadItemForecast io forecastDir infoMap start end = do
   settings <- getsYesod appSettings
   catFinder <- categoryFinderCached (appForecastCollectionCategory settings)
   profiles <- liftIO $ readProfiles (forecastDir </> "collection_profiles.csv")
-  let profile sku = (catFinder  (FA.StockMasterKey sku) >>= (`lookup` profiles) ) <|> Just flatProfile
+  let profile (Sku sku) = (catFinder  (FA.StockMasterKey sku) >>= (`lookup` profiles) ) <|> Just flatProfile
       flatProfile = seasonProfile []
   skuFiles <- liftIO $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
   when (null skuFiles) $ do
@@ -89,8 +89,8 @@ loadItemForecast io forecastDir infoMap start end = do
   let skuSpeeds = concat skuSpeedMap 
   return $ concatMap (skuSpeedRowToTransInfo infoMap profile start end io) skuSpeeds
 
-skuSpeedRowToTransInfo :: Map Text ItemInitialInfo
-                       -> (Text -> Maybe SeasonProfile)
+skuSpeedRowToTransInfo :: Map Sku ItemInitialInfo
+                       -> (Sku -> Maybe SeasonProfile)
                        -> Day
                        -> Day
                        -> Maybe InOutward

@@ -1,9 +1,13 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE DerivingStrategies #-}
 -- | For TH stage problem
 module ModelField
 ( module ModelField
 , module FATransType
 , PayrollFrequency
+, Sku(..)
+, Style(..)
+, Var(..)
 ) where 
 
 import ClassyPrelude.Yesod hiding(Proxy)
@@ -14,6 +18,7 @@ import Data.Decimal
 import Data.Proxy
 import Data.ISO3166_CountryCodes
 import FATransType
+import Data.Aeson.Types
 
 -- * Warehouse 
 -- | Where as a transaction has been processed or not.
@@ -31,6 +36,20 @@ instance PersistField MatchScore where
   
 instance PersistFieldSql MatchScore where
   sqlType _ = SqlReal
+
+
+-- * Style and Sku ...
+newtype Style = Style {unStyle :: Text }
+  deriving (Show, Eq, Ord)
+  deriving (FromJSON)
+
+newtype Sku = Sku {unSku :: Text }
+  deriving (Show, Eq, Ord)
+  deriving (FromJSON, ToJSON)
+  
+newtype Var = Var {unVar :: Text }
+  deriving (Show, Eq, Ord)
+  deriving (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 
 -- * Payroll 
 -- | Wether a payroll cost is a added to the employer bill (cost) or paid by the employee (deduction)

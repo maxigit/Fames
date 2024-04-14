@@ -10,9 +10,9 @@ import ClassyPrelude.Yesod
 import WarehousePlanner.Base hiding(Box(..))
 import qualified Data.Map as Map
 import Data.List(scanl')
+import ModelField (Style(..))
 
 -- * Types 
-type Style = Text
 -- | A slice of boxes in a  unloading zone.
 -- Boxes are unloaded in the unloaded area in a rectangular zone.
 -- Each boxes of the same stiles are together using the full depth (width) of the zone

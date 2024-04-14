@@ -38,7 +38,7 @@ import GL.Receipt
 import qualified Data.Map as Map
 import Customers.Settings
 import Fay.Config(Config(..))
-
+import ModelField(Var)
 
 
 data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
@@ -102,8 +102,8 @@ data AppSettings = AppSettings
     , appFAUser :: String -- ^ User to connect to FrontAcounting
     , appFAPassword :: String -- ^ User passwrod to connect to FA to post transactions.
     , appFAExternalURL :: String -- ^ User passwrod to connect to FA to post transactions.
-    , appVariations :: Map Text Text -- ^ Variation description. Used to adjust item description in index.
-    , appVariationGroups :: Map Text [Text] -- ^ group of variations. Can intersect
+    , appVariations :: Map Var Text -- ^ Variation description. Used to adjust item description in index.
+    , appVariationGroups :: Map Text [Var] -- ^ group of variations. Can intersect
     , appPayroll :: PayrollSettings
     , appBankStatements :: Map Text (Map Text  BankStatementSettings) -- ^ How to parse and displays bank statements
     , appForecastProfilesDir :: FilePath -- ^ path to directory containing subdirectories

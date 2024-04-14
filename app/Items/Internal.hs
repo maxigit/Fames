@@ -23,6 +23,7 @@ import Data.Copointed(Copointed,copoint)
 import GL.Utils
 import Data.Time(diffDays, gregorianMonthLength)
 import Data.List(iterate, cycle)
+import ModelField(Style, Var)
 
 diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
 diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
@@ -73,10 +74,10 @@ promoteQP qtype' (qtype, qp) | qtype' == qtype = Just (qtype, qp)
 -- to match the expected result (not the reference one)
 -- For example, if base is Black and the description is "Black T-Shirt". We will need to change
 -- the description to "Red T-Shirt" for the Red variation. 
-computeItemsStatus :: (ItemInfo a -> Text -> ItemInfo a )
+computeItemsStatus :: (ItemInfo a -> Var -> ItemInfo a )
                    -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
                    -> ItemInfo a --  ^ base item
-                   -> [Text] --  ^ list of variations to expand to
+                   -> [Var] --  ^ list of variations to expand to
                    -> [ItemInfo a] --  ^ item (base, variation) alreadyexisting
                    -> [(VariationStatus, ItemInfo diff)]
 computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
@@ -124,12 +125,12 @@ diffPurchMap a b = let
 -- variations
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
 joinStyleVariations :: Copointed a
-                    =>  Map Text (Text, Text)
-                    -> [Text] --  ^ help to find the base if not given
-                    -> (ItemInfo (ItemMasterAndPrices a) -> Text -> ItemInfo (ItemMasterAndPrices a))
+                    =>  Map Style (Style, Var)
+                    -> [Var] --  ^ help to find the base if not given
+                    -> (ItemInfo (ItemMasterAndPrices a) -> Var -> ItemInfo (ItemMasterAndPrices a))
                     -> (ItemInfo (ItemMasterAndPrices a) -> ItemInfo (ItemMasterAndPrices a) -> ItemInfo diff)
                     -> [ItemInfo (ItemMasterAndPrices a)]
-                    -> (Text -> [Text]) --  ^ All possible variations for a given style
+                    -> (Style -> [Var]) --  ^ All possible variations for a given style
                     -> [( ItemInfo (ItemMasterAndPrices a)
                         , [(VariationStatus, ItemInfo diff)]
                         )]

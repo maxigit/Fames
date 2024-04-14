@@ -268,9 +268,9 @@ validateRow batchCategory row@(MatchRow (Just sourcet) (sourceColourm)
       guessForTarget :: a -> ValidField a
       guessForTarget v = (\_ _ ->  v) <$> targett <*> (sequenceA targetColourm) -- get the correct guessed status
       source = guessForSource sourceBatch
-      sourceColour = guessForSource $ case skuToStyleVar sourceColour' of
-                                        (style, var) | null var  -> style 
-                                        (_style, colour) -> colour -- the colour is actually a sku, we need to extract the colour
+      sourceColour = guessForSource $ case skuToStyleVar (Sku sourceColour') of
+                                        (Style style, Var var) | null var  -> style 
+                                        (_style, Var colour) -> colour -- the colour is actually a sku, we need to extract the colour
       target = guessForTarget targetBatch
       targetColour = guessForTarget targetColour'
       in return . Right $ MatchRow{..}
@@ -307,40 +307,41 @@ findBatch batchCategory styleOrBatch (Just colourOrSku) = do
   case batchByName of
     Just batch -> return $ Right (batch, colourOrSku)
     Nothing -> do
-      batchE <- findBatchForSku batchCategory (styleVarToSku styleOrBatch colourOrSku)
+      batchE <- findBatchForSku batchCategory (styleVarToSku (Style styleOrBatch) (Var colourOrSku))
       case batchE of
         r@(Right _) -> return r
         l -> do -- try to extract the colour from the colourOrSku
-          batchM <- findBatchForBatchSku batchCategory styleOrBatch colourOrSku
+          batchM <- findBatchForBatchSku batchCategory styleOrBatch (Sku colourOrSku)
           return $ fromMaybe l batchM
 
-findBatch batchCategory sku Nothing = findBatchForSku  batchCategory sku
-findBatchForSku :: Text -> Text -> Handler (Either Text (Entity Batch, Text))
+findBatch batchCategory sku Nothing = findBatchForSku  batchCategory $ Sku sku
+findBatchForSku :: Text -> Sku -> Handler (Either Text (Entity Batch, Text))
 findBatchForSku batchCategory sku = do
   skuToStyleVar <- skuToStyleVarH
   categories <- batchCategoriesH
   catFinder <- categoryFinderCached batchCategory
-  let (_, colour) = skuToStyleVar sku
+  let (_, Var colour) = skuToStyleVar sku
+      Sku sku_ = sku
   case (batchCategory `elem` categories,  colour) of
     (False, _ ) -> do
       setError("Batch category not set. Please contact your Administrator")
       return $  Left "Batch category not set"
     (True, "" ) -> do
-      setError(toHtml $ sku <> " doesn't have a colour")
-      return $ Left $ sku <> " doesn't have a colour"
+      setError(toHtml $ sku_ <> " doesn't have a colour")
+      return $ Left $ sku_ <> " doesn't have a colour"
     (True, _) -> do
-      let batchm = catFinder (FA.StockMasterKey sku)
+      let batchm = catFinder (FA.StockMasterKey sku_)
       case batchm of
-        Nothing -> return $ Left $ "no " <> batchCategory <> " value for " <> sku
+        Nothing -> return $ Left $ "no " <> batchCategory <> " value for " <> sku_
         Just batch -> do
           batchByName <- runDB $ getBy (UniqueBName batch)
           return $  maybe (Left $ batch <> " is not a valid batch") (Right . (,colour)) batchByName
 -- If the colour is a sku, find the associated colour and check that the
 -- the input batch belongs to the batch category
-findBatchForBatchSku :: Text -> Text -> Text -> Handler (Maybe (Either Text (Entity Batch, Text)))
+findBatchForBatchSku :: Text -> Text -> Sku -> Handler (Maybe (Either Text (Entity Batch, Text)))
 findBatchForBatchSku batchCategory batchName sku =  do
   skuToStyleVar <- skuToStyleVarH
-  let (_, colour) =  skuToStyleVar sku
+  let (_, Var colour) =  skuToStyleVar sku
   if null colour
   then return $ Nothing -- sku doesn't give a colour
   else do
@@ -349,11 +350,11 @@ findBatchForBatchSku batchCategory batchName sku =  do
         Nothing -> return . Just . Left $ batchName <> " is not a valid batch"
         Just batch -> do -- check the batch is authorized
             catFinder <- categoryFinderCached batchCategory
-            let batchNames = catFinder  (FA.StockMasterKey sku)
+            let batchNames = catFinder  (FA.StockMasterKey $ unSku sku)
                 validBatches = maybe [] (splitOn " | ")  batchNames
             if batchName `elem` validBatches
             then return . Just $ Right (batch, colour)
-            else return . Just . Left $ batchName <> " doesn't belong current batches for "  <> sku
+            else return . Just . Left $ batchName <> " doesn't belong current batches for "  <> unSku sku
 
   
 
@@ -449,9 +450,9 @@ buildTable renderMatches filterColumnFn rowBatches columnBatches (ForBuildTable 
      )
 
 buildTableForSku ::
-  col0 ~ (Text, (((Text, Text), Entity Batch)) -> Maybe (Either Html PersistValue))
+  col0 ~ (Text, (((Style, Var), Entity Batch)) -> Maybe (Either Html PersistValue))
   => ([BatchMatch] -> Html) --  ^ match renderer
-  -> [((Text, Text), Entity Batch)] --  ^ sku@style'var batch
+  -> [((Style, Var), Entity Batch)] --  ^ sku@style'var batch
   -> [Entity Batch] --  ^ batches
   -> ForBuildTable --  ^ matches
   -> ([col0]
@@ -464,14 +465,14 @@ buildTableForSku renderMatches sku'batches columnBatches (ForBuildTable matches)
 
   -- targets = nub $ sort (map batchMatchTarget matches)
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
-               , \((__style, colour), batch ) -> Left . renderMatches <$> lookup (entityKey batch, colour, batchId ) matchMap
+               , \((__style, Var colour), batch ) -> Left . renderMatches <$> lookup (entityKey batch, colour, batchId ) matchMap
                                   
                )
             | (Entity batchId Batch{..}) <- columnBatches
             ]
   -- columns = 
-  columns = ("Style", \((style, _var), _batch) -> Just (Right $ toPersistValue style) ) :
-            ("Colour", \((_style, colour), _batch) -> Just (Right $ toPersistValue colour)) :
+  columns = ("Style", \((Style style , _var), _batch) -> Just (Right $ toPersistValue style) ) :
+            ("Colour", \((_style, Var colour), _batch) -> Just (Right $ toPersistValue colour)) :
             ("Batch", \(_, Entity _ Batch{..}) -> Just (Right $ toPersistValue (fromMaybe batchName batchAlias))) :
             columns0
 
@@ -487,10 +488,10 @@ buildTableForSku renderMatches sku'batches columnBatches (ForBuildTable matches)
 -- | build a match table, but doesn't display batch column
 -- and aggregate batches by sku
 buildTableForSkuMerged ::
-  col0 ~ (Text, (((Text, Text), [Entity Batch])) -> Maybe (Either Html PersistValue))
+  col0 ~ (Text, (((Style, Var), [Entity Batch])) -> Maybe (Either Html PersistValue))
   => BatchMergeMode
   -> ([BatchMatch] -> Html) --  ^ match renderer
-  -> [((Text, Text), Entity Batch)] --  ^ sku@style'var batch
+  -> [((Style, Var), Entity Batch)] --  ^ sku@style'var batch
   -> [Entity Batch] --  ^ batches
   -> ForBuildTable --  ^ matches
   -> ([col0]
@@ -505,8 +506,8 @@ buildTableForSkuMerged mergeMode renderMatches sku'batches columnBatches (ForBui
   -- targets = nub $ sort (map batchMatchTarget matches)
   scoreFinder matchMap' targetBatch ((style, colour), batches) = let
     -- find all match for all batches
-    matchess  = mapMaybe (\batch -> lookup (entityKey batch, colour, targetBatch) matchMap') batches
-    in mergeBatchMatches mergeMode (styleVarToSku style colour) matchess
+    matchess  = mapMaybe (\batch -> lookup (entityKey batch, unVar colour, targetBatch) matchMap') batches
+    in mergeBatchMatches mergeMode (unSku $ styleVarToSku style colour) matchess
 
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
                , \s'c'bs -> Left . renderMatches <$> scoreFinder matchMap  batchId s'c'bs
@@ -515,8 +516,8 @@ buildTableForSkuMerged mergeMode renderMatches sku'batches columnBatches (ForBui
             ]
   -- columns = 
   columns = -- ("Style", \((style, _var), _batch) -> Just (Right $ toPersistValue style) ) :
-            ("Sku", \((style, colour), _batch) -> Just (Right $ toPersistValue $ styleVarToSku style colour)) :
-            ("Colour", \((_style, colour), _batch) -> Just (Right $ toPersistValue colour)) :
+            ("Sku", \((style, colour), _batch) -> Just (Right $ toPersistValue . unSku $ styleVarToSku style colour)) :
+            ("Colour", \((_style, Var colour), _batch) -> Just (Right $ toPersistValue colour)) :
             columns0
 
   -- batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (columnBatches)
@@ -644,20 +645,20 @@ mergeBatchMatches SafeMatch _ matchess = let
 -- | Load batches from sku but return on modified batch for each sku
 -- with the alias set to the style name
 -- lookp the batch name be "inside" the actual batch category
-loadSkuBatches :: Text -> FilterExpression -> SqlHandler [(Text, Key Batch)]
+loadSkuBatches :: Text -> FilterExpression -> SqlHandler [(Sku, Key Batch)]
 loadSkuBatches batchCategory filterE_ = do
   let sql = "SELECT stock_id, batch_id FROM fames_item_category_cache "
             <> " JOIN fames_batch ON (value RLIKE concat('^(.*[|] )*', name, '( [|].*)*$')) "
             <> "WHERE value != '' AND category = ? AND stock_id " <> keyw
       (keyw, v )  = filterEKeyword filterE_
   rows <- rawSql sql (toPersistValue batchCategory: v)
-  return $ map (\(Single sku, Single batchId) -> (sku, batchId)) rows
+  return $ map (\(Single sku, Single batchId) -> (Sku sku, batchId)) rows
 
 
-skuToStyle''var'Batch :: (Text -> (Text, Text)) --  ^ Category
+skuToStyle''var'Batch :: (Sku -> (Style, Var)) --  ^ Category
                       -> [Entity Batch] --  ^ available batches
-                      -> (Text, Key Batch) --  ^ Sku, batch Id
-                      -> ((Text, Text), Entity Batch)
+                      -> (Sku, Key Batch) --  ^ Sku, batch Id
+                      -> ((Style, Var), Entity Batch)
 skuToStyle''var'Batch skuToStyleVar batches = let
   -- split in two function to memoize the batchMap
   -- GHC might do it

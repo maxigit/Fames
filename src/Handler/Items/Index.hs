@@ -327,7 +327,7 @@ fillIndexCache' categoriesm = do
   
   
 -- ** StyleAdjustment 
-getAdjustBase :: Handler (IndexCache -> ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
+getAdjustBase :: Handler (IndexCache -> ItemInfo (ItemMasterAndPrices Identity) -> Var -> ItemInfo (ItemMasterAndPrices Identity))
 getAdjustBase = do
   settings <- appSettings <$> getYesod
   let varMap = appVariations settings
@@ -336,7 +336,7 @@ getAdjustBase = do
         salesPrices = impSalesPrices master
         purchasePrices = impPurchasePrices master
         adj = adjustDescription varMap (iiVariation item0) var
-        sku = styleVarToSku style var
+        Sku sku = styleVarToSku style var
         in item0  { iiInfo = master
                     { impMaster = (\s -> s {smfDescription = smfDescription s <&> adj
                                            ,smfLongDescription = smfLongDescription s <&> adj}
@@ -353,7 +353,7 @@ getAdjustBase = do
 
 -- Replace all occurrences of a variation name in the description
 -- for example "Red" "Black T-Shirt" => "Red T-Shirt"
-adjustDescription :: Map Text Text -> Text -> Text -> Text -> Text
+adjustDescription :: Map Var Text -> Var -> Var -> Text -> Text
 adjustDescription varMap var0 var desc =
   case (lookupVars varMap var0, lookupVars varMap var) of
     ([],_) -> desc
@@ -361,14 +361,14 @@ adjustDescription varMap var0 var desc =
     (vnames0, vnames) -> let
       endos = [ (Endo $ replace (f vnames0) (f vnames))
               | f0 <- [toTitle, toUpper, toLower ]
-              , let f vs = varsToVariation (map f0 vs)
+              , let f vs = unVar $ varsToVariation (map (Var . f0) vs)
               ]
       in appEndo (mconcat endos) desc
 -- * Load DB  
 -- ** StockMaster info 
 -- |  Load all variations matching the criteria
 -- regardless or whether they've been checked or not
-loadVariations :: (?skuToStyleVar :: Text -> (Text, Text))
+loadVariations :: (?skuToStyleVar :: Sku -> (Style, Var))
                 => IndexCache -> IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
                             , [ ( VariationStatus
@@ -417,7 +417,7 @@ loadVariations cache param = do
           sources
         )
 
-  let bases =  ipBases param
+  let bases =  Map.mapKeys Style . fmap Sku $ ipBases param
   adjustBase <- getAdjustBase
   
   styles <- case styleQuery param of
@@ -446,7 +446,7 @@ loadVariations cache param = do
                      -- \^ only keep active variations
                      -- impMaster not present, means the variations hasn't been loaded (ie filtered)
                      -- so we are not showing it
-      baseCandidates = maybe [] (splitOn "|") (ipBaseVariation param)
+      baseCandidates = map Var $ maybe [] (splitOn "|") (ipBaseVariation param)
       itemGroups = joinStyleVariations (?skuToStyleVar <$> bases)
                                         baseCandidates
                                         (adjustBase cache) computeDiff
@@ -465,7 +465,7 @@ loadVariations cache param = do
 -- a list of variants. The normal case is cross product
 -- with the variations (select * for variationGroup) but is tweaked
 -- to add explicitely filtered sku
-getVarsFor :: (?skuToStyleVar :: Text -> (Text, Text)) => Bool -> IndexParam -> Handler (Text -> [Text])
+getVarsFor :: (?skuToStyleVar :: Sku -> (Style, Var)) => Bool -> IndexParam -> Handler (Style -> [Var])
 getVarsFor forceCache param =
   case (ipVariationsF param, ipVariationGroup param)  of
        (Just filter_, Nothing)  -> do
@@ -475,10 +475,10 @@ getVarsFor forceCache param =
                                                       )
                                              [Asc FA.StockMasterId])
                        keys' <-   cache0 forceCache (cacheDelay) (filter_, "load variations") select
-                       return $ const $ map (snd . ?skuToStyleVar . unStockMasterKey) keys'
+                       return $ const $ map (snd . ?skuToStyleVar . Sku . unStockMasterKey) keys'
        (Nothing, Nothing) -> 
           case ipSKU param of
-            Just (InFilter _ skus) ->  let  styleToVars = groupAsMap fst (return . snd) $ map ?skuToStyleVar skus
+            Just (InFilter _ skus) ->  let  styleToVars = groupAsMap fst (return . snd) $ map (?skuToStyleVar . Sku) skus
                                in return $ \st -> findWithDefault [] st styleToVars
 
             _ -> return . const $ [] -- (Left $ map  entityKey styles)
@@ -574,7 +574,7 @@ purchasePricesStatus supplierIds item = maybe PriceMissing (pricesStatus pdfPric
 -- ** Sales prices 
 -- | Load sales prices 
     -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
-loadSalesPrices :: (?skuToStyleVar :: Text -> (Text, Text))
+loadSalesPrices :: (?skuToStyleVar :: Sku -> (Style, Var))
                 => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
   case (ipSKU param) of
@@ -598,7 +598,7 @@ loadSalesPrices param = do
                                                       )
                                                     | p' <- priceGroup
                                                     ]
-                              (style, var) = ?skuToStyleVar (priceStockId one)
+                              (style, var) = ?skuToStyleVar (Sku $ priceStockId one)
                               master = mempty { impSalesPrices = Just pricesF }
                               in ItemInfo style var master
                           ) group_
@@ -610,7 +610,7 @@ loadSalesPrices param = do
      _ -> return []
 
 -- | get selected price list ids
-priceListsToKeep :: -- (?skuToStyleVar :: Text -> (Text,Text))
+priceListsToKeep :: -- (?skuToStyleVar :: Sku -> (Style, Var))
               IndexCache -> IndexParam -> [Key SalesType]
 priceListsToKeep cache params =
   let plIds =  map (entityKey) (icPriceLists cache)
@@ -619,7 +619,7 @@ priceListsToKeep cache params =
 -- ** Purchase prices 
 -- | Load purchase prices
 -- loadPurchasePrices :: IndexParam -> Handler [ ItemInfo (Map Text Double) ]
-loadPurchasePrices :: (?skuToStyleVar :: Text -> (Text,Text))
+loadPurchasePrices :: (?skuToStyleVar :: Sku -> (Style, Var))
               => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadPurchasePrices param = do
   case (ipSKU param) of
@@ -643,7 +643,7 @@ loadPurchasePrices param = do
                                                       )
                                                     | p' <- priceGroup
                                                     ]
-                              (style, var) = ?skuToStyleVar (purchDataStockId one)
+                              (style, var) = ?skuToStyleVar (Sku $ purchDataStockId one)
                               master = mempty { impPurchasePrices = Just pricesF }
                               in ItemInfo style var master
                           ) group_
@@ -662,18 +662,18 @@ suppliersToKeep cache params = let
 -- ** FA Status 
 -- | Load item status, needed to know if an item can be deactivated or deleted safely
 -- This includes if items have been even ran, still in stock, on demand (sales) or on order (purchase)
-loadStatus :: (?skuToStyleVar :: Text -> (Text,Text))
+loadStatus :: (?skuToStyleVar :: Sku -> (Style, Var))
               => IndexParam ->  SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadStatus param = do
   rows <- loadFAStatus (ipSKU param) (ipShowInactive param)
   return [ ItemInfo style var master
          | (sku, status) <- rows
-         , let (style, var) = ?skuToStyleVar sku
+         , let (style, var) = ?skuToStyleVar $ Sku sku
          , let master = mempty { impFAStatus = Just status}
          ]
 
 
-loadVariationsToKeep :: (?skuToStyleVar :: Text -> (Text, Text))
+loadVariationsToKeep :: (?skuToStyleVar :: Sku -> (Style, Var))
                 => IndexCache -> IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
                             , [ ( VariationStatus
@@ -685,16 +685,16 @@ loadVariationsToKeep :: (?skuToStyleVar :: Text -> (Text, Text))
 loadVariationsToKeep cache params = do
   itemGroups <- loadVariations cache params
   let checkSku = checkFilter params 
-      toKeep (_,info) = checkSku sku where sku = styleVarToSku (iiStyle info) (iiVariation info)
+      toKeep (_,info) = checkSku sku where Sku sku = styleVarToSku (iiStyle info) (iiVariation info)
   return . filter (not . null . snd  ) -- filter Group with no variations left
          $ (filter toKeep) <$$> itemGroups -- 
 
 -- * Misc 
 -- ** Type conversions 
-stockItemMasterToItem :: (?skuToStyleVar :: Text -> (Text,Text))
+stockItemMasterToItem :: (?skuToStyleVar :: Sku -> (Style, Var))
               => (Entity FA.StockMaster) -> ItemInfo (ItemMasterAndPrices Identity)
 stockItemMasterToItem (Entity key val) = ItemInfo  style var master where
-            sku = unStockMasterKey key
+            sku = Sku $ unStockMasterKey key
             (style, var) = ?skuToStyleVar sku
             master = mempty { impMaster = Just (runIdentity (aStockMasterToStockMasterF val)) }
 
@@ -712,7 +712,7 @@ stockMasterToItemCode (Entity stockIdKey StockMaster{..}) = let
 
 -- ** Helpers 
 -- | Lookup for list of variation code
-lookupVars :: Map Text Text -> Text -> [Text]
+lookupVars :: Map Var Text -> Var -> [Text]
 lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
 
 
@@ -753,7 +753,7 @@ columnsFor _ ItemAllView _ = []
 columnsFor cache ItemCategoryView _ = map CategoryColumn (icCategories cache)
 
 
-itemsTable :: (?skuToStyleVar :: Text -> (Text, Text))
+itemsTable :: (?skuToStyleVar :: Sku -> (Style, Var))
                 => IndexCache -> IndexParam ->  Handler Widget
 itemsTable cache param = do
   let checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
@@ -783,7 +783,7 @@ itemsTable cache param = do
                 , [Text]) -- classes for row
 
       itemToF item0 (status , ItemInfo style var master) =
-        let sku =  styleVarToSku style var
+        let Sku sku =  styleVarToSku style var
             checked = maybe True (sku `elem`) checkedItems
             missingLabel = case status of
                                   VarMissing -> [shamlet| <span.label.label-warning data-label=missing> Missing |]
@@ -797,7 +797,7 @@ itemsTable cache param = do
                           let rchecked = var == iiVariation item0
                           in if status == VarMissing
                             then Just ([], missingLabel)
-                            else Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
+                            else Just ([], [shamlet|<input type=radio name="base-#{unStyle style}" value="#{sku}"
                                                 :rchecked:checked
                                             >|] >> missingLabel)
                         StockIdColumn               ->
@@ -835,7 +835,7 @@ itemsTable cache param = do
                       , let kls = maybe [] fst (val col)
                       ]
             classes :: [Text]
-            classes = ("style-" <> iiStyle item0)
+            classes = ("style-" <> unStyle (iiStyle item0))
                       : (if differs then ["differs"] else ["no-diff"])
                       <> (if checked then [] else ["unchecked"])
                       <> case smfInactive <$> impMaster master of
@@ -993,7 +993,7 @@ buttonName _ DeleteBtn = "Delete"
   
 
 
-renderIndex :: (?skuToStyleVar :: Text -> (Text, Text))
+renderIndex :: (?skuToStyleVar :: Sku -> (Style, Var))
                 => IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   (param, form, encType) <- getPostIndexParam param0
@@ -1143,7 +1143,7 @@ columnClass col = filter (/= ' ') (tshow col)
   
 -- * Actions 
 -- *** Missings 
-createMissing :: (?skuToStyleVar :: Text -> (Text, Text))
+createMissing :: (?skuToStyleVar :: Sku -> (Style, Var))
                   => IndexParam -> Handler ()
 createMissing params = do
    resp <- (case ipMode params of
@@ -1154,7 +1154,7 @@ createMissing params = do
    clearAppCache
    return resp
 
-deleteItems :: (?skuToStyleVar :: Text -> (Text, Text))
+deleteItems :: (?skuToStyleVar :: Sku -> (Style, Var))
                   => IndexParam -> Handler ()
 deleteItems params = do
   resp <- ( case ipMode params of
@@ -1167,7 +1167,7 @@ deleteItems params = do
 
 
 -- ***  Gl 
-createGLMissings :: (?skuToStyleVar :: Text -> (Text, Text))
+createGLMissings :: (?skuToStyleVar :: Sku -> (Style, Var))
                 => IndexParam -> Handler ()
 createGLMissings params = do
   -- load inactive as well to avoid trying to create missing product
@@ -1183,7 +1183,7 @@ createGLMissings params = do
       missings = [ (sku, iiInfo info)
                  | (_, vars) <- itemGroups
                  , (status, info) <- vars
-                 , let sku = styleVarToSku (iiStyle info) (iiVariation info)
+                 , let Sku sku = styleVarToSku (iiStyle info) (iiVariation info)
                  ,  status == VarMissing
                  , toKeep sku
                  ]
@@ -1207,7 +1207,7 @@ createGLMissings params = do
       prices = do -- []
          (_, vars) <- itemGroups
          (status, info) <- vars
-         let sku = styleVarToSku (iiStyle info) (iiVariation info)
+         let Sku sku = styleVarToSku (iiStyle info) (iiVariation info)
          guard (toKeep sku)
          mprices <- maybeToList (impSalesPrices $ iiInfo info)
          -- only keep prices if they are missing or new
@@ -1223,7 +1223,7 @@ createGLMissings params = do
       purchData = do -- []
          (_, vars) <- itemGroups
          (status, info) <- vars
-         let sku = styleVarToSku (iiStyle info) (iiVariation info)
+         let Sku sku = styleVarToSku (iiStyle info) (iiVariation info)
          guard (toKeep sku)
          mprices <- maybeToList (impPurchasePrices $ iiInfo info)
          -- only keep prices if they are missing or new
@@ -1248,7 +1248,7 @@ createGLMissings params = do
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
   return ()
 
-deleteSalesPrices :: (?skuToStyleVar :: Text -> (Text, Text))
+deleteSalesPrices :: (?skuToStyleVar :: Sku -> (Style, Var))
                   => IndexParam -> Handler ()
 deleteSalesPrices params = do
   cache <- fillIndexCache
@@ -1257,7 +1257,7 @@ deleteSalesPrices params = do
   let plIds = priceListsToKeep cache params
   -- delete all prices selected by the user for all given variations
   let deletePairs =
-        [ [FA.PriceStockId ==. iiSku info, PriceSalesTypeId ==. unSalesTypeKey plId]
+        [ [FA.PriceStockId ==. unSku (iiSku info), PriceSalesTypeId ==. unSalesTypeKey plId]
         | plId <- plIds
         , (_, items) <- itemGroups
         , (_, info) <- items
@@ -1265,7 +1265,7 @@ deleteSalesPrices params = do
 
   runDB $ mapM_ deleteWhere deletePairs
 
-deletePurchasePrices :: (?skuToStyleVar :: Text -> (Text, Text))
+deletePurchasePrices :: (?skuToStyleVar :: Sku -> (Style, Var))
                   => IndexParam -> Handler ()
 deletePurchasePrices  params = do
   cache <- fillIndexCache
@@ -1274,7 +1274,7 @@ deletePurchasePrices  params = do
   let supplierIds = suppliersToKeep cache params
   -- delete all prices selected by the user for all given variations
   let deletePairs =
-        [ [FA.PurchDataStockId ==. iiSku info, PurchDataSupplierId ==. supplierId]
+        [ [FA.PurchDataStockId ==. unSku (iiSku info), PurchDataSupplierId ==. supplierId]
         | (SupplierKey supplierId) <- supplierIds
         , (_, items) <- itemGroups
         , (_, info) <- items
@@ -1283,13 +1283,13 @@ deletePurchasePrices  params = do
   runDB $ mapM_ deleteWhere deletePairs
 
 -- *** Categories
-refreshCategories :: (?skuToStyleVar :: Text -> (Text, Text)) => IndexParam -> Handler ()
+refreshCategories :: (?skuToStyleVar :: Sku -> (Style, Var)) => IndexParam -> Handler ()
 refreshCategories params = do
   cache <- fillIndexCache
   itemGroup <- loadVariationsToKeep cache params
 
   forM_ itemGroup $ \(_, infos) -> do
-       refreshCategoryFor Nothing (Just $ InFilter ',' $ map (iiSku . snd) infos)
+       refreshCategoryFor Nothing (Just $ InFilter ',' $ map (unSku . iiSku . snd) infos)
   
 -- ** Activation 
 -- | Activates/deactivate and item in FrontAccounting.

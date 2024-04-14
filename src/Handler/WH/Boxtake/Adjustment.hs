@@ -200,7 +200,7 @@ loadBoxForAdjustment param = do
   let filter_ = filterE Just BoxtakeDescription (filterEAddWildcardRight <$> aStyleFilter param)
   skuToStyleVar <- lift skuToStyleVarH 
   let descrToStyle sku = let cleaned = fst  $ break (=='&') sku
-                             (style, _) = skuToStyleVar cleaned
+                             (Style style, _) = skuToStyleVar $ Sku cleaned
                          in style
                          
   boxtakes <- selectList filter_  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]

@@ -511,9 +511,9 @@ mkTransactionType _ tkey = let ktype = tkType tkey
             (PersistText $ showTransType ktype)
 
 -- *** Columns 
-styleColumn = Column "Style" (constMkKey tkStyle)
-variationColumn = Column "Variation" (constMkKey tkVar)
-skuColumn = Column "Sku" (constMkKey tkSku)
+styleColumn = Column "Style" (constMkKey $ fmap unStyle . tkStyle)
+variationColumn = Column "Variation" (constMkKey $ fmap unVar . tkVar)
+skuColumn = Column "Sku" (constMkKey $ unSku . tkSku)
 periodColumn = Column "Period" getPeriod where
       getPeriod p tkey = let
         (_, Start d) = foldDay p tkey
@@ -642,7 +642,7 @@ createInitialStock infoMap = mapToList infoMap >>= go where
 
     [(key, tqp)]
   
-computeCategory :: (Text -> (Text, Text))
+computeCategory :: (Sku -> (Style, Var))
                 -> [Text]
                 -> (Text -> FA.StockMasterId -> Maybe Text)
                 -> [Text]
@@ -652,7 +652,7 @@ computeCategory :: (Text -> (Text, Text))
 computeCategory skuToStyleVar categories catFinder custCategories custCatFinder (key, tpq) = let
   sku = tkSku key
   debtorNo = tkCustomer key
-  cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat (FA.StockMasterKey sku) ]
+  cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat (FA.StockMasterKey $ unSku sku) ]
   custCats = mapFromList [(cat, found)
                          | cat <-  custCategories
                          , Just found <- return $ custCatFinder cat =<< (FA.DebtorsMasterKey . fromIntegral . fst) <$> debtorNo
@@ -881,7 +881,7 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
 
   
 
-loadStockAdjustments :: Map Text ItemInitialInfo -> ReportParam -> Handler [(TranKey, TranQP)]
+loadStockAdjustments :: Map Sku ItemInitialInfo -> ReportParam -> Handler [(TranKey, TranQP)]
 loadStockAdjustments infoMap param = do
   -- We are only interested in what's going in or out of the DEF location
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
@@ -943,7 +943,7 @@ loadValidSkus  param =  do
   return $ setFromList $ map unSingle rows
 
 -- | Basic item information, cost, price initital, stock at the start day (-1)
-loadStockInfo :: ReportParam -> Handler (Map Text ItemInitialInfo)
+loadStockInfo :: ReportParam -> Handler (Map Sku ItemInitialInfo)
 loadStockInfo param = do
   let stockDays = case mapMaybe fst $ generateDateIntervals param of
                    [] -> [rpJustFrom param]
@@ -981,7 +981,7 @@ loadStockInfo param = do
                   return $ map (toInfo stockDay) rows
                 )
                 stockDays
-  return . Map.fromListWith mergeInfo $ concat rowss
+  return . Map.fromListWith mergeInfo $  map (first Sku) $ concat rowss
   where mergeInfo (ItemInitialInfo cost price qohs) (ItemInitialInfo cost' price' qohs') = ItemInitialInfo (cost <|> cost') (price <|> price') (qohs <|> qohs')
   
 -- * Converter 
@@ -989,7 +989,7 @@ loadStockInfo param = do
 moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   key = TranKey stockMoveTranDate
                 Nothing
-                stockMoveStockId
+                (Sku stockMoveStockId)
                 Nothing
                 Nothing
                 mempty
@@ -1003,7 +1003,7 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
     ST_INVADJUST -> tranQP QPAdjustment (mkQPrice Inward stockMoveQty (-stockMoveStandardCost))
     ST_LOCTRANSFER -> tranQP QPAdjustment (mkQPrice Inward stockMoveQty $ fromMaybe 0 costPrice)
     _ -> error $ "unexpected transaction type " ++ show (toEnum stockMoveType :: FATransType) ++ " for stock adjustment "
-  costPrice = iiStandardCost =<< lookup stockMoveStockId infoMap  
+  costPrice = iiStandardCost =<< lookup (Sku stockMoveStockId) infoMap  
   
 -- ** Sales Details 
 detailToTransInfo :: Bool -> Text -> Map Int (Map Text Text)
@@ -1017,7 +1017,7 @@ detailToTransInfo deduceTax defaultLocation orderCategoryMap
         )  = [(key, tqp) | tqp <- tqps] where
   key' = TranKey debtorTranTranDate
                 (Just $ Left (debtorNo,  branchCode))
-                debtorTransDetailStockId Nothing Nothing  mempty mempty
+                (Sku debtorTransDetailStockId) Nothing Nothing  mempty mempty
                 transType
   key = case flip lookup orderCategoryMap =<<  orderM of
     Nothing -> key' Nothing Nothing mempty
@@ -1048,7 +1048,7 @@ orderDetailToTransInfo io qtyMode orderCategoryMap (Entity _ FA.SalesOrderDetail
                        , Single effectiveDate ) = (key, tqp) where
   key = TranKey effectiveDate
                (Just $ Left (fromIntegral salesOrderDebtorNo, fromIntegral salesOrderBranchCode))
-               salesOrderDetailStkCode Nothing Nothing mempty mempty
+               (Sku salesOrderDetailStkCode) Nothing Nothing mempty mempty
                ST_SALESORDER
                (Just salesOrderOrdDate)
                (Just salesOrderDeliveryDate)
@@ -1073,7 +1073,7 @@ purchToTransInfo alterDate revert ( Entity _ FA.SuppInvoiceItem{..}
                   , Single supplierId) = [(key, tqp) | tqp <- tqps] where
   suppTranType = fromMaybe (error "supplier transaction should have a ty B") suppInvoiceItemSuppTransType
   key = TranKey (alterDate suppTranTranDate) (Just $ Right supplierId)
-                suppInvoiceItemStockId Nothing Nothing  mempty mempty
+                (Sku suppInvoiceItemStockId) Nothing Nothing  mempty mempty
                 (toEnum suppTranType)
                 Nothing Nothing mempty
                    
@@ -1098,7 +1098,7 @@ purchToTransInfo alterDate revert ( Entity _ FA.SuppInvoiceItem{..}
 poToTransInfo :: OrderDateColumn -> OrderQuantityMode -> (Entity PurchOrderDetail, Entity PurchOrder) -> (TranKey, TranQP)
 poToTransInfo orderDateColumn qtyMode (Entity _ FA.PurchOrderDetail{..}, Entity _ FA.PurchOrder{..}) = (key, tqp) where
   key = TranKey date (Just . Right $ fromIntegral purchOrderSupplierId)
-                purchOrderDetailItemCode Nothing Nothing mempty mempty
+                (Sku purchOrderDetailItemCode) Nothing Nothing mempty mempty
                 ST_PURCHORDER
                 Nothing Nothing mempty
   tqp = tranQP QPPurchInvoice (mkQPrice Inward qty price)

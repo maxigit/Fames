@@ -11,7 +11,7 @@ import Handler.Items.Category.Cache
 -- because  ultimately they should depend on the configuration file
 
 -- construct the function depending on the category setting
-skuToStyleVarH :: Handler (Text -> (Text, Text))
+skuToStyleVarH :: Handler (Sku -> (Style, Var))
 skuToStyleVarH = do
   skip <- appSkipStyleCategory <$> getsYesod appSettings
   [styleFn, varFn] <- if skip 
@@ -31,43 +31,43 @@ skuToStyleVarH = do
     case lookup var catRulesMap of
       Nothing -> setWarning "Colour category not set. Please contact your Administrator."                 >> return (const "")
       Just rule -> return $ computeCat rule ""
-  return $ \sku -> ( fromMaybe (styleFromRule sku) $ styleFn (FA.StockMasterKey sku)
-                   , fromMaybe (colourFromRule sku) . varFn $ FA.StockMasterKey sku
+  return $ \(Sku sku) -> ( Style $ fromMaybe (styleFromRule sku) $ styleFn (FA.StockMasterKey sku)
+                   , Var $ fromMaybe (colourFromRule sku) . varFn $ FA.StockMasterKey sku
                    )
 
 
 
-styleVarToSku :: Text -> Text -> Text
-styleVarToSku style "" = style
-styleVarToSku style var = style <> "-" <> var
+styleVarToSku :: Style -> Var -> Sku
+styleVarToSku (Style style) (Var "") = Sku style
+styleVarToSku (Style style) (Var var) = Sku $ style <> "-" <> var
 
 -- | Generate a finder Sku or Style -> duty percent
-dutyForH :: Handler (Text -> Maybe Double)
+dutyForH :: Handler (Sku -> Maybe Double)
 dutyForH = do
   styleFn <- (fst.) <$> skuToStyleVarH
   refreshCategoryCache False Nothing
   dutyS <- runDB $ selectList [ItemCategoryCategory ==. "duty"] []
-  let styleMap = mapFromList [ (styleFn itemCategoryStockId, duty )
-                           | (Entity _ ItemCategory{..}) <- dutyS
-                           , Just duty <- [readMay itemCategoryValue]
-                           ] :: Map Text Double
+  let styleMap = mapFromList [ (styleFn (Sku itemCategoryStockId), duty )
+                             | (Entity _ ItemCategory{..}) <- dutyS
+                             , Just duty <- [readMay itemCategoryValue]
+                             ] :: Map Style Double
   return $ flip lookup styleMap . styleFn
 
 
 
 -- ** Sku form info 
 
-iiSku :: ItemInfo a -> Text
+iiSku :: ItemInfo a -> Sku
 iiSku (ItemInfo style var _ ) = styleVarToSku style var
 
 -- | Split a variation name to variations
 -- ex: A/B -> [A,B]
-variationToVars :: Text -> [Text]
-variationToVars = splitOn "/"
+variationToVars :: Var -> [Var]
+variationToVars = map Var . splitOn "/" . unVar
 
 -- | Inverse of variationToVars
-varsToVariation :: [Text] -> Text
-varsToVariation = intercalate "/" 
+varsToVariation :: [Var] -> Var
+varsToVariation = Var . intercalate "/" . map unVar
 
 
 

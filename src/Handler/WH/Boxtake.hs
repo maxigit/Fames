@@ -160,7 +160,7 @@ plannerSource = do
           [ ( shelfname, [((boxE, contents), posm)])
           | (boxE, stocktakes) <- concat $ Map.elems boxMap 
           , boxtakeActive (entityVal boxE)
-          , let contents =  map (snd . skuToStyle . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake])
+          , let contents =  map (unVar . snd . skuToStyle . Sku . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake])
           , let (shelfname, posm ) = extractPosition (boxtakeLocation $ entityVal boxE)
           ]
         groupedByShelf = Map.fromListWith (<>) $ boxWithContentAndPos

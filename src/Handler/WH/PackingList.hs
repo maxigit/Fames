@@ -728,7 +728,7 @@ toBox (Entity _ PackingListDetail{..}) = Box ( Dimension packingListDetailWidth
                                                packingListDetailLength
                                                packingListDetailHeight
                                              )
-                                         packingListDetailStyle
+                                         (Style packingListDetailStyle)
                                          1
                                          Middle
 renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
@@ -739,7 +739,7 @@ renderChalk _ _ details = let
                                                            packingListDetailLength
                                                            packingListDetailHeight
                                                )
-                                               packingListDetailStyle
+                                               (Style packingListDetailStyle)
                                                1
                                                Middle
   --
@@ -771,7 +771,7 @@ $forall zone <- sliced
           <th> Total Width (cm)
           <th> Position
           <th> Depth
-      $forall (st, n, nh, w, nd,d, cw ) <- processSlices (zoneSlices zone)
+      $forall (Style st, n, nh, w, nd,d, cw ) <- processSlices (zoneSlices zone)
         <tr>
           <td> #{st}
           <td> #{tshow n} x #{tshow nh} (up)
@@ -1632,7 +1632,7 @@ reportFor param@ReportParam{..} = do
       formatPerCbm =  formatDouble' . perCbm -- doesn't work in whamlet ortherwise
       formatPerCbm' cbm x =  formatDouble' $ x/cbm -- doesn't work in whamlet ortherwise
        
-      allInfos = unionsWith (<>) (map (snd.snd.snd) plXs)
+      allInfos = unionsWith (<>) (map (snd.snd. snd) plXs)
       costTds costMap = do
         let totalInvoiceM = lookup PackingListInvoiceE costMap
             calcPerc PackingListInvoiceE = Nothing 
@@ -1716,7 +1716,7 @@ reportFor param@ReportParam{..} = do
                         |]
 
   
-renderDetailInfo :: Maybe Double -> Map Text DetailInfo -> Widget
+renderDetailInfo :: Maybe Double -> Map Style DetailInfo -> Widget
 renderDetailInfo marginM infos = do
   let row footer style di = [whamlet|
     $with diQ <- normQ di
@@ -1759,7 +1759,7 @@ renderDetailInfo marginM infos = do
       $if isJust marginM
         <th> RRP
   <tbody>
-    $forall (style, di) <- mapToList infos
+    $forall (Style style, di) <- mapToList infos
       ^{row False style di}
     ^{row True totalTitle (concat (toList infos))}
       |]
@@ -1769,7 +1769,7 @@ loadPLInfo :: (Double -> Double -> Double) -> Entity PackingList
            -> SqlHandler (Entity PackingList --  ^ itself
                          , (Double --  ^ Cbm
                            , (_ -- PL cost
-                             , Map Text DetailInfo --  ^ cost per style
+                             , Map Style DetailInfo --  ^ cost per style
                              ) )
                          )
 loadPLInfo rateFn e@(Entity plKey pl) = do
@@ -1791,7 +1791,7 @@ loadPLInfo rateFn e@(Entity plKey pl) = do
         ref = sformat ("PL#" % shown % "-" % stext) (unSqlBackendKey $ unPackingListKey plKey) (packingListInvoiceRef pl)
     infoNoDuty <- computeSupplierCosts ref rateFn styleFn (map (entityVal . snd) invoices)  shippingInfo
     dutyFor <- lift dutyForH 
-    info <- lift $ mapWithKeyM (addDutyOn dutyFor)  infoNoDuty
+    info <- lift $ mapWithKeyM (addDutyOn $ dutyFor . Sku . unStyle)  infoNoDuty
 
 
     return (e, (cbm, (costs, info)))
@@ -1864,10 +1864,10 @@ mkPlannerInfo box = do
   return  $ PlannerInfo (fmap (omap replaceQ) locationm) tags
 
 -- | Computes the contribution  of a given style to the shipping cost relative to the occupied volume
-computeStyleShippingCost :: [Entity PackingListDetail] -> Map EventType Double -> Map Text DetailInfo
+computeStyleShippingCost :: [Entity PackingListDetail] -> Map EventType Double -> Map Style DetailInfo
 computeStyleShippingCost details costMap = let
     toInfo e@(Entity _ PackingListDetail{..})  = DetailInfo (sum (toList packingListDetailContent)) ((/1e6) . volume . boxDimension $ toBox e) mempty
-    styleMap = groupAsMap (packingListDetailStyle. entityVal) toInfo details
+    styleMap = groupAsMap (Style . packingListDetailStyle. entityVal) toInfo details
 
     in case lookup PackingListShippingE costMap of
           Nothing ->  styleMap
@@ -1879,7 +1879,7 @@ computeStyleShippingCost details costMap = let
         
 
 -- | Loads supplier information 
-loadSuppInvoiceInfo :: (Double -> Double -> Double) -> (Text -> Text) -> FA.SuppTran -> SqlHandler (Map Text DetailInfo)
+loadSuppInvoiceInfo :: (Double -> Double -> Double) -> (Sku -> Style) -> FA.SuppTran -> SqlHandler (Map Style DetailInfo)
 loadSuppInvoiceInfo  rateFn styleFn FA.SuppTran{..} = do
   -- load invoice details
   details <- selectList [ FA.SuppInvoiceItemSuppTransNo ==. Just suppTranTransNo
@@ -1893,11 +1893,11 @@ loadSuppInvoiceInfo  rateFn styleFn FA.SuppTran{..} = do
                                                    (singletonMap PackingListInvoiceE
                                                     (suppInvoiceItemQuantity * suppInvoiceItemUnitPrice `rateFn` suppTranRate) )
 
-      styles = groupAsMap (styleFn . FA.suppInvoiceItemStockId) toInfo (map entityVal details)
+      styles = groupAsMap (styleFn . Sku . FA.suppInvoiceItemStockId) toInfo (map entityVal details)
   return styles
 
 -- | Load supplier info and check their consistency as well as merging them with previous one
-computeSupplierCosts :: Text -> (Double -> Double -> Double) -> (Text -> Text) -> [FA.SuppTran] -> Map Text DetailInfo -> SqlHandler (Map Text DetailInfo)
+computeSupplierCosts :: Text -> (Double -> Double -> Double) -> (Sku -> Style) -> [FA.SuppTran] -> Map Style DetailInfo -> SqlHandler (Map Style DetailInfo)
 computeSupplierCosts pl rateFn styleFn invoices shippInfo = do
   invoiceInfos <- unionsWith (<>) <$>  mapM (loadSuppInvoiceInfo rateFn styleFn) invoices
   let 
@@ -1909,7 +1909,7 @@ computeSupplierCosts pl rateFn styleFn invoices shippInfo = do
       setWarning . toHtml $ sformat msg pl invoiceAmount detailsAmount
   -- check content matches (invoices vs pl)
   let paired = align invoiceInfos shippInfo
-  forM_ (mapToList paired) $ \(style, th ) -> do
+  forM_ (mapToList paired) $ \(Style style, th ) -> do
       case th of
         This _ ->  do
             let msg = stext % "Item " % stext % " present in invoice but not present in PL"
@@ -1933,10 +1933,10 @@ computeSupplierCosts pl rateFn styleFn invoices shippInfo = do
              }
   return $ fmap (these id id combineInfo) paired
 
-addDutyOn :: (Text -> Maybe Double) -> Text -> DetailInfo -> Handler DetailInfo
+addDutyOn :: (Style -> Maybe Double) -> Style -> DetailInfo -> Handler DetailInfo
 addDutyOn dutyFn style details = case (dutyFn) style of
   Nothing -> do
-    setWarning (toHtml $ "NO duty for " <> style )
+    setWarning (toHtml $ "NO duty for " <> unStyle style )
     return details
   Just duty -> let costMap = diCostMap details
                    cost = sum (toList $ deleteMap PackingListDutyE costMap)
