@@ -17,6 +17,7 @@ module Handler.WH.Boxtake.Upload
 , Row(..)
 , ScannedRow(..)
 , makeRow
+, LastScanned(..)
 ) where
 
 import Import hiding(all)

@@ -330,15 +330,11 @@ fillIndexCache' categoriesm = do
 getAdjustBase :: Handler (IndexCache -> ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
 getAdjustBase = do
   settings <- appSettings <$> getYesod
-  basePl <- basePriceList
   let varMap = appVariations settings
-      go cache item0@(ItemInfo style _ master ) var = let
+      go _cache item0@(ItemInfo style _ master ) var = let
         stock = impMaster master
         salesPrices = impSalesPrices master
         purchasePrices = impPurchasePrices master
-        theoreticalPrices = computeTheoreticalPricesF basePl -- (icBasePriceList cache)
-                                                    (icPriceLists cache)
-                                                    <$> salesPrices 
         adj = adjustDescription varMap (iiVariation item0) var
         sku = styleVarToSku style var
         in item0  { iiInfo = master
@@ -349,10 +345,6 @@ getAdjustBase = do
                                        ) <$> salesPrices
                     , impPurchasePrices = (fmap (\p -> p { pdfStockId = Identity sku })
                                        ) <$> purchasePrices
-                    -- web prices should be base not on the web prices
-                    -- but on the price list
-                    , impWebPrices = Just $ (fromMaybe mempty theoreticalPrices)
-                                          <>  (fromMaybe mempty (impWebPrices master))
                     }
                   }
   when (null varMap ) $ do

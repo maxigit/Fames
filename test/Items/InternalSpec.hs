@@ -56,9 +56,6 @@ iFA = ItemStatusF {isfQoh = Identity 0
                    , isfAllOnDemand = Identity 0
                    , isfOnOrder = Identity 0
                    , isfUsed = Identity False}
-      
-iWebStatus = ItemWebStatusF {iwfProductDisplay = Identity Nothing
-                            , iwfActive = Identity True}
 
 fullWhite= [[ItemInfo {iiStyle = "Bob"
                      , iiVariation = "White"
@@ -66,8 +63,7 @@ fullWhite= [[ItemInfo {iiStyle = "Bob"
                                                     , impSalesPrices = Nothing
                                                     , impPurchasePrices = Nothing
                                                     , impFAStatus = Nothing
-                                                    , impWebStatus = Nothing
-                                                    , impWebPrices = Nothing}}]
+                                                    }}]
           
           ,[ItemInfo {iiStyle = "Bob"
                      , iiVariation = "White"
@@ -75,8 +71,7 @@ fullWhite= [[ItemInfo {iiStyle = "Bob"
                                                     , impSalesPrices = Just iPrices
                                                     , impPurchasePrices = Nothing
                                                     , impFAStatus = Nothing
-                                                    , impWebStatus = Nothing
-                                                    , impWebPrices = Nothing}}]
+                                                    }}]
           
           
           ,[ItemInfo {iiStyle = "Bob"
@@ -85,8 +80,7 @@ fullWhite= [[ItemInfo {iiStyle = "Bob"
                                                     , impSalesPrices = Nothing
                                                     , impPurchasePrices = Nothing
                                                     , impFAStatus = Just iFA
-                                                    , impWebStatus = Nothing
-                                                    , impWebPrices = Nothing}}]
+                                                    }}]
           
           ,[ItemInfo {iiStyle = "Bob"
                      , iiVariation = "White"
@@ -94,8 +88,7 @@ fullWhite= [[ItemInfo {iiStyle = "Bob"
                                                     , impSalesPrices = Nothing
                                                     , impPurchasePrices = Nothing
                                                     , impFAStatus = Nothing
-                                                    , impWebStatus = Just iWebStatus
-                                                    , impWebPrices = Nothing}}]
+                                                    }}]
           ,[]]
   
 spec :: Spec
@@ -108,8 +101,7 @@ bug = describe "bug" $ do
                                                                            , impSalesPrices = Just iPrices
                                                                            , impPurchasePrices = Nothing
                                                                            , impFAStatus = Just iFA
-                                                                           , impWebStatus = Just iWebStatus
-                                                                           , impWebPrices = Nothing}   }]
+                                                                           }   }]
   it "computes diff" $ do
     let bob = ItemInfo {iiStyle = "Bob"
                        , iiVariation ="White"
@@ -117,8 +109,7 @@ bug = describe "bug" $ do
                                                       , impSalesPrices = Just iPrices
                                                       , impPurchasePrices = Nothing
                                                       , impFAStatus = Just iFA
-                                                                           , impWebStatus = Just iWebStatus
-                                                                           , impWebPrices = Nothing}   }
+                                                                           }   }
     let bobF = ItemInfo {iiStyle = "Bob"
                        , iiVariation ="White"
                        , iiInfo = ItemMasterAndPrices {
@@ -166,9 +157,7 @@ bug = describe "bug" $ do
                                                              , isfAllOnDemand = ([] ,0)
                                                              , isfOnOrder = ([] ,0)
                                                              , isfUsed = ([] ,False)})
-                           , impWebStatus = Just (ItemWebStatusF {iwfProductDisplay = ([] ,Nothing)
-                                                                 , iwfActive = (["text-danger"] ,True)})
-                           , impWebPrices = Just (ItemPriceF (IM.fromList []))}}
+                           }}
 
     computeDiff bob bob `shouldBe`  bobF
     

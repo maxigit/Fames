@@ -105,11 +105,6 @@ data ItemStatusF f = ItemStatusF
   , isfUsed :: f Bool -- has been used
   } 
 
--- | Web Status
-data ItemWebStatusF f = ItemWebStatusF
-  { iwfProductDisplay :: f (Maybe Text)
-  , iwfActive :: f Bool
-  }
 -- | Information hold in item index
 -- aggregate of stock master table, sales and purchase prices
 -- as well as FA and web status
@@ -118,8 +113,6 @@ data ItemMasterAndPrices f = ItemMasterAndPrices
   , impSalesPrices :: Maybe (IntMap (PriceF f))
   , impPurchasePrices :: Maybe (IntMap (PurchDataF f))
   , impFAStatus :: Maybe (ItemStatusF f)
-  , impWebStatus :: Maybe (ItemWebStatusF f)
-  , impWebPrices :: Maybe (ItemPriceF f)
   } 
 
 -- ** Instances 
@@ -127,37 +120,33 @@ deriving instance Show (StockMasterF Identity)
 deriving instance Show (PriceF Identity)
 deriving instance Show (PurchDataF Identity)
 deriving instance Show (ItemStatusF Identity)
-deriving instance Show (ItemWebStatusF Identity)
 deriving instance Show (ItemPriceF Identity)
 deriving instance Show (StockMasterF ((,) [Text]))
 deriving instance Show (PriceF ((,) [Text]))
 deriving instance Show (PurchDataF ((,) [Text]))
 deriving instance Show (ItemStatusF ((,) [Text]))
 deriving instance Show (ItemPriceF ((,) [Text]))
-deriving instance Show (ItemWebStatusF ((,) [Text]))
 deriving instance Show (ItemMasterAndPrices Identity)
 deriving instance Show (ItemMasterAndPrices ((,) [Text]))
 deriving instance Eq (StockMasterF Identity)
 deriving instance Eq (PriceF Identity)
 deriving instance Eq (PurchDataF Identity)
 deriving instance Eq (ItemStatusF Identity)
-deriving instance Eq (ItemWebStatusF Identity)
 deriving instance Eq (ItemPriceF Identity)
 deriving instance Eq (StockMasterF ((,) [Text]))
 deriving instance Eq (PriceF ((,) [Text]))
 deriving instance Eq (PurchDataF ((,) [Text]))
 deriving instance Eq (ItemStatusF ((,) [Text]))
 deriving instance Eq (ItemPriceF ((,) [Text]))
-deriving instance Eq (ItemWebStatusF ((,) [Text]))
 deriving instance Eq (ItemMasterAndPrices Identity)
 deriving instance Eq (ItemMasterAndPrices ((,) [Text]))
  
 instance Semigroup (ItemMasterAndPrices f) where
-  (<>) (ItemMasterAndPrices m s p st ws wp)
-          (ItemMasterAndPrices m' s' p' st' ws' wp')
-     = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st') (ws <|> ws') (wp <|> wp')
+  (<>) (ItemMasterAndPrices m s p st)
+          (ItemMasterAndPrices m' s' p' st')
+     = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st')
 instance Monoid (ItemMasterAndPrices f) where
-  mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing Nothing Nothing
+  mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing
 
 -- | Whereas an item is running or not.
 data FARunningStatus = FARunning --  ^ can and need to be sold
@@ -166,12 +155,6 @@ data FARunningStatus = FARunning --  ^ can and need to be sold
                     | FADead --  ^ Not used anymore but can't be deleted because of exists in previous trans.
                     | FAGhost --  ^ In the system but can be deleted.
                     deriving (Show, Eq, Enum, Bounded)
-
-data WebDisplayStatus = WebOk --  ^ is active and has a product display : shows on the website
-                      | WebHidden --  ^ has a product display but inactive: is hidden
-                      | WebMissing --  ^  the variation doesn't exist.
-                      | WebUnlinked --  ^  orphan variation without a product display
-                      deriving (Show, Eq, Enum, Bounded)
 
 data PriceStatus =  PriceOk --  ^ All prices are the same within a group for all (selected) price lists
                  | PriceMissing

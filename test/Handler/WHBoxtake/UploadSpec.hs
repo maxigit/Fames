@@ -21,9 +21,9 @@ bid1 = BoxtakeKey 1
 d1 :: Day
 d1 = fromGregorian 2015 10 01 
 
-start = (Nothing, Nothing, Nothing, Nothing)
+start = LastScanned Nothing Nothing Nothing Nothing 0 []
 or1 = OperatorRow oe1
-oe1 = Entity oid1 o1
+oe1 = Entity oid1 o1 :: Entity Operator
 lr1 = LocationRow "E00.01/1"
 lr2 = LocationRow "E00.02/1"
 dr1 = DateRow d1
@@ -37,8 +37,11 @@ shouldMake rows exp =
       toError (Left _) = "Error"
       toError (Right _) = "Right"
 
-  in (result, r') `shouldBe` exp
+  in (result, r') `shouldBe` first (\t -> (toLast t)  {lastDepth = lastDepth result }) exp
+                                                      -- ^
+                                                      -- +-- ignore last depth
 
+toLast (date, op, loc, box) = LastScanned box loc date op 0 []
 
 pureSpec = do
   describe "@pure @parallel #makeRow" $ do
@@ -74,8 +77,8 @@ pureSpec = do
         -- last step before 2 previous test
         -- let (state, rows) = mapAccumR makeRow (Just d1, Just oe1, Just "E00.01/1", Nothing) [br1]
         -- state `shouldBe` (Just d1, Just oe1, Just "E00.01/1", Just be1)
-        let (state,__rows) = mapAccumL makeRow state1 extraStep
-        state `shouldBe` state2
+        let (state,__rows) = mapAccumL makeRow (toLast state1) extraStep
+        state `shouldBe` toLast state2
 
       it "close section after error. process barcode" $ do
         -- [or1,lr1,br1,dr1,br1] `shouldMake` ((Just d1, Just oe1, Just "E00.01/1", Just be1)

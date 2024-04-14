@@ -39,7 +39,6 @@ setPure (Identity a) = ([], a)
 $(mmZip "diffField" ''StockMasterF)
 $(mmZip "diffField" ''PriceF)
 $(mmZip "diffField" ''PurchDataF)
-$(mmZip "diffField" ''ItemWebStatusF)
 $(mmZipN 1 "setDanger" ''PriceF Nothing)
 $(mmZipN 1 "setInfo" ''PriceF Nothing)
 $(mmZipN 1 "setWarn" ''PriceF Nothing)
@@ -47,7 +46,6 @@ $(mmZipN 1 "setDanger" ''PurchDataF Nothing)
 $(mmZipN 1 "setInfo" ''PurchDataF Nothing)
 $(mmZipN 1 "setWarn" ''PurchDataF Nothing)
 $(mmZipN 1 "setPure" ''ItemStatusF Nothing)
-$(mmZipN 1 "setPure" ''ItemWebStatusF Nothing)
 
 
 -- * For Types 
@@ -97,19 +95,14 @@ computeDiff item0 item@(ItemInfo style var master) = let
   [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
   [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
   [p0, p] = (map (fromMaybe mempty .impPurchasePrices . iiInfo)  [item0, item]) :: [(IntMap (PurchDataF Identity))]
-  [ItemPriceF wp0, ItemPriceF wp] = (map (fromMaybe mempty .impWebPrices . iiInfo)  [item0, item]) :: [ItemPriceF Identity]
-  [_ws0, ws] = (map (impWebStatus . iiInfo)  [item0, item]) :: [Maybe (ItemWebStatusF Identity)]
   -- we don't want to compare the web status to the base item, but to the FA Status
   -- if something is running, it should be available on the website
   -- However, if FAStatus is not present (ie, product doesn't exits) should be equivalent
   -- to disabled
-  ws0' = faToWebStatus style (impFAStatus master)
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
                              (Just $ diffPriceMap s0 s )
                              (Just $ diffPurchMap p0 p )
                              (setPureItemStatusF1 <$> impFAStatus master)
-                             (diffFieldItemWebStatusF <$> Just ws0' <*> ws)
-                             (Just . ItemPriceF $ diffWebPriceMap wp0 wp)
 
   in ItemInfo style var (diff)
 
@@ -121,16 +114,7 @@ diffPriceMap a b = let
 diffPurchMap a b = let
   aligned = align a b
   in these setWarnPurchDataF1 setInfoPurchDataF1 diffFieldPurchDataF <$> aligned
-diffWebPriceMap a b = let
-  aligned = align a b
-  in these setWarn setInfo diffField <$> aligned
 
--- | Convert a FrontAccounting status to the expected Status on the Website  
-faToWebStatus :: Text -> Maybe (ItemStatusF Identity) -> ItemWebStatusF Identity
-faToWebStatus style fa = case faRunningStatus <$> fa of
-  Just (Identity FARunning) -> ItemWebStatusF (pure (Just style)) (pure True)
-  _ -> ItemWebStatusF (pure Nothing) (pure False)
-  
 -- ** Join variations 
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation
@@ -219,14 +203,6 @@ faRunningStatus ItemStatusF{..} = let
   in go <$> isfQoh <*> isfOnOrder <*> isfAllQoh <*> isfOnOrder <*> isfAllOnDemand <*> isfUsed 
       
  
-webDisplayStatus :: Applicative f => ItemWebStatusF f -> f WebDisplayStatus
-webDisplayStatus ItemWebStatusF{..} =  status <$> iwfProductDisplay <*> iwfActive
-  where status p a = case  (p , a) of
-                        (Just _, True) -> WebOk
-                        (Just _, False) -> WebHidden
-                        (Nothing, True) -> WebUnlinked
-                        (Nothing, False) -> WebMissing
-
 -- ** Prices 
 -- | Computes  theoretical prices based on default price and price list info.
 -- | Doesn't touch prices if given
