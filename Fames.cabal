@@ -108,6 +108,7 @@ library
       Util.Cache
       Util.Decimal
       Util.EnumTree
+      Util.ForConduit
       Util.SameCons
       Util.Transformable
       Util.ValidField

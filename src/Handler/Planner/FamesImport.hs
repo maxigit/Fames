@@ -25,6 +25,7 @@ import Database.Persist.MySQL     (Single(..), rawSql)
 import qualified Data.Map as Map
 import GL.Utils
 import qualified Data.HashMap.Strict as HashMap
+import Util.ForConduit
 -- * Type 
 -- data FamesImport
 --   = ImportPackingList (Key PackingList) --  ^ import packing list
@@ -342,8 +343,8 @@ loadLiveSummaries todaym = do
       aUseBoxStatus = True
       aStyleSummary =  False
       aDate = todaym
-  infos <- runDB $ Box.loadAdjustementInfo  param
-  let summaries = toList infos >>= Box.computeInfoSummary Box.UseActiveStatus
+  infos <- runDB $ sourceToList $ Box.loadAdjustementInfo  param
+  let summaries = map (snd . unForMap) infos >>= Box.computeInfoSummary Box.UseActiveStatus
   return summaries
 
   

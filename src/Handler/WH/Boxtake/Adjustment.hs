@@ -18,13 +18,14 @@ module Handler.WH.Boxtake.Adjustment
 where
 import Import hiding(Planner, leftover)
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
-import qualified Data.Map as Map
 import Data.Align
 import Handler.WH.Boxtake.Common
 import Handler.Items.Common
 import Data.List(mapAccumL, tails, inits)
 import Lens.Micro.Extras (preview)
 import Data.These.Lens
+import Util.ForConduit
+import qualified Data.Conduit.List as C
 
 type BoxtakePlus = (Entity Boxtake , [Entity Stocktake])
 type StocktakePlus = (Entity Stocktake, Key Boxtake)
@@ -111,14 +112,19 @@ boxInfoToSummary sku t = let
 
   
 
-type StocktakePrioriry = (Down Bool, Down Day, Down Int, Down (Text, Text))
+type StocktakePrioriry = (Down Bool, Down Day, Down Int, Down (Text, Text), Down StocktakeId)
 computeStocktakePriority :: UseActiveStatus -> BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
 computeStocktakePriority useActiveStatus (Entity bId Boxtake{..}, stocktakes) = do
-  s@(Entity _ Stocktake{..}) <- stocktakes
+  s@(Entity sId Stocktake{..}) <- stocktakes
   let priority = ( Down $ useActiveStatus == IgnoreActiveStatus || boxtakeActive --    || stocktakeActive
                  , Down boxtakeDate -- older more likely to be picked
+                 --     ^ we use the boxtake date and not the stocktake
+                 --       because the boxtakeDate can be more recent if the box has been scanned
+                 --       without a full stocktake
                  , Down stocktakeQuantity -- The more, the less we pick from it
                  , Down $ locationPriority boxtakeLocation
+                 , Down $ sId -- in case of same date, use last created first. Make sure
+                 -- the order is stable, across time.
                  )
   return (priority, (s, bId) )
 
@@ -195,25 +201,28 @@ defaultAdjustmentParamH = do
 --  style filter filter a style (not a particular variation)
 -- because boxes can be boxtaken without specifying the variation
 -- select active and inactive boxes
-loadBoxForAdjustment :: AdjustmentParam -> SqlHandler (Map Style [(Entity Boxtake, [Entity Stocktake])])
+loadBoxForAdjustment :: AdjustmentParam -> SqlConduit () (ForMap Style [(Entity Boxtake, [Entity Stocktake])]) ()
 loadBoxForAdjustment param = do
   let filter_ = filterE Just BoxtakeDescription (filterEAddWildcardRight <$> aStyleFilter param)
-  skuToStyleVar <- lift skuToStyleVarH 
-  let descrToStyle sku = let cleaned = fst  $ break (=='&') sku
-                             (Style style, _) = skuToStyleVar $ Sku cleaned
+  skuToStyleVar <- lift $ lift skuToStyleVarH 
+  let descrToStyle sku = let cleaned = fst  $ break (`elem` ("&*" :: [Char])) sku
+                             (style, _) = skuToStyleVar $ Sku cleaned
                          in style
+      getStyle = maybe (Style "") descrToStyle . boxtakeDescription . entityVal
                          
-  boxtakes <- selectList filter_  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
-  withStocktake <- loadStocktakes' boxtakes
-  let key = maybe "" descrToStyle . boxtakeDescription . entityVal . fst
-  return $ groupAscAsMap (Style . key) (:[]) withStocktake
+      boxtakeSource = selectSource filter_  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
+
+  boxtakeSource .| loadStocktakes'
+                .| mapC unForMap
+                .| C.groupOn1 (getStyle . fst)
+                .| mapC \(x@(boxtake,_) , xs) -> ForMap (getStyle boxtake) (x: xs)
 
 
-loadQohForAdjustment :: AdjustmentParam -> SqlHandler (Map Style [(Sku, Double)])
-loadQohForAdjustment param = do
+loadQohForAdjustment :: AdjustmentParam -> SqlConduit () (ForMap Style [(Sku, Double)]) ()
+loadQohForAdjustment param = 
   let defaultLocation = aLocation param
       orderBy = " ORDER BY style, stock_id DESC"
-  let (sql, p) = case aDate param of
+      (sql, p) = case aDate param of
         Nothing -> 
           -- join denorm table with category: style
           let sql = " SELECT value as style, stock_id, quantity "
@@ -236,29 +245,30 @@ loadQohForAdjustment param = do
                 Nothing -> ("",  [] )
                 Just (keyword, v) -> (" AND value " <> keyword, v)
           in (sql <> w <> after, p ++ [toPersistValue today] )
-      convert (Single style, Single var, Single quantity) = (Style style, (Sku var, quantity))
-  raw <- rawSql (sql <> orderBy) (toPersistValue defaultLocation :p)
-  return $ groupAscAsMap fst (return . snd) (map convert raw)
+      convert :: (Single Text, Single (Text), Single Double) -> (Style, (Sku, Double))
+      convert (Single style, Single sku, Single quantity) = (Style style, (Sku sku, quantity))
+  in ( rawQuery (sql <> orderBy) (toPersistValue defaultLocation :p))
+           .| mapC (either (error . unpack ) convert . rawSqlProcessRow)
+           .| C.groupOn1 fst
+           .| mapC \((style,x), st'xs) -> ForMap style (x: map snd st'xs)
   
 
-loadAdjustementInfo :: AdjustmentParam -> SqlHandler (Map Style StyleInfo)
+loadAdjustementInfo :: AdjustmentParam -> SqlConduit () (ForMap Style StyleInfo) ()
 loadAdjustementInfo param = do
-  boxGroups <- loadBoxForAdjustment param
-  qs <- loadQohForAdjustment param
-  return $ salign (fmap (flip StyleInfo mempty . Map.fromAscList) qs)
-                  (fmap (StyleInfo mempty) boxGroups)
-
-  
+  joinOnWith forMapKey forMapKey  mkInfo (loadBoxForAdjustment param) (loadQohForAdjustment param)
+  where mkInfo (ForMap style boxes) qohs =
+               let sku'qohs = concat [ sku'qoh | ForMap _ sku'qoh <- qohs ]
+               in ForMap style $ StyleInfo (mapFromList sku'qohs) boxes
   
 
 -- | Fetch boxtake and their status according to FA Stock
 -- and display it so that it can be processed
 displayBoxtakeAdjustments :: AdjustmentParam -> Handler Widget
 displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
-  infos <- runDB $ loadAdjustementInfo  param
+  infos <- runDB $ runConduit $ loadAdjustementInfo  param .| mapC unForMap .| sinkList
   let summaries0 = if aStyleSummary
-        then [ aggregateInfoSummaries (Sku style) (computeInfoSummary useBoxStatus styleInfo) | (Style style, styleInfo) <- mapToList infos ]
-        else toList infos >>= computeInfoSummary useBoxStatus
+        then [ aggregateInfoSummaries (Sku style) (computeInfoSummary useBoxStatus styleInfo) | (Style style, styleInfo) <- infos ]
+        else map snd infos >>= computeInfoSummary useBoxStatus
       useBoxStatus = if aUseBoxStatus then UseActiveStatus else IgnoreActiveStatus
       -- only keep nono zero style
       summaries = filter toDisplay summaries0

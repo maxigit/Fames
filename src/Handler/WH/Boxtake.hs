@@ -28,6 +28,7 @@ import Handler.WH.Boxtake.Adjustment
 import Data.Conduit.List(sourceList)
 import Database.Persist.Sql (fromSqlKey)
 import Handler.Items.Common(skuToStyleVarH)
+import Util.ForConduit
 -- * Types 
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Show, Enum, Bounded)
@@ -150,15 +151,15 @@ uploadPlannerCsv _ _ (sessions, _) = do
 data HasPosition a = HasPosition Bool a 
      deriving (Show, Eq)
 -- plannerSource :: _ => Source m Text
-plannerSource :: ConduitM () (HasPosition [(Entity Boxtake, [Text])]) SqlHandler ()
+plannerSource :: SqlConduit () (HasPosition [(Entity Boxtake, [Text])]) ()
 plannerSource = do
     param <- liftHandler defaultAdjustmentParamH
     skuToStyle <- liftHandler skuToStyleVarH
-    boxMap <- lift $ loadBoxForAdjustment param
+    boxMap <- lift $ runConduit $ loadBoxForAdjustment param .| sinkList
     -- group by shelves and check if every boxtake in a shelf 
     let boxWithContentAndPos =
           [ ( shelfname, [((boxE, contents), posm)])
-          | (boxE, stocktakes) <- concat $ Map.elems boxMap 
+          | (boxE,  stocktakes) <- concatMap (snd . unForMap) boxMap 
           , boxtakeActive (entityVal boxE)
           , let contents =  map (unVar . snd . skuToStyle . Sku . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake])
           , let (shelfname, posm ) = extractPosition (boxtakeLocation $ entityVal boxE)

@@ -10,17 +10,24 @@ where
 
 import Import
 import WarehousePlanner.Type
+import Util.ForConduit
+import qualified Data.Conduit.List as C
 
 
-loadStocktakes' :: [Entity Boxtake] -> SqlHandler [(Entity Boxtake , [Entity Stocktake])]
-loadStocktakes' boxtakes = 
-  -- slow version
-  forM boxtakes $ \e@(Entity _ box) -> do
-     stocktakes <- selectList [StocktakeBarcode ==. boxtakeBarcode box] []
-     return (e, stocktakes)
+loadStocktakes' :: SqlConduit (Entity Boxtake) (ForMap (Entity Boxtake) [Entity Stocktake]) ()
+loadStocktakes' =  do
+   em <- await
+   case em of 
+     Nothing -> return ()
+     Just e@(Entity _ box) -> do
+            stocktakes <- lift $ selectList [StocktakeBarcode ==. boxtakeBarcode box] []
+            yield (ForMap e stocktakes)
+            loadStocktakes'
 
-loadStocktakes :: [Entity Boxtake] -> Handler [(Entity Boxtake , [Entity Stocktake])]
-loadStocktakes boxtakes = runDB $ loadStocktakes' boxtakes
+loadStocktakes :: [Entity Boxtake] -> Handler [(Entity Boxtake, [Entity Stocktake]) ]
+loadStocktakes boxtakes = do
+               forMap <- runDB $ runConduit $ C.sourceList boxtakes .| loadStocktakes' .| sinkList
+               return $ map unForMap forMap
 
 displayActive :: Bool -> Text
 displayActive act = if act then "Active" else "Inactive"
