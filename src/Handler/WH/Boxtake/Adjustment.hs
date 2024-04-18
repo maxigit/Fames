@@ -31,7 +31,7 @@ type StocktakePlus = (Entity Stocktake, Key Boxtake)
 -- * types 
 -- | All information regarging a style, QOH, boxtakes stocktakes etc.
 data StyleInfo = StyleInfo
-   { siQoh :: Map Text Double
+   { siQoh :: Map Sku Double
    , siBoxtakes :: [BoxtakePlus]
    } deriving (Show)
 instance Semigroup StyleInfo where
@@ -54,7 +54,7 @@ isUsed (Unused _) = False
 
 -- | Result of computation
 data StyleInfoSummary = StyleInfoSummary
-   { ssSku :: Maybe Text
+   { ssSku :: Maybe Sku
    , ssQoh :: Double
    , ssQUsed :: Double
    , ssBoxes :: [(UsedStatus BoxtakePlus)] 
@@ -95,16 +95,16 @@ computeInfoSummary useActiveStatus StyleInfo{..} =
       -- if it contains many colours
       -- we need to group box by colours
       -- and find w
-      boxBySku = groupAsMap fst (return . snd) usedBoxes :: Map Text [UsedStatus BoxtakePlus]
+      boxBySku = groupAsMap fst (return . snd) usedBoxes :: Map Sku [UsedStatus BoxtakePlus]
       skuInfo = align boxBySku siQoh
   in map (uncurry boxInfoToSummary) $ mapToList skuInfo
 
-boxInfoToSummary :: Text -> These [UsedStatus BoxtakePlus]  Double -> StyleInfoSummary
-boxInfoToSummary style t = let
+boxInfoToSummary :: Sku -> These [UsedStatus BoxtakePlus]  Double -> StyleInfoSummary
+boxInfoToSummary sku t = let
   qoh = fromMaybe 0 $ preview there t 
   boxes = fromMaybe [] $ preview here t
   qused = sum $ mapMaybe usedQuantity boxes
-  in StyleInfoSummary (Just style)  qoh qused boxes
+  in StyleInfoSummary (Just sku)  qoh qused boxes
 
   
    
@@ -131,18 +131,18 @@ locationPriority :: Text -> (Text, Text)
 locationPriority location = break (== '/') location
 
 -- | Assign and use the quantity for a given stock take
-assignQuantityToStocktake :: (Map Text Double) -> StocktakePlus -> (Map Text Double, UsedStatus StocktakePlus)
+assignQuantityToStocktake :: (Map Sku Double) -> StocktakePlus -> (Map Sku Double, UsedStatus StocktakePlus)
 assignQuantityToStocktake qohs s@(Entity _ Stocktake{..}, __bId) =
-  case lookup stocktakeStockId qohs of
+  case lookup (Sku stocktakeStockId) qohs of
     Just q | let used = min q $ fromIntegral stocktakeQuantity 
            , let leftover = q - used
            , used /= 0
-           -> (insertMap stocktakeStockId leftover qohs, (Used used s))
+           -> (insertMap (Sku stocktakeStockId) leftover qohs, (Used used s))
     _ -> (qohs, (Unused s))
 
 
 -- Reverse 
-usedStocktakeToBoxes :: [Entity Boxtake] -> [UsedStatus StocktakePlus] -> [(Text, UsedStatus BoxtakePlus)]
+usedStocktakeToBoxes :: [Entity Boxtake] -> [UsedStatus StocktakePlus] -> [(Sku, UsedStatus BoxtakePlus)]
 usedStocktakeToBoxes boxes stocktakes = let
   boxByBoxId = mapFromList $ map (fanl entityKey) boxes
   stockByBoxId = groupAsMap (snd  . usedSubject) (:[]) stocktakes
@@ -150,7 +150,7 @@ usedStocktakeToBoxes boxes stocktakes = let
   in join $ toList boxStock 
 
 -- | Might return the same boxes many times
-goUsedStocktakeToBoxes  :: These (Entity Boxtake) [UsedStatus StocktakePlus] -> [(Text, UsedStatus BoxtakePlus)] -- UsedStatus BoxtakePlus
+goUsedStocktakeToBoxes  :: These (Entity Boxtake) [UsedStatus StocktakePlus] -> [(Sku, UsedStatus BoxtakePlus)] -- UsedStatus BoxtakePlus
 goUsedStocktakeToBoxes t = case t of
   This boxe -> unused boxe
   That __stocktakes -> error "Shouldn't happen" -- all stockake belong intialy to a box
@@ -160,15 +160,15 @@ goUsedStocktakeToBoxes t = case t of
                                -- scan all item and get what's i
                                (Used q splus: t_, i) <- zip <$> tails <*> inits $ useds
                                let s = fst splus
-                               return ( stocktakeStockId $ entityVal s
+                               return ( Sku $ stocktakeStockId $ entityVal s
                                       , Used q (boxe, s: map ( fst. usedSubject) (i<>t_))
                                       )
-  where unused b = [(fromMaybe "" $ boxtakeDescription (entityVal b), Unused (b, []))]
+  where unused b = [(Sku $ fromMaybe "" $ boxtakeDescription (entityVal b), Unused (b, []))]
 
 
-aggregateInfoSummaries :: Text -> [StyleInfoSummary] -> StyleInfoSummary
-aggregateInfoSummaries style ss = 
-  StyleInfoSummary (Just style)
+aggregateInfoSummaries :: Sku -> [StyleInfoSummary] -> StyleInfoSummary
+aggregateInfoSummaries sku ss = 
+  StyleInfoSummary (Just sku)
                    (sum $ map ssQoh ss)
                    (sum $ map ssQUsed ss)
                    (sortOn boxStatus . join $ map ssBoxes ss)
@@ -195,7 +195,7 @@ defaultAdjustmentParamH = do
 --  style filter filter a style (not a particular variation)
 -- because boxes can be boxtaken without specifying the variation
 -- select active and inactive boxes
-loadBoxForAdjustment :: AdjustmentParam -> SqlHandler (Map Text [(Entity Boxtake, [Entity Stocktake])])
+loadBoxForAdjustment :: AdjustmentParam -> SqlHandler (Map Style [(Entity Boxtake, [Entity Stocktake])])
 loadBoxForAdjustment param = do
   let filter_ = filterE Just BoxtakeDescription (filterEAddWildcardRight <$> aStyleFilter param)
   skuToStyleVar <- lift skuToStyleVarH 
@@ -206,10 +206,10 @@ loadBoxForAdjustment param = do
   boxtakes <- selectList filter_  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
   withStocktake <- loadStocktakes' boxtakes
   let key = maybe "" descrToStyle . boxtakeDescription . entityVal . fst
-  return $ groupAscAsMap key (:[]) withStocktake
+  return $ groupAscAsMap (Style . key) (:[]) withStocktake
 
 
-loadQohForAdjustment :: AdjustmentParam -> SqlHandler (Map Text [(Text, Double)])
+loadQohForAdjustment :: AdjustmentParam -> SqlHandler (Map Style [(Sku, Double)])
 loadQohForAdjustment param = do
   let defaultLocation = aLocation param
       orderBy = " ORDER BY style, stock_id DESC"
@@ -236,13 +236,12 @@ loadQohForAdjustment param = do
                 Nothing -> ("",  [] )
                 Just (keyword, v) -> (" AND value " <> keyword, v)
           in (sql <> w <> after, p ++ [toPersistValue today] )
-      convert :: (Single Text, Single (Text), Single Double) -> (Text, (Text, Double))
-      convert (Single style, Single var, Single quantity) = (style, (var, quantity))
+      convert (Single style, Single var, Single quantity) = (Style style, (Sku var, quantity))
   raw <- rawSql (sql <> orderBy) (toPersistValue defaultLocation :p)
   return $ groupAscAsMap fst (return . snd) (map convert raw)
   
 
-loadAdjustementInfo :: AdjustmentParam -> SqlHandler (Map Text StyleInfo)
+loadAdjustementInfo :: AdjustmentParam -> SqlHandler (Map Style StyleInfo)
 loadAdjustementInfo param = do
   boxGroups <- loadBoxForAdjustment param
   qs <- loadQohForAdjustment param
@@ -258,7 +257,7 @@ displayBoxtakeAdjustments :: AdjustmentParam -> Handler Widget
 displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
   infos <- runDB $ loadAdjustementInfo  param
   let summaries0 = if aStyleSummary
-        then [ aggregateInfoSummaries style (computeInfoSummary useBoxStatus styleInfo) | (style, styleInfo) <- mapToList infos ]
+        then [ aggregateInfoSummaries (Sku style) (computeInfoSummary useBoxStatus styleInfo) | (Style style, styleInfo) <- mapToList infos ]
         else toList infos >>= computeInfoSummary useBoxStatus
       useBoxStatus = if aUseBoxStatus then UseActiveStatus else IgnoreActiveStatus
       -- only keep nono zero style
@@ -270,7 +269,7 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
             in leftOver > 0 || any (`elem` [BoxToActivate, BoxToDeactivate]) boxStatuses
         else ssQoh /= 0 || not (null $ mapMaybe classForBox ssBoxes)
         -- create a link to drilldown 
-      decorateSku sku = case aStyleSummary of
+      decorateSku (Sku sku) = case aStyleSummary of
              -- style => drilldown
              True -> [whamlet|
                              <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk aDate)}"
@@ -288,9 +287,9 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
      ^{xxx param decorateSku (decorateQuantity param) s}
      |]
 
-decorateQuantity :: AdjustmentParam -> Maybe Text -> String -> Widget
+decorateQuantity :: AdjustmentParam -> Maybe Sku -> String -> Widget
 decorateQuantity _ Nothing qw = toWidget $ toHtml qw
-decorateQuantity AdjustmentParam{..} (Just sku) qw =
+decorateQuantity AdjustmentParam{..} (Just (Sku sku)) qw =
   case aStyleSummary of
       -- style => stocktake to item history, allow to go the item history for the given sku
       True -> [whamlet|
@@ -305,7 +304,7 @@ decorateQuantity AdjustmentParam{..} (Just sku) qw =
                         >#{qw}
                       |]
 xxx :: AdjustmentParam
-    -> (Text -> Widget)
+    -> (Sku -> Widget)
     -> _ -- (Maybe Text -> _ -> Widget)
     -> StyleInfoSummary
     -> Widget
