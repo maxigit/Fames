@@ -164,6 +164,10 @@ run_with_stack_trace: build_profile
 	stack exec --work-dir .stack-profile Fames --library-profiling -- $(RUN_CONFIG) +RTS -hy -p -xc -M500M
 	mkdir -p .prof
 	mv Fames.hp Fames.prof  .prof
+	
+planner:
+	stack exec FPlanner  -- /home/max/devel/mae/fames-config/development.yml -i activeBoxes/live -x > live.txt
+	vi -d live.txt ~/Dropbox/Fames/Planner/live.txt
 
 # Generate federated tables and view
 # use the local copy of the commerce database database 
