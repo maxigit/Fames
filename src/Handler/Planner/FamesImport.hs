@@ -333,6 +333,7 @@ importBoxStatusLive todaym which prefix __tags = do
 
   return $ Section (TagsH []) (Right content) ("* Tags from box status live")
 
+loadLiveSummaries :: Maybe Day -> Handler [Box.StyleInfoSummary]
 loadLiveSummaries todaym = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
   let param =  Box.AdjustmentParam{..}

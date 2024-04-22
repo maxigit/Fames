@@ -208,14 +208,33 @@ loadBoxForAdjustment param = do
   let descrToStyle sku = let cleaned = fst  $ break (`elem` ("&*" :: [Char])) sku
                              (style, _) = skuToStyleVar $ Sku cleaned
                          in style
-      getStyle = maybe (Style "") descrToStyle . boxtakeDescription . entityVal
+      -- use cache to speed up retrieval in case there is no stocktake.
+      -- When this is the case there is a strong chance that the box description
+      -- is a style and not a sku, which slow down skuToStyleVar
+      getStyle :: Map Text Style -> (Entity Boxtake, [Entity Stocktake]) -> (Map Text Style, Style)
+      getStyle cache (boxtake, stocktakes) =
+               case stocktakes of
+                    (stocktake:_) -> (cache, fst . skuToStyleVar . Sku . stocktakeStockId $ entityVal stocktake)
+                    _ -> case boxtakeDescription $ entityVal boxtake of
+                            Nothing -> (cache, Style "")
+                            Just description ->
+                                 case lookup description cache of
+                                  Just style -> (cache, style)
+                                  Nothing -> 
+                                     let style = descrToStyle description
+                                     in (cache <> singletonMap description style, style)
                          
       boxtakeSource = selectSource filter_  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
 
   boxtakeSource .| loadStocktakes'
                 .| mapC unForMap
-                .| C.groupOn1 (getStyle . fst)
-                .| mapC \(x@(boxtake,_) , xs) -> ForMap (getStyle boxtake) (x: xs)
+                .| void ( C.mapAccum  (\x cache -> let (newCache, style) = getStyle cache x
+                                                   in  (newCache, (style , x))
+                                      )
+                                      mempty
+                        )
+                .| C.groupOn1 (fst)
+                .| mapC \((style , x), xs) -> ForMap style (x: map snd xs)
 
 
 loadQohForAdjustment :: AdjustmentParam -> SqlConduit () (ForMap Style [(Sku, Double)]) ()
