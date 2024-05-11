@@ -48,6 +48,7 @@ import Handler.Items.Common(skuToStyleVarH, dutyForH)
 import Data.Char (isAlphaNum)
 import qualified Handler.Planner.Exec as Planner
 import qualified WarehousePlanner.Base as Planner
+import qualified WarehousePlanner.Selector as Planner
 import qualified Handler.Planner.FamesImport as Planner
 import Handler.WH.PLToPlanner
 
@@ -1823,7 +1824,7 @@ joinWithPlanner plId eDetails = do
   let ?cache = Planner.memoryCache
       ?today = today
   plannerDir <- appPlannerDir <$> getsYesod appSettings
-  scenarioE <- Planner.readScenarioFromPath Planner.importFamesDispatch (plannerDir </> path)
+  scenarioE <- Planner.readScenarioFromPath False Planner.importFamesDispatch (plannerDir </> path)
   case scenarioE of 
     Left _ -> do
       setWarning $ [shamlet|Planner file #{path} has not been found.|]

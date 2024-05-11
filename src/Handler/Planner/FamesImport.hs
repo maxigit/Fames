@@ -183,7 +183,7 @@ executeReport headerType paths reportParamM = do
   let path = intercalate "/" paths
   plannerDir <- appPlannerDir <$> getsYesod appSettings
   let reportParam = fromMaybe "report" reportParamM
-  scenarioE <- readScenarioFromPath importFamesDispatch (plannerDir </> path)
+  scenarioE <- readScenarioFromPath False importFamesDispatch (plannerDir </> path)
   content <- case scenarioE of
     Left _ ->  error $ "Scenario: " <> unpack path <> " doesn't exist"
     Right scenario -> do

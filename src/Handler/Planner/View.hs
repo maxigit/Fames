@@ -20,6 +20,7 @@ import Import hiding(intersect)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import Util.Cache
 import WarehousePlanner.Base
+import WarehousePlanner.Selector
 import WarehousePlanner.Report hiding(report)
 import Yesod.Form.Bootstrap3 (bfs)
 import qualified Yesod.Media.Simple as M
@@ -98,14 +99,14 @@ getPDocR = do
 getScenarioImageByNumber :: Text -> Int64 -> Int64 -> Handler TypedContent
 getScenarioImageByNumber path width i = do
   let ?cache = memoryCache
-  Right scenario <-  readScenarioFromPath importFamesDispatch $ unpack path
+  Right scenario <-  readScenarioFromPath False importFamesDispatch $ unpack path
   (sha, _) <- cacheScenarioIn scenario
   getPImageR sha width i
   
 -- | Find layout image matching shelf name
 getScenarioImageByPattern :: Text -> Int64 -> Text -> Handler TypedContent
 getScenarioImageByPattern path width pattern_ = do
-  Right scenario <- readScenarioFromPath importFamesDispatch $ unpack path
+  Right scenario <- readScenarioFromPath False importFamesDispatch $ unpack path
   case sLayout scenario of
     Nothing     ->  error $ "No Layout provided"
     Just layout -> do
@@ -132,7 +133,7 @@ getPScenarioImageForR path forBox forShelf = do
   today <- todayH
   let ?today = today
       ?cache = memoryCache
-  Right scenario <- readScenarioFromPath importFamesDispatch $ unpack path
+  Right scenario <- readScenarioFromPath False importFamesDispatch $ unpack path
   case sLayout scenario of 
     Nothing -> error $ "No Layout provide"
     Just layout -> do
@@ -254,7 +255,7 @@ renderView param0 = do
         (Just path, Nothing) -> \_ width i -> PScenarioImageR (pack path) width (tshow i)
         _ -> \sha -> PImageR sha
               
-  scenarioFromFileEM <-  forM (pPlannerPath param0) (readScenarioFromPath importFamesDispatch) 
+  scenarioFromFileEM <-  forM (pPlannerPath param0) (readScenarioFromPath False importFamesDispatch) 
   scenarioEM <- forM (fullOrgfile param0) (readScenario importFamesDispatch)
   Right extra <- readScenario importFamesDispatch "* Best Available shelves for"
   (param, widget) <- case liftA2 (,) (sequence scenarioFromFileEM) (sequence scenarioEM) of
