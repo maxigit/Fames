@@ -155,8 +155,14 @@ run:
 build_profile:
 	stack build Fames:exe:Fames  --profile --work-dir .stack-profile --flag Fames:-dev --library-profiling --executable-profiling
 
+build_profile_planner:
+	stack build Fames:exe:FPlanner  --profile --work-dir .stack-profile \
+			 --flag Fames:-dev --flag warehouse-planner:brick \
+			 --library-profiling --executable-profiling
 profile: build_profile
-	stack exec --work-dir .stack-profile Fames --library-profiling -- $(RUN_CONFIG) +RTS -p
+	stack exec --work-dir .stack-profile Fames --library-profiling --enable-profiling -
+			 --flag Fames:-dev --flag warehouse-planner:brick \
+	-- $(RUN_CONFIG) +RTS -p
 	mkdir -p .prof
 	mv Fames.hp Fames.prof  .prof
 
@@ -166,9 +172,22 @@ run_with_stack_trace: build_profile
 	mv Fames.hp Fames.prof  .prof
 	
 planner:
-	stack exec FPlanner  -- /home/max/devel/mae/fames-config/development.yml -i activeBoxes/live -x > live.txt
+	stack exec FPlanner  -- /home/max/devel/mae/fames-config/development.yml \
+												  /home/max/devel/mae/fames-config/prod-var.yml \
+													-d /home/max/Dropbox/Fames/Planner
+													-i activeBoxes/live -x
+													> live.txt 2> live.log
 	vi -d live.txt ~/Dropbox/Fames/Planner/live.txt
 
+prof_planner: # build_profile_planner
+	stack exec --work-dir .stack-profile FPlanner \
+	    -- /home/max/devel/mae/fames-config/development.yml  \
+				 /home/max/devel/mae/fames-config/prod-var.yml \
+		     -d /home/max/Dropbox/Fames/Planner \
+			-i activeBoxes/live -x > live.txt \
+			+RTS -p -hbvoid -hr -l-au
+	mkdir -p .prof
+	mv -f FPlanner.hp FPlanner.prof  .prof
 # Generate federated tables and view
 # use the local copy of the commerce database database 
 sql/commerce.schema:
