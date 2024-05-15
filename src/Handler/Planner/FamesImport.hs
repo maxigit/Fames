@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 import GL.Utils
 import qualified Data.HashMap.Strict as HashMap
 import Util.ForConduit
+import Debug.Trace
 -- * Type 
 -- data FamesImport
 --   = ImportPackingList (Key PackingList) --  ^ import packing list
@@ -370,8 +371,10 @@ importActiveBoxtakesLive todaym tags = do
               ]
       source  =  sourceList [Box.HasPosition False boxes] .| Box.boxSourceToCsv Box.WithoutHeader
       _use = sourceList
+  liftIO $ traceMarkerIO "Running Conduit"
   content <- (runDB $ runConduit $ source .| consume)
-  return $ Section (StocktakeH tags) (Right content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
+  liftIO $ traceMarkerIO "End Conduit"
+  return $ Section (StocktakeH tags) (Right $ Box.csvHeaderWithoutPosition : content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
   
 myNubBy :: Hashable k => (a -> k) -> [a] -> [a]
 -- myNubBy f = nubBy ((==)`on` f) . sortOn f
