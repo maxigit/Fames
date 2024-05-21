@@ -142,7 +142,7 @@ importActiveBoxtakes tags = do
   today <- todayH
   let source = Box.plannerSource .| Box.boxSourceToCsv Box.WithoutHeader
   content <- (runDB $ runConduit $ source .| consume)
-  return $ Section (StocktakeH tags) (Right content) ("* Stocktake from Fames DB [" <> tshow today <> "]")
+  return $ Section (StocktakeH tags) (Right $ Box.csvHeaderWithoutPosition : content) ("* Stocktake from Fames DB [" <> tshow today <> "]")
 
   
 
