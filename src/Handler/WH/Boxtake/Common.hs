@@ -40,7 +40,8 @@ dimensionPicture width Boxtake{..} =  do
          |]
          
 {-# NOINLINE orientations #-}
-orientations = mconcat $ ":" : map showOrientation' allOrientations -- | Extract the position from a location
+orientations = mconcat $ ":" : map showOrientation' allOrientations
+-- | Extract the position from a location
 -- Eg E01.02/2:1:1:1 => Just (Just ':', 1:1:1)
 extractPosition :: Text -> (Text, Maybe (Maybe Char, Text))
 extractPosition location =

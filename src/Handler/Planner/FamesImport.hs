@@ -140,7 +140,10 @@ importPackingList key tags =  runDB $ do
 importActiveBoxtakes :: [Text] -> Handler Section
 importActiveBoxtakes tags = do
   today <- todayH
-  let source = Box.plannerSource .| Box.boxSourceToCsv Box.WithoutHeader
+  -- At the moment only one section can be returned.
+  -- Therefore it has to be one without position.
+  -- Also there is a bug which tee position 'A|B' as having a position orientation |, offset B
+  let source = Box.plannerSource .| mapC (\(Box.HasPosition _ a) -> Box.HasPosition False a) .|  Box.boxSourceToCsv Box.WithoutHeader
   content <- (runDB $ runConduit $ source .| consume)
   return $ Section (StocktakeH tags) (Right $ Box.csvHeaderWithoutPosition : content) ("* Stocktake from Fames DB [" <> tshow today <> "]")
 
