@@ -10,5 +10,7 @@ main:: IO ()
 main = do
   args <- getArgs
   let (yml, others) = partition (".yml" `isSuffixOf`) args
-  let dispatch path section = withArgs yml $ handlerWith (\s -> s { appStaticDir = "."}) (importFamesDispatch' path section)
-  withArgs others $ W.defaultMainWith dispatch
+  withArgs yml $ handlerWith (\s -> s { appStaticDir = "."}) do
+      run <- askRunInIO 
+      let dispatch path section = run $ importFamesDispatch' path section
+      liftIO $ withArgs others $ W.defaultMainWith dispatch

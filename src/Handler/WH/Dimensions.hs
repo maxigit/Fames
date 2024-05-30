@@ -10,6 +10,7 @@ module Handler.WH.Dimensions
 import Yesod.Form.Bootstrap3
 import Database.Persist.MySQL
 import WarehousePlanner.Base hiding(rotate,up)
+import WarehousePlanner.Move 
 import qualified WarehousePlanner.Base as W
 import Import
 import qualified Yesod.Media.Simple as M

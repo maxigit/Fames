@@ -8,6 +8,7 @@ where
 
 import ClassyPrelude.Yesod
 import WarehousePlanner.Base hiding(Box(..))
+import WarehousePlanner.Tiling
 import qualified Data.Map as Map
 import Data.List(scanl')
 import ModelField (Style(..))

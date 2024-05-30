@@ -19,7 +19,7 @@ extra-deps:
 - git: https://github.com/maxigit/metamorphosis
   commit: cf6931606f96ef150f65626c7cc69b3b6d542aa8
 - github: maxigit/warehouse-planner
-  commit: b92d57b4d712bf947b111a7ac14565f340328e84
+  commit: f17f8fc3efd3136f00bdcc4d699e0386f32dbd3c
 - /home/max/Hackage/yesod-fay
 #- git: https://github.com/fpco/yesod-fay
 #commit: 7c87550a3450b1d476737eee34bf2a09b9048751
