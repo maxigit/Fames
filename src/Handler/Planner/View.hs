@@ -29,6 +29,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.State
 import System.Directory (listDirectory)
+import GHC.Prim(coerce)
 
 -- * Type 
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
@@ -115,7 +116,7 @@ getScenarioImageByPattern path width pattern_ = do
            case filter good $ zip (toList shelvesss) [0..] of
                 (_, i):_ -> getScenarioImageByNumber path width i
                 _        -> getScenarioImageByNumber path width 0
-  where good (shelvess, _i) = any (any (applyNameSelector toMatch id)) shelvess
+  where good (shelvess, _i) = any (any (applyNameSelector (coerce toMatch) runIdentity)) $ map (map Identity) shelvess
         toMatch = parseNameSelector (pattern_ <> "|" <> pattern_ <> "*.*/*")
 
 
