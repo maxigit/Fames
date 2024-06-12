@@ -40,6 +40,7 @@ import Debug.Trace
 data FI
 mkYesodSubData "FI" [parseRoutes|
 /packingList/#Int64 FIPackingList
+/packingList/All/#Int64 FIPackingListAll
 /activeBoxes FIActiveBoxes
 /activeBoxes/live FIActiveBoxesLive
 /activeBoxes/live/at/#Day FIActiveBoxesLiveAt
@@ -91,7 +92,8 @@ importFamesDispatch' plannerDir section = do
       --                                                  ^ similutate missing / to url which needs it
       Nothing -> return $ Left $ intercalate "#" (main:tags) <> " is not a valid import"
       Just fi -> case fi of
-          FIPackingList plId -> ret $ importPackingList (toSqlKey plId) tags
+          FIPackingList plId -> ret $ importPackingList False (toSqlKey plId) tags
+          FIPackingListAll plId -> ret $ importPackingList True (toSqlKey plId) tags
           FIActiveBoxes -> ret $ importActiveBoxtakes tags
           FIActiveBoxesLive -> ret $ importActiveBoxtakesLive Nothing tags
           FIActiveBoxesLiveAt date -> ret $ importActiveBoxtakesLive (Just date) tags
@@ -126,10 +128,12 @@ importFamesDispatch' plannerDir section = do
 -- * Importers 
 -- | Imports undelivered boxes from packing list.
 -- We only import undeliverd one because the delivered one are probablly in the planner somewhere
-importPackingList :: Key PackingList -> [Text] -> Handler Section
-importPackingList key tags =  runDB $ do
+importPackingList :: Bool -> Key PackingList -> [Text] -> Handler Section
+importPackingList showAll key tags =  runDB $ do
   packingList <- getJust key
-  detailEs <- selectList [PackingListDetailPackingList ==. key, PackingListDetailDelivered ==. False]
+  detailEs <- selectList ( (PackingListDetailPackingList ==. key)
+                         : if showAll then [] else [ PackingListDetailDelivered ==. False]
+                         )
                          [Asc PackingListDetailId]
   let texts = PL.toPlanner PL.WithDetails packingList detailEs
   return $ Section (BoxesH tags) (Right texts) ("** Import Packing List " <> tshow key)
