@@ -127,7 +127,7 @@ uploadPlannerCsv :: SavingMode -> UploadParam -> ([Session], [StyleMissing]) -> 
 uploadPlannerCsv _ _ (sessions, _) = do
   let source = sourceList sessions .| mapC sessionToBoxes .| boxSourceToCsv WithHeader
   setAttachment "boxscan.org"
-  respondSource "text/plain" (source .| mapC toFlushBuilder)
+  respondSource "text/plain" (source .| unlinesC .| mapC toFlushBuilder)
   where sessionToBoxes session = HasPosition (sessionHasPosition session)
                                              (mapMaybe (go $ sessionLocation session)
                                                        (sessionRows session)
