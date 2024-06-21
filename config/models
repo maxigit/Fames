@@ -92,6 +92,7 @@ Stocktake sql=fames_stocktake
   documentKey DocumentKeyId sql=document_key_id
   history (Pairs Day (Key Operator))
   comment Text Maybe default=NULL
+  batch Text Maybe default=NULL
   UniqueSB barcode index
   deriving Eq
   deriving Show
@@ -112,6 +113,7 @@ Boxtake sql=fames_boxtake
   operator OperatorId sql=operator_id
   documentKey DocumentKeyId sql=document_key_id
   locationHistory (Pairs Day (Text))
+  batch Text Maybe default=NULL
   UniqueBB barcode
   UniqueBK documentKey reference
   deriving Eq

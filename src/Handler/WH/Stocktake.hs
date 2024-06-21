@@ -631,6 +631,7 @@ insertQuickTakes docId quicks = do
                   docId
                   []
                   rowComment
+                  rowBatch
         where Known qty = rowQuantity
 
   barcodes <- generateBarcodes quickPrefix  Nothing count_
@@ -733,6 +734,7 @@ data TakeRow s = TakeRow --  Basic       QuickTake BarcodeLookup
   , rowDate     :: FieldTF s Day         Identity Identity
   , rowOperator :: FieldTF s Operator'   Identity Identity
   , rowComment  :: FieldTF s (Maybe Text)   Identity Identity
+  , rowBatch  :: FieldTF s (Maybe Text)   Identity Identity
   }
   
 
@@ -815,6 +817,7 @@ validateRaw ops locs raw= do
     rowDate <- rowDate raw
     rowOperator <- rowOperator'
     rowComment <- rowComment raw
+    rowBatch <- rowBatch raw
 
     Right TakeRow{..}
 
@@ -859,20 +862,20 @@ validateRow :: Set Text -> ValidationMode -> PartialRow -> Either RawRow ValidRo
 validateRow __skus __validateMode (TakeRow (Just rowStyle) (Just rowColour)
                                    (Just rowQuantity@(Provided (Known _)))
                                   Nothing (Just (Provided "0")) Nothing Nothing Nothing
-                                   (Just rowDate) (Just rowOperator) rowComment)
+                                   (Just rowDate) (Just rowOperator) rowComment rowBatch)
   = Right . QuickST $ TakeRow{rowLocation=(), rowBarcode=() 
                             , rowLength=(), rowWidth=(), rowHeight=()
                             , .. }
 validateRow __skus __validateMode (TakeRow (Just rowStyle) (Just rowColour)
                                    (Just rowQuantity@(Provided (Known 0)))
                                   _ _ _ _ _
-                                   (Just rowDate) (Just rowOperator) rowComment)
+                                   (Just rowDate) (Just rowOperator) rowComment rowBatch)
   = Right . QuickST $ TakeRow{rowLocation=(), rowBarcode=() 
                             , rowLength=(), rowWidth=(), rowHeight=()
                             , .. }
 validateRow __skus __validateMode (TakeRow (Just rowStyle) (Nothing) (Nothing)
                                    (Just rowLocation) (Just rowBarcode)
-                                  _ _ _ (Just rowDate) (Just rowOperator) rowComment)
+                                  _ _ _ (Just rowDate) (Just rowOperator) rowComment rowBatch)
   = Right . BLookupST $ TakeRow{rowColour=(),rowQuantity=() 
                             , rowLength=(), rowWidth=(), rowHeight=()
                             , .. }
@@ -880,7 +883,7 @@ validateRow __skus __validateMode (TakeRow (Just rowStyle) (Nothing) (Nothing)
 validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
                     (Just rowLength) (Just rowWidth) ( Just rowHeight)
-                    (Just rowDate) (Just rowOperator) rowComment)
+                    (Just rowDate) (Just rowOperator) rowComment rowBatch)
   =  case catMaybes [ if (isBarcodeValid (fromStrict $ validValue rowBarcode)
                          || validateMode == NoCheckBarcode)
                       then Nothing
@@ -916,10 +919,12 @@ fillFromPrevious skus (Right (QuickST previous)) partial =
       date     = rowDate partial `fillValue` transform (rowDate previous)
       operator = rowOperator partial `fillValue` transform (rowOperator previous)
       comment  = rowComment partial
+      batch = rowBatch partial
       raw = (TakeRow (Just <$> style) (Right colour) (Right quantity)
                     (Right location) (Right barcode)
                     (Right length_) (Right width) (Right height)
-                    (Just <$> date) (Just <$> operator) (Right comment) :: RawRow)
+                    (Just <$> date) (Just <$> operator)
+                    (Right comment) (Right batch) :: RawRow)
   in validateRow skus CheckBarcode =<< validateRaw (const Nothing) (const Nothing)  raw
 
 fillFromPrevious skus (Right (BLookupST previous)) partial = let
@@ -934,11 +939,13 @@ fillFromPrevious skus (Right (BLookupST previous)) partial = let
       date     = rowDate partial `fillValue` transform (rowDate previous)
       operator = rowOperator partial `fillValue` transform (rowOperator previous)
       comment  = rowComment partial
+      batch = rowBatch partial
 
       raw = (TakeRow (Just <$> style) (Right colour) (Right quantity)
                     (Just <$> location) (Right barcode)
                     (Right length_) (Right width) (Right height)
-                    (Just <$> date) (Just <$> operator) (Right comment):: RawRow)
+                    (Just <$> date) (Just <$> operator)
+                    (Right comment) (Right batch):: RawRow)
       in validateRow skus CheckBarcode =<< validateRaw (const Nothing) (const Nothing)  raw
 
 fillFromPrevious skus (Right (FullST previous)) partial
@@ -957,11 +964,13 @@ fillFromPrevious skus (Right (FullST previous)) partial
       date     = rowDate partial `fillValue` transform (rowDate previous)
       operator = rowOperator partial `fillValue` transform (rowOperator previous)
       comment  = rowComment partial
+      batch = rowBatch partial
 
       raw = (TakeRow (Just <$> style) (Just <$> colour) (Just <$> quantity)
                     (Just <$> location) (Just <$> barcode)
                     (Just <$> length_) (Just <$> width) (Just <$> height)
-                    (Just <$> date) (Just <$> operator) (Right comment) :: RawRow)
+                    (Just <$> date) (Just <$> operator)
+                    (Right comment)  (Right batch):: RawRow)
       a /~ b = (guess <$> a) /=(guess <$> b)
       modifiers = case (rowBarcode partial, rowQuantity partial) of
       -- belongs to the previous box, we need to check that box information
@@ -1098,6 +1107,7 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
                       docId
                       []
                       rowComment
+                      rowBatch
 
 
 toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalFullRow) -> Maybe Boxtake
@@ -1111,6 +1121,7 @@ toBoxtake docId descriptionFn (col, TakeRow{..}) =
                  (opId rowOperator)
                  docId
                  []
+                 rowBatch
 
 groupToStocktakes :: DocumentKeyId -> [(Int, FinalFullRow)] -> [Stocktake]
 groupToStocktakes docId group_ = let
@@ -1177,6 +1188,7 @@ generateMissingsFor rows@(row:_) = do
                      , rowDate = rowDate row'
                      , rowOperator = rowOperator row'
                      , rowComment = Just $ Guessed "Missing: auto-generated."
+                     , rowBatch = rowBatch row'
                      }
            | var <- missingVars
            ]
@@ -1284,6 +1296,7 @@ lookupBarcode valid@(BLookupST TakeRow{..}) = do
                                        rowDate 
                                        rowOperator 
                                        rowComment
+                                       rowBatch
                                        )
                          | (colour, quantity) <- vars
                          ]
@@ -1319,6 +1332,7 @@ transformRow TakeRow{..} = TakeRow
   (transform rowDate)
   (transform rowOperator)
   (transform rowComment)
+  (transform rowBatch)
 
 transformValid :: ValidRow -> QuickRow
 transformValid (FullST row) = transformRow row
@@ -1341,6 +1355,7 @@ transformValid' (QuickST TakeRow{..}) = TakeRow
               (transform rowDate)
               (transform rowOperator)
               (transform rowComment)
+              (transform rowBatch)
 
 transformValid' (BLookupST TakeRow{..}) = TakeRow
               (transform rowStyle)
@@ -1354,6 +1369,7 @@ transformValid' (BLookupST TakeRow{..}) = TakeRow
               (transform rowDate)
               (transform rowOperator)
               (transform rowComment)
+              (transform rowBatch)
 
 finalizeRow :: ValidRow -> FinalRow
 finalizeRow (FullST row) = FinalFull (transformRow row)
@@ -1384,6 +1400,7 @@ instance Csv.FromNamedRecord RawRow where
     <*> (allFormatsDay <$$$$> m `parse` "Date Checked" )
     <*> m  Csv..: "Operator"
     <*> m  `parse` "Comment"
+    <*> m `parse` "Batch"
     where parse m_ colname = do
             -- parse as a text. To get the cell content
             t <- m_ Csv..: colname
@@ -1472,6 +1489,7 @@ mopToFinalRow user day (Single style, Single variation , Single quantity, Single
                   Nothing -> Guessed user
   rowDate = maybe (Guessed day) Provided mday
   rowComment = Just $ Provided ("MOP: " <> comment)
+  rowBatch = Nothing
   in QuickST $ TakeRow {..}
 
   
@@ -1491,6 +1509,7 @@ renderRow TakeRow{..} = do
 <td.stocktakeStyle>^{render rowStyle}
 <td.stocktakeColour>^{render rowColour}
 <td.stocktakeQuantity>^{render rowQuantity}
+<td.stocktakeBatch>^{render rowBatch}
 <td.stocktakeLocation>^{render rowLocation}
 <td.stocktakeBarcode>^{render rowBarcode}
 <td.stocktakeLength>^{render rowLength}
@@ -1540,6 +1559,7 @@ renderRows classFor rows = do
     <th>Style
     <th>Colour
     <th>Quantity
+    <th>Batch
     <th>Location
     <th>Barcode
     <th>Length

@@ -189,7 +189,8 @@ toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) =
   where tags= [ "barcode=" <> boxtakeBarcode 
               , "date=" <> tshow boxtakeDate
               , "location=" <> location
-              ] ++ mixed ::  [Text]
+              ] ++ (maybe [] (pure . ("batch=" <>)) boxtakeBatch
+              ) ++ mixed ::  [Text]
         (location, position ) =
                case words boxtakeLocation of
                     (loc:pos@(_:_)) -> (loc, unwords pos)
@@ -223,7 +224,7 @@ boxSourceToCsv  ((== WithHeader) -> withHeader) = awaitForever go
                  yield ("*** Without position")
                  yield ":STOCKTAKE:"
                  yield csvHeaderWithoutPosition
-         sourceList boxes .| mapC (toPlanner . HasPosition hasPosition)
+         sourceList boxes .| mapC (toPlanner . HasPosition hasPosition) .| unlinesC
          when withHeader $ void do
               yield ":END:"
   
@@ -384,6 +385,7 @@ renderBoxtakeTable opMap boxtakes = do
     <tr>
         <th> Barcode 
         <th> Description 
+        <th> Batch
         <th> Dimensions
         <th> Volume
         <th> Location
@@ -395,6 +397,7 @@ renderBoxtakeTable opMap boxtakes = do
       <tr>
         <td> <a href=@{WarehouseR (WHBoxtakeDetailR (boxtakeBarcode boxtake))}>#{boxtakeBarcode boxtake}
         <td> #{fromMaybe "" (boxtakeDescription boxtake)}
+        <td> #{fromMaybe "" (boxtakeBatch boxtake)}
         <td> #{tshow (boxtakeLength boxtake)} x #{tshow (boxtakeWidth boxtake)} x #{tshow (boxtakeHeight boxtake)}
               ^{dimensionPicture 64 boxtake}
         <td> #{formatVolume (boxtakeVolume boxtake)}
@@ -443,6 +446,9 @@ renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
         <tr>
           <td>Description
           <td>#{fromMaybe "" boxtakeDescription}
+        <Br>
+          <td> Batch
+          <td> #{fromMaybe "" boxtakeBatch}
         <tr>
           <td> Reference
           <td> #{boxtakeReference}
@@ -472,6 +478,7 @@ renderStocktakes opMap stocktakes = do
   <tr>
      <th> Stock Id
      <th> Quantity
+     <th> Batch
      <th> Date
      <th> Active
      <th> Operator
@@ -479,6 +486,7 @@ renderStocktakes opMap stocktakes = do
     <tr>
       <td> #{stocktakeStockId stocktake}
       <td> #{tshow (stocktakeQuantity stocktake)}
+      <td> #{fromMaybe "" (stocktakeBatch stocktake)}
       <td> #{tshow (stocktakeDate stocktake)}
       <td> #{displayActive (stocktakeActive stocktake)}
       $with opId <- stocktakeOperator stocktake

@@ -368,6 +368,7 @@ detailToBoxtake param docKey detail info = Boxtake
   (dpOperator param)
   docKey
   []
+  (packingListDetailBatch detail)
   where reference =  intercalate "-" ([ packingListDetailReference
                      , packingListDetailStyle
                      , tshow . packingListDetailBoxNumber
