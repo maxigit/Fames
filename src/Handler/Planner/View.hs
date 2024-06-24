@@ -257,8 +257,8 @@ renderView param0 = do
         _ -> \sha -> PImageR sha
               
   scenarioFromFileEM <-  forM (pPlannerPath param0) (readScenarioFromPath False importFamesDispatch) 
-  scenarioEM <- forM (fullOrgfile param0) (readScenario importFamesDispatch)
-  Right extra <- readScenario importFamesDispatch "* Best Available shelves for"
+  scenarioEM <- forM (fullOrgfile param0) (readScenario importFamesDispatch Nothing)
+  Right extra <- readScenario importFamesDispatch Nothing "* Best Available shelves for"
   (param, widget) <- case liftA2 (,) (sequence scenarioFromFileEM) (sequence scenarioEM) of
       Left err -> setInfoToDoc >> setError (toHtml err) >> return (param0, "Invalid scenario")
       Right (scenarioFromFileM, scenarioM) ->  do
