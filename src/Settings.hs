@@ -63,6 +63,7 @@ data AppSettings = AppSettings
     , appIpFromHeader           :: Bool
     -- ^ Get the IP address from the header when logging. Useful when sitting
     -- behind a reverse proxy.
+    , appRunMigration            :: Bool
 
     , appDetailedRequestLogging :: Bool
     -- ^ Use detailed request logging system
@@ -191,6 +192,7 @@ instance FromJSON AppSettings  where
         appPort                   <- o .: "port"
         appIpFromHeader           <- o .: "ip-from-header"
 
+        appRunMigration           <- o .:? "run-migration"   .!= defaultDev
         appDetailedRequestLogging <- o .:? "detailed-logging" .!= defaultDev
         appShouldLogAll           <- o .:? "should-log-all"   .!= defaultDev
         appReloadTemplates        <- o .:? "reload-templates" .!= defaultDev
