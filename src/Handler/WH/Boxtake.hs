@@ -224,7 +224,7 @@ boxSourceToCsv  ((== WithHeader) -> withHeader) = awaitForever go
                  yield ("*** Without position")
                  yield ":STOCKTAKE:"
                  yield csvHeaderWithoutPosition
-         sourceList boxes .| mapC (toPlanner . HasPosition hasPosition) .| unlinesC
+         sourceList boxes .| mapC (toPlanner . HasPosition hasPosition)
          when withHeader $ void do
               yield ":END:"
   
