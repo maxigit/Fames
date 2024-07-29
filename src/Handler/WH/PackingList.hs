@@ -362,7 +362,7 @@ detailToBoxtake param docKey detail info = Boxtake
   (packingListDetailWidth detail)
   (packingListDetailHeight detail)
   (packingListDetailBarcode detail)
-  (fromMaybe (dpLocation param) $ location info)
+  ((fromMaybe (dpLocation param) $ location info) <> coordinate)
   (dpDate param)
   True
   (dpOperator param)
@@ -374,9 +374,9 @@ detailToBoxtake param docKey detail info = Boxtake
                      , tshow . packingListDetailBoxNumber
                      ] <*> [detail]
                                      )
-  
-
-
+        coordinate = case lookup "coordinate" (extras info) of
+                         Nothing -> ""
+                         Just c -> ":" <> c
 
 -- ** View 
 
@@ -804,7 +804,7 @@ stocktakeSource :: Monad m
 stocktakeSource key detail'boxS = do
   yield "!!! This file need to be processed as an Addition and override !!!\n"
   yield "Please remove this line and above and don't forget to fill the location and operator field.\n"
-  yield "Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment\n"
+  yield "Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment,Batch\n"
   let firsts = True: List.repeat False
   forM_ detail'boxS $ \(Entity _ PackingListDetail{..}, Entity _ Boxtake{..}) -> do
     forM_ (zip (Map.toList packingListDetailContent) firsts) $ \((var, qty), ifF) -> do
@@ -820,6 +820,7 @@ stocktakeSource key detail'boxS = do
                 <> "," <> tshow boxtakeDate -- Date
                 <> "," -- Operator
                 <> ", From PL #" <> (tshow key) -- Comment
+                <> ", " <> fromMaybe "" boxtakeBatch
                 <> "\n"
                 ]
 
