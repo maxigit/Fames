@@ -25,6 +25,7 @@ import WH.Barcode
 import Data.List(scanl, length, (\\), nub)
 import qualified Data.List as List
 import Data.Time(addDays)
+import Data.Text (breakOn)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
@@ -1058,8 +1059,9 @@ fillBarcode new prevE =
     
 
 validateLocation :: Map Text Text -> Text -> Maybe Location'
-validateLocation locMap t =
-  let locs = expandLocation t
+validateLocation locMap t'coord =
+  let (t, _) = breakOn ":" t'coord
+      locs = expandLocation t
   in case mapMaybe (flip Map.lookup locMap) locs of
   [] -> Nothing
   (fa:fas) -> -- check all shelves exists and belongs to the same FA location
