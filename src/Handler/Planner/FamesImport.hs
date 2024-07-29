@@ -162,12 +162,13 @@ data WhichBoxes = AllBoxes | ActiveBoxes deriving (Eq, Show)
 importBoxStatus whichBoxes prefix a_tags = do
   today <- todayH
   operators <- allOperators
+  skuToStyleVar <- I.skuToStyleVarH
   let source = case whichBoxes of
         AllBoxes -> selectSource [] []
         ActiveBoxes -> Box.plannerSource  .| concatMapC (\(Box.HasPosition _ boxE'_s) -> map fst boxE'_s)
         -- ActiveBoxes -> Box.plannerSource  .| concatMapC _
       -- prefix = fromMaybe "" a_prefix
-      getTags (Entity _ Boxtake{..}) = "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
+      getTags (Entity _ Boxtake{..}) = maybe "" (unStyle . fst . skuToStyleVar . Sku) boxtakeDescription <> "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
               where
                 tags = [ prefix <> "location="  <> boxtakeLocation
                        , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
@@ -176,6 +177,7 @@ importBoxStatus whichBoxes prefix a_tags = do
                        , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
                                                         operatorNickname
                                                         (lookup boxtakeOperator operators)
+                       , prefix <> "batch=" <> fromMaybe "" boxtakeBatch 
                        ] <> a_tags
       header = "selector,tags"
   rows <- (runDB $ runConduit $ source .| mapC getTags .| consume)
