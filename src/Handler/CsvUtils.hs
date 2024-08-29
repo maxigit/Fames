@@ -428,7 +428,7 @@ renderParsingResult onError onSuccess result =
           WrongHeader invalid -> onError (setError "Invalid file or columns missing") (render invalid)
           InvalidFormat raws -> onError (setError "Invalid cell format") (render raws)
           InvalidData errors rerrors raws ->  onError (setError (formatErrors errors "Invalid data"))
-                                            (renderInvalids rerrors >> render raws)
+                                            (renderInvalids rerrors >> renderRaws raws)
           ParsingCorrect rows -> onSuccess rows
   where formatErrors [] title = title
         formatErrors errors _ = [shamlet|
@@ -438,8 +438,19 @@ renderParsingResult onError onSuccess result =
 |]
         renderInvalids errors = [whamlet|
 <div.panel.panel-danger.invalid-errors>
-  <div.panel-heading> Errors
-  ^{render errors}
+  <div.panel-heading>
+    <span.data-toggler data-toggle=collapse data-target=#invalid-rows> Errors
+  <div.panel-body.collapse.in id=invalid-rows>
+    ^{render errors}
+|]
+        renderRaws [] = ""
+        renderRaws raws = [whamlet|
+<div.panel.panel-warning>
+  <div.panel-heading>
+    <span.data-toggler.collapsed data-toggle=collapse data-target=#raws-body>Raws
+  <div.panel-body.collapse id=raws-body>
+    ^{render raws}
+
 |]
 
 

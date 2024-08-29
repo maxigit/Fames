@@ -847,7 +847,7 @@ validateRows skus (row:rows) = do
       validBarcode (BLookupST _) = Nothing 
       validBarcode (BLookedupST _) = error "Shouldn't happen"
                
-  valids <- sequence  filleds <|&> const errors
+  valids <- sequence  filleds <|&> const (lefts filleds) -- errors
   
   case (lastMay (mapMaybe validBarcode valids))  of
     (Just (Guessed barcode)) -> let
@@ -898,7 +898,21 @@ validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Jus
        [] -> Right . FullST $ TakeRow{..}
        modifiers -> Left $ foldr ($) (transformRow row) modifiers
 
-validateRow _ _ invalid =  Left $ transformRow invalid
+validateRow _ _ invalid@TakeRow{..} =  let
+   modifiers = catMaybes [ if rowLength == Nothing
+                           then Just \r -> r { rowLength = Left $ MissingValueError "Length" }
+                           else Nothing
+                         , if rowWidth == Nothing
+                           then Just \r -> r { rowWidth = Left $ MissingValueError "Width" }
+                           else Nothing
+                         , if rowHeight == Nothing
+                           then Just \r -> r { rowHeight = Left $ MissingValueError "Height" }
+                           else Nothing
+                         , if rowOperator == Nothing
+                           then Just \r -> r { rowOperator = Left $ MissingValueError "Operator" }
+                           else Nothing
+                         ]
+   in Left $ foldr ($) (transformRow invalid) modifiers
 
 
 fillFromPrevious :: Set Text -> Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
@@ -1077,7 +1091,7 @@ parseTakes skus opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
   rows <- validateAll (validateRaw opf locf) raws <|&> InvalidFormat
-  valids <- validateRows skus rows <|&> InvalidData [] []
+  valids <- validateRows skus rows <|&> flip (InvalidData []) []
   Right valids
 
   where -- validateAll :: (a-> Either b c) -> [a] -> Either [b] [c]
