@@ -377,6 +377,7 @@ displayBoxRow status = forM_ (classForBox status) $ \klass -> do
     <td.boxQuantity>
       ^{displayBoxQuantity status}
     <td.boxDescription>#{fromMaybe "" boxtakeDescription}
+    <td.batch>#{fromMaybe "" boxtakeBatch}
     <td>#{tshow boxtakeDate}
     <td>#{boxtakeLocation}
           |]
@@ -534,24 +535,50 @@ $(document).ready(function () {
         else {return true;}
      })
      $(tbody).find('tr.summary-row input[type=checkbox]').prop('checked',checked)
-     // update toggle-all
-     // uncheck if all summary are  unchecked
-     var toggleAll = $('input#toggle-all');
-     var form = $(this).parents('form');
-     var summaries = $(form).find('tr.box-row input[type=checkbox]')
-     checked = false;
-     $.each(summaries, function(i,r) {
-       if (r.checked) {checked = true; return !checked;}
-       else {return true;}
-     })
-     toggleAll.prop('checked', checked)
+     updateAll($(this))
    
   })
+  
+  // update toggle-all
+  // uncheck if all summary are  unchecked
+  function updateAll(elem, checkSummary=false) {
+     var toggleAll = $('input#toggle-all');
+     var form = elem.parents('form');
+     var summaries = $(form).find('tr.summary-row input[type=checkbox]')
+     checked = false;
+     $.each(summaries, function(i,r) {
+       if(checkSummary) {
+           summaryChecked = false
+           inputs = $(r).parents('tbody').find('tr input[type=checkbox]')
+           $.each(inputs, function(i,input) {
+              if (input != r && input.checked) {summaryChecked = true; return false}
+           })
+           r.checked = summaryChecked
+       }
+       if (r.checked) {checked = true; return !checked || checkSummary;}
+       else {return checkSummary;}
+       // exit unless we are checking all summary
+     })
+     toggleAll.prop('checked', checked)
+  }
   // toggle everything
   $('input#toggle-all').change(function() {
      var form = $(this).parents('form');
      var inputs = $(form).find('tr input[type=checkbox]')
      $(inputs).prop('checked', this.checked);
+  })
+  // toggle similar batch
+  $('td.batch').click(function() {
+     var batch = $(this).text().trim(); 
+     var row = $(this).parent().find('input[type=checkbox]');
+     var tocheck = !row.prop('checked');
+     var form = $(this).parents('form');
+     var inputs = $(form).find('tr input[type=checkbox]')
+     $.each(inputs, function(i,r) {
+        if ($(r).parents('tr').find('td.batch').text().trim() == batch) {r.checked = tocheck} // ; return !r.checked}
+     })
+     // update toggle-all
+     updateAll($(this), true);
   })
   }
 )
