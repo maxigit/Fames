@@ -13,6 +13,7 @@ module Handler.WH.Boxtake.Adjustment
 , loadBoxForAdjustment
 , processBoxtakeAdjustment
 , processBoxtakeDeactivation
+, processBoxtakeActivation
 , usedSubject
 )
 where
@@ -453,7 +454,15 @@ processBoxtakeDeactivation = do
   setSuccess [shamlet|<p>#{length toDeactivate} boxtakes deactivated succsessfuly.
                      |]
 
-                            
+processBoxtakeActivation :: Handler ()
+processBoxtakeActivation = do
+  today <- todayH
+  (pp, _) <- runRequestBody
+  let toActivate = extractBoxIdFromParam "activate-" pp 
+                   <> extractBoxIdFromParam "used-" pp
+  runDB $ forM_ toActivate (reactivateBoxtakeByKey today)
+  setSuccess [shamlet|<p>#{length toActivate} boxtakes activated succsessfuly.
+                     |]
 
 -- * Css 
 adjustmentCSS :: Widget

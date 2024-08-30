@@ -295,6 +295,7 @@ postWHBoxtakeAdjustmentR = do
       case actionM of
         Just "Process" -> processBoxtakeAdjustment
         Just "Deactivate" -> processBoxtakeDeactivation
+        Just "Activate" -> processBoxtakeActivation
         _ -> return ()
       result <- displayBoxtakeAdjustments param
       renderBoxtakeAdjustments param (Just result)
@@ -723,6 +724,7 @@ renderBoxtakeAdjustments param resultM = do
   $if aShowDetails param
     <input#toggle-all type="checkbox" checked>
     <button type="submit" name="action" value="Process" .btn.btn-warning> Activate/Deactivate
+    <button type="submit" name="action" value="Activate" .btn.btn-info> Activate
     <button type="submit" name="action" value="Deactivate" .btn.btn-danger> Deactivate
                         |]
                                        )
