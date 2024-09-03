@@ -113,7 +113,7 @@ boxInfoToSummary sku t = let
 
   
 
-type StocktakePrioriry = (Down Bool, Down Day, Down Int, Down (Text, Text), Down StocktakeId)
+type StocktakePrioriry = (Down Bool, Down Day, Down (Maybe Text), Down Int, Down (Bool, Text), Down StocktakeId)
 computeStocktakePriority :: UseActiveStatus -> BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
 computeStocktakePriority useActiveStatus (Entity bId Boxtake{..}, stocktakes) = do
   s@(Entity sId Stocktake{..}) <- stocktakes
@@ -122,6 +122,7 @@ computeStocktakePriority useActiveStatus (Entity bId Boxtake{..}, stocktakes) = 
                  --     ^ we use the boxtake date and not the stocktake
                  --       because the boxtakeDate can be more recent if the box has been scanned
                  --       without a full stocktake
+                 , Down boxtakeBatch -- old batch first
                  , Down stocktakeQuantity -- The more, the less we pick from it
                  , Down $ locationPriority boxtakeLocation
                  , Down $ sId -- in case of same date, use last created first. Make sure
@@ -134,8 +135,10 @@ computeStocktakePriority useActiveStatus (Entity bId Boxtake{..}, stocktakes) = 
 -- name (as it will be physically before)
 -- However, this is not true for the level, which should be take into account
 -- last, so that top shelves are not picked from
-locationPriority :: Text -> (Text, Text)
-locationPriority location = break (== '/') location
+locationPriority :: Text -> (Bool, Text)
+locationPriority location = let 
+   (bay, shelf) = break (== '/') location
+   in (shelf >= "2", bay)
 
 -- | Assign and use the quantity for a given stock take
 assignQuantityToStocktake :: (Map Sku Double) -> StocktakePlus -> (Map Sku Double, UsedStatus StocktakePlus)
@@ -225,7 +228,7 @@ loadBoxForAdjustment param = do
                                      let style = descrToStyle description
                                      in (cache <> singletonMap description style, style)
                          
-      boxtakeSource = selectSource filter_  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
+      boxtakeSource = selectSource filter_  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate, Desc BoxtakeBatch]
 
   boxtakeSource .| loadStocktakes'
                 .| mapC unForMap

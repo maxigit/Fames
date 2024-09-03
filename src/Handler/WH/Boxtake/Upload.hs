@@ -507,14 +507,23 @@ saveFromSession Session{..} = do
   mapM_ saveLocation (sessionRows)
   mapM_ (setActivateBoxtake False sessionDate) sessionMissings
 
--- | Save the location only if the location is different
+-- | Save the location even if the location is the same
+-- However keep sublocation if new location is in the same bay (so we don't lose sublocation if not given again)
 -- Keep position in DB if location (without positon) is the same.
+-- it is important to update the date even if the location hasn't changed so that the box
+-- is seen has being recently scanned when detected which boxes are alive or not
 saveLocation :: Row  -> SqlHandler ()
 saveLocation Row{..} = 
   forM_ rowBoxtake $ \boxe@(Entity _ boxtake) -> do
-        let (oldLocation, oldPosM) = extractPosition $ boxtakeLocation boxtake
-        when  (oldLocation /= rowLocation || (isJust oldPosM) || (not $ boxtakeActive boxtake)) do
-          updateBoxtakeLocation (rowLocation)
-                                (entityKey rowOperator)
-                                (rowDate)
-                                boxe
+        let (oldLocation, __oldPosM) = extractPosition $ boxtakeLocation boxtake
+        when (boxtakeActive boxtake && rowDate >= boxtakeDate boxtake) do
+           let location = if oldLocation /= rowLocation 
+                          then  rowLocation
+                          else boxtakeLocation boxtake
+                          -- T
+                          -- +-- either oldLocation == new location (: no position)
+                          --     or old location == new locatation : old position
+           updateBoxtakeLocation location
+                                 (entityKey rowOperator)
+                                 (rowDate)
+                                 boxe
