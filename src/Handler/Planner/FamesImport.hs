@@ -325,6 +325,7 @@ importBoxStatusLive todaym which prefix __tags = do
       rows = [  "#barcode=" <> boxtakeBarcode
                <> ","
                <> intercalate "#" [ prefix <> "live-status=" <> tshow (Box.boxStatus statusbox)
+                                  , prefix <> "#live-rank=" <> tshow rank
                                   , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
                                   , prefix <> "date=" <> tshow boxtakeDate
                                   , prefix <> "location=" <> boxtakeLocation
@@ -334,7 +335,7 @@ importBoxStatusLive todaym which prefix __tags = do
                                                         (lookup boxtakeOperator operators)
                                   ]
              | summary <- summaries
-             , statusbox <- Box.ssBoxes summary
+             , (statusbox, rank) <- Box.ssBoxesWithRank summary
              , let (Entity _ Boxtake{..}, _) = Box.usedSubject statusbox
              , case which of
                  AllBoxes -> Box.boxStatus statusbox /= Box.BoxInactive
@@ -370,11 +371,12 @@ importActiveBoxtakesLive todaym tags = do
                 , map (unVar . snd . skuToStyleVar . Sku . stocktakeStockId . entityVal) stocktakes
                 )
               | summary <- summaries
-              , statusbox <- Box.ssBoxes summary
+              , (statusbox, rank) <- Box.ssBoxesWithRank summary
               , let (Entity boxKey boxtake, stocktakes) = Box.usedSubject statusbox
               , Box.boxStatus statusbox /= Box.BoxInactive
               , let tags = [ "#live-status=" <> tshow (Box.boxStatus statusbox)
-                       ]
+                           , "#live-rank=" <> tshow rank
+                           ]
               , let extraTags = mconcat tags
 
               ]

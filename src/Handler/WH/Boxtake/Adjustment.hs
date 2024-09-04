@@ -15,6 +15,7 @@ module Handler.WH.Boxtake.Adjustment
 , processBoxtakeDeactivation
 , processBoxtakeActivation
 , usedSubject
+, ssBoxesWithRank
 )
 where
 import Import hiding(Planner, leftover)
@@ -59,7 +60,7 @@ data StyleInfoSummary = StyleInfoSummary
    { ssSku :: Maybe Sku
    , ssQoh :: Double
    , ssQUsed :: Double
-   , ssBoxes :: [(UsedStatus BoxtakePlus)] 
+   , ssBoxes :: [UsedStatus BoxtakePlus] 
    } deriving Show
 -- | What should happend to a box
 data BoxStatus
@@ -422,6 +423,12 @@ classForBox b = case boxStatus b of
   BoxInactive -> Nothing
   status -> Just (tshow status)
 
+ssBoxesWithRank :: StyleInfoSummary -> [(UsedStatus BoxtakePlus, Int)]
+ssBoxesWithRank summary = go 1 1 (ssBoxes summary)  where
+   go _ _ [] = []
+   go n m (b:bs) = if isUsed b
+                 then (b, n) : go (n+1) m bs
+                 else (b, m) : go n (m+1) bs
 -- * Adjustment 
 -- | Inactivate and reactivate the given boxes
   
