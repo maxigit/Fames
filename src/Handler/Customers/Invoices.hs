@@ -401,7 +401,13 @@ fillShippingForm info customerInfo detailKeyM = do
         shTaxId = Just $ FA.debtorsMasterTaxId customer
         -- shCustomValue ::  Double
         -- shService = ""
-        shSave = True
+        shSave = detailKeyM == Nothing
+                 -- the address has been choosen via lookup
+                 -- it is probably different from the FA one
+                 -- This can be either because of a typo in FA
+                 -- or because the customer has multiple address
+                 -- and we are sending to another one (that the one on the initial order)
+                 -- in that case we don't want to save it by default
         form = truncateForm ShippingForm{..}
         details0 = toDetails userm "DPD" form
     detailsm <- case detailKeyM of
