@@ -544,7 +544,8 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     dpdOk = fmap f (get <$> dpdm) == fmap f valuem
     valuem = get <$> shipd
     (faClass, dpdClass) = case (faOk, dpdOk) of
-      _ | matchm == Just FullKeyMatch -> ("", "text-success bg-success")
+      (True, _) | matchm == Just FullKeyMatch -> ("", "text-success bg-success")
+      (False,_) | matchm == Just FullKeyMatch -> ("text-warning bg-warning", "text-success bg-success")
       (True, False) -> ("", "text-danger bg-danger") :: (Text, Text)
       (False, True) -> ("text-danger bg-danger", "")
       (True, True) -> ( "text-success bg-success","")
