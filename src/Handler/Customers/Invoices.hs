@@ -546,8 +546,9 @@ shippingForm fam m'dpdm (shipm)  extra =  do
   shipd = toDetails Nothing "" <$> shipm
   renderRow :: _ => (a -> a) ->  (ShippingDetails -> a) -> _ -> _b
   renderRow f get (_res,view) = let
-    faOk = fmap f (get <$> fam) == fmap f  valuem
-    dpdOk = fmap f (get <$> dpdm) == fmap f valuem
+    a === b = fmap toLower a == fmap toLower b
+    faOk = fmap f (get <$> fam) === fmap f  valuem
+    dpdOk = fmap f (get <$> dpdm) === fmap f valuem
     valuem = get <$> shipd
     (faClass, dpdClass) = case (faOk, dpdOk) of
       (True, _) | matchm == Just FullKeyMatch -> ("", "text-success bg-success")
