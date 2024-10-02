@@ -544,9 +544,43 @@ recForm  paramM = renderBootstrap3 BootstrapBasicForm form  where
 {-# NOINLINE getGLBankReconciliateR #-}
 getGLBankReconciliateR :: Text -> Handler Html
 getGLBankReconciliateR account = do
-  today <- todayH
-  renderReconciliate account defaultParam  {rpStartDate = Just $ calculateDate (AddMonths (-3)) today}
+  lastRec <- getLastRecDate account
+  firstUnRec <- getFirstUnRecDate account
+  param <- case (lastRec, firstUnRec) of
+              (Nothing, Nothing) -> do
+                      today <- todayH
+                      return  defaultParam  {rpStartDate = Just $ calculateDate (AddMonths (-3)) today}
+              (Just last, unrecm) ->  do
+                 let recDate = calculateDate (AddMonths 1) last
+                 return defaultParam  { rpStartDate = Just $ calculateDate (AddDays 1) (minimumEx $ last : toList unrecm)
+                                      , rpRecDate = Just recDate
+                                      , rpEndDate = Just $ calculateDate (AddDays 3) recDate
+                                      }
+              (Nothing, Just unrec) ->  do
+                 return defaultParam  { rpStartDate = Just $ unrec }
+  renderReconciliate account param
   
+getLastRecDate :: Text -> Handler (Maybe Day)
+getLastRecDate account = do
+  bankSettings <- settingsFor account
+  let sql = "select max(reconciled) from 0_bank_trans where bank_act = ?"
+  datem <- runDB $ rawSql sql [toPersistValue (bsBankAccount bankSettings) ]
+  case datem of
+     [Just (Single maxDate)] -> return maxDate
+     _ -> return Nothing
+     
+getFirstUnRecDate :: Text -> Handler (Maybe Day)
+getFirstUnRecDate account = do
+  bankSettings <- settingsFor account
+  let sql = "select min(trans_date) from 0_bank_trans where bank_act = ? "
+         <> " and reconciled is null and abs(amount) > 1e-6"
+  datem <- runDB $ rawSql sql [toPersistValue (bsBankAccount bankSettings) ]
+  return $ case datem of
+    [Just (Single minDate)] -> minDate
+    _ -> Nothing
+    
+
+
 {-# NOINLINE postGLBankReconciliateR #-}
 postGLBankReconciliateR :: Text -> Handler Html
 postGLBankReconciliateR account = do
