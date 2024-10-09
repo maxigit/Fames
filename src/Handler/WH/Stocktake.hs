@@ -504,11 +504,19 @@ processStocktakeSheet mode = do
             stocktakes <- deactivateOldStocktakes stocktakes0
             let boxtakes0 = do
                   group_ <- groups
-                  let descriptionF = case group_ of
-                                        [__one_row] -> id
-                                        (_:_) -> (<> "*")
-                                        _ -> error "shouldn't happen"
-                  take 1 $ mapMaybe (toBoxtake keyId descriptionF) group_
+                  let i'row = case group_ of
+                               [] -> error "the impossible happend"
+                               [i'r] -> i'r
+                               (i,r):_ -> let rows = map snd group_
+                                              batch = case groupUniqueTexts $ map (fromMaybe "?" . rowBatch) rows of
+                                                             "?" -> Nothing
+                                                             other -> Just other
+                                                             -- empty batch (Nothing) should genarate Nothing
+                                                             -- but A & Nothing -> should gives "?&A" not "A"
+                                                             -- so we now there is a more than one batch in the box
+                                              colours = groupUniqueTexts $ map  rowColour rows
+                                                in (i,r { rowBatch = batch, rowColour = colours })
+                  mapMaybe (toBoxtake keyId) [i'row ]
                 boxtakes = deactivateOldBoxtakes stocktakes boxtakes0
             -- traceShowM("ST", stocktakes, boxtakes)
           
@@ -614,6 +622,9 @@ processStocktakeSheet mode = do
 quickPrefix = "ZT" :: Text
 quickPrefix :: Text
      
+groupUniqueTexts :: [Text] -> Text
+groupUniqueTexts = intercalate "&" . nub . sort
+
 insertQuickTakes :: Key DocumentKey -> [FinalQuickRow] -> SqlHandler ()
 -- insertQuickTakes _ [] = return ()
 insertQuickTakes docId quicks = do
@@ -1126,9 +1137,9 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
                       rowBatch
 
 
-toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalFullRow) -> Maybe Boxtake
-toBoxtake docId descriptionFn (col, TakeRow{..}) =
-  Just $ Boxtake (Just $ descriptionFn (makeSku rowStyle rowColour))
+toBoxtake :: DocumentKeyId -> (Int, FinalFullRow) -> Maybe Boxtake
+toBoxtake docId (col, TakeRow{..}) =
+  Just $ Boxtake (Just (makeSku rowStyle rowColour))
                  (tshow col)
                  rowLength rowWidth rowHeight
                  rowBarcode (expanded rowLocation)
