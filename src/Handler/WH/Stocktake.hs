@@ -576,6 +576,8 @@ processStocktakeSheet mode = do
                                               , StocktakeHistory =. ( stocktakeDate s
                                                                     , stocktakeOperator s
                                                                     ) : stocktakeHistory old
+                                              , StocktakeBatch =. stocktakeBatch s
+                                              , StocktakeComment =. stocktakeComment s
                                               ]
                   mapM_ (\b -> do
                     let unique = UniqueBB (boxtakeBarcode b)
@@ -593,6 +595,7 @@ processStocktakeSheet mode = do
                                                         ,  BoxtakeActive =. boxtakeActive b
                                                         ,  BoxtakeOperator =. boxtakeOperator b
                                                         ,  BoxtakeDocumentKey =. boxtakeDocumentKey b
+                                                        ,  BoxtakeBatch =. boxtakeBatch b
                                                         ]
                     -- print (b, existM)
                     -- upsert b []
