@@ -136,6 +136,10 @@ renderWHPackingList mode param reportParamM status message pre = do
           <tr>
             $forall value <- values
               <td>#{fromMaybe "" value}
+      <p> Boxes with multiple colour should start with some partial lines and be closed with a full box line.<br>
+          A partial line should not be full but have style, colour order quantity set and total quantity not set or 0.<br>
+          <b>order quantity</b>: quantity for the given colour<br>
+          <b>total quantity</b>: quantity  of all colours in case of mixed boxes<br>
     <div.well>
       <form #upload-form role=form method=post action=@{WarehouseR WHPackingListR} enctype=#{encType}>
         ^{form}
@@ -1202,7 +1206,21 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                                                                 () () () () ()
                                                                 () () () () Nothing
                                                   )
-                 _  -> Left raw
+                 -- partial group 
+                 row -> Left raw { plStyle = case plStyle row of
+                                                Nothing -> Left $ MissingValueError "Style"  
+                                                Just _ -> plStyle raw
+                                 , plColour = case plColour row of
+                                                Nothing -> Left $ MissingValueError "Colour"  
+                                                Just _ -> plColour raw
+                                 , plOrderQuantity = case plOrderQuantity row of
+                                                Nothing -> Left $ MissingValueError "OrderQuantity"  
+                                                Just _ -> plOrderQuantity raw
+                                 , plTotalQuantity = case validValue <$> plTotalQuantity row of
+                                                          Just q | q > 0 -> Left $ InvalidValueError "Total quantity should be 0 for partial box and empty for order reference line"
+                                                                                                     (tshow q)
+                                                          _ -> plTotalQuantity raw
+                                 }
 
               createOrder orderRef0 = PLRow (Provided orderRef0) Nothing () () () () () () () () () () ()  () () Nothing:: PLOrderRef
               groupRow :: Text -> [PLValid] -> Either [PLRaw] [ (PLOrderRef , [PLBoxGroup])]
