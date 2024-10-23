@@ -66,8 +66,10 @@ data UploadParam = UploadParam
   , departure :: Maybe Day
   , arriving :: Maybe Day
   , comment :: Maybe Textarea -- ^ any comment
-  , spreadsheet :: Textarea -- ^ the actual spreadsheet to upload/process
-  } deriving (Eq, Show)
+  , spreadsheet :: Maybe Textarea -- ^ the actual spreadsheet to upload/process
+  , fileInfo :: Maybe FileInfo
+  , fileEncoding :: Encoding
+  } -- deriving (Show)
 
 data PlannerInfo = PlannerInfo
   { location :: Maybe Text
@@ -85,7 +87,10 @@ uploadForm param = renderBootstrap3 BootstrapBasicForm form
             <*> (aopt dayField "departure" (fmap departure param ))
             <*> (aopt dayField "arriving" (fmap arriving param ))
             <*> (aopt textareaField "comment" (fmap comment param) )
-            <*> (areq textareaField "spreadsheet" (fmap spreadsheet param) )
+            <*> (aopt textareaField "spreadsheet" (fmap spreadsheet param) )
+            <*> aopt fileField "file" (fmap fileInfo param)
+            <*> areq  (selectField optionsEnum) "encoding" (fmap fileEncoding param)
+            <*> areq (selectField optionsEnum) "mixed box order" (fmap mixedBoxOrder param)
 
 {-# NOINLINE getWHPackingListR #-}
 getWHPackingListR :: Handler Html
@@ -200,9 +205,11 @@ postWHPackingListR = do
 
 processUpload :: Mode -> UploadParam -> Handler Html
 processUpload mode param = do
-  let bytes = encodeUtf8 . unTextarea $ spreadsheet param
-
-      renderBoxGroup :: PLBoxGroup -> Widget
+  bytes <- case (spreadsheet param, fileInfo param) of
+                  (Nothing, Nothing) -> return ""
+                  (Just tarea, Nothing) -> return $ encodeUtf8 (unTextarea tarea)
+                  (_, Just fi) -> fst <$> readUploadUTF8 fi (fileEncoding param)
+  let renderBoxGroup :: PLBoxGroup -> Widget
       renderBoxGroup (partials, full) = do
         topBorder
         [whamlet|
@@ -237,7 +244,7 @@ processUpload mode param = do
 
       onSuccess Validate groups = do
 
-        renderWHPackingList Save (Just param) Nothing
+        renderWHPackingList Save (Just $ param { spreadsheet = Just $ Textarea $ decodeUtf8 bytes }) Nothing
                             ok200 (setSuccess "Packing list valid")
                             [whamlet|
 <div.panel-group>
@@ -923,7 +930,9 @@ editForm pl doc = renderBootstrap3 BootstrapBasicForm form
             <*> (aopt dayField "departure" (Just . packingListDeparture =<< pl))
             <*> (aopt dayField "arriving" (Just . packingListArriving =<< pl))
             <*> (aopt textareaField "comment" (Just . Just . Textarea . documentKeyComment =<< doc))
-            <*> pure (Textarea "")
+            <*> pure Nothing
+            <*> aopt fileField "file" Nothing
+            <*> areq  (selectField optionsEnum) "encoding" (Just UTF8)
 
 renderEdit :: Int64  -> PackingList -> DocumentKey -> Handler Widget
 renderEdit key pl doc = do
