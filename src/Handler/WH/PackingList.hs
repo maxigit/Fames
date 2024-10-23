@@ -56,7 +56,8 @@ data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Show, Read, Enum)
 
 -- | Type of file
-data Format = PartialFirst deriving (Eq, Show)
+data MixedBoxOrder = PartialBoxFirst | ClosedBoxFirst 
+    deriving (Eq, Show, Enum, Bounded)
 data UploadParam = UploadParam
   { orderRef :: Text --  ^ original order reference
   , invoiceRef :: Text -- ^ name of the file to upload
@@ -69,6 +70,7 @@ data UploadParam = UploadParam
   , spreadsheet :: Maybe Textarea -- ^ the actual spreadsheet to upload/process
   , fileInfo :: Maybe FileInfo
   , fileEncoding :: Encoding
+  , mixedBoxOrder :: MixedBoxOrder
   } -- deriving (Show)
 
 data PlannerInfo = PlannerInfo
@@ -258,7 +260,7 @@ processUpload mode param = do
 
   renderParsingResult (renderWHPackingList mode (Just param) Nothing badRequest400) 
                       (onSuccess mode)
-    (parsePackingList (orderRef param) bytes)
+    (parsePackingList (mixedBoxOrder param) (orderRef param) bytes)
 
   -- -| Update denormalized fields, ie boxesToDeliver_d
 updateDenorm :: Key PackingList -> SqlHandler ()
@@ -291,7 +293,7 @@ updatePackingListDetails mode key cart = do
 
   renderParsingResult (\msg pre -> do msg >>  viewPackingList EditDetails key pre)
                       onSuccess
-                      (parsePackingList orderRef bytes)
+                      (parsePackingList PartialBoxFirst orderRef bytes)
 
 updatePackingListInvoices :: Int64 -> Textarea -> Handler TypedContent
 updatePackingListInvoices key cart = do
@@ -937,6 +939,7 @@ editForm pl doc = renderBootstrap3 BootstrapBasicForm form
             <*> pure Nothing
             <*> aopt fileField "file" Nothing
             <*> areq  (selectField optionsEnum) "encoding" (Just UTF8)
+            <*> areq (selectField optionsEnum) "mixed box order" (Just PartialBoxFirst)
 
 renderEdit :: Int64  -> PackingList -> DocumentKey -> Handler Widget
 renderEdit key pl doc = do
@@ -1171,16 +1174,22 @@ transformOrder PLRow{..} = PLRow
   (Right Nothing)
 
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
-parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  [(PLOrderRef , [PLBoxGroup])]
-parsePackingList orderRef bytes = either id ParsingCorrect $ do
+parsePackingList :: MixedBoxOrder -> Text -> ByteString -> ParsingResult PLRaw  [(PLOrderRef , [PLBoxGroup])]
+parsePackingList mixedBoxOrder orderRef bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
         let rawsE = map validate raws
+            -- to parse mixed box with closed box (so full line) first
+            -- we need to parse lines in reverse order (so that the partial lines
+            -- appear first and are closed by the full box)
+            (revRows, revGroup) = case mixedBoxOrder of
+                     PartialBoxFirst -> (id, reverse)
+                     ClosedBoxFirst -> (reverse, id)
         rows <- sequence rawsE <|&> const (InvalidFormat . lefts $ rawsE)
-        groups <-  groupRow orderRef rows <|&> InvalidData ["A Box might not be closed"] []
+        groups <-  groupRow orderRef (revRows rows) <|&> InvalidData ["A Box might not be closed"] []
         let validGroups = concatMap (map validateGroup . snd) groups
         -- sequence validGroups <|&> const (InvalidData [] $ concatMap (either id (\(partials,main) -> transformRow main : map transformPartial partials )) validGroups)
         _ <- sequence validGroups <|&> const (InvalidData [] [] . concat $ lefts validGroups)
-        Right $  map (map reverse) groups
+        Right $  map (map $ revGroup) groups
         -- Right $  valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
