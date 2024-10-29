@@ -291,7 +291,8 @@ renderView param0 = do
               PlannerBestAvailableShelvesFor -> let
                 -- needed to use a different key to cache the warehouse
                 -- as this report modify the warehouse. We don't want it to modify the cached one
-                (styles, (_, pmode,_,_)) = extractModes $ fromMaybe "" (pParameter param)
+                (styles, (_, pmodem,_,_)) = extractModes $ fromMaybe "" (pParameter param)
+                pmode = fromMaybe PRightOnly pmodem
                 in renderConsoleReport (bestAvailableShelvesFor pmode styles) (scenario `mappend` extra)
 
               PlannerGenerateMoves -> renderConsoleReport (generateMoves SortBoxes boxSelectorM boxStyle) scenario

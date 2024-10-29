@@ -12,5 +12,5 @@ main = do
   let (yml, others) = partition (".yml" `isSuffixOf`) args
   withArgs yml $ handlerWith (\s -> s { appStaticDir = ".", appSkipStyleCategory = True, appRunMigration = False}) do
       run <- askRunInIO 
-      let dispatch path section = run $ importFamesDispatch' path section
+      let dispatch path nestedLevel section = run $ importFamesDispatch' path nestedLevel section
       liftIO $ withArgs others $ W.defaultMainWith dispatch

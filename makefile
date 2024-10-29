@@ -184,7 +184,7 @@ prof_planner: # build_profile_planner
 	    -- /home/max/devel/mae/fames-config/development.yml  \
 				 /home/max/devel/mae/fames-config/prod-var.yml \
 		     -d /home/max/Dropbox/Fames/Planner \
-			-i activeBoxes/live -x > live.txt \
+			-i activeBoxes/live -X > live.txt \
 			+RTS -p -hbvoid -hr -l-au
 	mkdir -p .prof
 	mv -f FPlanner.hp FPlanner.prof  .prof

@@ -71,14 +71,14 @@ mkYesodSubData "FI" [parseRoutes|
 
 __avoid_unused_warning_for_resourcesFI = resourcesFI 
 -- *  Dispatcher 
-importFamesDispatch :: Section -> Handler (Either Text [Section])
-importFamesDispatch section = do
+importFamesDispatch :: Int -> Section -> Handler (Either Text [Section])
+importFamesDispatch nestedLevel section = do
   plannerDir <- appPlannerDir <$> getsYesod appSettings
-  importFamesDispatch' plannerDir section
+  importFamesDispatch' plannerDir nestedLevel section
 {-# NOINLINE importFamesDispatch' #-}
-importFamesDispatch' :: FilePath -> Section -> Handler (Either Text [Section])
-importFamesDispatch' plannerDir section = do
-  importDispatch plannerDir dispatch section
+importFamesDispatch' :: FilePath -> Int -> Section -> Handler (Either Text [Section])
+importFamesDispatch' plannerDir nestedLevel section = do
+  importDispatch plannerDir nestedLevel dispatch section
   where
   dispatch main tags = do
     let pieces = splitOn "/" main
