@@ -915,33 +915,6 @@ loadStockAdjustments infoMap param = do
   return $ map (moveToTransInfo infoMap) moves <> initials
 
 
--- | Load a set of filtered sku. This correspond of matching the ReportParam criteria.
--- Useful to filter the forecast for example.
-loadValidSkus :: ReportParam -> Handler (Set Text)
-loadValidSkus  param =  do
-  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
-  let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
-  let sql = intercalate " " $
-          "SELECT distinct stock_id " :
-          "FROM 0_stock_master" :
-          (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
-          ("WHERE stock_id LIKE '" <> stockLike <> "'") : 
-          []
-
-      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw, v)
-                                               )) ?:
-                       case catFilterM of
-                            Nothing -> []
-                            Just (catToFilter, catFilter) ->
-                                 let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw, v)
-                                    , (" AND category.category = ? ", [PersistText catToFilter])
-                                    ]
-
-  rows <- runDB $ rawSql (sql <> intercalate " " w) p
-  return $ setFromList $ map unSingle rows
-
 -- | Basic item information, cost, price initital, stock at the start day (-1)
 loadStockInfo :: ReportParam -> Handler (Map Sku ItemInitialInfo)
 loadStockInfo param = do
@@ -958,7 +931,7 @@ loadStockInfo param = do
           "LEFT JOIN 0_prices AS p ON (sm.stock_id = p.stock_id AND p.sales_type_id = ?) " :
           ("LEFT JOIN (" <> qoh <> ") qoh ON (sm.stock_id = qoh.stock_id)" ) :
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (sm.stock_id=category.stock_id)" else "" ) :
-          (" WHERE sm.stock_id LIKE '" <> stockLike <> "'") : 
+          (" WHERE sm.stock_id LIKE '" <> stockLike <> "' and inactive = 0") : 
           []
       order = " ORDER BY sm.stock_id " 
       (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
