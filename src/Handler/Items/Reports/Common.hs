@@ -35,6 +35,7 @@ data ReportParam = ReportParam
   , rpCategoryToFilter :: Maybe Text
   , rpCategoryFilter :: Maybe FilterExpression
   , rpStockFilter :: Maybe FilterExpression
+  , rpShowInactive :: Bool
   , rpPanelRupture :: ColumnRupture
   , rpBand :: ColumnRupture
   , rpSerie :: ColumnRupture
@@ -66,6 +67,7 @@ defaultReportParam today fromToday = ReportParam {..} where
   rpCategoryToFilter = Nothing
   rpCategoryFilter = Nothing
   rpStockFilter = Nothing
+  rpShowInactive = True
   rpPanelRupture = emptyRupture
   rpBand = emptyRupture
   rpSerie = emptyRupture
@@ -88,11 +90,6 @@ data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
 data OrderQuantityMode = OOrderedQuantity | OQuantityLeft deriving (Eq, Show)
 data ColourMode = Panel'Band'Serie | Band'Colour'Serie | Panel'Colour'Serie | TraceColour deriving (Eq, Show, Bounded, Enum, Ord)
 data TraceGroupMode = GroupSeries | GroupTraces | GroupParams deriving (Eq, Show, Bounded, Enum, Ord)
-paramToCriteria :: ReportParam -> [Filter FA.StockMove]
-paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
-                                  (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
-                                  (filterE id FA.StockMoveStockId  rpStockFilter)
- 
 rpJustFrom ReportParam{..} = fromMaybe rpToday rpFrom
 rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
 rpLoadForecast = isJust . rpForecastDir
@@ -725,6 +722,7 @@ loadItemSales param = do
           " FROM 0_debtor_trans_details " :
           "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
           " AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
+          (if rpShowInactive param then "" else "JOIN 0_stock_master USING (stock_id)") :
           " LEFT JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
           "WHERE type IN ("  :
@@ -739,6 +737,8 @@ loadItemSales param = do
       (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw, v)
                                                )) ?:
+                                (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
+
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
@@ -780,6 +780,7 @@ loadItemOrders param io orderDateColumn qtyMode = do
   let sql0 = intercalate " " $
          "FROM 0_sales_order_details" :
          "JOIN 0_sales_orders USING(order_no, trans_type)" :
+          (if rpShowInactive param then "" else "JOIN 0_stock_master USING (stock_id)") :
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (stock_id = stk_code)" else "" ) :
           "WHERE trans_type = "  : (tshow $ fromEnum ST_SALESORDER) :
           "AND quantity != 0" :
@@ -788,6 +789,7 @@ loadItemOrders param io orderDateColumn qtyMode = do
       (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stk_code " <> keyw, v)
                                                )) ?:
+                                (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
@@ -822,6 +824,7 @@ loadItemPurchases param0 = do
           "SELECT ??, 0_supp_trans.tran_date, 0_supp_trans.rate, 0_supp_trans.supplier_id  FROM 0_supp_invoice_items " :
           "JOIN 0_supp_trans ON (0_supp_invoice_items.supp_trans_no = 0_supp_trans.trans_no " :
           " AND 0_supp_invoice_items.supp_trans_type = 0_supp_trans.type)  " :
+          (if rpShowInactive param then "" else "JOIN 0_stock_master USING (stock_id)") :
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
           "WHERE type IN ("  :
           (tshow $ fromEnum ST_SUPPINVOICE) :
@@ -835,6 +838,7 @@ loadItemPurchases param0 = do
       (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw, v)
                                                )) ?:
+                                (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
@@ -855,7 +859,8 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
         "SELECT ??, ??" :
         "FROM 0_purch_order_details" :
         "JOIN 0_purch_orders USING (order_no)" :
-        (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (stock_id = item_code)" else "" ) :
+        (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (category.stock_id = item_code)" else "" ) :
+        (if rpShowInactive param then "" else "JOIN 0_stock_master AS master ON (master.stock_id = item_code)") :
         "WHERE item_code LIKE '" <> stockLike <> "'" :
         ( case qtyMode of
             OOrderedQuantity -> "AND quantity_ordered != 0"
@@ -865,6 +870,7 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
       (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                   in (" AND item_code " <> keyw, v)
                                                  )) ?:
+                                (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                         case catFilterM of
                           Nothing -> []
                           Just (catToFilter, catFilter) ->
@@ -890,6 +896,7 @@ loadStockAdjustments infoMap param = do
   let sql = intercalate " " $
           "SELECT ??" :
           "FROM 0_stock_moves" :
+          (if rpShowInactive param then "" else "JOIN 0_stock_master USING (stock_id)") :
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
           ("WHERE type IN ('" <> tshow (fromEnum ST_INVADJUST) <> "', '" <> tshow (fromEnum ST_LOCTRANSFER) <> "')") :
           (" AND loc_code = '" <> defaultLocation <> "'") : 
@@ -900,6 +907,7 @@ loadStockAdjustments infoMap param = do
       (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw, v)
                                                )) ?:
+                                (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
@@ -937,6 +945,7 @@ loadStockInfo param = do
       (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND sm.stock_id " <> keyw, v)
                                                )) ?:
+                                (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->

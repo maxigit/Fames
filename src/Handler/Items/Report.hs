@@ -55,6 +55,7 @@ reportForm cols paramM extra = do
   (fCategoryToFilter, vCategoryToFilter) <- mopt (selectFieldList categoryOptions ) "category" (Just $ rpCategoryToFilter =<< paramM)
   (fCategoryFilter, vCategoryFilter) <- mopt filterEField  "filter" (Just $ rpCategoryFilter =<< paramM)
   (fStockFilter, vStockFilter) <- mopt filterEField  "sku" (Just $ rpStockFilter =<< paramM)
+  (fShowInactive, vShowInactive) <- mreq boolField  "inactive" (rpShowInactive <$> paramM)
   (fPanel, wPanel) <- ruptureForm colOptions "Panel" (rpPanelRupture <$> paramM)
   (fBand, wBand) <- ruptureForm colOptions "Band" (rpBand <$> paramM)
   (fSerie, wSerie) <- ruptureForm colOptions "Series" (rpSerie <$> paramM)
@@ -75,7 +76,7 @@ reportForm cols paramM extra = do
   (fColourMode, vColourMode) <- mreq (selectField optionsEnum) "Chart Colour Mode" (rpColourMode <$> paramM)
   (fGroupTrace, vGroupTrace) <- mopt (selectField optionsEnum) "Trace Group Mode" (rpTraceGroupMode <$> paramM)
   let fields = [ Left $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
-               , Left $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
+               , Left $ mapM_ renderField [vStockFilter, vShowInactive, vCategoryToFilter, vCategoryFilter]
                , Right ("panel-rupture" :: Text, [wPanel, wBand, wSerie , vColRupture ])
                , Right ("panel-trace", [ wTrace1, wTrace2, wTrace3 ])
                , Left $ mapM_ renderField [vSales, vOrder]
@@ -108,7 +109,7 @@ reportForm cols paramM extra = do
       report = mkReport today deduceTax fFrom  fTo
           fPeriod  fPeriodN
           fCategoryToFilter  fCategoryFilter
-          fStockFilter  fPanel  fBand  fSerie
+          fStockFilter  fShowInactive fPanel  fBand  fSerie 
           fColRupture  fTrace1  fTrace2  fTrace3
           fSales  fOrder fPurchases fPurchasesDateOffset fPOrders  fAdjustment (liftA3 (,,) fForecast fForecastInOut fForecastStart) fColourMode fGroupTrace
   return (report , form)
@@ -143,14 +144,14 @@ allTraces traceN =
 mkReport today deduceTax fFrom  fTo
    fPeriod  fPeriodN
    fCategoryToFilter  fCategoryFilter
-   fStockFilter  fPanel  fBand  fSerie
+   fStockFilter  fShowInactive fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
    fSales  fOrder fPurchases fPurchasesDateOffset fPOrders  fAdjustment fForecast
    fColourMode fGroupTrace =
   ReportParam <$> pure today <*> pure deduceTax <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
   <*> fCategoryToFilter <*> fCategoryFilter
-  <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
+  <*> fStockFilter <*> fShowInactive <*> fPanel <*> fBand <*> fSerie
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
   <*> fSales <*> fOrder
   <*> fPurchases <*> fPurchasesDateOffset <*> fPOrders
@@ -229,6 +230,7 @@ getItemsReportR' mode = do
                            Nothing -- rpToCategoryToFilter
                            Nothing -- rpToCategoryFilter
                            Nothing --  rpStockFilter :: Maybe FilterExpression
+                           True   -- rpShowInactive 
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
                            (ColumnRupture (Just band)  bestSales (Just RMResidual) (Just 20) False)--  rpBand :: ColumnRupture
                            (ColumnRupture (Just serie)  bestSales (Just RMResidual) (Just 20) False)--  rpSerie :: ColumnRupture
@@ -249,6 +251,7 @@ getItemsReportR' mode = do
                            Nothing -- rpToCategoryToFilter
                            Nothing -- rpToCategoryFilter
                            Nothing --  rpStockFilter :: Maybe FilterExpression
+                           True    -- rpShowInactive
                            (ColumnRupture (Just band) bestSales (Just RMResidual) (Just 20) False)--  rpBand :: ColumnRupture
                            (ColumnRupture (Just serie) bestSales (Just RMResidual)  (Just 20) False)--  rpSerie :: ColumnRupture
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
@@ -395,6 +398,7 @@ getItemsReportSalesForecastStockR = do
                , rpLoadPurchases = True
                , rpLoadPurchaseOrders = Just (ODeliveryDate, OQuantityLeft)
                , rpLoadAdjustment = True
+               , rpShowInactive = False
                }
   postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
 
@@ -420,6 +424,7 @@ getItemsReportSalesForecastStock6R = do
                , rpLoadPurchases = True
                , rpLoadPurchaseOrders = Just (ODeliveryDate, OQuantityLeft)
                , rpLoadAdjustment = True
+               , rpShowInactive = False
                }
   postItemsReportFor ItemsReportR (Just ReportChart) (Just param)
 
