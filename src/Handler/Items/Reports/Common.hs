@@ -600,6 +600,7 @@ loadItemTransactions param grouper = do
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments stockInfo param
+  futureDeliveries <- loadIf rpLoadAdjustment $ loadUpComingContainer stockInfo param
   forecasts <- case rpForecast param of
     (Nothing, _, _) -> return []
     (Just forecastDir, io, forecastStart) -> loadItemForecast io forecastDir stockInfo (fromMaybe (rpJustFrom param) forecastStart) (rpJustTo param)
@@ -614,7 +615,7 @@ loadItemTransactions param grouper = do
       orderGroups = grouper' salesOrders
       purchaseGroups = grouper'  purchases
       purchaseOrderGroups = grouper'  $ fromMaybe [] purchaseOrders
-      adjGroups = grouper' adjustments
+      adjGroups = grouper' $ adjustments <> futureDeliveries
       forecastGroups = grouper' forecasts
       grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder custCategories custCatFinder) 
         
@@ -735,7 +736,7 @@ loadItemSales param = do
           -- " LIMIT 100" :
           []
       (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw, v)
+                                                      in (" AND stock_id "<>keyw<>" ", v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
 
@@ -922,7 +923,72 @@ loadStockAdjustments infoMap param = do
 
   return $ map (moveToTransInfo infoMap) moves <> initials
 
+-- | load all moves in upcoming location, ie location with a delivery date.
+-- all movements before the location date will be aggregated as one on the delivery date.
+loadUpComingContainer :: Map Sku ItemInitialInfo -> ReportParam -> Handler [(TranKey, TranQP)]
+loadUpComingContainer infoMap param = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  loc'dates <- getUpcomingLocation
+  key'qpss <- forM loc'dates \(loc, deliveryDate) -> do
+     let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
+     let sql = intercalate " " $
+             "SELECT ??" :
+             "FROM 0_stock_moves" :
+             (if rpShowInactive param then "" else "JOIN 0_stock_master USING (stock_id)") :
+             (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
+             ("WHERE loc_code = '" <> loc <> "'") : 
+             " AND qty != 0" :
+             ("AND stock_id LIKE '" <> stockLike <> "'") : 
+             []
 
+         (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                          in (" AND stock_id " <> keyw, v)
+                                                   )) ?:
+                                    (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
+                           case catFilterM of
+                                Nothing -> []
+                                Just (catToFilter, catFilter) ->
+                                     let (keyw, v) = filterEKeyword catFilter
+                                     in [ (" AND category.value " <> keyw, v)
+                                        , (" AND category.category = ? ", [PersistText catToFilter])
+                                        ]
+                           <> toT'Ps (generateTranDateIntervals param { rpFrom = Nothing } )
+     moves0 <- runDB $ rawSql (sql <> intercalate " " w) p
+     let moves = mapMaybe (adjustDate $ maybe id max (rpFrom param) deliveryDate) moves0
+     -- let initials = createInitialStock infoMap
+     return $ map (moveToTransInfo infoMap) moves -- <> initials
+  
+  return $ concat key'qpss
+  where adjustDate :: Day -> Entity FA.StockMove -> Maybe (Entity FA.StockMove)
+        adjustDate deliveryDate e = let move = entityVal e
+                                        date = stockMoveTranDate move
+                                        newDateM = if | Just end <- rpTo param , date > end -> Nothing
+                                                      -- | date > deliveryDate -> Nothing
+                                                      -- | Just start <- rpFrom param, date < start -> Just  start
+                                                      | otherwise -> Just $ max deliveryDate  date
+                                    in flip fmap newDateM \newDate -> e{ entityVal  = move { stockMoveTranDate = newDate
+                                                                                      , stockMoveType = fromEnum ST_INVADJUST
+                                                                                      }
+                                                                 }
+
+  
+
+-- | Load other location with their code and coming day.
+getUpcomingLocation :: Handler [(Text, Day)]
+getUpcomingLocation = do
+  defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
+  let sql = intercalate " " 
+          [ "SELECT loc_code, availability_date "
+          , "FROM 0_locations"
+          , "WHERE loc_code <> '" <> defaultLocation <> "'" 
+          , "AND inactive = false"
+          , "AND stock_weight = 1" -- stock matters as opposite to BROKEN location with stock_weight of 0
+          , "AND availability_date IS NOT NULL"
+          ]
+  rows <- runDB $ rawSql sql []
+  return $ map (\(Single location, Single deliveryDate) -> (location, deliveryDate)) rows
+
+  
 -- | Basic item information, cost, price initital, stock at the start day (-1)
 loadStockInfo :: ReportParam -> Handler (Map Sku ItemInitialInfo)
 loadStockInfo param = do
