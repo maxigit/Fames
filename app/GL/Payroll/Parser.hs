@@ -30,6 +30,7 @@ import Data.Map(Map)
 import Text.Read (readMaybe)
 import Data.Align (align)
 import Locker
+import Data.List (partition)
 
 data Current = Current
         { _currentEmployee :: Maybe PayrooEmployee
@@ -287,10 +288,22 @@ parseFastTimesheet lines_ = do -- Either
     tokenss <- mapM (mapM token . tokeninize) lines_ -- :: [[Either Token]]
     let go :: Current -> [[Token]] -> Either String (Timesheet String PayrooEmployee)
         go current_ tss = (^.currentTimesheet) <$> foldM processLine current_ tss
-    case tokenss of
+    timesheet <- case tokenss of
         ([DayT start]:tokenss') -> go (initCurrent Weekly start) tokenss'
         ([FrequencyT frequency_, DayT start]:tokenss') -> go (initCurrent frequency_ start) tokenss'
         _ -> Left "File should start with the week start date"
+    -- validate shift are with period
+    let end = periodEnd timesheet
+        start = _periodStart timesheet
+        withinPeriod s = let (_,day,_) = s ^. shiftKey
+                         in day >= start && day <= end
+    case partition  withinPeriod (timesheet ^. shifts) of
+        (_,s:_) -> Left $ "shift " <> show (s ^. shiftKey . _2)
+                        <> " (" <> s ^. nickName
+                        <> ") outside of period ["
+                        <> show start <> "," <> show end <> "]"
+        _ -> return timesheet
+
 
 -- | Process a full line of tokens.
 -- One line should correspond to only one operators.
