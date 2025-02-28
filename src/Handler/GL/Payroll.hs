@@ -198,6 +198,7 @@ getGLPayrollViewR key = do
       -- We don't provide a default value
       -- to prevent accidental save to FrontAccounting
   (faFormW, faEncType)  <- generateFormPost faForm
+  -- create quick add form with just the header to select  the curret timesheet.
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (tse, shifts, items) -> do
@@ -238,6 +239,10 @@ getGLPayrollViewR key = do
                                 |]
           
       let showDate d =  formatTime defaultTimeLocale "%a %d %h %Y" d
+      (upFormW, upEncType) <- generateFormPost $ uploadForm Validate
+                                                            (Just $ UploadParam  (Textarea $ pack ">>" <> timesheetReference ts )
+                                                                                 Nothing
+                                                            )
       defaultLayout $ do
         setTitle . toHtml $ "Timesheet " <> timesheetReference ts
         [whamlet|
@@ -255,6 +260,9 @@ getGLPayrollViewR key = do
               <button type="submit" .btn.btn-warning>Reject 
             <form role=form method=post action=@{GLR $ GLPayrollToPayrooR key}>
               <button type="submit" .btn.btn-info>Download Payroo 
+            <form #upload-form role=form method=post action=@{GLR GLPayrollValidateR} enctype=#{upEncType}>
+              ^{upFormW}
+             <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
           $else 
             <form role=form method=get action=@{GLR $ GLPayrollVoidFAR key}>
               <button type="submit" .btn.btn-danger>Void in FrontAccounting
