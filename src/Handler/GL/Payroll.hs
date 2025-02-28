@@ -362,6 +362,7 @@ getGLPayrollVoidFAR timesheetId = do
       <table.table.table-hover.table-strip>
         <tr>
             <th> Trans Type
+            <th> Date
             <th> Trans No
             <th> Event Type
             <th> Supplier
@@ -373,6 +374,7 @@ getGLPayrollVoidFAR timesheetId = do
           $with entityName <- entityNameMH transType . fmap fromIntegral
             <tr :voided:.text-muted>
               <td> #{t $ showTransType transType}
+              <td> #{maybe "" (tshow . FA.suppTranTranDate) trans}
               <td>
                 <a href="#{urlForFA faURL transType transNo}">#{tshow transNo} 
               <td>
