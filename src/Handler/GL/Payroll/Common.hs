@@ -861,7 +861,7 @@ rowTotal periodStart shiftMap operators = let
 
 -- * To Front Accounting 
 -- ** GRN 
-saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet _ (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, [PayrollShiftId])]
+saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet _ (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, Map TS.Sku [PayrollShiftId])]
 saveGRNs settings __key timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
@@ -873,13 +873,16 @@ saveGRNs settings __key timesheet = do
                                             in (day, stype)
                                  )
                                  (TS._shifts timesheet)
-      carts :: [(TS.Textcart, [PayrollShiftId])]
+      carts :: [(TS.Textcart, Map TS.Sku [PayrollShiftId])]
       carts = [ ( textcart
                 , pKeys
                 )
               | ((_, stype), shifts) <- Map.toList cartShiftsMap
-              , let pKeys = map (snd . view _1 . TS._shiftKey) shifts
+              , let shiftKey = snd . view _1 . TS._shiftKey
+              , let shiftSku = fst . view _1 . TS._shiftKey
               , let shiftsSku = (\((a,_), b, c) -> (a,b,c)) <$$> shifts
+              , let pKeys =  Map.fromListWith (++) $ zip (map shiftSku shifts)
+                                                         (map (pure . shiftKey) shifts)
               -- normal we should have exactly 1 textcart
               , textcart <- TS.textcarts stype (TS.Timesheet shiftsSku
                                                              (TS._periodStart timesheet)
@@ -907,22 +910,23 @@ saveGRNs settings __key timesheet = do
            , pKeys
            )
       grns = map mkGRN carts
-  mapM ( \(grn, keys) -> do
+  mapM ( \(grn, keyMap) -> do
            faId <- ExceptT . liftIO $ WFA.postGRN connectInfo grn
            -- save payroll details instead of timesheet
            ExceptT $ runDB $ do
              insertMany_ [ TransactionMap ST_SUPPRECEIVE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key) False
-                         | key <- keys
+                         | keys <- toList keyMap
+                         , key <- keys
                          ]
              return (Right ())
-           return (faId, keys)
+           return (faId, keyMap)
        ) grns
 
 -- ** Invoice 
 saveInvoice :: (Int -> WFA.GLAccount) -> Day
             -> AppSettings
             -> TS.Timesheet (Text, PayrollExternalSettings) _
-            -> [(Int, [PayrollShiftId])]
+            -> [(Int, Map TS.Sku [PayrollShiftId])]
             -> ExceptT Text Handler Int
 saveInvoice mkAccount today settings timesheet deliveries = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
@@ -940,7 +944,8 @@ saveInvoice mkAccount today settings timesheet deliveries = do
   faId <- ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
   ExceptT $ runDB $ do
     insertMany_ [ TransactionMap ST_SUPPINVOICE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key) False
-                | (_, keys) <- deliveries
+                | (_, keyMap) <- deliveries
+                , keys <- toList keyMap
                 , key <- keys
                 ]
     return (Right ())
