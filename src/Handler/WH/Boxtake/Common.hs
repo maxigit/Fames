@@ -5,6 +5,8 @@ module Handler.WH.Boxtake.Common
 , dimensionPicture
 , displayActive
 , extractPosition
+, joinPosition
+, Location(..)
 )
 where
 
@@ -12,6 +14,9 @@ import Import
 import WarehousePlanner.Type
 import Util.ForConduit
 import qualified Data.Conduit.List as C
+
+newtype Location = Location {unLocation :: Text}
+  deriving (Show, Eq, Ord)
 
 
 loadStocktakes' :: SqlConduit (Entity Boxtake) (ForMap (Entity Boxtake) [Entity Stocktake]) ()
@@ -43,10 +48,14 @@ dimensionPicture width Boxtake{..} =  do
 orientations = mconcat $ ":" : map showOrientation' allOrientations
 -- | Extract the position from a location
 -- Eg E01.02/2:1:1:1 => Just (Just ':', 1:1:1)
-extractPosition :: Text -> (Text, Maybe (Maybe Char, Text))
+extractPosition :: Text -> (Location, Maybe (Maybe Char, Text))
 extractPosition location =
   case break (`elem` orientations) location of
-        (loc, uncons -> Just (o, position)) -> (loc, Just (if o == ':' then Nothing else Just o, position))
-        _                                   -> (location, Nothing)
+        (loc, uncons -> Just (o, position)) -> (Location loc, Just (if o == ':' then Nothing else Just o, position))
+        _                                   -> (Location location, Nothing)
 
 
+joinPosition :: Location -> (Maybe (Maybe Char, Text)) -> Text
+joinPosition (Location loc) posm = case posm of
+     Nothing -> loc
+     Just (mc,pos) -> loc <> cons (fromMaybe ':' mc) pos

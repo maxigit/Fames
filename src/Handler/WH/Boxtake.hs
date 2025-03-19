@@ -103,7 +103,7 @@ postWHBoxtakeSaveR = do
   actionM <- lookupPostParam "action"
   case actionM of
     Just "Planner" -> processBoxtakeSheet' Save uploadPlannerCsv
-    Just "Stocktake" -> let adjust Session{..} box = box { boxtakeLocation = sessionLocation
+    Just "Stocktake" -> let adjust Session{..} box = box { boxtakeLocation = unLocation sessionLocation
                                                          , boxtakeOperator = entityKey sessionOperator
                                                          , boxtakeDate = sessionDate
                                                          }
@@ -129,7 +129,7 @@ uploadPlannerCsv _ _ (sessions, _) = do
   setAttachment "boxscan.org"
   respondSource "text/plain" (source .| unlinesC .| mapC toFlushBuilder)
   where sessionToBoxes session = HasPosition (sessionHasPosition session)
-                                             (mapMaybe (go $ sessionLocation session)
+                                             (mapMaybe (go $ unLocation $ sessionLocation session)
                                                        (sessionRows session)
                                              )
         go location row = case rowBoxtake $ row of
@@ -213,20 +213,21 @@ data WithHeader = WithHeader | WithoutHeader
 boxSourceToCsv :: Monad m => WithHeader -> ConduitT (HasPosition [(Entity Boxtake, [Text])]) Text m ()
 boxSourceToCsv  ((== WithHeader) -> withHeader) = awaitForever go
   where go (HasPosition hasPosition boxes) = do
-         when withHeader do
-              if hasPosition
-              then  do
-                 forM_ (headMay boxes) \(Entity _ box, _) ->  yield ("** " <> fst (extractPosition (boxtakeLocation box)) <> "")
-                 yield ":STOCKTAKE:"
-                 yield csvHeaderWithPosition
-              else do
-                 forM_ (headMay boxes) \(Entity _ box, _) ->  yield ("** " <> fst (extractPosition (boxtakeLocation box)) <> "")
-                 yield ("*** Without position")
-                 yield ":STOCKTAKE:"
-                 yield csvHeaderWithoutPosition
-         sourceList boxes .| mapC (toPlanner . HasPosition hasPosition)
-         when withHeader $ void do
-              yield ":END:"
+           when withHeader do
+                if hasPosition
+                then  do
+                   forM_ (headMay boxes) \(Entity _ box, _) ->  yield ("** " <> boxLocation box <> "")
+                   yield ":STOCKTAKE:"
+                   yield csvHeaderWithPosition
+                else do
+                   forM_ (headMay boxes) \(Entity _ box, _) ->  yield ("** " <> boxLocation box <> "")
+                   yield ("*** Without position")
+                   yield ":STOCKTAKE:"
+                   yield csvHeaderWithoutPosition
+           sourceList boxes .| mapC (toPlanner . HasPosition hasPosition)
+           when withHeader $ void do
+                yield ":END:"
+        boxLocation = unLocation . fst . extractPosition . boxtakeLocation
   
 csvHeaderWithPosition, csvHeaderWithoutPosition :: Text
 csvHeaderWithPosition = "Bay No,Position,Style,Length,Width,Height,Orientations" 
@@ -606,7 +607,7 @@ table.collapse.in
 <div.panel class="panel-#{class_}" data-toggle="collapse" data-target="##{sessionId}">
   <div.panel-heading>
     <table style="width:100%;"><tr>
-      <td> #{sessionLocation}
+      <td> #{unLocation sessionLocation}
       <td> #{tshow $ length sessionRows} Boxes
       <td> #{tshow $ length sessionMissings } Missings
       <td> #{formatDouble volume} m<sup>3

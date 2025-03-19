@@ -31,8 +31,9 @@ import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Either
-import Handler.WH.Boxtake.Common (extractPosition)
+import Handler.WH.Boxtake.Common (extractPosition, Location(..), joinPosition)
 import WarehousePlanner.SimilarBy
+
 -- * Type 
 -- | The raw result of a scanned row
 data RawScanRow = RawDate Day
@@ -59,21 +60,23 @@ data ScannedRow = DateRow Day
 -- No box means the shelf is empty.
 data Row = Row
   { rowBoxtake :: Maybe (Entity Boxtake)
-  , rowLocation :: Text
+  , rowLocation :: Location
   , rowDate :: Day
   , rowOperator :: (Entity Operator)
   , rowDepth :: Int
   , rowForPlanner :: [Text]
+  , rowPosition :: Maybe (Maybe Char, Text)
   } deriving (Eq, Show)
 
 -- | As Row but with maybe
 data LastScanned = LastScanned 
   { lastBoxtake :: Maybe (Entity Boxtake)
-  , lastLocation :: Maybe Text
+  , lastLocation :: Maybe Location
   , lastDate :: Maybe Day
   , lastOperator :: Maybe (Entity Operator)
   , lastDepth :: Int
   , lastForPlanner :: [Text]
+  , lastPosition :: Maybe (Maybe Char, Text)
   } deriving (Eq, Show)
 
 -- | A grouped version of rows by locations
@@ -81,7 +84,7 @@ data LastScanned = LastScanned
 data Session = Session
   { sessionDate :: Day
   , sessionOperator :: Entity Operator
-  , sessionLocation :: Text
+  , sessionLocation :: Location
   , sessionRows :: [Row]
   , sessionMissings :: [Entity Boxtake] -- ^ boxes not present
   , sessionHasPosition :: Bool -- ^ Needed to export to planner 
@@ -186,13 +189,13 @@ parseScan wipeMode spreadsheet = do -- Either
           let isLocationValid loc  = 
                 if wipeMode == Deactivate 
                 then True
-                else loc `member` locations
+                else unLocation (fst (extractPosition loc)) `member` locations
           rows <- mapM (loadRow isLocationValid findOperator) raws
           case sequence rows of
             Left _ -> -- there is some error
               return $ InvalidData [] (filter isLeft rows) rows
             Right rights_ -> do
-              let (_, fullEs) = mapAccumL makeRow emptyLastScanned {lastLocation = if wipeMode == Deactivate then Just "LOST" else Nothing} rights_
+              let (_, fullEs) = mapAccumL makeRow emptyLastScanned {lastLocation = if wipeMode == Deactivate then Just (Location "LOST") else Nothing} rights_
               case  sequence (catMaybes fullEs) of
                 Left _ -> let -- errors, we need to join them with initial rows
                   joinError raw _ (Just (Left e)) = Left (InvalidValueError e (rawText raw))
@@ -231,15 +234,18 @@ makeRow lastScan row = case (row, lastBoxtake lastScan) of
   (OperatorRow op, Nothing) -> (lastScan {lastOperator = Just op}, Nothing)
   -- check if the same location is called twice in a row  with nothing
   -- this means an empty shelf
-  (LocationRow newLoc, Nothing) | LastScanned{lastDate=Just day, lastOperator=Just op, lastLocation =Just loc} <- lastScan
+  (LocationRow newLocAndPos, Nothing) | LastScanned{lastDate=Just day, lastOperator=Just op, lastLocation =Just loc} <- lastScan
+                          , (newLoc, posm) <- extractPosition newLocAndPos
                           , loc == newLoc
                     -- clear the next location so it needs be provide again
-                    -> ( lastScan {lastLocation = Nothing, lastForPlanner = []}
+                    -> ( lastScan {lastLocation = Nothing, lastForPlanner = [], lastPosition = posm}
                        , Just . Right $ Row Nothing loc day op
                                            (lastDepth lastScan)
                                            (lastForPlanner lastScan)
+                                           posm
                        )
-  (LocationRow loc, _) -> (lastScan {lastLocation = Just loc, lastDepth= 1, lastForPlanner = [] }, Nothing)
+  (LocationRow loc, _) -> let (newLoc, posm) = extractPosition loc
+                          in (lastScan {lastLocation = Just newLoc, lastDepth= 1, lastForPlanner = [], lastPosition = posm }, Nothing)
   (DepthRow d, _) -> (lastScan { lastDepth = d 
                                , lastForPlanner = lastForPlanner lastScan ++ if d > 1 && d /= lastDepth lastScan
                                                                              then ["NEW", "DEPTH"]
@@ -251,10 +257,15 @@ makeRow lastScan row = case (row, lastBoxtake lastScan) of
   (StrategyRow strat, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> ["SET STRATEGY", strat]}, Nothing)
   (ForPlannerRow for, _) -> (lastScan {lastForPlanner = lastForPlanner lastScan <> words for}, Nothing)
   (BoxRow box, _) | LastScanned{lastDate=Just day, lastOperator=Just op, lastLocation=Just loc} <- lastScan
-                    -> ( lastScan {lastBoxtake = Just box, lastForPlanner = []}
+                    -> ( lastScan {lastBoxtake = Just box, lastForPlanner = [], lastPosition = Nothing}
+                      --                                                        ^^^^^^^^^
+                      --                                                          |
+                      --                                                          +---- reset lastPosition so that 2 boxes are not in the same position
+                      --                                                                if we forget to set the position to Nothing
                        , Just . Right $ Row (Just box) loc day op
                                             (lastDepth lastScan)
                                             (lastForPlanner lastScan)
+                                            (lastPosition lastScan)
                        )
   (BoxRow _  , _)   -> let messages = execWriter $ do
                              let LastScanned{..} = lastScan
@@ -272,14 +283,12 @@ emptyLastScanned = LastScanned{ lastDate=Nothing
                               , lastLocation = Nothing
                               , lastDepth = 1
                               , lastForPlanner = []
+                              , lastPosition = Nothing
                               }
-
-newtype Location = Location {unLocation :: Text}
-  deriving (Show, Eq, Ord)
 
 groupBySession :: [Row] -> Either [Text] [Session]
 groupBySession rows = do -- Either
-  let rowByLocs = groupSimilar (Location . rowLocation) rows
+  let rowByLocs = groupSimilar (rowLocation) rows
       sessionEs = map makeSession (toList rowByLocs)
   case sequence sessionEs of
     Left _ -> Left $ lefts sessionEs
@@ -295,18 +304,18 @@ makeSession sim = do
       -- At the moment we allow duplicate and even triplicate
       -- to show skip
       rows = rows_
-      location = unLocation $ similarKey sim
+      location@(Location loc) = similarKey sim
       (woboxes, withboxes) = partition (isNothing . rowBoxtake) rows
   date <- extractUnique "date" (tshow) id rowDate rows
-      <|&> (<> ("For location" <> location))
+      <|&> (<> ("For location" <> loc))
   operator <- extractUnique "operator" (operatorNickname . entityVal)  entityKey rowOperator rows
-      <|&> (<> ("For location" <> location))
+      <|&> (<> ("For location" <> loc))
   -- if position are not required only one set of scans per location should be allowed
   -- check if shelve is empty or not
   (rows', hasPosition) <- case (woboxes, withboxes) of
     ([], wboxes) -> Right $ adjustForPlanner wboxes 
     (_, []) -> Right ([], False)
-    _ -> Left $ "Shelf " <> location <> " is at the same time empty and contains boxes"
+    _ -> Left $ "Shelf " <> loc <> " is at the same time empty and contains boxes"
 
   Right $ Session date operator location rows' [] hasPosition
   where removeConsecutiveDuplicates = concatMap (take 1) . groupBy ((==) `on` rowBoxtake)
@@ -395,15 +404,15 @@ renderRows renderUrl rows  =
             value 1 = Just ( renderBarcode renderUrl boxtakeBarcode , [])
             value 2 = Just ( toHtml $ fromMaybe "" $ boxtakeDescription, [])
             value 3 = Just ( toHtml $ oldLocation, if inOld then [] else ["text-danger"])
-            value 4 = Just ( toHtml $ newLocation, [])
+            value 4 = Just ( toHtml $ newLocation , if oldLocation == newLocation then [] else  ["text-warning"])
             value 5 =  Just  (toHtml $ intercalate " " rowForPlanner , [])
             value 6 = Just ( toHtml $ boxtakeActive, if rowIsFound row then ["text-danger"] else [])
             value 7 = Just ( toHtml . tshow $ boxtakeDate, [])
             value _ = Nothing
             oldLocation = boxtakeLocation 
             locationSet_ = Set.fromList $ map (fst . extractPosition) $ (splitOn "|" oldLocation)
-            inOld = newLocation `elem` locationSet_  || oldLocation == "DEF"
-            newLocation = rowLocation
+            inOld = rowLocation `elem` locationSet_  || oldLocation == "DEF"
+            newLocation = joinPosition rowLocation rowPosition
             rowClasses = case (inOld, rowIsFound row ) of
                          (_, True) -> ["bg-info"]
                          (False, _) -> ["bg-warning"]
@@ -411,7 +420,7 @@ renderRows renderUrl rows  =
             in ( value, rowClasses )
           Nothing -> let -- empty shelve
             value 1 = Just "∅"
-            value 4 = Just . toHtml $ rowLocation
+            value 4 = Just . toHtml $ unLocation rowLocation
             value _ = Nothing
             in ( ((,[]) <$>) .value, ["bg-danger"])
 
@@ -444,12 +453,12 @@ loadMissingForSession :: ((Set Text), [Session]) -> Session -> _ (Set Text, [Ses
 loadMissingForSession (barcodes, sessions) session = do
   let location = sessionLocation session
   allboxes <- selectList ( (BoxtakeActive ==. True)
-                           :(filterE id BoxtakeLocation (Just $ LikeFilter (location <> "%")))
+                           :(filterE id BoxtakeLocation (Just $ LikeFilter (unLocation location <> "%")))
                          )
                          []
   let missings = filter missing allboxes
       missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodes
-        && location `elem` (splitOn "|" boxtakeLocation)
+        && unLocation location `elem` (splitOn "|" boxtakeLocation)
       -- \^ The LIKE filter might result in loading boxes not from the current locations
       -- They need NOT to be shown as missing
 
@@ -515,10 +524,10 @@ saveFromSession Session{..} = do
 saveLocation :: Row  -> SqlHandler ()
 saveLocation Row{..} = 
   forM_ rowBoxtake $ \boxe@(Entity _ boxtake) -> do
-        let (oldLocation, __oldPosM) = extractPosition $ boxtakeLocation boxtake
+        let (oldLocation, oldPosM) = extractPosition $ boxtakeLocation boxtake
         when (boxtakeActive boxtake && rowDate >= boxtakeDate boxtake) do
-           let location = if oldLocation /= rowLocation 
-                          then  rowLocation
+           let location = if oldLocation /= rowLocation  || oldPosM /= rowPosition
+                          then  joinPosition rowLocation rowPosition
                           else boxtakeLocation boxtake
                           -- T
                           -- +-- either oldLocation == new location (: no position)
