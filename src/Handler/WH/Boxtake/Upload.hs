@@ -524,15 +524,15 @@ saveFromSession Session{..} = do
 saveLocation :: Row  -> SqlHandler ()
 saveLocation Row{..} = 
   forM_ rowBoxtake $ \boxe@(Entity _ boxtake) -> do
-        let (oldLocation, oldPosM) = extractPosition $ boxtakeLocation boxtake
-        when (boxtakeActive boxtake && rowDate >= boxtakeDate boxtake) do
-           let location = if oldLocation /= rowLocation  || oldPosM /= rowPosition
-                          then  joinPosition rowLocation rowPosition
-                          else boxtakeLocation boxtake
+        let (oldLocation, _oldPosM) = extractPosition $ boxtakeLocation boxtake
+            newLocation = if rowPosition == Nothing && oldLocation == rowLocation
+                          then boxtakeLocation boxtake
+                          else joinPosition rowLocation rowPosition
                           -- T
                           -- +-- either oldLocation == new location (: no position)
                           --     or old location == new locatation : old position
-           updateBoxtakeLocation location
+        when (boxtakeActive boxtake && rowDate >= boxtakeDate boxtake || newLocation /= boxtakeLocation boxtake) do
+           updateBoxtakeLocation newLocation
                                  (entityKey rowOperator)
                                  (rowDate)
                                  boxe
