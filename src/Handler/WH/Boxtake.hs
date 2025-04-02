@@ -121,7 +121,7 @@ renderPlannerCsv boxSources = do
   today <- todayH
   let source = boxSourceToSection today boxSources
   setAttachment ("10-Planner-" <> fromStrict (tshow today) <> ".org")
-  respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
+  respondSourceDB "text/plain" (source .| unlinesC .| mapC (toFlushBuilder))
 
 uploadPlannerCsv :: SavingMode -> UploadParam -> ([Session], [StyleMissing]) -> Handler TypedContent
 uploadPlannerCsv _ _ (sessions, _) = do
@@ -249,7 +249,7 @@ renderStocktakeCsv boxSources = do
   oMap <-  allOperators
   let source = boxSourceToStocktake oMap boxSources
   setAttachment ("scan-stocktake-" <> fromStrict (tshow today) <> ".csv")
-  respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
+  respondSourceDB "text/plain" (source .| unlinesC .| mapC (toFlushBuilder))
 
 
 boxSourceToStocktake :: Monad m => (Map (Key Operator) Operator) -> ConduitM i (Entity Boxtake, [Text]) m () -> ConduitT i Text m ()
