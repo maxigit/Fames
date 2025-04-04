@@ -316,10 +316,12 @@ cumulStyle color = [("type", String "scatter")
                 , ("yaxis", "y2")
                 , ("showlegend", toJSON True)
               ]
+salesCurrentUp :: ReportParam -> ReportParam
 salesCurrentUp param = param {rpDataParam, rpDataParam2} where
       rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales) Nothing
       rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) Nothing
   
+salesCurrentYearUp :: RunSum -> Day -> Day -> ReportParam -> ReportParam
 salesCurrentYearUp runsum from to param =
   (salesCurrentUp param) { rpFrom = Just from
         , rpTo = Just to
@@ -337,6 +339,7 @@ top20FullUp param = param {rpDataParam2,rpDataParam3} where
       -- rpDataParam3 = DataParams QPSales (mkIdentifialParam quantityOutOption) Nothing
 -- | Sales current months
 
+salesCurrentMonth:: (ReportParam -> ReportParam) -> Text -> Handler Widget
 salesCurrentMonth f plotName = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
@@ -405,6 +408,7 @@ salesCurrentMonth f plotName = do
 
 
 -- | Top style
+top20ItemMonth :: (ReportParam -> ReportParam) -> Day -> Column -> Handler Widget
 top20ItemMonth f begin rupture = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
@@ -442,6 +446,7 @@ top20ItemMonth f begin rupture = do
             in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
   return $ report
 
+top100ItemYear ::  Bool -> Column -> Handler Widget
 top100ItemYear which rupture = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
@@ -489,6 +494,7 @@ top100ItemYear which rupture = do
   return $ report
       
 
+top100ItemYearChart :: Text -> Handler Widget
 top100ItemYearChart plotName = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
@@ -551,6 +557,7 @@ top100ItemYearChart plotName = do
   
 
 -- each nmap is band
+bandPivotRankProcessor :: [DataParams] -> p -> NMapKey -> Int -> (NMap TranQP, (NMap TranQP, ())) -> (ColumnRupture, (ColumnRupture, ())) -> NMap TranQP -> Widget
 bandPivotRankProcessor tparams __panelId key0 rank0 parents ruptures = createKeyRankProcessor go key0 rank0 parents ruptures where
   (serieRupture, (columRupture,_)) = ruptures
   go key rank =  let sub = collectColumnsForPivotRank tparams
