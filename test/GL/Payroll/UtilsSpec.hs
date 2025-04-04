@@ -94,48 +94,87 @@ dateSpec = describe "@DateCalculator" $ do
     it "Tue -> Mon " $ check defaultCalculator "2019-05-07" "2019-05-06"
 
 periodSpec = describe "@Period" $ do
-  context "whole year" $ do
-    let folding = FoldYearly (fromGregorian 2018 01 01)
-    it "stays in current period" $ do
-      foldTime  folding (fromGregorian 2018 03 02)
-             `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2018 01 01))
-    it "find previous period" $ do
-      foldTime  folding (fromGregorian 2017 03 02)
-             `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2017 01 01))
-    it "find next period" $ do
-      foldTime  folding (fromGregorian 2019 03 02)
-             `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2019 01 01))
-    it "manages leap year" $ do
-      foldTime  folding (fromGregorian 2016 02 29)
-             `shouldBe` (fromGregorian 2018 02 28, Start (fromGregorian 2016 01 01))
-  context "partial yearl" $ do
-    let folding = FoldYearly (fromGregorian 2018 05 01)
-    it "stays in current period" $ do
-      foldTime  folding (fromGregorian 2019 03 02)
-             `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2018 05 01))
-    it "find previous period" $ do
-      foldTime  folding (fromGregorian 2018 03 02)
-             `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2017 05 01))
-    it "find next period" $ do
-      foldTime  folding (fromGregorian 2020 03 02)
-             `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2019 05 01))
-    it "manages leap year" $ do
-      foldTime  folding (fromGregorian 2020 02 29)
-             `shouldBe` (fromGregorian 2019 02 28, Start (fromGregorian 2019 05 01))
-  context "whole monthly" $ do
-    let folding = FoldMonthly 2018
-    it "stays in current period" $ do
-      foldTime  folding (fromGregorian 2018 03 02)
-             `shouldBe` (fromGregorian 2018 01 02, Start (fromGregorian 2018 03 01))
-    it "find previous period" $ do
-      foldTime  folding (fromGregorian 2017 03 02)
-             `shouldBe` (fromGregorian 2018 01 02, Start (fromGregorian 2018 03 01))
-  context "weekly" $ do
-    let folding = FoldWeekly
-    it "stays in current period" $ do
-      foldTime  folding (fromGregorian 2018 06 08)
-             `shouldBe` (fromGregorian 2018 01 05, Start (fromGregorian 2018 06 04))
-             --                   ^ Weekly fold to 2018-01-01
-    -- it "find previous period" $ do
-    --   foldTime  folding (fromGregorian 2017 03 02)
-    --          `shouldBe` (fromGregorian 2018 01 02, Start (fromGregorian 2018 03 01))
+  context "folding" do
+          context "whole year" $ do
+            let folding = FoldYearly (fromGregorian 2018 01 01)
+            it "stays in current period" $ do
+              foldTime  folding (fromGregorian 2018 03 02)
+                     `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2018 01 01))
+            it "find previous period" $ do
+              foldTime  folding (fromGregorian 2017 03 02)
+                     `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2017 01 01))
+            it "find next period" $ do
+              foldTime  folding (fromGregorian 2019 03 02)
+                     `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2019 01 01))
+            it "manages leap year" $ do
+              foldTime  folding (fromGregorian 2016 02 29)
+                     `shouldBe` (fromGregorian 2018 02 28, Start (fromGregorian 2016 01 01))
+          context "partial yearl" $ do
+            let folding = FoldYearly (fromGregorian 2018 05 01)
+            it "stays in current period" $ do
+              foldTime  folding (fromGregorian 2019 03 02)
+                     `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2018 05 01))
+            it "find previous period" $ do
+              foldTime  folding (fromGregorian 2018 03 02)
+                     `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2017 05 01))
+            it "find next period" $ do
+              foldTime  folding (fromGregorian 2020 03 02)
+                     `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2019 05 01))
+            it "manages leap year" $ do
+              foldTime  folding (fromGregorian 2020 02 29)
+                     `shouldBe` (fromGregorian 2019 02 28, Start (fromGregorian 2019 05 01))
+          context "whole monthly" $ do
+            let folding = FoldMonthly 2018
+            it "stays in current period" $ do
+              foldTime  folding (fromGregorian 2018 03 02)
+                     `shouldBe` (fromGregorian 2018 01 02, Start (fromGregorian 2018 03 01))
+            it "find previous period" $ do
+              foldTime  folding (fromGregorian 2017 03 02)
+                     `shouldBe` (fromGregorian 2018 01 02, Start (fromGregorian 2018 03 01))
+          context "weekly" $ do
+            let folding = FoldWeekly
+            it "stays in current period" $ do
+              foldTime  folding (fromGregorian 2018 06 08)
+                     `shouldBe` (fromGregorian 2018 01 05, Start (fromGregorian 2018 06 04))
+                     --                   ^ Weekly fold to 2018-01-01
+            -- it "find previous period" $ do
+            --   foldTime  folding (fromGregorian 2017 03 02)
+            --          `shouldBe` (fromGregorian 2018 01 02, Start (fromGregorian 2018 03 01))
+  context "generates intervals" do
+      let mk y m d = Just (fromGregorian y m d)
+      it "yearly" do
+         generateDateIntervals (mk 2017 06 09) (mk 2018 06 08) (Just (FoldYearly undefined, 1))
+                               `shouldBe` [ (mk 2017 06 09, mk 2018 06 08)
+                                          , (mk 2016 06 09, mk 2017 06 08)
+                                          ]
+      it "monthly (small)" do
+         generateDateIntervals (mk 2018 06 01) (mk 2018 06 08) (Just (FoldMonthly undefined, 1))
+                               `shouldBe` [ (mk 2018 06 01, mk 2018 06 08)
+                                          , (mk 2018 05 01, mk 2018 05 08)
+                                          ]
+      context "overlap" do
+         -- if overlap (given start - end is bigger than requested period
+         -- just force from date if possible
+         it "use 'from' as a base" do
+            generateDateIntervals (mk 2018 05 09) (mk 2018 06 20) (Just (FoldMonthly undefined, 1))
+                               `shouldBe` [ (mk 2018 05 09, mk 2018 06 08)
+                                          , (mk 2018 04 09, mk 2018 05 08)
+                                          ]
+         it "detect end of month" do
+            -- easier to detect beginning of the month that end of month
+            generateDateIntervals (mk 2018 06 01) (mk 2018 06 30) (Just (FoldMonthly undefined, 1))
+                               `shouldBe` [ (mk 2018 06 01, mk 2018 06 30)
+                                          , (mk 2018 05 01, mk 2018 05 31)
+                                          ]
+      context "open range" do
+         it "use from" do
+            -- easier to detect beginning of the month that end of month
+            generateDateIntervals (mk 2018 06 01) Nothing (Just (FoldMonthly undefined, 1))
+                               `shouldBe` [ (mk 2018 06 01, mk 2018 06 30)
+                                          , (mk 2018 05 01, mk 2018 05 31)
+                                          ]
+         it "use 'to' and detect end of month" do
+            generateDateIntervals Nothing (mk 2018 06 30) (Just (FoldMonthly undefined, 1))
+                               `shouldBe` [ (mk 2018 06 01, mk 2018 06 30)
+                                          , (mk 2018 05 01, mk 2018 05 31) 
+                                          ]

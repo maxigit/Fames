@@ -69,7 +69,7 @@ reportDiv reportId = do
 renderParamDates :: ReportParam -> Widget
 renderParamDates param =
    mconcat $ intersperse [whamlet|&nbsp|] dateWs
-   where dateRanges = generateDateIntervals param
+   where dateRanges = paramToDateIntervals param
          dateWs = map (\(fromM, toM) -> [whamlet|\< #{showDateM fromM} - #{showDateM toM}>|]) $ sort dateRanges
          showDateM :: Maybe Day -> Text
          showDateM = maybe "" (formatTime0 "%d %b %Y")
@@ -164,6 +164,7 @@ getDMainFullR = do
     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead commonCss
     toWidgetHead pivotCss 
+    toWidgetHead reportCss
     [whamlet|
   <div.panel_.panel_-primary>
     <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-1">
@@ -251,6 +252,7 @@ getDYearR' suffix = do
   cacheSeconds (3600*23)
   defaultLayout $ do
     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+    toWidgetHead reportCss
     [whamlet|
   <div.panel_.panel_-primary>
     <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-1">
@@ -433,11 +435,10 @@ top20ItemMonth f begin rupture = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
 
-  let tomorrow = calculateDate (AddDays 1) today
   let param = f ReportParam{..}
       rpToday = today
       rpFrom = Just begin
-      rpTo = Just tomorrow
+      rpTo = Just today
       rpPeriod' = Nothing
       rpNumberOfPeriods = Nothing
       rpCategoryToFilter = Nothing
@@ -471,13 +472,12 @@ top100ItemYear which rupture = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
 
-  let tomorrow = calculateDate (AddDays 1) today
-      beginYear = fromGregorian (currentYear) 1 1
+  let beginYear = fromGregorian (currentYear) 1 1
       currentYear = toYear today
   let param = ReportParam{..}
       rpToday = today
       rpFrom = Just beginYear
-      rpTo = Just tomorrow
+      rpTo = Just today
       rpPeriod' = Just PFSlidingYearFrom
       rpNumberOfPeriods = Just 2
       rpCategoryToFilter = Nothing
@@ -518,13 +518,12 @@ top100ItemYearChart :: Text -> Handler (Widget, ReportParam)
 top100ItemYearChart plotName = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
-  let tomorrow = calculateDate (AddDays 1) today
-      beginYear = fromGregorian (currentYear) 1 1
+  let beginYear = fromGregorian (currentYear) 1 1
       currentYear = toYear today
   let param = ReportParam{..}
       rpToday = today
       rpFrom = Just beginYear
-      rpTo = Just tomorrow
+      rpTo = Just today
       rpPeriod' = Nothing
       rpNumberOfPeriods = Nothing
       rpCategoryToFilter = Nothing

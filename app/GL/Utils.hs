@@ -30,7 +30,13 @@ calculateDate (DayOfMonth target cutoff) day = let
      then addGregorianMonthsClip 1 new
      else new
 calculateDate (AddDays n) day = addDays (fromIntegral n) day
-calculateDate (AddMonths n) day = addGregorianMonthsClip (fromIntegral n) day
+calculateDate (AddMonths n) day = let
+  newDay = addGregorianMonthsClip (fromIntegral n) day
+  -- adjust to the end of month if needed
+  endOfMonth = calculateDate EndOfMonth day
+  in if day == endOfMonth
+     then calculateDate EndOfMonth newDay
+     else newDay
 calculateDate (AddYears n) day = calculateDate (AddMonths $ 12*n) day
 calculateDate (AddWeeks n) day = calculateDate (AddDays $ 7*n) day
 calculateDate (NextDayOfWeek target cutoff) day = let
@@ -139,7 +145,7 @@ data PeriodFolding
 
 
 
--- compute the period and the new date within the current period
+-- | compute the period and the new date within the current period
 foldTime :: PeriodFolding -> Day -> (Day, Start)
 foldTime (FoldYearly yearStart) day = let
   (periodYear, periodMonth, periodDay) = toGregorian yearStart
@@ -165,6 +171,30 @@ foldTime (FoldWeekly) day0 = let
   w = dayOfWeek day0
   day = nextWeekDay w (fromGregorian 2018 01 01)
   in (day, Start periodStart)
+
+generateDateIntervals :: Maybe Day -> Maybe Day -> Maybe (PeriodFolding, Int) -> [(Maybe Day, Maybe Day)]
+generateDateIntervals fromM toM Nothing  = [ (fromM, toM)  ]
+generateDateIntervals Nothing Nothing _  = [ (Nothing, Nothing)]
+generateDateIntervals fromM toM (Just (folding, n))  = let
+      period i = case folding of
+        (FoldYearly _) -> calculateDate (AddYears (-i))
+        (FoldMonthly _) -> calculateDate (AddMonths (-i))
+        (FoldQuaterly _) -> calculateDate (AddMonths (-i*3))
+        (FoldWeekly) -> calculateDate (AddWeeks (-i))
+      (from, to) = case (fromM, toM) of 
+                        (Just from, Nothing) -> let to = calculateDate (AddDays $ -1) $ period (-1) from
+                                                in (from, to)
+                        (Nothing, Just to) ->        let from = calculateDate (AddDays 1) $ period 1 to
+                                                in (from, to)
+                        (Just from, Just to) -> (from, to)
+      in [ ( Just (period i from)
+           , Just ( min (period i to)
+                        (calculateDate (AddDays $ -1) $ period (i-1) from)
+                        --- ^^^^^^^^^ end of next period
+                  )
+           )
+         | i <- [0..n]
+         ]
 
 -- ** Usefull 
 previousVATQuarter :: Day -> (Day, Day)          

@@ -17,7 +17,7 @@ import qualified Data.Map as Map
 import Data.List(cycle,scanl,scanl1,scanr1)
 import Database.Persist.MySQL(rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
-import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, toYear)
+import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, toYear, generateDateIntervals)
 import GL.Payroll.Settings
 import Text.Printf(printf)
 import Formatting hiding(base)
@@ -669,7 +669,7 @@ generateTranDateIntervals :: ReportParam -> [(Text, PersistValue)]
 generateTranDateIntervals = generateDateCondition "tran_date"
 generateDateCondition :: Text -> ReportParam -> [(Text, PersistValue)]
 generateDateCondition date_column param = let
-  -- we need AND ((d>= from and d < to) OR (.. and ..))
+  -- we need AND ((d>= from and d <= to) OR (.. and ..))
   -- and some hack to use persist value even if not needed
   in  join $ [(" AND ? AND (", PersistBool True )] :
              [ ( maybe (" (?", PersistBool True)
@@ -677,38 +677,21 @@ generateDateCondition date_column param = let
                        fromM
                ) :
                ( maybe (" AND ?) OR ", PersistBool True)
-                       (\d -> (" AND " <> date_column <> " < ?) OR", PersistDay d))
+                       (\d -> (" AND " <> date_column <> " <= ?) OR", PersistDay d))
                        toM
                ) :
                []
-             | (fromM, toM) <- generateDateIntervals param
+             | (fromM, toM) <- paramToDateIntervals param
              ]
              <> [[("?) ", PersistBool False)]] -- close the or clause
       
-generateDateIntervals :: ReportParam -> [(Maybe Day, Maybe Day)]
-generateDateIntervals param =
-  case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
-    (Nothing, Nothing, _)  -> [ (Nothing, Nothing) ]
-    (fromM, toM, Nothing)  -> [ (fromM, toM) ]
-    -- (Just from, Nothing, Just n) -> -- go n year_ ago
-    --       [ (Just (calculateDate (AddYears (-n)) from), Nothing) ]
-    (Nothing, Just to, Just _) -> -- go n year_ ago
-          [ (Nothing, Just to) ]
-    (Just from, toM, Just n) -> let
-      period i = case rpPeriod param of
-        Just (FoldYearly _) -> calculateDate (AddYears (-i))
-        Just (FoldMonthly _) -> calculateDate (AddMonths (-i))
-        Just (FoldQuaterly _) -> calculateDate (AddMonths (-i*3))
-        Just (FoldWeekly) -> calculateDate (AddWeeks (-i))
-        Nothing  -> calculateDate (AddYears (-i))
-      to = fromMaybe (period (-1) from) toM
-      in [ ( Just (period i from)
-           , Just ( min (period i to)
-                        (period (i-1) from)
-                  )
-           )
-         | i <- [0..n]
-         ]
+paramToDateIntervals :: ReportParam -> [(Maybe Day, Maybe Day)]
+paramToDateIntervals param =
+  let pM = (,) <$> rpPeriod param <*> rpNumberOfPeriods param
+  in generateDateIntervals (rpFrom param)
+                           (rpTo param)
+                           pM
+
 -- | Adapt the return type of generateTranDateIntervals for 
 toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
 toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
@@ -992,7 +975,7 @@ getUpcomingLocation = do
 -- | Basic item information, cost, price initital, stock at the start day (-1)
 loadStockInfo :: ReportParam -> Handler (Map Sku ItemInitialInfo)
 loadStockInfo param = do
-  let stockDays = case mapMaybe fst $ generateDateIntervals param of
+  let stockDays = case mapMaybe fst $ paramToDateIntervals param of
                    [] -> [rpJustFrom param]
                    days -> days
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings

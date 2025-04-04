@@ -217,14 +217,13 @@ getItemsReportR' mode = do
       bestSales = DataParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
       sales = DataParams QPSales (mkIdentifialParam $ amountOutOption 1) Nothing
       past = calculateDate (AddMonths (-3)) today
-      tomorrow = calculateDate (AddDays 1) today
   
       defaultReportParam = case mode of
         Just ReportChart -> ReportParam
                             today
                             deduceTax
                            (Just past) --  rpFrom :: Maybe Day
-                           (Just tomorrow) --  rpTo :: Maybe Day
+                           (Just today) --  rpTo :: Maybe Day
                            Nothing --  rpPeriod
                            Nothing --  rpNumberOfPeriods
                            Nothing -- rpToCategoryToFilter
@@ -245,7 +244,7 @@ getItemsReportR' mode = do
         _ -> ReportParam   today
                            deduceTax
                            (Just past) --  rpFrom :: Maybe Day
-                           (Just tomorrow) --  rpTo :: Maybe Day
+                           (Just today) --  rpTo :: Maybe Day
                            Nothing --  rpPeriod
                            Nothing --  rpNumberOfPeriods
                            Nothing -- rpToCategoryToFilter
