@@ -40,6 +40,13 @@ pivotCss = [cassius|
       font-style: italic
       color: grey
                         |]
+reportCss = [cassius|
+   div.report-summary
+     text-align: center
+     font-size: small
+     font-style: italic
+     margin-bottom: 0.5em
+|]
 reportDiv :: Text -> Handler Widget
 reportDiv reportId = do
   widgetE <- dispatchReport reportId 800 400
@@ -49,11 +56,23 @@ reportDiv reportId = do
          The report #{reportId} doesn't exists. Contact your administrator.
          <div> #{err}
                         |]
-    Right w -> do
+    Right (w,param) -> do
+      let datesW = renderParamDates param
       return [whamlet|
                    <div id=#{reportId}>
-                   ^{w}
+                     <div>
+                        ^{w}
+                     <div.report-summary>
+                        ^{datesW}
                    |]
+                   
+renderParamDates :: ReportParam -> Widget
+renderParamDates param =
+   mconcat $ intersperse [whamlet|&nbsp|] dateWs
+   where dateRanges = generateDateIntervals param
+         dateWs = map (\(fromM, toM) -> [whamlet|\< #{showDateM fromM} - #{showDateM toM}>|]) $ sort dateRanges
+         showDateM :: Maybe Day -> Text
+         showDateM = maybe "" (formatTime0 "%d %b %Y")
 -- Display a dashboard made of different report depending on the configuration file
 {-# NOINLINE getDMainR #-}
 getDMainR :: Handler Html
@@ -73,6 +92,7 @@ getDMainR = do
     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead commonCss
     toWidgetHead pivotCss
+    toWidgetHead reportCss
     [whamlet|
   <div.panel_.panel_-primary>
     <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-1">
@@ -123,7 +143,7 @@ getDMainFullR = do
                The report #{reportId} doesn't exists. Contact your administrator.
                <div> #{err}
                               |]
-          Right w -> do
+          Right (w,_) -> do
             return [whamlet|
                          <div id=#{reportId}>
                          ^{w}
@@ -200,7 +220,7 @@ getDCustomR reportName width height = do
   reportMakerE <- dispatchReport reportName width height
   let widget = case reportMakerE of
         Left err -> error (unpack err)
-        Right w -> w
+        Right (w,_) -> w
   p <- widgetToPageContent widget
   withUrlRenderer [hamlet|^{pageBody p}|]
 
@@ -253,7 +273,7 @@ getDYearR' suffix = do
     Last update #{tshow now}
   |]
 
-dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text Widget)
+dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text (Widget, ReportParam))
 dispatchReport reportName __width __height = do
   today <- todayH
   fiscalYear <- fiscalYearH
@@ -339,7 +359,7 @@ top20FullUp param = param {rpDataParam2,rpDataParam3} where
       -- rpDataParam3 = DataParams QPSales (mkIdentifialParam quantityOutOption) Nothing
 -- | Sales current months
 
-salesCurrentMonth:: (ReportParam -> ReportParam) -> Text -> Handler Widget
+salesCurrentMonth:: (ReportParam -> ReportParam) -> Text -> Handler (Widget, ReportParam)
 salesCurrentMonth f plotName = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
@@ -404,11 +424,11 @@ salesCurrentMonth f plotName = do
                 , rpColumnRupture param
                 ]
   report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
-  return $ report
+  return $ (report, param)
 
 
 -- | Top style
-top20ItemMonth :: (ReportParam -> ReportParam) -> Day -> Column -> Handler Widget
+top20ItemMonth :: (ReportParam -> ReportParam) -> Day -> Column -> Handler (Widget, ReportParam)
 top20ItemMonth f begin rupture = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
@@ -444,9 +464,9 @@ top20ItemMonth f begin rupture = do
       rpTraceGroupMode = Nothing
   report <- let pivotP tparams = processRupturesWith (createKeyRankProcessor $ \_ _ -> (bandPivotProcessor tparams "pivot-Top20", id) ) ()
             in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
-  return $ report
+  return $ (report, param)
 
-top100ItemYear ::  Bool -> Column -> Handler Widget
+top100ItemYear ::  Bool -> Column -> Handler (Widget, ReportParam)
 top100ItemYear which rupture = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
@@ -491,10 +511,10 @@ top100ItemYear which rupture = do
             -- else let pivotP tparams = processRupturesWith (\_ _ -> processRupturesWith (bandPivotProcessor tparams "pivot-Top-100") ) ()
             else let pivotP tparams = processRupturesWith (createKeyRankProcessor $ \_ _ -> (bandPivotRankProcessor tparams "pivot-Top-100", \w -> [whamlet|<div#pivot-Top-100>^{w}|]) ) ()
                  in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
-  return $ report
+  return $ (report, param)
       
 
-top100ItemYearChart :: Text -> Handler Widget
+top100ItemYearChart :: Text -> Handler (Widget, ReportParam)
 top100ItemYearChart plotName = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
@@ -533,7 +553,7 @@ top100ItemYearChart plotName = do
                 , rpColumnRupture
                 ]
   report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
-  return $ report
+  return $ (report, param)
 
 
 -- pivotRankProcessor:: [DataParams] -> _ColumnRuptures -> NMap TranQP -> Widget
