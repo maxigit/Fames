@@ -368,10 +368,11 @@ salesCurrentMonth f plotName = do
   -- The display period is the current month. However, during the first days of a new month
   -- we display the previous month extended to today
   let beginMonth = calculateDate (BeginningOfMonth) . calculateDate (AddDays  (-7)) $ today
+      endMonth = max today (calculateDate EndOfMonth beginMonth)
       param = f ReportParam{rpColumnRupture=columnRupture,..}
       rpToday = today
       rpFrom = Just $ beginMonth
-      rpTo = Just today
+      rpTo = Just endMonth
       rpPeriod' = Just PFWholeYear
       rpNumberOfPeriods = Just 2
       rpCategoryToFilter = Nothing
