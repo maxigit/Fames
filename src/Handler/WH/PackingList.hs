@@ -1862,7 +1862,7 @@ joinWithPlanner plId eDetails = do
   let ?cache = Planner.memoryCache
       ?today = today
   plannerDir <- appPlannerDir <$> getsYesod appSettings
-  scenarioE <- Planner.readScenarioFromPath False Planner.importFamesDispatch (plannerDir </> path)
+  scenarioE <- Planner.readScenarioFromPaths False Planner.importFamesDispatch (Just plannerDir) [path, "Extra/for-pl.org"]
   case scenarioE of 
     Left _ -> do
       setWarning $ [shamlet|Planner file #{path} has not been found.|]
