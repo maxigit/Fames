@@ -25,7 +25,6 @@ import WH.Barcode
 import Data.List(scanl, length, (\\), nub)
 import qualified Data.List as List
 import Data.Time(addDays)
-import Data.Text (breakOn)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
@@ -35,6 +34,7 @@ import qualified Data.Map.Strict as Map
 import qualified FA
 import qualified Data.Set as Set
 import Text.Blaze(Markup)
+import Handler.WH.Boxtake.Common (extractPosition, Location(..))
 
 
 -- * Types 
@@ -1087,15 +1087,20 @@ fillBarcode new prevE =
     
 
 validateLocation :: Map Text Text -> Text -> Maybe Location'
-validateLocation locMap t'coord =
-  let (t, _) = breakOn ":" t'coord
-      locs = expandLocation t
-  in case mapMaybe (flip Map.lookup locMap) locs of
-  [] -> Nothing
-  (fa:fas) -> -- check all shelves exists and belongs to the same FA location
-    if null (filter (/= fa) fas)
-    then Just $ Location' (FA.LocationKey fa) t (intercalate "|" locs)
-    else Nothing
+validateLocation locMap t =
+  case extractPosition t of
+      (Location loc, Just _) | Just fa <- Map.lookup loc locMap  -> Just $ Location' (FA.LocationKey fa)
+                                                                            t
+                                                                            t
+                                                                            
+                    | otherwise -> Nothing 
+      _ -> let locs = expandLocation t
+           in case mapMaybe (flip Map.lookup locMap) locs of
+           [] -> Nothing
+           (fa:fas) -> -- check all shelves exists and belongs to the same FA location
+             if null (filter (/= fa) fas)
+             then Just $ Location' (FA.LocationKey fa) t (intercalate "|" locs)
+             else Nothing
   
 
 -- | Parses a csv of stocktakes. If a list of locations is given
