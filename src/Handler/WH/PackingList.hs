@@ -387,9 +387,11 @@ detailToBoxtake param docKey detail info = Boxtake
                      , tshow . packingListDetailBoxNumber
                      ] <*> [detail]
                                      )
-        coordinate = case lookup "coordinate" (extras info) of
-                         Nothing -> ""
-                         Just c -> ":" <> c
+        coordinate = case ( lookup "coordinate" (extras info)
+                          , lookup "orientation" (extras info)
+                          ) of
+                         (Just c, Just o) -> o <> c
+                         _ -> ""
 
 -- ** View 
 
