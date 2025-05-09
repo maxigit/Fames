@@ -51,6 +51,8 @@ orientations = mconcat $ ":" : map showOrientation' allOrientations
 extractPosition :: Text -> (Location, Maybe (Maybe Char, Text))
 extractPosition location =
   case break (`elem` orientations) location of
+        (_, uncons -> Just ('|', position)) | ':' `notElem` position -> (Location location, Nothing)
+        --                                      ^^^^^^^^^ -- | is a delimiter between location not the orientation
         (loc, uncons -> Just (o, position)) -> (Location loc, Just (if o == ':' then Nothing else Just o, position))
         _                                   -> (Location location, Nothing)
 

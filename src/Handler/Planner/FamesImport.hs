@@ -145,11 +145,9 @@ importActiveBoxtakes :: [Text] -> Handler Section
 importActiveBoxtakes tags = do
   today <- todayH
   -- At the moment only one section can be returned.
-  -- Therefore it has to be one without position.
-  -- Also there is a bug which tee position 'A|B' as having a position orientation |, offset B
-  let source = Box.plannerSource .| mapC (\(Box.HasPosition _ a) -> Box.HasPosition False a) .|  Box.boxSourceToCsv Box.WithoutHeader
+  let source = Box.plannerSource .| mapC (\(Box.HasPosition _ a) -> Box.HasPosition True a) .|  Box.boxSourceToCsv Box.WithoutHeader
   content <- (runDB $ runConduit $ source .| consume)
-  return $ Section (StocktakeH tags) (Right $ Box.csvHeaderWithoutPosition : content) ("* Stocktake from Fames DB [" <> tshow today <> "]")
+  return $ Section (StocktakeH tags) (Right $ Box.csvHeaderWithPosition : content) ("* Stocktake from Fames DB [" <> tshow today <> "]")
 
   
 
@@ -368,7 +366,7 @@ importActiveBoxtakesLive todaym tags = do
   -- let sameBarcode op (Entity _ a, _) (Entity _ b, _) = boxtakeBarcode a `op` boxtakeBarcode b
   let boxes = myNubBy (boxtakeBarcode . entityVal . fst) $
               [ ( Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
-                , map (unVar . snd . skuToStyleVar . Sku . stocktakeStockId . entityVal) stocktakes
+                , map (snd . skuToStyleVar . Sku . stocktakeStockId . entityVal) stocktakes
                 )
               | summary <- summaries
               , (statusbox, rank) <- Box.ssBoxesWithRank summary
@@ -380,12 +378,13 @@ importActiveBoxtakesLive todaym tags = do
               , let extraTags = mconcat tags
 
               ]
-      source  =  sourceList [Box.HasPosition False boxes] .| Box.boxSourceToCsv Box.WithoutHeader
+      source  =  sourceList [Box.HasPosition True boxes] .| Box.boxSourceToCsv Box.WithoutHeader
+      -- source  =  sourceList (Box.groupWithHasPositions boxes) .| Box.boxSourceToCsv Box.WithHeader
       _use = sourceList
   liftIO $ traceMarkerIO "Running Conduit"
   content <- (runDB $ runConduit $ source .| consume)
   liftIO $ traceMarkerIO "End Conduit"
-  return $ Section (StocktakeH tags) (Right $ Box.csvHeaderWithoutPosition : content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
+  return $ Section (StocktakeH tags) (Right $ Box.csvHeaderWithPosition : content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
   
 myNubBy :: Hashable k => (a -> k) -> [a] -> [a]
 -- myNubBy f = nubBy ((==)`on` f) . sortOn f

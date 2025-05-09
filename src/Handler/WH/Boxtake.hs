@@ -16,6 +16,7 @@ module Handler.WH.Boxtake
 , HasPosition(..)
 , WithHeader(..)
 , csvHeaderWithPosition, csvHeaderWithoutPosition
+, groupWithHasPositions
 ) where
 
 import Import hiding(Planner)
@@ -116,7 +117,7 @@ getWHBoxtakePlannerR :: Handler TypedContent
 getWHBoxtakePlannerR = do
   let source = plannerSource
   renderPlannerCsv source
-renderPlannerCsv :: ConduitM () (HasPosition [(Entity Boxtake, [Text])]) SqlHandler () -> Handler TypedContent
+renderPlannerCsv :: ConduitM () (HasPosition [(Entity Boxtake, [Var])]) SqlHandler () -> Handler TypedContent
 renderPlannerCsv boxSources = do
   today <- todayH
   let source = boxSourceToSection today boxSources
@@ -152,29 +153,44 @@ uploadPlannerCsv _ _ (sessions, _) = do
 data HasPosition a = HasPosition Bool a 
      deriving (Show, Eq)
 -- plannerSource :: _ => Source m Text
-plannerSource :: SqlConduit () (HasPosition [(Entity Boxtake, [Text])]) ()
+plannerSource :: SqlConduit () (HasPosition [(Entity Boxtake, [Var])]) ()
 plannerSource = do
     param <- liftHandler defaultAdjustmentParamH
     skuToStyle <- liftHandler skuToStyleVarH
     boxMap <- lift $ runConduit $ loadBoxForAdjustment param .| sinkList
+    let boxes = [ (boxE, contents)
+                | (boxE,  stocktakes) <- concatMap (snd . unForMap) boxMap 
+                , let contents =  map (snd . skuToStyle . Sku . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake])
+                ]
     -- group by shelves and check if every boxtake in a shelf 
-    let boxWithContentAndPos =
-          [ ( shelfname, [((boxE, contents), posm)])
-          | (boxE,  stocktakes) <- concatMap (snd . unForMap) boxMap 
-          , boxtakeActive (entityVal boxE)
-          , let contents =  map (unVar . snd . skuToStyle . Sku . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake])
-          , let (shelfname, posm ) = extractPosition (boxtakeLocation $ entityVal boxE)
-          ]
-        groupedByShelf = Map.fromListWith (<>) $ boxWithContentAndPos
-    sourceList $ map (mkHasPosition . reverse) $ toList groupedByShelf
+    -- let boxWithContentAndPos =
+    --       [ ( shelfname, [((boxE, contents), posm)])
+    --       | (boxE,  stocktakes) <- concatMap (snd . unForMap) boxMap 
+    --       , boxtakeActive (entityVal boxE)
+    --       , let contents =  map (unVar . snd . skuToStyle . Sku . stocktakeStockId . entityVal)  (stocktakes :: [Entity Stocktake])
+    --       , let (shelfname, posm ) = extractPosition (boxtakeLocation $ entityVal boxE)
+    --       ]
+    --     groupedByShelf = Map.fromListWith (<>) $ boxWithContentAndPos
+    -- sourceList $ map (mkHasPosition . reverse) $ toList groupedByShelf
+    sourceList $ groupWithHasPositions boxes
 
 -- | Take  group of boxes decide if all of it have a position or not
-mkHasPosition :: [((Entity Boxtake, [Text]), Maybe a)] -> HasPosition [(Entity Boxtake, [Text])]
+mkHasPosition :: [((Entity Boxtake, [Var]), Maybe a)] -> HasPosition [(Entity Boxtake, [Var])]
 mkHasPosition box'content'posm = HasPosition hasPosition $ map fst box'content'posm
   where hasPosition = not $ any (isNothing . snd) box'content'posm
   
+groupWithHasPositions :: [(Entity Boxtake, [Var])] -> [HasPosition [(Entity Boxtake, [Var])]]
+groupWithHasPositions  boxtakes = 
+    let boxWithContentAndPos =
+          [ ( shelfname, [((boxE, contents), posm)])
+          | (boxE,  contents) <- boxtakes
+          , boxtakeActive (entityVal boxE)
+          , let (shelfname, posm ) = extractPosition (boxtakeLocation $ entityVal boxE)
+          ]
+        groupedByShelf = Map.fromListWith (<>) $ boxWithContentAndPos
+    in map (mkHasPosition . reverse) $ toList groupedByShelf
 
-toPlanner :: HasPosition (Entity Boxtake, [Text]) -> Text
+toPlanner :: HasPosition (Entity Boxtake, [Var]) -> Text
 toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) = 
   location
   <> ( if hasPosition
@@ -191,26 +207,25 @@ toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) =
               , "location=" <> location
               ] ++ (maybe [] (pure . ("batch=" <>)) boxtakeBatch
               ) ++ mixed ::  [Text]
-        (location, position ) =
-               case words boxtakeLocation of
-                    (loc:pos@(_:_)) -> (loc, unwords pos)
-                    _ -> (boxtakeLocation, "")
-        mixed = case colours of
+        (Location location, position ) =
+               case extractPosition boxtakeLocation of
+                     (loc, posm) -> (loc, joinPosition (Location "") posm)
+        mixed = case map unVar colours of
                      (_:_:_) -> "mixed" : [ "content" <> tshow index <> "=" <> colour
-                                     |  (colour, index) <- zip colours [1..]
+                                     |  (Var colour, index) <- zip colours [1..]
                                      ]
                      _ -> []
         style = (fromMaybe "" boxtakeDescription) <> (mconcat $ map ("#" <>) tags)
                          
 
-boxSourceToSection :: Monad m => Day -> ConduitM () (HasPosition [(Entity Boxtake, [Text])]) m () -> ConduitM () Text m ()
+boxSourceToSection :: Monad m => Day -> ConduitM () (HasPosition [(Entity Boxtake, [Var])]) m () -> ConduitM () Text m ()
 boxSourceToSection today boxSources = do
   yield ("* Stocktake from Planner  [" <> tshow today <> "]")
   boxSources .| boxSourceToCsv WithHeader
 
 data WithHeader = WithHeader | WithoutHeader 
   deriving (Show, Eq)
-boxSourceToCsv :: Monad m => WithHeader -> ConduitT (HasPosition [(Entity Boxtake, [Text])]) Text m ()
+boxSourceToCsv :: Monad m => WithHeader -> ConduitT (HasPosition [(Entity Boxtake, [Var])]) Text m ()
 boxSourceToCsv  ((== WithHeader) -> withHeader) = awaitForever go
   where go (HasPosition hasPosition boxes) = do
            when withHeader do
