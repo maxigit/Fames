@@ -8,7 +8,6 @@ import Import
 import WarehousePlanner.Org.Types
 import WarehousePlanner.Org -- as Exec
 import WarehousePlanner.Report
-import WarehousePlanner.Base (replaceSlashes)
 import Handler.Planner.Exec
 import qualified Handler.WH.PLToPlanner as PL
 import qualified Handler.WH.Boxtake as Box
@@ -27,6 +26,7 @@ import GL.Utils
 import qualified Data.HashMap.Strict as HashMap
 import Util.ForConduit
 import Debug.Trace
+import qualified Data.Text as Text
 -- * Type 
 -- data FamesImport
 --   = ImportPackingList (Key PackingList) --  ^ import packing list
@@ -433,7 +433,7 @@ importSales startDate endDate skus forStyle = do
              ] 
       maxRank = length rows + 1
 
-  let content = [ key <> "#'" <> replaceSlashes var <> ",fa-sales-rank=" <> tshow (rank :: Int )<> "#fa-sales=" <> tshow (round qty :: Int )
+  let content = [ key <> "#'" <> escapeSlashes var <> ",fa-sales-rank=" <> tshow (rank :: Int )<> "#fa-sales=" <> tshow (round qty :: Int )
                 | group <- groupBy (on (==) fst) rows
                 , ((style, (var, qty)), rank) <- zip (sortOn (Down . snd . snd) group)  [1..]
                 , let key = fromMaybe style forStyle
@@ -442,5 +442,6 @@ importSales startDate endDate skus forStyle = do
               | style <- nub . sort $ map fst rows
               , let key = fromMaybe style forStyle
               ]
+      escapeSlashes = Text.replace "/" "\\/" 
 
   return $ Section (TagsH []) (Right $ "selector, tags" : (reset ++ content)) ( "* Sales ")
