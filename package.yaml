@@ -1,5 +1,5 @@
 name: Fames
-version: '0.1.0'
+version: '0.1.1'
 license: MIT
 dependencies:
 - containers
@@ -32,6 +32,7 @@ dependencies:
 - wai-extra >=3.0 && <3.1
 - yaml >=0.8 && <0.9
 - http-conduit >=2.1 && <2.3
+- http-types >=0.12.3 && <0.13
 - directory >=1.1 && <1.4
 - warp >=3.0 && <3.3
 - data-default
@@ -275,7 +276,7 @@ tests:
     - cassava
     - yaml
     - temporary
-    - http-types >=0.9
+    - http-types >=0.12.3 && <0.13
       #       # zghcid: # z so test is picked first
       #   zghicd:
       #     main: Spec.hs

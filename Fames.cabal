@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           Fames
-version:        0.1.0
+version:        0.1.1
 license:        MIT
 build-type:     Simple
 
@@ -212,6 +212,7 @@ library
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
+    , http-types >=0.12.3 && <0.13
     , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
@@ -346,6 +347,7 @@ executable DPDDump
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
+    , http-types >=0.12.3 && <0.13
     , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
@@ -477,6 +479,7 @@ executable DPDImport
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
+    , http-types >=0.12.3 && <0.13
     , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
@@ -604,6 +607,7 @@ executable FAGenerator
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
+    , http-types >=0.12.3 && <0.13
     , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
@@ -732,6 +736,7 @@ executable FPlanner
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
+    , http-types >=0.12.3 && <0.13
     , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
@@ -891,6 +896,7 @@ executable Fames
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
+    , http-types >=0.12.3 && <0.13
     , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
@@ -1054,7 +1060,7 @@ test-suite test
     , hjsmin >=0.1 && <0.3
     , hspec >=2.0.0
     , http-conduit >=2.1 && <2.3
-    , http-types >=0.9
+    , http-types >=0.12.3 && <0.13
     , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5

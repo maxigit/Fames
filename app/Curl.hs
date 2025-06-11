@@ -12,6 +12,8 @@ import Control.Monad.Except
 import Data.Decimal
 import Data.Aeson(eitherDecodeStrict, FromJSON, Value)
 import Data.Yaml.Pretty(encodePretty, defConfig) 
+import Network.HTTP.Types.URI (urlEncode)
+import qualified Data.ByteString.Char8 as BS
 
 -- ** Curl 
 docurl:: (?curl :: Curl) => URLString -> [CurlOption] -> ExceptT Text IO CurlResponse
@@ -75,10 +77,10 @@ class CurlPostField a where
 
 
 instance CurlPostField String where
-  toCurlPostField = Just
+  toCurlPostField = Just . BS.unpack . urlEncode True . BS.pack
 
 instance CurlPostField Text where
-  toCurlPostField = Just . unpack
+  toCurlPostField = toCurlPostField . unpack
 
 instance CurlPostField Double where
   toCurlPostField  = Just . show
