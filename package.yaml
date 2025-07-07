@@ -322,3 +322,7 @@ flags:
     description: Turn on development settings, like auto-reload templates.
     manual: false
     default: false
+  brick:
+    description: use brick for the warehouse plaanner
+    manual: false
+    default: true

@@ -46,7 +46,7 @@ import Data.Decimal
 import Data.List (sortBy, sortOn, minimumBy, mapAccumL, dropWhileEnd, partition)
 import Data.Ord (comparing)
 import Data.String
-import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays, UTCTime)
+import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays, UTCTime, ParseTime, utctDay, utctDayTime)
 import Data.Time.Format(defaultTimeLocale)
 import Data.Char(isSpace, isAscii)
 import Util.ValidField
@@ -65,6 +65,7 @@ import qualified Text.Parsec as P
 import Text.Regex.TDFA() -- (=~))
 import qualified Text.Regex.TDFA.ByteString as Rg
 import qualified Text.Regex.Base as R
+import Debug.Trace
 -- import qualified Text.Parsec.Char as P
 
 read :: Read p => String -> p
@@ -107,9 +108,9 @@ instance ToField Day where
     toField d = fromString $ formatTime defaultTimeLocale "%d %b %Y" d
 
 
-parseTime :: [String ]-> String -> Parser Day
+parseTime :: ParseTime t => [String ]-> String -> Parser t
 parseTime formats s = either fail return (readTimeE formats s)
-readTimeE :: [String ]-> String -> Either String Day
+readTimeE :: ParseTime t => [String ]-> String -> Either String t
 readTimeE formats str= case concat $ map (parseTimeM True defaultTimeLocale) formats <*> [str] of
   [] -> Left $ "can't parse time : " ++ str
   [date] -> Right date
@@ -356,6 +357,29 @@ parseSantanderTransaction = do
   amount <-  maybe (fail "Can't read amount") (return . normalizeDecimal) . readMaybe =<< parseAttribute "Amount:"
   balance <- maybe (fail "Can't read amount") (return . normalizeDecimal) . readMaybe =<< parseAttribute "Balance:"
   return $ SantanderTransaction date desc amount balance
+
+-- | Trust Payment statement
+data TrustPaymentTransaction = TrustPaymentTransaction
+     { _tpTimeStamp :: UTCTime
+     , _tpOrderReference :: String
+     , _tpAmount :: Amount
+     } deriving (Eq, Show)
+-- makeClassy ''TrustPaymentTransaction
+
+instance FromNamedRecord (TrustPaymentTransaction) where
+  parseNamedRecord record = pure TrustPaymentTransaction
+                    <*> (parseTime ["%Y-%m-%d %T"]  =<< r .: "Timestamp (BST)")
+                    <*> r .: "Order reference"
+                    <*> r .: "Settle amount"
+                    where r = traceShowId $ cleanRecord record
+
+trustToDaily :: TrustPaymentTransaction -> HSBCDaily
+trustToDaily TrustPaymentTransaction{..} = HSBCDaily{..} where
+   _hsDate = utctDay _tpTimeStamp
+   _hsDescription = _tpOrderReference
+   _hsAmount = _tpAmount
+   _hsDayPos = floor $ utctDayTime _tpTimeStamp
+
 -- parseAttribute :: Read a => String -> P.Parsec s u a
 
 nonSpace :: P.Stream s m Char => P.ParsecT s u m Char
@@ -498,10 +522,13 @@ readDaily discardPat path = do
           Left  e -> Left $ show e
           Right s -> let htranss  = map sToS (_stTrans s)
                      in Right (V.fromList htranss)
+        decodeTrustPayment = case decodeByName csv of
+           Left e -> Left e
+           Right (_, v) -> Right $ V.map (\bf _i -> trustToDaily bf) v
     -- it is important to start with decodeHSBC because if a file as only one line
     -- trying to parse first with a decoder expecting a header will return a empty list
     -- instead of failing: the header is actually not used (and not checked if there is no lines)
-    case decodeHSBC <|> decodeNewHSBC <|> decodePaypal <|> decodeSantander of
+    case decodeHSBC <|> decodeNewHSBC <|> decodePaypal <|> decodeSantander <|> decodeTrustPayment of
         Left s -> error $ "can't parse Statement:" ++ path ++ "\n" ++ s
         Right v -> return . V.toList $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
@@ -774,4 +801,8 @@ thatFirst (This a) = a
 thatFirst (That a) = a
 thatFirst (These __a b) = b { _sNumber = _sNumber b, _sObject = _sObject b}
 
-  
+ -- TODO
+ -- [X] use or discard time
+ -- [X] reactivate other bank types
+ -- [ ] SAVE button ?
+ --
