@@ -41,14 +41,19 @@ data RuleInput = RuleInput
   { categoryMap :: Map String String
   , salesPrice :: Maybe Double
   }
-regexSub :: String -> String -> RegexSub
-regexSub regex replace =
+  
+  
+data CaseSensitivy = CaseSensitive | CaseLess
+regexSub :: CaseSensitivy -> String -> String -> RegexSub
+regexSub cs regex replace =
   RegexSub ( Rg.makeRegexOpts
             Rg.CompOption{..}
             Rg.defaultExecOpt
            $ regex ++ ".*"
            ) regex replace where
-  caseSensitive = True
+  caseSensitive = case cs of
+                    CaseSensitive -> True
+                    CaseLess -> False
   multiline = False
   rightAssoc = True -- default
   newSyntax = True
@@ -58,10 +63,10 @@ instance FromJSON (CategoryRule a) where
 
 parseJSON' :: Text -> Value -> _Parser (CategoryRule a)
 parseJSON' key0 v = let
-    parseSkuString (stripPrefix "=" -> Just t) = return $ SkuTransformer (regexSub (unpack t) (unpack key0))
+    parseSkuString (stripPrefix "=" -> Just t) = return $ SkuTransformer (regexSub CaseSensitive (unpack t) (unpack key0))
     parseSkuString t = case break (=='/') (unpack t) of
-      (regex, '/':replace) -> return $ SkuTransformer (regexSub regex replace)
-      (regex, "") -> return $ SkuTransformer (regexSub regex (unpack key0))
+      (regex, '/':replace) -> return $ SkuTransformer (regexSub CaseSensitive regex replace)
+      (regex, "") -> return $ SkuTransformer (regexSub CaseSensitive regex (unpack key0))
       _ -> mzero
     parseObject o = do
       let disM = [ parsePair key value
@@ -77,7 +82,7 @@ parseJSON' key0 v = let
     -- parse pair either a disjunction, we throw the name away
     -- or a sku
     -- parsePair :: Text -> Value -> Parser (CategoryRule a)
-    parsePair key value = withText "replace" (\t -> return $ SkuTransformer (regexSub (unpack t) (unpack key))) value
+    parsePair key value = withText "replace" (\t -> return $ SkuTransformer (regexSub CaseSensitive (unpack t) (unpack key))) value
                           <|> withArray "sublist" (parseDisjunction key) value
                           <|> withObject "matcher" (parseMatcher key) value
                           <|> parseJSON' key value
@@ -88,7 +93,7 @@ parseJSON' key0 v = let
     parseMatcher key o = do
       -- traceShowM ("MATCHER", key0, key, o)
 
-      let parseRegex = (SkuTransformer <$> (regexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key)))
+      let parseRegex = (SkuTransformer <$> (regexSub CaseSensitive <$> (unpackT <$> o .: "match")  <*> pure (unpack key)))
                        <|> (parseDisjunction key =<< o .: "rules")
         
 
@@ -135,7 +140,7 @@ instance ToJSON (CategoryRule a) where
     same _ _ = False
     groups = groupBy same $ map go rules
     groupToJSON g = case partitionEithers g of
-                      ([], [(replace,origin)]) -> [toJSON . SkuTransformer $ regexSub origin replace]
+                      ([], [(replace,origin)]) -> [toJSON . SkuTransformer $ regexSub CaseSensitive origin replace]
                       ([], r'origins@((replace,_):_)) -> [object [ fromString replace .=  map snd r'origins]]
                       (others,_) -> map toJSON others
     in  toJSON (concatMap groupToJSON groups :: [Value])

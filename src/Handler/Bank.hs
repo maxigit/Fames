@@ -1257,10 +1257,13 @@ autoRec settings0 t = do
   BankStatementSettings{..} <- fillAutoSettingsCached settings0
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let rules' = concatMap mapToList bsRules 
-      description = toLower $ B._sDescription t
+      inOut = if B._sAmount t < 0
+              then "OUT: "
+              else "IN: "
+      description = inOut <> (toLower $ B._sDescription t)
       parseRegex s = case break (=='/') (toLower s) of
-        (regex, '/':l_replace ) -> regexSub regex l_replace
-        (regex, "") -> regexSub regex description
+        (regex, '/':l_replace ) -> regexSub CaseLess regex l_replace
+        (regex, "") -> regexSub CaseLess regex description
         _ -> error "Pattern should be exhaustive"
 
       rules = map (first (parseRegex . unpack)) rules' -- map (first $ Rg.mkRegex . unpack) rules'
@@ -1377,7 +1380,8 @@ rulesFromRec eType ruleFn recs =
 
   -- customer rules
   -- we take the beginning of the payment reference
-      entity0 = groupAsMap fst ((:[]) . snd) [ ("^" ++ reg ++ "$", entity :: Int)
+      entity0 = groupAsMap fst ((:[]) . snd) [ ("^..: " ++ reg ++ "$", entity :: Int)
+                                               -- ^^^ IN: or OUT:
                                                | These h f <- recs
                                                , B._fType f ==  show (fromEnum eType)
                                                , entity <- maybeToList (readMay $ B._fObject f)
