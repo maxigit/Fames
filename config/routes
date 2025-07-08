@@ -38,9 +38,9 @@
   /bank/generate-statement/#Text GLBankStatementGenR GET !bank-full
   /bank/generate-receipts/#Day/#Text GLBankReceiptsGenR GET !bank-full
 
-  /vat GLVATR GET !vat !group=VAT !title=Main
-  /vat/ecsl GLVATEcslR GET POST !vat !title=ECSL
-  /tax GLTaxReportsR  GET !tax !title=Tax_Reports
+  /vat GLVATR GET !vat
+  /vat/ecsl GLVATEcslR GET POST !vat
+  /tax GLTaxReportsR  GET !tax !group=VAT !title=Tax_Reports
   /tax/new/#Text GLNewTaxReportR POST !tax !save-tax
   /tax/view/#Int64/#Maybe-TaxReportViewMode GLTaxReportR GET POST !tax
   /tax/details/#Int64 GLTaxReportDetailsR GET !internal !tax
