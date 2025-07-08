@@ -1260,8 +1260,8 @@ autoRec settings0 t = do
       inOut = if B._sAmount t < 0
               then "OUT: "
               else "IN: "
-      description = inOut <> (toLower $ B._sDescription t)
-      parseRegex s = case break (=='/') (toLower s) of
+      description = inOut <> B._sDescription t
+      parseRegex s = case break (=='/') s of
         (regex, '/':l_replace ) -> regexSub CaseLess regex l_replace
         (regex, "") -> regexSub CaseLess regex description
         _ -> error "Pattern should be exhaustive"
@@ -1373,14 +1373,14 @@ rulesFromRec eType ruleFn recs =
       spaces = (Rg.mkRegex " +", " +") -- many spaces = many spaces
       ltdSub = (Rg.mkRegex " ltd", "( ...)?")
       stripEnd = (Rg.mkRegex " \\+$", " *") -- remove trailing spaces at the end
-      mkReg s = (subRegex0 stripEnd$ subRegex0 spaces $ subRegex0 ltdSub $ subRegex0 numberSub $ subRegex0 specialSub $ toLower s)
+      mkReg s = (subRegex0 stripEnd$ subRegex0 spaces $ subRegex0 ltdSub $ subRegex0 numberSub $ subRegex0 specialSub s)
       subRegex0 (reg, rep) s = Rg.subRegex reg s rep 
       -- don't keep regex which have only wild card or space
       valid r = not $ null $ filter (`notElem` (".*?+ $^()" :: String)) (r :: String)
 
   -- customer rules
   -- we take the beginning of the payment reference
-      entity0 = groupAsMap fst ((:[]) . snd) [ ("^..: " ++ reg ++ "$", entity :: Int)
+      entity0 = groupAsMap fst ((:[]) . snd) [ ("^[^:]*: " ++ reg ++ "$", entity :: Int)
                                                -- ^^^ IN: or OUT:
                                                | These h f <- recs
                                                , B._fType f ==  show (fromEnum eType)
