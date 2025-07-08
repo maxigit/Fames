@@ -65,7 +65,6 @@ import qualified Text.Parsec as P
 import Text.Regex.TDFA() -- (=~))
 import qualified Text.Regex.TDFA.ByteString as Rg
 import qualified Text.Regex.Base as R
-import Debug.Trace
 -- import qualified Text.Parsec.Char as P
 
 read :: Read p => String -> p
@@ -363,6 +362,7 @@ data TrustPaymentTransaction = TrustPaymentTransaction
      { _tpTimeStamp :: UTCTime
      , _tpOrderReference :: String
      , _tpAmount :: Amount
+     , _tpErrorCode :: Int
      } deriving (Eq, Show)
 -- makeClassy ''TrustPaymentTransaction
 
@@ -371,7 +371,8 @@ instance FromNamedRecord (TrustPaymentTransaction) where
                     <*> (parseTime ["%Y-%m-%d %T"]  =<< r .: "Timestamp (BST)")
                     <*> r .: "Order reference"
                     <*> r .: "Settle amount"
-                    where r = traceShowId $ cleanRecord record
+                    <*> r .: "Error code"
+                    where r = cleanRecord record
 
 trustToDaily :: TrustPaymentTransaction -> HSBCDaily
 trustToDaily TrustPaymentTransaction{..} = HSBCDaily{..} where
@@ -524,7 +525,7 @@ readDaily discardPat path = do
                      in Right (V.fromList htranss)
         decodeTrustPayment = case decodeByName csv of
            Left e -> Left e
-           Right (_, v) -> Right $ V.map (\bf _i -> trustToDaily bf) v
+           Right (_, v) -> Right $ V.map (\t _i -> trustToDaily t) $ V.filter (\t -> _tpErrorCode t == 0)  v
     -- it is important to start with decodeHSBC because if a file as only one line
     -- trying to parse first with a decoder expecting a header will return a empty list
     -- instead of failing: the header is actually not used (and not checked if there is no lines)
@@ -800,9 +801,3 @@ thatFirst :: These Transaction Transaction -> Transaction
 thatFirst (This a) = a
 thatFirst (That a) = a
 thatFirst (These __a b) = b { _sNumber = _sNumber b, _sObject = _sObject b}
-
- -- TODO
- -- [X] use or discard time
- -- [X] reactivate other bank types
- -- [ ] SAVE button ?
- --
