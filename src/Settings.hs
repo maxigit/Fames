@@ -156,6 +156,7 @@ data BankStatementSettings = BankStatementSettings
   , bsSummaryDateCalculator :: Maybe DateCalculator -- When to start the statement section
   , bsSummaryLimit :: Maybe Int -- Number max to load
   , bsRules:: [Map Text BankAutoReconciliateRule]  -- rules to generate FA transaction statement entry
+  , bsDefaultRules:: Maybe (Map Text BankAutoReconciliateRule)  -- rules to generate FA transaction statement entry
   } deriving (Show, Eq, Ord)
 
 -- TODO clean

@@ -1364,7 +1364,7 @@ fillAutoSettingsCached bankSettings = cache0 False (cacheDay 1) ("bank-settings/
       supplierRules = rulesFromRec ST_SUPPAYMENT BankAutoSupplier recs
       -- transRules = rulesFromRec ST_BANKTRANSFER BankAutoTransfer recs
   -- lift $ writeFile "/home/max/Webshot/recs.hs" (fromString $ show ("RECS", filter isThese recs, "customerRules", customerRules, "supp", supplierRules))
-  return $ bankSettings {bsRules = bsRules bankSettings <> (customerRules : supplierRules : [])}
+  return $ bankSettings {bsRules = bsRules bankSettings <> (customerRules : supplierRules : (bsDefaultRules bankSettings) ?:  [])}
   
 
 rulesFromRec eType ruleFn recs = 
