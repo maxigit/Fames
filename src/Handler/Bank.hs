@@ -1319,7 +1319,7 @@ generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..}
       save = [shamlet|
   <form method=GET action="#{faURL}/purchasing/supplier_payment.php" target=_blank>
     <input type=hidden name=DatePaid  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
-    <input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
+    <input type=hidden name=expected_amount  value="#{tshow $ abs _sAmount}">
     <input type=hidden name=bank_account  value="#{tshow current}">
     <input type=hidden name=supplier_id value="#{tshow target}">
     <input type=hidden name=memo_  value="#{memo}">
@@ -1340,7 +1340,7 @@ generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..}
       save = [shamlet|
   <form method=GET action="#{faURL}/sales/customer_payments.php" target=_blank>
     <input type=hidden name=DateBanked  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
-    <input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
+    <input type=hidden name=expected_amount  value="#{tshow $ abs _sAmount}">
     <input type=hidden name=bank_account  value="#{tshow current}">
     <input type=hidden name=customer_id value="#{tshow target}">
     <input type=hidden name=memo_  value="#{memo}">
