@@ -1380,7 +1380,7 @@ rulesFromRec eType ruleFn recs =
 
   -- customer rules
   -- we take the beginning of the payment reference
-      entity0 = groupAsMap fst ((:[]) . snd) [ ("^[^:]*: " ++ reg ++ "$", entity :: Int)
+      entity0 = groupAsMap fst ((:[]) . snd) [ ("^[^:]*: (" ++ reg ++ ")$/\\1" , entity :: Int)
                                                -- ^^^ IN: or OUT:
                                                | These h f <- recs
                                                , B._fType f ==  show (fromEnum eType)
