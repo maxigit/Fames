@@ -445,13 +445,20 @@ displayDAC = let
 -- | Displays a table with all payment information for each employee t
 displayEmployeeSummary :: (?viewPayrollAmountPermissions :: (Text -> Granted))
                        => TS.Timesheet Text Text -> Widget
-displayEmployeeSummary = displayEmployeeSummary' []
+displayEmployeeSummary = displayEmployeeSummary' [] []
 displayEmployeeSummary' :: (?viewPayrollAmountPermissions :: (Text -> Granted) )
-                        => [ ( Text, [PayrollFormula] ) ]
+                        => [Text ] 
+                        -> [ ( Text, [PayrollFormula] ) ]
                         -> TS.Timesheet Text Text -> Widget
-displayEmployeeSummary' formulas timesheet= let
+displayEmployeeSummary' nameOrder formulas timesheet= let
   columnWeight = columnWeightFromList (map fst formulas)
-  summaries = map (tweakSummary formulas) $ TS.paymentSummary timesheet
+  -- add a weight to employe name
+  empWeights :: Map Text Int
+  empWeights = Map.fromList $ zip nameOrder [-1000000 .. 0 ]
+  addWeight e = (findWithDefault 1 e empWeights, e)
+        
+  summaries = map (tweakSummary formulas . fmap snd ) $ TS.paymentSummary $ fmap addWeight timesheet
+              --                           ^^^^^^^^ remove weight           ^^^^^^^^^^^^^ add weight
   (cols0, colnames) = employeeSummaryColumns summaries
   
   -- weight return a maybe weight

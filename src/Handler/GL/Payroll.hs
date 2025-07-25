@@ -110,7 +110,7 @@ validate param key = do
                                  -- TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
                                  TS.filterTimesheet isShiftViewable isDACUnlocked timesheet `forM` (\ts -> do
                                       let vs = toList (views (appPayroll settings) )
-                                      forM vs $ \cols -> displayEmployeeSummary' cols . timesheetPayrooForSummary $ ts)
+                                      forM vs $ \(cols, orders) -> displayEmployeeSummary' orders cols . timesheetPayrooForSummary $ ts)
                                  return ()
                              )
 
@@ -217,8 +217,8 @@ getGLPayrollViewR key = do
           --           ]
           dacsReport = ("Deductions and Costs" :: Text, displayShifts displayDAC . TS._deductionAndCosts, TS.filterTimesheet (const False) isDACUnlocked )
           summaryReport = ("Summary", displayEmployeeSummary , TS.filterTimesheet isShiftViewable isDACUnlocked)
-          summaries0 = [(viewName, displayEmployeeSummary' colnames  , TS.filterTimesheet isShiftViewable isDACUnlocked)
-                  | (viewName, colnames) <- Map.toList $ views psettings
+          summaries0 = [(viewName, displayEmployeeSummary' orders colnames  , TS.filterTimesheet isShiftViewable isDACUnlocked)
+                  | (viewName, (colnames, orders)) <- Map.toList $ views psettings
                   ]
           summaries = case summaries0 of
             [] -> [summaryReport]

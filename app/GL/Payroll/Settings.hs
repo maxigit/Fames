@@ -60,7 +60,9 @@ data PayrollSettings = PayrollSettings
   , grnWorkLocation :: Text
   , wagesBankAccount :: Int
   , externals :: Map Text PayrollExternalSettings
-  , views :: Map Text [(Text, [PayrollFormula]) ]
+  , views :: Map Text ([(Text,  [PayrollFormula]) ]
+                      , [Text] -- employe order by name
+                      )
   -- , formulas :: Map Text PayrollFormula
   } deriving (Show, Eq, Ord)
 
@@ -127,6 +129,19 @@ instance {-# OVERLAPPING #-} FromJSON (Text, [PayrollFormula]) where
                         _ -> fail "Named formula should have only one key value pair"
              ) v
 
+instance {-# OVERLAPPING #-} ToJSON([(Text, [PayrollFormula])], [Text]) where
+  toJSON (cols, []) = toJSON cols
+  toJSON (cols, order) = object [ "order" .= order, "columns" .= cols ]
+  
+instance {-# OVERLAPPING #-} FromJSON ([(Text, [PayrollFormula])], [Text]) where
+  parseJSON v = ((,[]) <$> parseJSON v)  -- withArray "column" (\xs -> return (xs, [])) v
+              <|> withObject "with-order"  (\o -> do
+                      order <- o .: "order" 
+                      cols <- o .: "columns"
+                      return (cols, order)
+                      ) v
+
+ 
 -- There valid code to instanciate FromJSON and ToJSON
 -- but will result in (Text, [PayrollFormula]) to be valid
 -- and therefore overlapp with ours

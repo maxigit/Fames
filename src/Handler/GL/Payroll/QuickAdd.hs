@@ -65,8 +65,8 @@ saveQuickAdd  save text __key  = do
                      ^{displayEmployeeSummary (timesheetPayrooForSummary timesheet)}
                    <div.well>
                      <h3> Final
-                     $forall cols <- views_
-                      ^{displayEmployeeSummary' cols mergedTts'}
+                     $forall (cols, orders) <- views_
+                      ^{displayEmployeeSummary' orders cols mergedTts'}
                          |]
         _ -> ExceptT . return $ Left $ "No timesheet with reference '"  <> ref <> "''"
 
