@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -8,6 +8,11 @@ name:           Fames
 version:        0.1.1
 license:        MIT
 build-type:     Simple
+
+flag brick
+  description: use brick for the warehouse plaanner
+  manual: False
+  default: True
 
 flag dev
   description: Turn on development settings, like auto-reload templates.

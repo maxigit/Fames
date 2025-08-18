@@ -75,9 +75,14 @@ curlJson = doCurlWith (const success) (const failure) where
 class CurlPostField a where
   toCurlPostField :: a -> Maybe String
 
+newtype UrlEncoded  = UrlEncoded Text
+  deriving (Eq, Show)
+
+instance CurlPostField UrlEncoded where 
+  toCurlPostField (UrlEncoded txt) = Just . BS.unpack . urlEncode True $ encodeUtf8 txt
 
 instance CurlPostField String where
-  toCurlPostField = Just . BS.unpack . urlEncode True . BS.pack
+  toCurlPostField = Just
 
 instance CurlPostField Text where
   toCurlPostField = toCurlPostField . unpack

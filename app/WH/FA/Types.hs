@@ -3,11 +3,13 @@
 module WH.FA.Types
 ( module WH.FA.Types
 , FATransType(..)
+, UrlEncoded(..)
 ) where
 
 import ClassyPrelude
 import Data.Decimal
 import FATransType
+import Curl(UrlEncoded(..))
 
 -- * Connection parametes 
 data FAConnectInfo = FAConnectInfo
@@ -157,7 +159,7 @@ data SalesOrder = SalesOrder
     , soDeliverTo :: !Text
     , soDeliveryAddress :: !Text
     , soPhone :: !Text
-    , soComment :: !Text
+    , soComment :: !UrlEncoded
     -- Optional, taken from the customer default if needed
     , soPayment :: !(Maybe Text)
     , soSalesType :: !(Maybe Text)
