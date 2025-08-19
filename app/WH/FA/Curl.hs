@@ -18,6 +18,8 @@ module WH.FA.Curl
 , postVoid
 , postCostUpdate
 , postSalesOrder
+, postRequestCustomerStatement
+, postRequestBackorderReport
 ) where
 
 import ClassyPrelude hiding(traceM, mapM_)
@@ -226,6 +228,10 @@ voidTransactionUrl, ajaxVoidTransactionUrl :: (?baseURL :: String) => String
 voidTransactionUrl = ?baseURL <> "/admin/void_transaction.php" 
 ajaxVoidTransactionUrl = toAjax $ voidTransactionUrl
 
+-- *** Report
+requestReportUrl, ajaxRequestReportUrl :: (?baseURL :: String) => String
+requestReportUrl = ?baseURL <> "reporting/reports_main.php"
+ajaxRequestReportUrl = toAjax $ requestReportUrl
 -- ** Items 
 -- *** Stock Adjustment 
 addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
@@ -900,20 +906,67 @@ postVoid connectInfo VoidTransaction{..} = do
       Right e ->  throwError $ "Unexpected success msg: ["  <> e <> "]"
       Left e  -> throwError e
 
-
-{-
-  
-  filterType=4
-FromTransNo=1
-ToTransNo=999999
-trans_no=266
-selected_id=266
-date_=2019/04/15
-memo_=test%20void
-ProcessVoiding=Void%20Transaction
-_focus=filterType
-_modified=0
-_token=8e40312b63862417a34b8025a91e6bdbc5055af9960ecae35b1c7646d3c9925e
-_random=881903.1138965458
--}
-  
+-- ** Report
+postRequestCustomerStatement :: FAConnectInfo -> Int ->  IO (Either Text Text)
+postRequestCustomerStatement connectInfo debtorNo = do
+   let ?baseURL = faURL connectInfo
+   let fields =  curlPostFields -- [ "REP_ID" <=> t "_customer_account_statement"
+                                -- , "PARAM_0" <=> t "2025/02/19"
+                                -- , "PARAM_1" <=> t "2025/08/19"
+                                [ "PARAM_2" <=> debtorNo --  -- debtor_no
+                                -- , "PARAM_3" <=> t "" -- currency filter
+                                , Just "PARAM_4=1" -- send email
+                                , Just "PARAM_5=1" -- include creditor
+                                -- , "PARAM_6" <=> t "" -- comment
+                                -- , "PARAM_7" <=> t "0" -- orientation
+                                -- , "Class" <=> t "0"
+                                -- , "_random" <=> t "774529.4260659578"
+                                , Just "Rep_customer_account_statement=Display: Customer Account Statement" -- button
+                                ]
+                 : method_POST
+       t s = s :: Text
+   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+     new <- curlSoup ajaxRequestReportUrl ( curlPostFields ["REP_ID" <=> t "_customer_account_statement"
+                                                              , "Class" <=> t "0"
+                                                              ]
+                                               : method_POST
+                                             )
+                                             [200] "customer report"
+     let options = extractInputsToCurl new
+     tags <- curlSoup ajaxRequestReportUrl (options : fields) [200] "request statement"
+     case extractSuccessMsgFromSoup tags of
+       Right msg | "STATEMENT  has been sent by email to destination." `ClassyPrelude.isPrefixOf` msg -> return "email sent"
+       Right e ->  throwError $ "Unexpected success msg: ["  <> e <> "]"
+       Left e  -> throwError e
+    
+postRequestBackorderReport :: FAConnectInfo -> Int ->  IO (Either Text Text)
+postRequestBackorderReport connectInfo debtorNo = do
+   let ?baseURL = faURL connectInfo
+   let fields =  curlPostFields -- [ "REP_ID" <=> t "_back_order_xtra"
+                                -- , "PARAM_0" <=> t "2025/02/19"
+                                -- , "PARAM_1" <=> t "2025/08/19"
+                                [ Just "PARAM_2=0" -- filter not available
+                                , Just "PARAM_3=0" -- filter relegated
+                                , "PARAM_4" <=> debtorNo --  -- debtor_no
+                                , Just "PARAM_5=1" -- email
+                                , Just "PARAM_6=0" -- no colour
+                                -- , "PARAM_6" <=> t "0" -- orientation
+                                -- , "Class" <=> t "0"
+                                -- , "_random" <=> t "774529.4260659578"
+                                , Just "Rep_back_order_xtra=Display: Back Order Xtra" -- button
+                                ]
+                 : method_POST
+       t s = s :: Text
+   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+     new <- curlSoup ajaxRequestReportUrl ( curlPostFields ["REP_ID" <=> t "_back_order_xtra"
+                                                              , "Class" <=> t "0"
+                                                              ]
+                                               : method_POST
+                                             )
+                                             [200] "customer report"
+     let options = extractInputsToCurl new
+     tags <- curlSoup ajaxRequestReportUrl (options : fields) [200] "request backorder report"
+     case extractSuccessMsgFromSoup tags of
+       Right msg | "BACKORDER REPORT  has been sent by email to destination." `ClassyPrelude.isPrefixOf` msg -> return "email sent"
+       Right e ->  throwError $ "Unexpected success msg: ["  <> e <> "]"
+       Left e  -> throwError e
