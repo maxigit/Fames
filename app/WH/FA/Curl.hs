@@ -230,7 +230,7 @@ ajaxVoidTransactionUrl = toAjax $ voidTransactionUrl
 
 -- *** Report
 requestReportUrl, ajaxRequestReportUrl :: (?baseURL :: String) => String
-requestReportUrl = ?baseURL <> "reporting/reports_main.php"
+requestReportUrl = ?baseURL <> "/reporting/reports_main.php"
 ajaxRequestReportUrl = toAjax $ requestReportUrl
 -- ** Items 
 -- *** Stock Adjustment 
