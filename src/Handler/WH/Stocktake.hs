@@ -876,7 +876,7 @@ validateRows skus (row:rows) = do
 validateRow :: Set Text -> ValidationMode -> PartialRow -> Either RawRow ValidRow
 validateRow __skus __validateMode (TakeRow (Just rowStyle) (Just rowColour)
                                    (Just rowQuantity@(Provided (Known _)))
-                                  Nothing (Just (Provided "0")) Nothing Nothing Nothing
+                                  Nothing (Just (Provided "QUICK")) Nothing Nothing Nothing
                                    (Just rowDate) (Just rowOperator) rowComment rowBatch)
   = Right . QuickST $ TakeRow{rowLocation=(), rowBarcode=() 
                             , rowLength=(), rowWidth=(), rowHeight=()
