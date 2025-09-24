@@ -1231,7 +1231,7 @@ updateCost connectInfo today (Entity _ summary@ItemCostSummary{..}) | Just sku <
                            -- and a wrong account. We just skip them
                            -- The cost will be updated when updating the item for the correct account
                            -> do
-            faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
+            faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate (WFA.UrlEncoded sku) itemCostSummaryCostAfter)
             case faIdm of
               Right (Just faId) -> do
                 runDB $ insert $ FA.Comment (fromEnum ST_COSTUPDATE) faId (Just today) (Just $ sku  <> " Fames Cost Adjustement")
@@ -1298,7 +1298,7 @@ voidFATransaction :: WFA.FAConnectInfo -> Day -> Maybe Text -> Entity Transactio
 voidFATransaction connectInfo vtDate comment (Entity __tId TransactionMap{..}) = do
   let vtTransNo = transactionMapFaTransNo
       vtTransType = transactionMapFaTransType
-      vtComment = Just $ fromMaybe "Voided by Fames" comment
+      vtComment = Just . WFA.UrlEncoded $ fromMaybe "Voided by Fames" comment
   ExceptT $ liftIO $ WFA.postVoid connectInfo WFA.VoidTransaction{..}
   -- mark the transaction as voided (all the rows)  not just the one matching the curren entity
   lift $  runDB $ updateWhere [ TransactionMapFaTransType ==. transactionMapFaTransType

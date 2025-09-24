@@ -288,7 +288,7 @@ addLocationTransferDetail  :: (?baseURL :: URLString, ?curl :: Curl)
                            => LocationTransferDetail -> ExceptT Text IO [Tag String]
 addLocationTransferDetail LocationTransferDetail{..} = do
   let items = curlPostFields [ Just "AddItem=Add%20Item"
-                             , "stock_id" <=> unpack ltrSku
+                             , "stock_id" <=> ltrSku
                              , Just "std_cost=0"
                              , "qty" <=> show ltrQuantity
                              ] : method_POST
@@ -303,7 +303,7 @@ postCostUpdate :: FAConnectInfo -> CostUpdate -> IO (Either Text (Maybe Int))
 postCostUpdate connectInfo CostUpdate{..} = do
   let ?baseURL = faURL connectInfo
   let params = curlPostFields [ Just "UpdateData=Update"
-                              , "stock_id" <=> unpack cuSku
+                              , "stock_id" <=> cuSku
                               , "material_cost" <=> show cuCost
                               , Just "labour_cost=0"
                               , Just "overhead_cost=0"
@@ -476,7 +476,7 @@ addGRNDetail :: (?baseURL :: URLString, ?curl :: Curl)
              => GRNDetail -> ExceptT Text IO [Tag String]
 addGRNDetail GRNDetail{..} = do
   let fields = curlPostFields [ Just "EnterLine=Ad%20Item"
-                              , "stock_id" <=> unpack grnSku
+                              , "stock_id" <=> grnSku
                               , "qty" <=> show grnQuantity
                               , "price" <=> show grnPrice
                               ] : method_POST

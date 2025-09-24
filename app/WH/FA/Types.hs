@@ -34,7 +34,7 @@ data StockAdjustment = StockAdjustment
   } deriving (Eq, Show)
 
 data StockAdjustmentDetail = StockAdjustmentDetail
-  { adjSku :: !Text
+  { adjSku :: !UrlEncoded
   , adjQuantity :: !Double
   , adjCost :: !Double
   } deriving (Eq, Show)
@@ -53,13 +53,13 @@ data LocationTransfer = LocationTransfer
   } deriving (Eq, Show)
 
 data LocationTransferDetail = LocationTransferDetail
-  { ltrSku :: !Text
+  { ltrSku :: !UrlEncoded
   , ltrQuantity :: !Int
   } deriving (Eq, Show)
 
 -- ** CostUpdate 
 data CostUpdate = CostUpdate
-  { cuSku :: !Text
+  { cuSku :: !UrlEncoded
   , cuCost :: Double
   } deriving (Eq, Show)
 -- * GL 
@@ -106,7 +106,7 @@ data GRN = GRN
   } deriving (Eq, Show)
 
 data GRNDetail = GRNDetail
-  { grnSku :: !Text
+  { grnSku :: !UrlEncoded
   -- , grnDescription :: !(Maybe Text)
   , grnQuantity :: !Double
   , grnPrice :: !Double
@@ -169,7 +169,7 @@ data SalesOrder = SalesOrder
     } deriving (Eq, Show)
 
 data SalesOrderItem = SalesOrderItem
-    { soiStockId :: !Text
+    { soiStockId :: !UrlEncoded
     , soiQuantity :: !Int
     , soiPrice :: !Double
     , soiDiscountPercent :: !Double
@@ -204,5 +204,5 @@ data VoidTransaction = VoidTransaction
   { vtTransNo :: !Int
   , vtTransType :: !FATransType
   , vtDate :: !Day
-  , vtComment :: !(Maybe Text)
+  , vtComment :: !(Maybe UrlEncoded)
   }

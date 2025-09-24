@@ -897,7 +897,7 @@ saveGRNs settings __key timesheet = do
                                                              []
                                                )
               ]
-      mkDetail shift = WFA.GRNDetail (pack . TS.sku $ TS._shiftKey shift)
+      mkDetail shift = WFA.GRNDetail (WFA.UrlEncoded $ pack . TS.sku $ TS._shiftKey shift)
                                      (unsafeUnlock $ TS._duration shift)
                                      (unsafeUnlock $ view TS.hourlyRate shift)
       mkGRN (TS.Textcart (day, shiftType, shifts), pKeys)  = let
@@ -1262,7 +1262,7 @@ voidFATransaction :: WFA.FAConnectInfo -> Day -> Maybe Text -> Entity Transactio
 voidFATransaction connectInfo vtDate comment (Entity __tId TransactionMap{..}) = do
   let vtTransNo = transactionMapFaTransNo
       vtTransType = transactionMapFaTransType
-      vtComment = Just $ fromMaybe "Voided by Fames" comment
+      vtComment = Just . WFA.UrlEncoded $ fromMaybe "Voided by Fames" comment
   ExceptT $ liftIO $ WFA.postVoid connectInfo WFA.VoidTransaction{..}
   -- mark the transaction as voided (all the rows)  not just the one matching the curren entity
   lift $  runDB $ updateWhere [ TransactionMapFaTransType ==. transactionMapFaTransType

@@ -821,7 +821,7 @@ detailsToCartFA mainLoc lostLoc ref date (Carts news losts founds) = let
   new = WFA.StockAdjustment (ref<> "-new")
                         mainLoc
                         date
-                        [ WFA.StockAdjustmentDetail (stockAdjustmentDetailStockId d)
+                        [ WFA.StockAdjustmentDetail (WFA.UrlEncoded $ stockAdjustmentDetailStockId d)
                                                     (fromIntegral $ qty)
                                                     cost
                         | (d, cost) <- news
@@ -833,7 +833,7 @@ detailsToCartFA mainLoc lostLoc ref date (Carts news losts founds) = let
   lost = WFA.LocationTransfer (ref<> "-lost")
                         mainLoc lostLoc
                         date
-                        [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
+                        [ WFA.LocationTransferDetail (WFA.UrlEncoded $ stockAdjustmentDetailStockId d)
                                                      qty
                         | (d, qty) <- losts
                         , qty > 0
@@ -841,7 +841,7 @@ detailsToCartFA mainLoc lostLoc ref date (Carts news losts founds) = let
   found = WFA.LocationTransfer (ref<> "-found")
                         lostLoc mainLoc
                         date
-                        [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
+                        [ WFA.LocationTransferDetail (WFA.UrlEncoded $ stockAdjustmentDetailStockId d)
                                                      qty
                         | (d, qty) <- founds
                         , qty > 0
