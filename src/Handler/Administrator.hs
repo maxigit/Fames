@@ -30,7 +30,18 @@ getAIndexR = do
       gitdirtyStar = if gitdirty then "*" else "" :: Text
   -- we don't show the settings for security reason
   -- however we can dump it to the console
-  putStrLn $ decodeUtf8 $ encodePretty defConfig settings
+  putStrLn $ decodeUtf8 $ encodePretty defConfig settings { appCategoryRules = mempty
+                                                          , appCustomerCategoryRules =  mempty
+                                                          , appOrderCategoryRules =  mempty
+                                                          , appDeliveryCategoryRules =  mempty
+                                                          , appVariations = mempty
+                                                          , appVariationGroups = mempty
+                                                          , appStockLocations = mempty
+                                                          , appBankStatements = mempty
+                                                          , appTaxReportSettings = mempty
+                                                          , appReceiptTemplates = mempty
+                                                          , appDPDSettings = Nothing
+                                                          }
   setSuccess "The configuration has been dumped to the log."
   defaultLayout $ [whamlet|
 <h1> Administrator
