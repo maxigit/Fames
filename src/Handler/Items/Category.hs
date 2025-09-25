@@ -14,16 +14,13 @@ import qualified Data.Map.Strict as Map
 getItemsCategoryR :: Handler Html
 getItemsCategoryR = do
   cats <- categoriesH
-  cat'counts  <- runDB $ forM cats $ \cat -> do
-    c <- count [ItemCategoryCategory ==. cat] 
-    return (cat, c)
   defaultLayout [whamlet|
    <div.well>
      <ul>
-       $forall (cat, cnt) <- cat'counts
+       $forall cat <- cats
          <li>
            <a href=@{ItemsR (ItemsCategoryTermsR cat)}>
-             #{cat} (#{cnt})
+             #{cat}
                  |]
 
 {-# NOINLINE getItemsCategoryTermsR #-}
