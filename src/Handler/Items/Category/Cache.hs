@@ -120,21 +120,40 @@ categoryFinderCachedFor categories = do
   return $ finder
 
 categoryFinderCached :: Text -> Handler (FA.StockMasterId -> Maybe Text)
-categoryFinderCached category =  cache0 False cacheForEver (categoryCacheKey category) $ do
-  refreshCategoryCache False (Just category)
-  -- we reverse the stock_id to speed up string comparison
-  -- as most items share a common prefix, it might be faster to compare them from right to left 
-  let sql =  "SELECT stock_id AS order_key, value "
-          <> "FROM fames_item_category_cache "
-          <> "WHERE category = ?"
-  key'values <- runDB $ rawSql sql [PersistText category]
-  -- Don't use fromAscList
-  let skuMap :: HMap.HashMap Text Text
-      skuMap = List.fromList $ [ (key , value )
-                               | (Single key, Single value) <- key'values
-                               ]
-  let finder (FA.StockMasterKey sku) = HMap.lookup sku skuMap
-  return $ skuMap `seq` finder
+categoryFinderCached category =  do
+  -- load all the sku onces and store them
+  -- so that loading later another category can use the key in memory
+  idSets <- cache0 False cacheForEver (categoryCacheKey "--stock_id") $ do
+         let sql =  "SELECT distinct stock_id "
+                 <> "FROM fames_item_category_cache "
+                 <> " ORDER BY stock_id "
+         stock_ids <- runDB $ rawSql sql []
+         let dict :: HMap.HashMap Text Text
+             dict = List.fromList $ [(k, k) | (Single k) <- stock_ids]
+         return dict
+  cache0 False cacheForEver (categoryCacheKey category) $ do
+         refreshCategoryCache False (Just category)
+         -- we reverse the stock_id to speed up string comparison
+         -- as most items share a common prefix, it might be faster to compare them from right to left 
+         let sql =  "SELECT stock_id AS order_key, value "
+                 <> "FROM fames_item_category_cache "
+                 <> "WHERE category = ?"
+                 <> " ORDER BY value"
+         key'values_ <- runDB $ rawSql sql [PersistText category]
+
+         let key'values = snd $ Data.List.mapAccumL reuseLast Nothing key'values_
+             reuseLast (Just prev) (Single k, Single v) | prev == k = (Just v, (k, prev))
+             reuseLast _ (Single k, Single v) = (Just v, (k, v))
+
+         -- Don't use fromAscList
+         let skuMap :: HMap.HashMap Text Text
+             skuMap = List.fromList $ [ (stockId , value )
+                                      | (key, value) <- key'values
+                                      , let stockId = HMap.findWithDefault key key idSets
+                                      -- ^^^^  reuse existing key in memory to save memory
+                                      ]
+         let finder (FA.StockMasterKey sku) = HMap.lookup sku skuMap
+         return $ skuMap `seq` finder
 
 categoryCacheKey :: Text -> (String, Text)
 categoryCacheKey = ("category-finder",)
