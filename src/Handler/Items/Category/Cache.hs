@@ -126,32 +126,32 @@ categoryFinderCached category =  do
   idSets <- cache0 False cacheForEver (categoryCacheKey "--stock_id") $ do
          let sql =  "SELECT distinct stock_id "
                  <> "FROM fames_item_category_cache "
-                 <> " ORDER BY stock_id "
+                 <> " ORDER BY stock_id"
          stock_ids <- runDB $ rawSql sql []
-         let dict :: HMap.HashMap Text Text
-             dict = List.fromList $ [(k, k) | (Single k) <- stock_ids]
-         return dict
+         return $ sort $ map unSingle stock_ids
   cache0 False cacheForEver (categoryCacheKey category) $ do
          refreshCategoryCache False (Just category)
-         -- we reverse the stock_id to speed up string comparison
-         -- as most items share a common prefix, it might be faster to compare them from right to left 
          let sql =  "SELECT stock_id AS order_key, value "
                  <> "FROM fames_item_category_cache "
                  <> "WHERE category = ?"
-                 <> " ORDER BY value"
+                 <> " ORDER BY stock_id"
+                 --                    ^^^^^^^^^^^^^^ 
+                 --                        force case sensitive sorting
          key'values_ <- runDB $ rawSql sql [PersistText category]
 
-         let key'values = snd $ Data.List.mapAccumL reuseLast Nothing key'values_
-             reuseLast (Just prev) (Single k, Single v) | prev == k = (Just v, (k, prev))
-             reuseLast _ (Single k, Single v) = (Just v, (k, v))
+         let key'values = snd $ Data.List.mapAccumL reuseLast mempty key'values_
+             reuseLast (dict) (Single k, Single v) | Just prev <- Map.lookup v dict  = (dict, (k, prev))
+             reuseLast dict (Single k, Single v) = (dict <> Map.singleton v v , (k, v))
 
+         let lastStockId :: [Text] -> (Text, Text) -> ([Text], (Text, Text))
+             lastStockId (s:ss) (k,v) | k == s = (ss, (s,v)) -- reuse key and move forward
+             lastStockId (s:ss) (k,v) | k > s = (ss, (k,v)) -- skip key
+             lastStockId ss kv = (ss, kv)
          -- Don't use fromAscList
+         -- align with existing stock id to reuse them if possible
          let skuMap :: HMap.HashMap Text Text
-             skuMap = List.fromList $ [ (stockId , value )
-                                      | (key, value) <- key'values
-                                      , let stockId = HMap.findWithDefault key key idSets
+             skuMap = List.fromList $ snd $ Data.List.mapAccumL lastStockId idSets $ sort (key'values)
                                       -- ^^^^  reuse existing key in memory to save memory
-                                      ]
          let finder (FA.StockMasterKey sku) = HMap.lookup sku skuMap
          return $ skuMap `seq` finder
 
