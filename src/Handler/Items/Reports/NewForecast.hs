@@ -9,7 +9,7 @@ import Import
 
 
 plotForecastError ::  Widget
-plotForecastError = do
+plotForecastError = do -- actuals naiveForecast previousForecast currentForecast = do
      --         1  0  0   2 0 1  3 0 0  0 4 0
    let y, y_under, y_over, x :: [Int]
        y =       [1,1,1, 2,3,4, 7,7,7,  7,11,11]

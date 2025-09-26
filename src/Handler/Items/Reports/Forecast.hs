@@ -111,9 +111,7 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) 
                     mempty
                     mempty
                     (case io of
-                       Inward -> ST_PURCHORDER
-                       Outward -> ST_SALESINVOICE
-                    )
+                       Inward -> ST_PURCHORDER Outward -> ST_SALESINVOICE)
                     Nothing Nothing mempty
 
           qp = mkQPrice io (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
@@ -122,7 +120,24 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) 
     _ -> []
     
 
+-- * Forecast error
 
-  
+-- | Load actual (
+loadActualSalesByWeek :: Sku -> Day -> Handler Weekly
+loadActualSalesByWeek sku end = do
+   -- todo adjust to beginning of week
+   let start = calculDate (AddYears -1) end
+   let sql = "SELECT sum(quantity), WEEK(tran_date,5) ":
+           " FROM 0_debtor_trans_details " :
+           "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
+           " LEFT JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
+           "WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
+           "AND quantity != 0" :
+           "AND stock_id = '?'" :
+           " tran_date between '?' AND '?' " :
+           " GROUP BY week " :
+           []
+
+
 
    
