@@ -80,6 +80,7 @@ library
       Handler.Items.Report
       Handler.Items.Reports.Common
       Handler.Items.Reports.Forecast
+      Handler.Items.Reports.NewForecast
       Handler.Planner
       Handler.Planner.Exec
       Handler.Planner.FamesImport

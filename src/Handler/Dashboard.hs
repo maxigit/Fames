@@ -12,6 +12,7 @@ where
 
 import Import hiding(all)
 import Handler.Items.Reports.Common
+import Handler.Items.Reports.NewForecast
 import Items.Types
 import GL.Utils
 import qualified Data.Map as Map
@@ -666,18 +667,9 @@ collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = le
   
 getDForecastR :: Handler Html
 getDForecastR = do
-   defaultLayout $ do
+  let plot = plotForecastError 
+  defaultLayout $ do
       [whamlet|
-        The plot
-        <div. id=test>
+        ^{plot}
       |]
-      toWidgetBody [julius|
-         Plotly.plot("test" 
-         , [{ 
-            x: [1,2,3]
-            , y:[10,20,5]
-            }]
-         );
-      |]
-
 
