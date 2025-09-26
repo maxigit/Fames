@@ -5,6 +5,8 @@ module Handler.Dashboard
 , getDCustomR
 , getDYearR
 , getDAllYearR
+-- * Forecast
+, getDForecastR
 )
 where
 
@@ -660,3 +662,22 @@ collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = le
             <div.just-right>#{fromMaybe "-" $ lookup column trace}
                         |]
   in [(columns, mapFromList rankMap )]
+  
+  
+getDForecastR :: Handler Html
+getDForecastR = do
+   defaultLayout $ do
+      [whamlet|
+        The plot
+        <div. id=test>
+      |]
+      toWidgetBody [julius|
+         Plotly.plot("test" 
+         , [{ 
+            x: [1,2,3]
+            , y:[10,20,5]
+            }]
+         );
+      |]
+
+
