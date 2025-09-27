@@ -10,6 +10,11 @@ import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
 import FA as FA hiding (unUserKey)
 import Control.Monad.Fail (MonadFail(..))
+import GL.Utils
+import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
+import qualified Data.Conduit.List as CL
+import Data.Coerce (coerce)
+import Data.List.NonEmpty (NonEmpty(..))
 
 -- * Profiles 
 -- | Read a map of season profiles from a valid csv
@@ -111,7 +116,8 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) 
                     mempty
                     mempty
                     (case io of
-                       Inward -> ST_PURCHORDER Outward -> ST_SALESINVOICE)
+                       Inward -> ST_PURCHORDER
+                       Outward -> ST_SALESINVOICE)
                     Nothing Nothing mempty
 
           qp = mkQPrice io (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
@@ -122,21 +128,35 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) 
 
 -- * Forecast error
 
--- | Load actual (
-loadActualSalesByWeek :: Sku -> Day -> Handler Weekly
-loadActualSalesByWeek sku end = do
+-- | Load actual sales for a whole year 
+loadActualCumulSalesByWeek :: Day -> SqlConduit () (Sku, [(Amount, Int64)]) () --  UWeeklyAmount) ()
+loadActualCumulSalesByWeek end = do
    -- todo adjust to beginning of week
-   let start = calculDate (AddYears -1) end
-   let sql = "SELECT sum(quantity), WEEK(tran_date,5) ":
+   let start = calculateDate (AddYears $ -1) end
+   let sql = "SELECT stock_id, sum(quantity*unit_price), YEAR_WEEK(tran_date,5) ":
            " FROM 0_debtor_trans_details " :
-           "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
-           " LEFT JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
-           "WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
-           "AND quantity != 0" :
-           "AND stock_id = '?'" :
-           " tran_date between '?' AND '?' " :
-           " GROUP BY week " :
+           " JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
+           " JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
+           " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
+           " AND quantity != 0" :
+           " AND stock_id = '?'" :
+           " tran_date >= '?' AND tran_date < '?' " :
+           " GROUP BY stock_id, week " :
+           " order BY stock_id, week " :
            []
+       weekSource = rawQuery  (mconcat sql) [toPersistValue start, toPersistValue end] 
+       myCoerce :: [PersistValue] -> (Sku, (Amount, Int64))
+       myCoerce vs = case rawSqlProcessRow vs  of
+                          Left e -> error $ unpack e
+                          Right v -> coerce (v :: (Single Text, (Single Amount, Single Int64)))
+       run :: NonEmpty (Sku, (Amount, Int64)) -> (Sku, [(Amount, Int64)])
+       run nonEmpty = let (sku :|  _, amount'weeks) = unzip nonEmpty
+                      in (sku, toList amount'weeks)
+                 
+   -- runDB $ runConduit weekSource
+   weekSource .| mapC myCoerce
+              .| CL.groupOn fst
+              .| mapC run
 
 
 

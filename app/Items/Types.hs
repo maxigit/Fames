@@ -525,3 +525,7 @@ seasonProfile weights0 = SeasonProfile (normalize weights) where
 seasonProfileFromMap m = seasonProfile [ findWithDefault 0 i m   | i <- [1..12]]
 
 
+-- | A 52 weeks year
+type UWeeklyAmount = UVector Amount
+-- | A 12 months year
+type UMonthlyAmount = UVector Amount
