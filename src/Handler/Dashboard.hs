@@ -667,7 +667,8 @@ collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = le
   
 getDForecastR :: Handler Html
 getDForecastR = do
-  let plot = plotForecastError 
+  today <- todayH
+  plot <- getPlotForecastError today
   defaultLayout $ do
       [whamlet|
         ^{plot}

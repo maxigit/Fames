@@ -1,10 +1,12 @@
 module Handler.Items.Reports.NewForecast  (
 plotForecastError
+, getPlotForecastError
 ) where
 
 import Import
 -- import Handler.Items.Reports.Common
--- import Handler.Items.Reports.Forecast
+import Handler.Items.Reports.Forecast
+-- import Data.Conduit.List (consume)
 
 
 
@@ -44,3 +46,17 @@ plotForecastError = do -- actuals naiveForecast previousForecast currentForecast
       );
       |]
 
+
+getPlotForecastError :: Day -> Handler Widget
+getPlotForecastError end = do
+  let count c = do
+          m <- await
+          case m of 
+            Nothing -> return c
+            Just _ -> do
+                count (c+1)
+          
+  actuals <- runDB $ runConduit $ loadActualCumulSalesByWeek end .| count (0 :: Int)
+  return [whamlet|
+    #{actuals}
+  |]

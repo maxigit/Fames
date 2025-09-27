@@ -133,14 +133,14 @@ loadActualCumulSalesByWeek :: Day -> SqlConduit () (Sku, [(Amount, Int64)]) () -
 loadActualCumulSalesByWeek end = do
    -- todo adjust to beginning of week
    let start = calculateDate (AddYears $ -1) end
-   let sql = "SELECT stock_id, sum(quantity*unit_price), YEAR_WEEK(tran_date,5) ":
+   let sql = "SELECT stock_id, sum(quantity*unit_price), YEARWEEK(tran_date,5) as week ":
            " FROM 0_debtor_trans_details " :
-           " JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
+           " JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no) " :
            " JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND quantity != 0" :
-           " AND stock_id = '?'" :
-           " tran_date >= '?' AND tran_date < '?' " :
+           -- " AND stock_id = ?" :
+           " AND tran_date >= ? AND tran_date < ? " :
            " GROUP BY stock_id, week " :
            " order BY stock_id, week " :
            []
