@@ -705,16 +705,16 @@ loadItemSales param = do
   let sql0 = intercalate " " $
           " FROM 0_debtor_trans_details " :
           "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
-          " AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
+          "                    AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
           (if rpShowInactive param then "" else "JOIN 0_stock_master USING (stock_id)") :
-          " LEFT JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
+          " JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
           "WHERE type IN ("  :
           (tshow $ fromEnum ST_CUSTDELIVERY) :
           ",":
           (tshow $ fromEnum ST_CUSTCREDIT) :
           ") " :
-          "AND quantity != 0" :
+          "AND qty_done != 0" :
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
@@ -1064,7 +1064,7 @@ detailToTransInfo deduceTax defaultLocation orderCategoryMap
                                else []
                           )
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
-  qp io = mkQPrice io debtorTransDetailQuantity price
+  qp io = mkQPrice io debtorTransDetailQtyDone price
   price = (if deduceTax
           then debtorTransDetailUnitPrice - debtorTransDetailUnitTax
           else debtorTransDetailUnitPrice
