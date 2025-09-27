@@ -139,10 +139,13 @@ loadYearOfActualCumulSalesByWeek end = do
        mkVec (ForMap sku week'amounts) = let
            v0 = V.replicate 52 0 :: UWeeklyAmount
            va = v0 V.// traceShowId
-                        [ (yearweek , amount) 
+                        [ (week , amount) 
                         | (yearweek, amount) <- week'amounts
-                        , yearweek < 52
+                        , let week = if yearweek >= 52 -- jump from one year to the other one week 52 -> 1
+                                     then yearweek - 52
+                                     else yearweek
                         ]
+
            
            in traceShow (week'amounts, v0) $ (sku, va)
    actualSalesSource start endOfPreviousWeek .| mapC mkVec
@@ -151,7 +154,7 @@ loadYearOfActualCumulSalesByWeek end = do
 -- sorted by sku 
 actualSalesSource :: Day -> Day -> SqlConduit () (ForMap Sku [(Int, Amount)]) ()
 actualSalesSource start end = do
-   let _sql = "SELECT stock_id, YEARWEEK(tran_date,5) - YEARWEEK(?,5) AS week, sum(qty_done*unit_price)  ":
+   let _sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, sum(qty_done*unit_price)  ":
            --                  offset week so that the first one is 0
            " FROM 0_debtor_trans_details " :
            " JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no AND debtor_trans_type = type) " :
@@ -160,18 +163,18 @@ actualSalesSource start end = do
            " AND qty_done != 0" :
            -- " AND stock_id = ?" :
            " AND tran_date >= ? AND tran_date < ? " :
-           " GROUP BY stock_id, week " :
-           " order BY stock_id, week " :
+           " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
+           " order BY stock_id, YEARWEEK(tran_date,5)  " :
            []
    -- only use stock moves to make it much faster
-   let sql = "SELECT stock_id, sum(qty*price), YEARWEEK(tran_date,5) - YEARWEEK(?,5) AS week ":
+   let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, sum(qty*price) " :
            " FROM 0_stock_moves " :
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
            -- " AND stock_id = ?" :
            " AND tran_date >= ? AND tran_date < ? " :
-           " GROUP BY stock_id, week " :
-           " order BY stock_id, week " :
+           " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
+           " order BY stock_id, YEARWEEK(tran_date,5) " :
            []
        weekSource = rawQuery  (mconcat sql) [toPersistValue start, toPersistValue start, toPersistValue end] 
        myCoerce :: [PersistValue] -> (Sku, (Int, Amount))
