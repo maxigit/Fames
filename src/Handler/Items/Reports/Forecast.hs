@@ -17,7 +17,6 @@ import qualified Data.Conduit.List as CL
 import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty(..))
 import Util.ForConduit
-import qualified Data.Time.Calendar.WeekDate as Calendar
 import qualified Data.Vector.Generic as V -- not Generic as Generics but generic interface over all types of vector
 
 -- * Profiles 
@@ -137,23 +136,23 @@ loadYearOfActualCumulSalesByWeek :: Day -> SqlConduit () (Sku, UWeeklyAmount) ()
 loadYearOfActualCumulSalesByWeek end = do
    let endOfPreviousWeek = calculateDate (BeginningOfWeek  Monday) end
        start = calculateDate (AddYears $ -1) endOfPreviousWeek
-       (year, week, _)      =  Calendar.toWeekCalendar Calendar.FirstWholeWeek Calendar.Monday start
-       --                                     ^^^^^^^^^^^^^^^^^^^^^
-       --                                        _ should match mode 5 of MYSQL YEARWEEK function
-       yearweek0 = fromIntegral year * 100 + week :: Int -- to offset all given weeks
-       mkVec (ForMap sku amount'weeks) = let
+       mkVec (ForMap sku week'amounts) = let
            v0 = V.replicate 52 0 :: UWeeklyAmount
-           va = v0 V.// [ (fromIntegral yearweek - yearweek0, amount) 
-                        | (amount, yearweek) <- amount'weeks
+           va = v0 V.// traceShowId
+                        [ (yearweek , amount) 
+                        | (yearweek, amount) <- week'amounts
+                        , yearweek < 52
                         ]
-           in (sku, va)
+           
+           in traceShow (week'amounts, v0) $ (sku, va)
    actualSalesSource start endOfPreviousWeek .| mapC mkVec
 
 -- | load sales from stock moves between the given date (end excluded)
 -- sorted by sku 
-actualSalesSource :: Day -> Day -> SqlConduit () (ForMap Sku [(Amount, Int64)]) ()
+actualSalesSource :: Day -> Day -> SqlConduit () (ForMap Sku [(Int, Amount)]) ()
 actualSalesSource start end = do
-   let _sql = "SELECT stock_id, sum(qty_done*unit_price), YEARWEEK(tran_date,5) as week ":
+   let _sql = "SELECT stock_id, YEARWEEK(tran_date,5) - YEARWEEK(?,5) AS week, sum(qty_done*unit_price)  ":
+           --                  offset week so that the first one is 0
            " FROM 0_debtor_trans_details " :
            " JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no AND debtor_trans_type = type) " :
            " JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
@@ -165,7 +164,7 @@ actualSalesSource start end = do
            " order BY stock_id, week " :
            []
    -- only use stock moves to make it much faster
-   let sql = "SELECT stock_id, sum(qty*price), YEARWEEK(tran_date,5) as week ":
+   let sql = "SELECT stock_id, sum(qty*price), YEARWEEK(tran_date,5) - YEARWEEK(?,5) AS week ":
            " FROM 0_stock_moves " :
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
@@ -174,14 +173,14 @@ actualSalesSource start end = do
            " GROUP BY stock_id, week " :
            " order BY stock_id, week " :
            []
-       weekSource = rawQuery  (mconcat sql) [toPersistValue start, toPersistValue end] 
-       myCoerce :: [PersistValue] -> (Sku, (Amount, Int64))
+       weekSource = rawQuery  (mconcat sql) [toPersistValue start, toPersistValue start, toPersistValue end] 
+       myCoerce :: [PersistValue] -> (Sku, (Int, Amount))
        myCoerce vs = case rawSqlProcessRow vs  of
                           Left e -> error $ unpack e
-                          Right v -> coerce (v :: (Single Text, (Single Amount, Single Int64)))
-       run :: NonEmpty (Sku, (Amount, Int64)) -> ForMap Sku [(Amount, Int64)]
-       run nonEmpty = let (sku :|  _, amount'weeks) = unzip nonEmpty
-                      in ForMap sku (toList amount'weeks)
+                          Right v -> coerce (v :: (Single Text, (Single Int, Single Amount)))
+       run :: NonEmpty (Sku, (Int, Amount)) -> ForMap Sku [(Int, Amount)]
+       run nonEmpty = let (sku :|  _, week'amounts) = unzip nonEmpty
+                      in ForMap sku (toList week'amounts)
                  
    weekSource .| mapC myCoerce
               .| CL.groupOn fst

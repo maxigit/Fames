@@ -6,18 +6,19 @@ plotForecastError
 import Import
 -- import Handler.Items.Reports.Common
 import Handler.Items.Reports.Forecast
+import Items.Types
 -- import Data.Conduit.List (consume)
 
 
 
-plotForecastError ::  Widget
-plotForecastError = do -- actuals naiveForecast previousForecast currentForecast = do
+plotForecastError ::  UWeeklyAmount -> Widget
+plotForecastError actuals = do -- actuals naiveForecast previousForecast currentForecast = do
      --         1  0  0   2 0 1  3 0 0  0 4 0
    let y, y_under, y_over, x :: [Int]
        y =       [1,1,1, 2,3,4, 7,7,7,  7,11,11]
        y_under = [0,0,0, 1,1,2, 4,5,5,  6, 4,4]
        y_over =  [1,2,2, 3,3,4, 8,9,10,10,10,10]
-       x = [1..12]
+       x = [1.. length actuals]
    [whamlet|
      The plot
      <div. id="forecast-error">
@@ -26,7 +27,7 @@ plotForecastError = do -- actuals naiveForecast previousForecast currentForecast
       Plotly.plot("test" 
       , [{ 
          x: #{toJSON x}
-         , y:#{toJSON y_under}
+         , y:#{toJSON actuals}
          , line: {shape: "spline", color: "transparent"}
          }
          ,
@@ -55,8 +56,10 @@ getPlotForecastError end = do
             Nothing -> return c
             Just _ -> do
                 count (c+1)
-          
-  actuals <- runDB $ runConduit $ loadActualCumulSalesByWeek end .| count (0 :: Int)
+  salesByWeek <- runDB $ runConduit $ loadYearOfActualCumulSalesByWeek  end .| do
+                Just (_sku, amounts) <- await
+                return amounts
+  let plot = plotForecastError salesByWeek 
   return [whamlet|
-    #{actuals}
+    ^{plot}
   |]
