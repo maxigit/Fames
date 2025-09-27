@@ -8,6 +8,7 @@ import Import
 import Handler.Items.Reports.Forecast
 import Items.Types
 -- import Data.Conduit.List (consume)
+import qualified Data.Vector.Generic as V
 
 
 
@@ -18,17 +19,17 @@ plotForecastError actuals = do -- actuals naiveForecast previousForecast current
        y =       [1,1,1, 2,3,4, 7,7,7,  7,11,11]
        y_under = [0,0,0, 1,1,2, 4,5,5,  6, 4,4]
        y_over =  [1,2,2, 3,3,4, 8,9,10,10,10,10]
-       x = [1.. length actuals]
+       x = [1..  length actuals]
    [whamlet|
      The plot
      <div. id="forecast-error">
    |]
    toWidgetBody [julius|
-      Plotly.plot("test" 
+      Plotly.plot("forecast-error" 
       , [{ 
          x: #{toJSON x}
          , y:#{toJSON actuals}
-         , line: {shape: "spline", color: "transparent"}
+         , line: {shape: "spline", color: "black"}
          }
          ,
          { 
@@ -58,7 +59,8 @@ getPlotForecastError end = do
                 count (c+1)
   salesByWeek <- runDB $ runConduit $ loadYearOfActualCumulSalesByWeek  end .| do
                 Just (_sku, amounts) <- await
-                return amounts
+                return $ V.postscanl' (+) 0 amounts
+  traceShowM ("AAA", salesByWeek)
   let plot = plotForecastError salesByWeek 
   return [whamlet|
     ^{plot}
