@@ -11,10 +11,14 @@ import System.FilePath.Glob (glob)
 import FA as FA hiding (unUserKey)
 import Control.Monad.Fail (MonadFail(..))
 import GL.Utils
+import GL.Payroll.Settings(DayOfWeek(..))
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
 import qualified Data.Conduit.List as CL
 import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty(..))
+import Util.ForConduit
+import qualified Data.Time.Calendar.WeekDate as Calendar
+import qualified Data.Vector.Generic as V -- not Generic as Generics but generic interface over all types of vector
 
 -- * Profiles 
 -- | Read a map of season profiles from a valid csv
@@ -129,10 +133,26 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) 
 -- * Forecast error
 
 -- | Load actual sales for a whole year 
-loadActualCumulSalesByWeek :: Day -> SqlConduit () (Sku, [(Amount, Int64)]) () --  UWeeklyAmount) ()
-loadActualCumulSalesByWeek end = do
-   -- todo adjust to beginning of week
-   let start = calculateDate (AddYears $ -1) end
+loadYearOfActualCumulSalesByWeek :: Day -> SqlConduit () (Sku, UWeeklyAmount) ()
+loadYearOfActualCumulSalesByWeek end = do
+   let endOfPreviousWeek = calculateDate (BeginningOfWeek  Monday) end
+       start = calculateDate (AddYears $ -1) endOfPreviousWeek
+       (year, week, _)      =  Calendar.toWeekCalendar Calendar.FirstWholeWeek Calendar.Monday start
+       --                                     ^^^^^^^^^^^^^^^^^^^^^
+       --                                        _ should match mode 5 of MYSQL YEARWEEK function
+       yearweek0 = fromIntegral year * 100 + week :: Int -- to offset all given weeks
+       mkVec (ForMap sku amount'weeks) = let
+           v0 = V.replicate 52 0 :: UWeeklyAmount
+           va = v0 V.// [ (fromIntegral yearweek - yearweek0, amount) 
+                        | (amount, yearweek) <- amount'weeks
+                        ]
+           in (sku, va)
+   actualSalesSource start endOfPreviousWeek .| mapC mkVec
+
+-- | load sales from stock moves between the given date (end excluded)
+-- sorted by sku 
+actualSalesSource :: Day -> Day -> SqlConduit () (ForMap Sku [(Amount, Int64)]) ()
+actualSalesSource start end = do
    let _sql = "SELECT stock_id, sum(qty_done*unit_price), YEARWEEK(tran_date,5) as week ":
            " FROM 0_debtor_trans_details " :
            " JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no AND debtor_trans_type = type) " :
@@ -159,14 +179,14 @@ loadActualCumulSalesByWeek end = do
        myCoerce vs = case rawSqlProcessRow vs  of
                           Left e -> error $ unpack e
                           Right v -> coerce (v :: (Single Text, (Single Amount, Single Int64)))
-       run :: NonEmpty (Sku, (Amount, Int64)) -> (Sku, [(Amount, Int64)])
+       run :: NonEmpty (Sku, (Amount, Int64)) -> ForMap Sku [(Amount, Int64)]
        run nonEmpty = let (sku :|  _, amount'weeks) = unzip nonEmpty
-                      in (sku, toList amount'weeks)
+                      in ForMap sku (toList amount'weeks)
                  
-   -- runDB $ runConduit weekSource
    weekSource .| mapC myCoerce
               .| CL.groupOn fst
               .| mapC run
+
 
 
 
