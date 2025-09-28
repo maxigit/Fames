@@ -177,7 +177,7 @@ actualSalesSource start end = do
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
            " AND stock_id like 'M%'" :
-           " AND stock_id like 'ML17-FD7-NAY'" :
+           -- " AND stock_id like 'ML17-FD7-NAY'" :
            " AND tran_date >= ? AND tran_date < ? " :
            " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
            " order BY stock_id, YEARWEEK(tran_date,5) " :
@@ -206,12 +206,14 @@ loadYearOfForecastCumulByWeek end forecastDir = do
       monthWeekly :: [UWeeklyAmount] 
       monthWeekly = monthFractionPerWeek  (calculateDate (AddDays $ -364) end)
       expandProfileWeekly :: SeasonProfile -> UWeeklyAmount
-      expandProfileWeekly (SeasonProfile profile) =  V.postscanl' (+) 0
-                                                  $  foldl1Ex' vadd  $ zipWith (\monthWeight weeks -> V.map (*monthWeight) weeks)
-                                                                               profile
-                                                                               monthWeekly
+      expandProfileWeekly (SeasonProfile profile) =  let v = V.postscanl' (+) 0 $
+                                                                        foldl1Ex' vadd  $ zipWith (\monthWeight weeks -> V.map (*monthWeight) weeks)
+                                                                                                   profile
+                                                                                                   monthWeekly
+                                                         vmax = trace "\nVMAX" $ traceShowId $ V.last v
+                                                     in V.map (/vmax) v
       linear = V.postscanl' (+) 0 $ V.replicate 52 (1/52)
-      weeklyForRow (SkuSpeedRow _ weight collection) = V.map ((*1).(*weight)) weekly where
+      weeklyForRow (SkuSpeedRow _ weight collection) = traceShowId  $ traceShow ("\nWEIGHT", weight, weekly) $ V.map ((*1).(*weight)) weekly where
           weekly = findWithDefault linear collection weekProfiles
                           
       skuMap = Map.fromList [(ssSku row, weeklyForRow row)
@@ -231,7 +233,7 @@ monthFractionPerWeek start = let
    v0 = V.replicate 52 0
    in [ V.accum (+) v0 updates
       | month <- [1..12]
-      , let updates = [ (w, 1/365) | (w, m) <- monthForWeek, m == month ]
+      , let updates = [ (w, 1/364) | (w, m) <- monthForWeek, m == month ]
       ]
        
 
