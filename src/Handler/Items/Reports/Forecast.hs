@@ -171,11 +171,13 @@ actualSalesSource start end = do
            " order BY stock_id, YEARWEEK(tran_date,5)  " :
            []
    -- only use stock moves to make it much faster
-   let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty*price) " :
+   let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty) " : -- *price) " :
+   -- let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty*price) " :
            " FROM 0_stock_moves " :
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
            " AND stock_id like 'M%'" :
+           " AND stock_id like 'ML17-FD7-NAY'" :
            " AND tran_date >= ? AND tran_date < ? " :
            " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
            " order BY stock_id, YEARWEEK(tran_date,5) " :
@@ -199,10 +201,18 @@ loadYearOfForecastCumulByWeek :: Day -> FilePath -> IO (Map Sku UWeeklyAmount)
 loadYearOfForecastCumulByWeek end forecastDir = do
   rawProfiles <- readProfiles $ forecastDir  </> "collection_profiles.csv"
   skuSpeed <- loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
-  let weekProfiles = fmap (expandProfileWeekly end) rawProfiles
-      linear = V.replicate 52 (1/52)
-      weeklyForRow (SkuSpeedRow _ weight collection) = V.map (*weight) weelky where
-          weelky = findWithDefault linear collection weekProfiles
+  let weekProfiles = fmap expandProfileWeekly rawProfiles
+      weekProfiles ::  Map Collection UWeeklyAmount
+      monthWeekly :: [UWeeklyAmount] 
+      monthWeekly = monthFractionPerWeek  (calculateDate (AddDays $ -364) end)
+      expandProfileWeekly :: SeasonProfile -> UWeeklyAmount
+      expandProfileWeekly (SeasonProfile profile) =  V.postscanl' (+) 0
+                                                  $  foldl1Ex' vadd  $ zipWith (\monthWeight weeks -> V.map (*monthWeight) weeks)
+                                                                               profile
+                                                                               monthWeekly
+      linear = V.postscanl' (+) 0 $ V.replicate 52 (1/52)
+      weeklyForRow (SkuSpeedRow _ weight collection) = V.map ((*1).(*weight)) weekly where
+          weekly = findWithDefault linear collection weekProfiles
                           
       skuMap = Map.fromList [(ssSku row, weeklyForRow row)
                             | row <- skuSpeed
@@ -211,11 +221,27 @@ loadYearOfForecastCumulByWeek end forecastDir = do
   
   
 
-expandProfileWeekly :: Day -> SeasonProfile -> UWeeklyAmount
-expandProfileWeekly _end (SeasonProfile profile) = let
+-- | Compute for each month its year fraction for each weeks
+monthFractionPerWeek :: Day -> [UWeeklyAmount]
+monthFractionPerWeek start = let
+   monthForWeek = [ (d `div` 7,  month)
+                  | (d, day) <- zip [0.. 363] [start .. ]
+                  , let (_,month, _) = toGregorian day
+                  ]
    v0 = V.replicate 52 0
-   v1 =  v0 V.// zip [0,4..54] profile
-   in V.postscanl'  (+) 0 v1
+   in [ V.accum (+) v0 updates
+      | month <- [1..12]
+      , let updates = [ (w, 1/365) | (w, m) <- monthForWeek, m == month ]
+      ]
+       
+
+
+
+vadd, vsub, vdiv, vmul  :: UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount
+vadd = V.zipWith (+)
+vsub = V.zipWith (-)
+vdiv = V.zipWith (/)
+vmul = V.zipWith (*)
 
    
    

@@ -70,6 +70,7 @@ getPlotForecastError :: Day -> Handler Widget
 getPlotForecastError end = do
   settings <- getsYesod appSettings
   skuMap <- liftIO $ loadYearOfForecastCumulByWeek end $ appForecastProfilesDir settings </> "Repeat"
+  traceShowM $ lookup (Sku "ML17-FD7-NAY") skuMap
   let (start, salesSource) = loadYearOfActualCumulSalesByWeek end
       (_, naiveSource) = loadYearOfActualCumulSalesByWeek start
       v0 = V.replicate 52 0
@@ -77,7 +78,7 @@ getPlotForecastError end = do
           ab = these (,v0) (v0,) (,) theseab
       addErrors (ForMap _ (salesV, naiveV)) = (salesV, computeAbsoluteError (Actual salesV) naiveV)
       replaceNaive (ForMap sku (salesV, _)) = ForMap sku (salesV, forecast) where
-         forecast = findWithDefault v0 sku skuMap
+         forecast = traceShow( "Findind ============== ", sku) $ traceShowId $ findWithDefault (traceShow ("cant 'find ' ", sku) v0) sku skuMap
   runDB do
         Just (salesByWeek, naive) <- 
              runConduit $ 
@@ -110,9 +111,3 @@ computeAbsoluteError (Actual actuals) forecast = WithError forecast overError un
 over, under :: Double -> Double -> Double
 over a b = max 0 ( a -b )
 under a b = max 0 ( b - a)
-
-vadd, vsub, vdiv, vmul  :: UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount
-vadd = V.zipWith (+)
-vsub = V.zipWith (-)
-vdiv = V.zipWith (/)
-vmul = V.zipWith (*)
