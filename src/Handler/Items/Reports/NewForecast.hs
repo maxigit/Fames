@@ -16,11 +16,16 @@ import Util.ForConduit
 
 
 plotForecastError ::  Text -> UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount -> Widget
-plotForecastError plotId actuals naive naiveUps naiveDowns  = do -- actuals naiveForecast previousForecast currentForecast = do
+plotForecastError plotId actuals0 naives0 naiveUps0 naiveDowns0  = do -- actuals naiveForecast previousForecast currentForecast = do
      --         1  0  0   2 0 1  3 0 0  0 4 0
    let x = [1..  length actuals] :: [Int]
        naiveUpsY = actuals `vadd` naiveUps
        naiveDownsY = actuals `vsub` naiveDowns
+       actuals = actuals0       --  `vdiv` actuals0
+       naive = naives0          --  `vdiv` actuals0
+       naiveUps = naiveUps0     --  `vdiv` actuals0
+       naiveDowns = naiveDowns0 --  `vdiv` actuals0
+   traceShowM ("==============================", plotId, naiveDowns)
    [whamlet|
      The plot
      <div. id="#{plotId}">
@@ -88,14 +93,16 @@ getPlotForecastError end = do
         
 computeAbsoluteError :: UWeeklyAmount  -> UWeeklyAmount -> (UWeeklyAmount, UWeeklyAmount)
 computeAbsoluteError actuals forecast = (ups, downs) where
-   ups = V.zipWith up actuals forecast
-   downs = V.zipWith down actuals forecast
+   ups = V.zipWith up forecast actuals
+   downs = V.zipWith down forecast actuals
 
 
 up, down :: Double -> Double -> Double
 up a b = max 0 ( a -b )
 down a b = max 0 ( b - a)
 
-vadd, vsub  :: UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount
+vadd, vsub, vdiv, vmul  :: UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount
 vadd = V.zipWith (+)
 vsub = V.zipWith (-)
+vdiv = V.zipWith (/)
+vmul = V.zipWith (*)
