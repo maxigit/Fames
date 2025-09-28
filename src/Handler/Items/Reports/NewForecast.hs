@@ -43,12 +43,14 @@ plotForecastError actuals naive naiveUps naiveDowns  = do -- actuals naiveForeca
          x: #{toJSON x}
          , y:#{toJSON naive}
          , mode: "lines"
+         , line: {dash: "dot", color: "black"}
          }
          ,
          { 
          x: #{toJSON x}
          , y:#{toJSON actuals}
          , mode: "lines"
+         , line: {color: "C1"}
          }
          ]
       );
@@ -68,6 +70,7 @@ getPlotForecastError end = do
              runConduit $ 
              alignConduit salesSource naiveSource
                  .|mapC  joinWithZeros
+                 .|mapC traceShowId
                  .|mapC  addErrors
                  .| C.foldl1 \(salesA, naiveA, (upA, downA)) (salesB, naiveB, (upB, downB)) -> 
                           (salesA `vadd` salesB
@@ -77,6 +80,7 @@ getPlotForecastError end = do
 
         
 
+        traceShowM (naive, salesByWeek)
         let plot = plotForecastError salesByWeek  naive ups downs
         return [whamlet|
           ^{plot}

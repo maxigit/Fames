@@ -1,9 +1,7 @@
 module Util.ForConduit
 where
-import ClassyPrelude
-import Data.Conduit
+import Import
 import qualified Data.Conduit.List as C
-import Data.These
 
 -- | Tagged  element of a conduit to be ordered by
 newtype OrderedBy k a = OrderedBy a
@@ -66,36 +64,44 @@ joinOnWith aKey bKey f c1 c2 = c1 .| interleave (go []) c2 where
 
 
         
-alignConduit :: (Ord k, Monad m) => ConduitT () (ForMap k a) m () -> ConduitT () (ForMap k b) m () -> ConduitT () (ForMap k (These a b)) m ()
-alignConduit sa sb = do
-   ma <- awaitA
-   mb <- awaitB
-   loop ma mb 
-   where loop Nothing Nothing = return ()
-         loop (Just (ForMap ka a)) Nothing = do
-                             yield (ForMap ka (This a))
-                             ma' <- awaitA
-                             loop ma' Nothing
-         loop Nothing (Just (ForMap kb b)) = do
-                            yield (ForMap kb (That b))
-                            mb' <- awaitB
-                            loop Nothing mb'
-         loop ma@(Just (ForMap ka a)) mb@(Just (ForMap kb b)) =
-                  case compare ka kb of 
-                      EQ -> do
-                             yield (ForMap ka $ These a b)
-                      LT -> do
-                             yield (ForMap ka $ This a)
-                             ma' <- awaitA
-                             loop ma' mb 
-                      GT -> do 
-                             yield (ForMap kb $ That b)
-                             mb' <- awaitB
-                             loop ma mb'
+alignConduit :: (Show k, Ord k, Monad m) => ConduitT () (ForMap k a) m () -> ConduitT () (ForMap k b) m () -> ConduitT () (ForMap k (These a b)) m ()
+alignConduit sa sb = joinThese sa sb
 
-         awaitA = lift $ runConduit $ sa .| await
-         awaitB = lift $ runConduit $ sb .| await
-
-       
-
-
+-- | Full outer join of two *sorted* sources on `k`.
+-- Emits (k, These a b) for every key present on either side.
+-- -- ChatGPT
+joinThese
+  :: (Monad m, Ord k)
+  => Source m (ForMap k a)
+  -> Source m (ForMap k b)
+  -> Source m (ForMap k (These a b))
+joinThese sa sb = do
+  -- turn each source into a ResumableSource
+  (rA, _) <- lift $ sa $$+ return ()
+  (rB, _) <- lift $ sb $$+ return ()
+  loop rA rB
+  where
+    loop rA rB = do
+      -- $$++ returns (ResumableSource, result), so bind in that order
+      (rA', ma) <- lift $ rA $$++ await
+      (rB', mb) <- lift $ rB $$++ await
+      case (ma, mb) of
+        (Nothing, Nothing) -> return ()
+        (Just (ForMap ka a), Nothing) ->
+          yield (ForMap ka $ This a) >> loop rA' rB'
+        (Nothing, Just (ForMap kb b)) ->
+          yield (ForMap kb $ That b) >> loop rA' rB'
+        (Just (ForMap ka a), Just (ForMap kb b)) ->
+          case compare ka kb of
+            EQ -> do
+              yield (ForMap ka  $ These a b)
+              loop rA' rB'
+            LT -> do
+              -- left key is smaller; re-insert right item back into rB'
+              yield (ForMap ka $ This a)
+              (rB'', _) <- lift $ rB' $$++ leftover (ForMap kb b)
+              loop rA' rB''
+            GT -> do
+              yield (ForMap kb $  That b)
+              (rA'', _) <- lift $ rA' $$++ leftover (ForMap ka a)
+              loop rA'' rB'
