@@ -3,6 +3,7 @@ where
 import ClassyPrelude
 import Data.Conduit
 import qualified Data.Conduit.List as C
+import Data.These
 
 -- | Tagged  element of a conduit to be ordered by
 newtype OrderedBy k a = OrderedBy a
@@ -65,6 +66,36 @@ joinOnWith aKey bKey f c1 c2 = c1 .| interleave (go []) c2 where
 
 
         
+alignConduit :: (Ord k, Monad m) => ConduitT () (ForMap k a) m () -> ConduitT () (ForMap k b) m () -> ConduitT () (ForMap k (These a b)) m ()
+alignConduit sa sb = do
+   ma <- awaitA
+   mb <- awaitB
+   loop ma mb 
+   where loop Nothing Nothing = return ()
+         loop (Just (ForMap ka a)) Nothing = do
+                             yield (ForMap ka (This a))
+                             ma' <- awaitA
+                             loop ma' Nothing
+         loop Nothing (Just (ForMap kb b)) = do
+                            yield (ForMap kb (That b))
+                            mb' <- awaitB
+                            loop Nothing mb'
+         loop ma@(Just (ForMap ka a)) mb@(Just (ForMap kb b)) =
+                  case compare ka kb of 
+                      EQ -> do
+                             yield (ForMap ka $ These a b)
+                      LT -> do
+                             yield (ForMap ka $ This a)
+                             ma' <- awaitA
+                             loop ma' mb 
+                      GT -> do 
+                             yield (ForMap kb $ That b)
+                             mb' <- awaitB
+                             loop ma mb'
+
+         awaitA = lift $ runConduit $ sa .| await
+         awaitB = lift $ runConduit $ sb .| await
+
        
 
 
