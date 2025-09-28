@@ -14,18 +14,20 @@ import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
 
 
+data WithError = WithError { forecast, overError, underError :: UWeeklyAmount }
+   deriving (Show)
 
-plotForecastError ::  Text -> UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount -> Widget
-plotForecastError plotId actuals0 naives0 naiveUps0 naiveDowns0  = do -- actuals naiveForecast previousForecast currentForecast = do
-     --         1  0  0   2 0 1  3 0 0  0 4 0
+plotForecastError ::  Text -> UWeeklyAmount -> WithError -> Widget
+plotForecastError plotId actuals0 naiveF = do -- actuals naiveForecast previousForecast currentForecast = do
+   let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
    let x = [1..  length actuals] :: [Int]
-       naiveUpsY = actuals `vadd` naiveUps
-       naiveDownsY = actuals `vsub` naiveDowns
+       naiveOversY = actuals `vadd` naiveOvers
+       naiveUndersY = actuals `vsub` naiveUnders
        actuals = actuals0       --  `vdiv` actuals0
        naive = naives0          --  `vdiv` actuals0
-       naiveUps = naiveUps0     --  `vdiv` actuals0
-       naiveDowns = naiveDowns0 --  `vdiv` actuals0
-   traceShowM ("==============================", plotId, naiveDowns)
+       naiveOvers = naiveOvers0     --  `vdiv` actuals0
+       naiveUnders = naiveUnders0 --  `vdiv` actuals0
+   traceShowM ("==============================", plotId, naiveUnders)
    [whamlet|
      The plot
      <div. id="#{plotId}">
@@ -34,13 +36,13 @@ plotForecastError plotId actuals0 naives0 naiveUps0 naiveDowns0  = do -- actuals
       Plotly.plot(#{plotId} 
       , [{ 
          x: #{toJSON x}
-         , y:#{toJSON naiveDownsY}
+         , y:#{toJSON naiveUndersY}
          , line: {shape: "spline", color: "transparent"}
          }
          ,
          { 
          x: #{toJSON x}
-         , y:#{toJSON naiveUpsY}
+         , y:#{toJSON naiveOversY}
          , fill: "tonexty"
          , line: {shape: "spline", color: "transparent"}
          }
@@ -70,36 +72,38 @@ getPlotForecastError end = do
       v0 = V.replicate 52 0
       joinWithZeros (ForMap sku theseab) = ForMap sku ab where
           ab = these (,v0) (v0,) (,) theseab
-      addErrors (ForMap _ (salesV, naiveV)) = (salesV, naiveV, computeAbsoluteError salesV naiveV)
+      addErrors (ForMap _ (salesV, naiveV)) = (salesV, computeAbsoluteError (Actual salesV) naiveV)
   runDB do
-        Just (salesByWeek, naive, (ups, downs)) <- 
+        Just (salesByWeek, naive) <- 
              runConduit $ 
              alignConduit salesSource naiveSource
                  .|mapC  joinWithZeros
                  .|mapC  addErrors
-                 .| C.foldl1 \(salesA, naiveA, (upA, downA)) (salesB, naiveB, (upB, downB)) -> 
+                 .| C.foldl1 \(salesA, WithError naiveA  overA  underA) (salesB, WithError naiveB overB underB) -> 
                           (salesA `vadd` salesB
-                          , naiveA `vadd` naiveB
-                          , (upA `vadd` upB, downA `vadd` downB)
+                          , WithError (naiveA `vadd` naiveB)
+                                      (overA `vadd` overB)
+                                      (underA `vadd` underB)
                           )
 
         
 
-        let plot = plotForecastError ("forecast-" <> tshow end) salesByWeek  naive ups downs
+        let plot = plotForecastError ("forecast-" <> tshow end) salesByWeek  naive
         return [whamlet|
           ^{plot}
         |]
         
         
-computeAbsoluteError :: UWeeklyAmount  -> UWeeklyAmount -> (UWeeklyAmount, UWeeklyAmount)
-computeAbsoluteError actuals forecast = (ups, downs) where
-   ups = V.zipWith up forecast actuals
-   downs = V.zipWith down forecast actuals
+newtype Actual a = Actual a
+computeAbsoluteError :: Actual UWeeklyAmount  -> UWeeklyAmount -> WithError
+computeAbsoluteError (Actual actuals) forecast = WithError forecast overError underError where
+   overError = V.zipWith over forecast actuals
+   underError = V.zipWith under forecast actuals
 
 
-up, down :: Double -> Double -> Double
-up a b = max 0 ( a -b )
-down a b = max 0 ( b - a)
+over, under :: Double -> Double -> Double
+over a b = max 0 ( a -b )
+under a b = max 0 ( b - a)
 
 vadd, vsub, vdiv, vmul  :: UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount
 vadd = V.zipWith (+)
