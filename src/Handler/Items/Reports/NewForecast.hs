@@ -14,18 +14,18 @@ import Util.ForConduit
 
 
 
-plotForecastError ::  UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount -> Widget
-plotForecastError actuals naive naiveUps naiveDowns  = do -- actuals naiveForecast previousForecast currentForecast = do
+plotForecastError ::  Text -> UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount -> Widget
+plotForecastError plotId actuals naive naiveUps naiveDowns  = do -- actuals naiveForecast previousForecast currentForecast = do
      --         1  0  0   2 0 1  3 0 0  0 4 0
    let x = [1..  length actuals] :: [Int]
        naiveUpsY = actuals `vadd` naiveUps
        naiveDownsY = actuals `vsub` naiveDowns
    [whamlet|
      The plot
-     <div. id="forecast-error">
+     <div. id="#{plotId}">
    |]
    toWidgetBody [julius|
-      Plotly.plot("forecast-error" 
+      Plotly.plot(#{plotId} 
       , [{ 
          x: #{toJSON x}
          , y:#{toJSON naiveDownsY}
@@ -79,7 +79,7 @@ getPlotForecastError end = do
 
         
 
-        let plot = plotForecastError salesByWeek  naive ups downs
+        let plot = plotForecastError ("forecast-" <> tshow end) salesByWeek  naive ups downs
         return [whamlet|
           ^{plot}
         |]

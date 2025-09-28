@@ -669,8 +669,12 @@ getDForecastR :: Handler Html
 getDForecastR = do
   today <- todayH
   plot <- getPlotForecastError today
+  previous <- getPlotForecastError $ calculateDate (AddDays $ -365) today
+  pprevious <- getPlotForecastError $ calculateDate (AddDays $ -(365*2)) today
   defaultLayout $ do
       [whamlet|
         ^{plot}
+        ^{previous}
+        ^{pprevious}
       |]
 

@@ -64,18 +64,12 @@ joinOnWith aKey bKey f c1 c2 = c1 .| interleave (go []) c2 where
 
 
         
-alignConduit :: (Show k, Ord k, Monad m) => ConduitT () (ForMap k a) m () -> ConduitT () (ForMap k b) m () -> ConduitT () (ForMap k (These a b)) m ()
-alignConduit sa sb = joinThese sa sb
 
 -- | Full outer join of two *sorted* sources on `k`.
 -- Emits (k, These a b) for every key present on either side.
 -- -- ChatGPT
-joinThese
-  :: (Monad m, Ord k)
-  => Source m (ForMap k a)
-  -> Source m (ForMap k b)
-  -> Source m (ForMap k (These a b))
-joinThese sa sb = do
+alignConduit :: (Ord k, Monad m) => ConduitT () (ForMap k a) m () -> ConduitT () (ForMap k b) m () -> ConduitT () (ForMap k (These a b)) m ()
+alignConduit sa sb = do
   -- turn each source into a ResumableSource
   (rA, _) <- lift $ sa $$+ return ()
   (rB, _) <- lift $ sb $$+ return ()
