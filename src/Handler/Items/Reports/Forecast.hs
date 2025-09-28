@@ -18,18 +18,19 @@ import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty(..))
 import Util.ForConduit
 import qualified Data.Vector.Generic as V -- not Generic as Generics but generic interface over all types of vector
+import qualified Data.Map as Map
 
 -- * Profiles 
 -- | Read a map of season profiles from a valid csv
 -- collection,month,weight
 data CollectionProfileRow = CollectionProfileRow
- { cpCollection :: Text
+ { cpCollection :: Collection
  , cpMonth :: Int
  , cpWeight :: Double
  } deriving Show
 instance Csv.FromNamedRecord CollectionProfileRow where
   parseNamedRecord m = do
-    collection <- m Csv..: "collection"
+    collection <- fmap Collection ( m Csv..: "collection")
     weight <- m Csv..: "weight"
     month' <- m Csv..: "month"
     month <- parseMonth month'
@@ -53,7 +54,7 @@ parseMonth m = case m of
   _ -> fail "Can't parse month"
     
     
-readProfiles :: FilePath -> IO (Map Text SeasonProfile)
+readProfiles :: FilePath -> IO (Map Collection SeasonProfile)
 readProfiles path = do
   content <- readFile path
   let Right cols = parseSpreadsheet mempty Nothing content
@@ -64,13 +65,18 @@ readProfiles path = do
 
 -- * Sku Speed 
 -- | Row coming from a sku speed file.
+newtype Collection = Collection Text
+  deriving (Show, Eq, Ord)
+
 data SkuSpeedRow = SkuSpeedRow
   { ssSku :: Sku
   , ssWeight :: Double
+  , ssCollection :: Collection
   }deriving (Show)
 instance Csv.FromNamedRecord SkuSpeedRow where
   parseNamedRecord m = SkuSpeedRow  <$> fmap Sku (m Csv..: "stock_id")
                                     <*> m Csv..: "eQty"
+                                    <*> fmap Collection (m Csv..: "collection")
 
                   
 -- | Load sku speed from a csv
@@ -87,7 +93,8 @@ loadItemForecast io forecastDir infoMap start end = do
   settings <- getsYesod appSettings
   catFinder <- categoryFinderCached (appForecastCollectionCategory settings)
   profiles <- liftIO $ readProfiles (forecastDir </> "collection_profiles.csv")
-  let profile (Sku sku) = (catFinder  (FA.StockMasterKey sku) >>= (`lookup` profiles) ) <|> Just flatProfile
+  let profile (Sku sku) = (catFinder  (FA.StockMasterKey sku) >>= (\col ->  lookup (Collection col) profiles)
+                          ) <|> Just flatProfile
       flatProfile = seasonProfile []
   skuFiles <- liftIO $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
   when (null skuFiles) $ do
@@ -104,7 +111,7 @@ skuSpeedRowToTransInfo :: Map Sku ItemInitialInfo
                        -> Maybe InOutward
                        -> SkuSpeedRow
                        -> [(TranKey, TranQP)]
-skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) =
+skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _) =
   let io = fromMaybe Outward iom  --   ^ like sales
       extra = maybe [] ioToQPType iom
   in case (profileFor sku, lookup sku infoMap) of
@@ -188,5 +195,27 @@ actualSalesSource start end = do
 
 
 
+loadYearOfForecastCumulByWeek :: Day -> FilePath -> IO (Map Sku UWeeklyAmount)
+loadYearOfForecastCumulByWeek end forecastPath = do
+  rawProfiles <- readProfiles $ forecastPath  </> "collection_profile.csv"
+  skuSpeed <- loadSkuSpeed $ forecastPath </> "mw_sku_forecast.csv"
+  let weekProfiles = fmap (expandProfileWeekly end) rawProfiles
+      linear = V.replicate 52 (1/52)
+      weeklyForRow (SkuSpeedRow _ weight collection) = V.map (*weight) weelky where
+          weelky = findWithDefault linear collection weekProfiles
+                          
+      skuMap = Map.fromList [(ssSku row, weeklyForRow row)
+                            | row <- skuSpeed
+                            ]
+  return skuMap
+  
+  
 
+expandProfileWeekly :: Day -> SeasonProfile -> UWeeklyAmount
+expandProfileWeekly _end (SeasonProfile profile) = let
+   v0 = V.replicate 52 0
+   v1 =  v0 V.// zip [0,4..54] profile
+   in V.postscanl'  (+) 0 v1
+
+   
    
