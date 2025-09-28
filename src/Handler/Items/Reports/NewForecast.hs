@@ -1,6 +1,7 @@
 module Handler.Items.Reports.NewForecast  (
 plotForecastError
 , getPlotForecastError
+, vadd, vmul, vsub, vdiv
 ) where
 
 import Import
