@@ -29,7 +29,6 @@ plotForecastError plotId actuals0 naiveF = do -- actuals naiveForecast previousF
        naive = adjust naives0
        naiveOvers = adjust naiveOvers0
        naiveUnders = adjust naiveUnders0
-   traceShowM ("==============================", plotId, naiveUnders)
    [whamlet|
      The plot
      <div. id="#{plotId}">
@@ -69,17 +68,21 @@ plotForecastError plotId actuals0 naiveF = do -- actuals naiveForecast previousF
 
 getPlotForecastError :: Day -> Handler Widget
 getPlotForecastError end = do
+  skuMap <- liftIO $ loadYearOfForecastCumulByWeek end "Repeat"
   let (start, salesSource) = loadYearOfActualCumulSalesByWeek end
       (_, naiveSource) = loadYearOfActualCumulSalesByWeek start
       v0 = V.replicate 52 0
       joinWithZeros (ForMap sku theseab) = ForMap sku ab where
           ab = these (,v0) (v0,) (,) theseab
       addErrors (ForMap _ (salesV, naiveV)) = (salesV, computeAbsoluteError (Actual salesV) naiveV)
+      replaceNaive (ForMap sku (salesV, _)) = ForMap sku (salesV, forecast) where
+         forecast = findWithDefault v0 sku skuMap
   runDB do
         Just (salesByWeek, naive) <- 
              runConduit $ 
              alignConduit salesSource naiveSource
                  .|mapC  joinWithZeros
+                 .|mapC replaceNaive
                  .|mapC  addErrors
                  .| C.foldl1 \(salesA, WithError naiveA  overA  underA) (salesB, WithError naiveB overB underB) -> 
                           (salesA `vadd` salesB

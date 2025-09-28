@@ -196,9 +196,9 @@ actualSalesSource start end = do
 
 
 loadYearOfForecastCumulByWeek :: Day -> FilePath -> IO (Map Sku UWeeklyAmount)
-loadYearOfForecastCumulByWeek end forecastPath = do
-  rawProfiles <- readProfiles $ forecastPath  </> "collection_profile.csv"
-  skuSpeed <- loadSkuSpeed $ forecastPath </> "mw_sku_forecast.csv"
+loadYearOfForecastCumulByWeek end forecastDir = do
+  rawProfiles <- readProfiles $ forecastDir  </> "collection_profiles.csv"
+  skuSpeed <- loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
   let weekProfiles = fmap (expandProfileWeekly end) rawProfiles
       linear = V.replicate 52 (1/52)
       weeklyForRow (SkuSpeedRow _ weight collection) = V.map (*weight) weelky where
