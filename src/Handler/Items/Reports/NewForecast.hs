@@ -9,11 +9,13 @@ import Handler.Items.Reports.Forecast
 import Items.Types
 -- import Data.Conduit.List (consume)
 import qualified Data.Vector.Generic as V
+import qualified Data.Conduit.Combinators as C
+import Util.ForConduit
 
 
 
-plotForecastError ::  UWeeklyAmount -> Widget
-plotForecastError actuals = do -- actuals naiveForecast previousForecast currentForecast = do
+plotForecastError ::  UWeeklyAmount -> UWeeklyAmount -> Widget
+plotForecastError actuals naives = do -- actuals naiveForecast previousForecast currentForecast = do
      --         1  0  0   2 0 1  3 0 0  0 4 0
    let y, y_under, y_over, x :: [Int]
        y =       [1,1,1, 2,3,4, 7,7,7,  7,11,11]
@@ -41,7 +43,7 @@ plotForecastError actuals = do -- actuals naiveForecast previousForecast current
          ,
          { 
          x: #{toJSON x}
-         , y:#{toJSON y}
+         , y:#{toJSON naives}
          , mode: "lines"
          }
          ]
@@ -51,17 +53,30 @@ plotForecastError actuals = do -- actuals naiveForecast previousForecast current
 
 getPlotForecastError :: Day -> Handler Widget
 getPlotForecastError end = do
-  let count c = do
-          m <- await
-          case m of 
-            Nothing -> return c
-            Just _ -> do
-                count (c+1)
-  salesByWeek <- runDB $ runConduit $ loadYearOfActualCumulSalesByWeek  end .| do
-                Just (_sku, amounts) <- await
-                return $ V.postscanl' (+) 0 amounts
-  traceShowM ("AAA", salesByWeek)
-  let plot = plotForecastError salesByWeek 
-  return [whamlet|
-    ^{plot}
-  |]
+  let (start, salesSource) = loadYearOfActualCumulSalesByWeek end
+      (_, naiveSource) = loadYearOfActualCumulSalesByWeek start
+  runDB do
+        Just salesByWeek <- runConduit $ salesSource
+                            .| mapC snd
+                            .|  C.foldl1 (V.zipWith (+))
+        Just naive <- runConduit $ naiveSource
+                            .| mapC snd
+                            .|  C.foldl1 (V.zipWith (+))
+        let plot = plotForecastError salesByWeek  naive
+        return [whamlet|
+          ^{plot}
+        |]
+        
+        
+errorOnConduit actuals naives = do
+  joinOnWith 
+
+computeAbsoluteError :: UWeeklyAmount  -> UWeeklyAmount -> (UWeeklyAmount, UWeeklyAmount)
+computeAbsoluteError actuals forecast = (ups, downs) where
+   ups = V.zipWith up actuals forecast
+   downs = V.zipWith down actuals forecast
+
+
+up, down :: Double -> Double -> Double
+up a b = max (0, a -b )
+down ab = max (0, b - a)

@@ -132,23 +132,20 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) 
 -- * Forecast error
 
 -- | Load actual sales for a whole year 
-loadYearOfActualCumulSalesByWeek :: Day -> SqlConduit () (Sku, UWeeklyAmount) ()
-loadYearOfActualCumulSalesByWeek end = do
+loadYearOfActualCumulSalesByWeek :: Day -> (Day, SqlConduit () (Sku, UWeeklyAmount) ())
+loadYearOfActualCumulSalesByWeek end = 
    let endOfPreviousWeek = calculateDate (BeginningOfWeek  Monday) end
-       start = calculateDate (AddYears $ -1) endOfPreviousWeek
+       start = calculateDate (AddDays $ -365) endOfPreviousWeek -- exactly 52 weeks
        mkVec (ForMap sku week'amounts) = let
            v0 = V.replicate 52 0 :: UWeeklyAmount
-           va = v0 V.// traceShowId
-                        [ (week , amount) 
-                        | (yearweek, amount) <- week'amounts
-                        , let week = if yearweek >= 52 -- jump from one year to the other one week 52 -> 1
-                                     then yearweek - 52
-                                     else yearweek
-                        ]
-
+           va = v0 V.// week'amounts
            
-           in traceShow (week'amounts, v0) $ (sku, va)
-   actualSalesSource start endOfPreviousWeek .| mapC mkVec
+           in -- traceShow (week'amounts, v0) $
+              (sku, va)
+       source = actualSalesSource start endOfPreviousWeek
+                 .| mapC mkVec
+                 .| mapC  (\(sku, amounts) -> (sku, V.postscanl' (+) 0 amounts))
+   in (start, source)
 
 -- | load sales from stock moves between the given date (end excluded)
 -- sorted by sku 
