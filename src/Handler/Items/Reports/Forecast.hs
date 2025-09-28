@@ -168,7 +168,7 @@ actualSalesSource start end = do
            " FROM 0_stock_moves " :
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
-           -- " AND stock_id = ?" :
+           " AND stock_id like 'M%'" :
            " AND tran_date >= ? AND tran_date < ? " :
            " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
            " order BY stock_id, YEARWEEK(tran_date,5) " :

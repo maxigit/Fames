@@ -21,12 +21,14 @@ plotForecastError ::  Text -> UWeeklyAmount -> WithError -> Widget
 plotForecastError plotId actuals0 naiveF = do -- actuals naiveForecast previousForecast currentForecast = do
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
    let x = [1..  length actuals] :: [Int]
+       adjust v = V.map (\x -> 100 * x / maxActual) v
+       maxActual = V.last actuals0
        naiveOversY = actuals `vadd` naiveOvers
        naiveUndersY = actuals `vsub` naiveUnders
-       actuals = actuals0       --  `vdiv` actuals0
-       naive = naives0          --  `vdiv` actuals0
-       naiveOvers = naiveOvers0     --  `vdiv` actuals0
-       naiveUnders = naiveUnders0 --  `vdiv` actuals0
+       actuals = adjust actuals0
+       naive = adjust naives0
+       naiveOvers = adjust naiveOvers0
+       naiveUnders = adjust naiveUnders0
    traceShowM ("==============================", plotId, naiveUnders)
    [whamlet|
      The plot
