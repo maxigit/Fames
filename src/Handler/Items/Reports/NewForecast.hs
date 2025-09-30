@@ -45,6 +45,9 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
        forecastOvers = adjust forecastOvers0
        forecastUnders = adjust forecastUnders0
        
+       naiveErrorRel = V.map (*100) $ (naiveUnders `vadd` naiveOvers) `vdiv` actuals
+       forecastErrorRel = V.map (*100) $ (forecastUnders `vadd` forecastOvers) `vdiv` actuals
+       
        todayBar = if start <= today && today <= (calculateDate (AddYears 1) start)
                   then [julius|
                     {
@@ -54,6 +57,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                     , xref:"x", yref:"paper"
                     , mode: "lines"
                     , line: {dash: "dash", color: "lightgray"}
+                    , layer: "below"
                     }
                        |]
                   else [julius||]
@@ -66,6 +70,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                     , xref:"x", yref:"paper"
                     , mode: "lines"
                     , line: {dash: "dash", color: "lightgray"}
+                    , layer: "below"
                     }
                        |]
    [whamlet|
@@ -73,57 +78,94 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
      <div. id="#{plotId}">
    |]
    toWidgetBody [julius|
-      traces = [{  // naive under
+      traces = [
+         {
          x: #{toJSON xbefore}
          , y:#{toJSON naiveUndersY}
          , line: {shape: "spline", color: "transparent"}
+           , yaxis: 'y'
          }
-         ,
-         {  // naive over
-         x: #{toJSON xbefore}
-         , y:#{toJSON naiveOversY}
-         , fill: "tonexty"
-         , line: {shape: "spline", color: "transparent"}
+         , {  // naive over
+           x: #{toJSON xbefore}
+           , y:#{toJSON naiveOversY}
+           , fill: "tonexty"
+           , line: {shape: "spline", color: "transparent"}
+           , yaxis: 'y'
          }
-         ,
-         {  // naive line
-         x: #{toJSON x}
-         , y:#{toJSON naive}
-         , mode: "lines"
-         , line: {dash: "dash", color: "black"}
-         }
-         ,
-         { // forecast under
-         x: #{toJSON xbefore}
-         , y:#{toJSON forecastUndersY}
-         , line: {shape: "spline", color: "transparent"}
-         }
+         , {  // naive line
+           x: #{toJSON x}
+           , y:#{toJSON naive}
+           , mode: "lines"
+           , line: {dash: "dash", color: "black"}
+           , yaxis: 'y'
+           }
+         , { // forecast under
+           x: #{toJSON xbefore}
+           , y:#{toJSON forecastUndersY}
+           , line: {shape: "spline", color: "transparent"}
+           , yaxis: 'y'
+           }
          ,
          {  // forecast over
-         x: #{toJSON xbefore}
-         , y:#{toJSON forecastOversY}
-         , fill: "tonexty"
-         , line: {shape: "spline", color: "transparent"}
-         , fillcolor: "rgba(200,0,0,0.3)"
-         }
-         ,
-         {  // forecast line
-         x: #{toJSON x}
-         , y:#{toJSON forecast}
-         , mode: "lines"
-         , line: {dash: "dot", color: "rgb(200,0,0)"}
-         }
-         ,
-         {  // actual
-         x: #{toJSON xbefore}
-         , y:#{toJSON actuals}
-         , mode: "lines"
-         , line: {color: "green"}
-         } // today
+            x: #{toJSON xbefore}
+            , y:#{toJSON forecastOversY}
+            , fill: "tonexty"
+            , line: {shape: "spline", color: "transparent"}
+            , fillcolor: "rgba(200,0,0,0.3)"
+           , yaxis: 'y'
+            }
+         , {  // forecast line
+           x: #{toJSON x}
+           , y:#{toJSON forecast}
+           , mode: "lines"
+           , line: {dash: "dot", color: "rgb(200,0,0)"}
+           , yaxis: 'y'
+           }
+         , {  // actual
+           x: #{toJSON xbefore}
+           , y:#{toJSON actuals}
+           , mode: "lines"
+           , line: {color: "green"}
+           , yaxis: 'y'
+           } // today
+         , { // naive relative
+           x: #{toJSON xbefore}
+           , y: #{toJSON naiveErrorRel}
+           , mode: "lines"
+           , line: {color: "black", dash:""}
+           , yaxis : 'y2'
+           }
+         , { // naive relative
+           x: #{toJSON xbefore}
+           ,y: #{toJSON forecastErrorRel}
+           , mode: "lines"
+           , line: {dash: "", color: "red"}
+           , yaxis : 'y2'
+           }
          ];
       Plotly.newPlot(#{plotId}
                     , traces
-                    , {shapes: [^{todayBar}, ^{janBar} ]
+                    , {shapes: [^{todayBar},
+                               ^{janBar},
+                               { x0: 0
+                               , x1: 1
+                               , y0: 100
+                               , y1: 100
+                               , xref: 'paper', yref: 'y2'
+                               , line: {dash :"dashdot", color: "lightgray"}
+                               , layer: "below"
+                               },
+                               { x0: 0
+                               , x1: 1
+                               , y0: 50
+                               , y1: 50
+                               , xref: 'paper', yref: 'y2'
+                               , line: {dash :"dashdot", color: "lightgray", width: 1}
+                               , layer: "below"
+                               },
+                               ]
+                      , yaxis2: {side: "left", anchor: "x"}
+                      , grid: {rows:2, columns:1 ,shared_xaxes:true}
                       }
                     )
       |]
@@ -144,7 +186,7 @@ getPlotForecastError day path = do
       replaceNaive (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, forecast) where
          forecast =  findWithDefault v0 sku skuMap
   runDB do
-        Just (salesByWeek, naive, forecast) <- 
+        salesM <- 
              runConduit $ 
              alignConduit salesSource naiveSource
                  .|mapC  joinWithZeros
@@ -161,15 +203,15 @@ getPlotForecastError day path = do
                                       (oA `vadd` oB)
                                       (uA `vadd` uB)
                           )
-
-        
-
-        let plot = plotForecastError ("forecast-" <> tshow end) start today salesByWeek  naive forecast
-        return [whamlet|
-          <div> #{path}
-          ^{plot}
-          <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
-        |]
+        case salesM of
+             Just (salesByWeek, naive, forecast) ->  do
+                let plot = plotForecastError ("forecast-" <> tshow end) start today salesByWeek  naive forecast
+                return [whamlet|
+                  <div> #{path}
+                  ^{plot}
+                  <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
+                |]
+             Nothing -> return [whamlet| no data for #{tshow day}/#{path} |]
 
 forecastPathToDay :: FilePath -> Maybe Day
 forecastPathToDay = readMay . take 10
