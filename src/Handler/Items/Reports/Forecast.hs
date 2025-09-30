@@ -142,24 +142,24 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _
 -- * Forecast error
 
 -- | Load actual sales for a whole year 
-loadYearOfActualCumulSalesByWeek :: Day -> (Day, SqlConduit () (ForMap Sku UWeeklyAmount) ())
+loadYearOfActualCumulSalesByWeek :: Day -> (Day, SqlConduit () (ForMap Sku UWeeklyQuantity) ())
 loadYearOfActualCumulSalesByWeek end = 
    let endOfPreviousWeek = calculateDate (BeginningOfWeek  Monday) end
        start = calculateDate (AddDays $ -365) endOfPreviousWeek -- exactly 52 weeks
-       mkVec (ForMap sku week'amounts) = let
-           v0 = V.replicate 52 0 :: UWeeklyAmount
-           va = v0 V.// week'amounts
+       mkVec (ForMap sku week'quantitys) = let
+           v0 = V.replicate 52 0 :: UWeeklyQuantity
+           va = v0 V.// week'quantitys
            
-           in -- traceShow (week'amounts, v0) $
+           in -- traceShow (week'quantitys, v0) $
               (sku, va)
        source = actualSalesSource start endOfPreviousWeek
                  .| mapC mkVec
-                 .| mapC  (\(sku, amounts) -> ForMap sku  $ V.postscanl' (+) 0 amounts)
+                 .| mapC  (\(sku, quantitys) -> ForMap sku  $ V.postscanl' (+) 0 quantitys)
    in (start, source)
 
 -- | load sales from stock moves between the given date (end excluded)
 -- sorted by sku 
-actualSalesSource :: Day -> Day -> SqlConduit () (ForMap Sku [(Int, Amount)]) ()
+actualSalesSource :: Day -> Day -> SqlConduit () (ForMap Sku [(Int, Quantity)]) ()
 actualSalesSource start end = do
    let _sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty_done*unit_price)  ":
            --                  offset week so that the first one is 0
@@ -174,26 +174,25 @@ actualSalesSource start end = do
            " order BY stock_id, YEARWEEK(tran_date,5)  " :
            []
    -- only use stock moves to make it much faster
-   let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty)*price " :
-   -- let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty*price) " :
+   let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty)" :
            " FROM 0_stock_moves " :
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
            " AND stock_id like 'M%'" :
-           -- " AND stock_id like 'ML17-FD7-NAY'" :
+           " AND stock_id like 'ML17-FD7-NAY'" :
            -- " AND stock_id like 'ML13-AD1-IVY'" :
            " AND tran_date >= ? AND tran_date < ? " :
            " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
            " order BY stock_id, YEARWEEK(tran_date,5) " :
            []
        weekSource = rawQuery  (mconcat sql) [toPersistValue start, toPersistValue start, toPersistValue end] 
-       myCoerce :: [PersistValue] -> (Sku, (Int, Amount))
+       myCoerce :: [PersistValue] -> (Sku, (Int, Quantity))
        myCoerce vs = case rawSqlProcessRow vs  of
                           Left e -> error $ unpack e
-                          Right v -> coerce (v :: (Single Text, (Single Int, Single Amount)))
-       run :: NonEmpty (Sku, (Int, Amount)) -> ForMap Sku [(Int, Amount)]
-       run nonEmpty = let (sku :|  _, week'amounts) = unzip nonEmpty
-                      in ForMap sku (toList week'amounts)
+                          Right v -> coerce (v :: (Single Text, (Single Int, Single Quantity)))
+       run :: NonEmpty (Sku, (Int, Quantity)) -> ForMap Sku [(Int, Quantity)]
+       run nonEmpty = let (sku :|  _, week'quantitys) = unzip nonEmpty
+                      in ForMap sku (toList week'quantitys)
                  
    weekSource .| mapC myCoerce
               .| CL.groupOn fst
@@ -201,36 +200,17 @@ actualSalesSource start end = do
 
 
 
-loadYearOfForecastCumulByWeek :: Day -> FilePath -> Handler (Map Sku UWeeklyAmount)
+loadYearOfForecastCumulByWeek :: Day -> FilePath -> Handler (Map Sku UWeeklyQuantity)
 loadYearOfForecastCumulByWeek end forecastDir = do
   -- load forecast from files
   rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
   skuSpeed <- liftIO $ loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
-  -- The forecast gives us quantity but we need to weight it by price (to get Amount vs Quantity)
-  -- reuse the price cache
-  cache <- I.fillIndexCache
-  skuToStyleVar <- I.skuToStyleVarH
-  base <- basePriceList
-  let ?skuToStyleVar = skuToStyleVar
-  itemGroups <- I.loadVariations cache I.indexParam  {I.ipMode = ItemPriceView }
-                                                     {I.ipShowInactive = I.ShowAll}
-                                                     {I.ipSKU = Just $ LikeFilter "M%"  } -- load everingy
-  let stylePriceMap = Map.fromList [ (iiStyle item, price)
-                                   | (item, _vars) <- itemGroups
-                                   , price <- maybeToList $ masterPrice base (iiInfo item)
-                                   ]
-      skuToPricem :: Sku -> Maybe Double
-      skuToPricem sku = let
-         (style,_) = skuToStyleVar sku
-         in lookup style stylePriceMap
-
-
   -- creates weekly profiles for each month
   let weekProfiles = fmap expandProfileWeekly rawProfiles
-      weekProfiles ::  Map Collection UWeeklyAmount
-      monthWeekly :: [UWeeklyAmount] 
+      weekProfiles ::  Map Collection UWeeklyQuantity
+      monthWeekly :: [UWeeklyQuantity] 
       monthWeekly = monthFractionPerWeek  (calculateDate (AddDays $ -364) end)
-      expandProfileWeekly :: SeasonProfile -> UWeeklyAmount
+      expandProfileWeekly :: SeasonProfile -> UWeeklyQuantity
       expandProfileWeekly (SeasonProfile profile) =  let v = V.postscanl' (+) 0 $
                                                                         foldl1Ex' vadd  $ zipWith (\monthWeight weeks -> V.map (*monthWeight) weeks)
                                                                                                    profile
@@ -240,18 +220,15 @@ loadYearOfForecastCumulByWeek end forecastDir = do
       weeklyForRow (SkuSpeedRow _ weight collection) = V.map ((*1).(*weight)) weekly where
           weekly = findWithDefault linear collection weekProfiles
                           
-      skuMap = Map.fromList [(sku, V.map (*price) (weeklyForRow row ))
+      skuMap = Map.fromList [(ssSko row, weeklyForRow row )
                             | row <- skuSpeed
-                            , let sku = ssSku row
-                            , price <- maybeToList $ skuToPricem sku
-                            -- ^^^^^^^^ skip item without a price.
                             ]
   return skuMap
   
   
 
 -- | Compute for each month its year fraction for each weeks
-monthFractionPerWeek :: Day -> [UWeeklyAmount]
+monthFractionPerWeek :: Day -> [UWeeklyQuantity]
 monthFractionPerWeek start = let
    monthForWeek = [ (d `div` 7,  month)
                   | (d, day) <- zip [0.. 363] [start .. ]
@@ -268,7 +245,7 @@ monthFractionPerWeek start = let
 
 
 
-vadd, vsub, vdiv, vmul  :: UWeeklyAmount -> UWeeklyAmount -> UWeeklyAmount
+vadd, vsub, vdiv, vmul  :: UWeeklyQuantity -> UWeeklyQuantity -> UWeeklyQuantity
 vadd = V.zipWith (+)
 vsub = V.zipWith (-)
 vdiv = V.zipWith (/)

@@ -14,10 +14,10 @@ import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
 
 
-data WithError = WithError { forecast, overError, underError :: UWeeklyAmount }
+data WithError = WithError { forecast, overError, underError :: UWeeklyQuantity }
    deriving (Show)
 
-plotForecastError ::  Text -> UWeeklyAmount -> WithError -> WithError -> Widget
+plotForecastError ::  Text -> UWeeklyQuantity -> WithError -> WithError -> Widget
 plotForecastError plotId actuals0 naiveF forecastF = do -- actuals naiveForecast previousForecast currentForecast = do
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
        WithError forecasts0 forecastOvers0 forecastUnders0 = forecastF
@@ -134,7 +134,7 @@ getPlotForecastError end = do
         
         
 newtype Actual a = Actual a
-computeAbsoluteError :: Actual UWeeklyAmount  -> UWeeklyAmount -> WithError
+computeAbsoluteError :: Actual UWeeklyQuantity  -> UWeeklyQuantity -> WithError
 computeAbsoluteError (Actual actuals) forecast = WithError forecast overError underError where
    overError = V.zipWith over forecast actuals
    underError = V.zipWith under forecast actuals
@@ -143,3 +143,23 @@ computeAbsoluteError (Actual actuals) forecast = WithError forecast overError un
 over, under :: Double -> Double -> Double
 over a b = max 0 ( a -b )
 under a b = max 0 ( b - a)
+
+--  -- The forecast gives us quantity but we need to weight it by price (to get Amount vs Quantity)
+--  -- reuse the price cache
+--  cache <- I.fillIndexCache
+--  skuToStyleVar <- I.skuToStyleVarH
+--  base <- basePriceList
+--  let ?skuToStyleVar = skuToStyleVar
+--  itemGroups <- I.loadVariations cache I.indexParam  {I.ipMode = ItemPriceView }
+--                                                     {I.ipShowInactive = I.ShowAll}
+--                                                     {I.ipSKU = Just $ LikeFilter "M%"  } -- load everingy
+--  let stylePriceMap = Map.fromList [ (iiStyle item, price)
+--                                   | (item, _vars) <- itemGroups
+--                                   , price <- maybeToList $ masterPrice base (iiInfo item)
+--                                   ]
+--      skuToPricem :: Sku -> Maybe Double
+--      skuToPricem sku = let
+--         (style,_) = skuToStyleVar sku
+--         in lookup style stylePriceMap
+--
+--
