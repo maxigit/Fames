@@ -677,7 +677,7 @@ getDForecastR = do
                   | path <- dirs
                   , day <- maybeToList $ forecastPathToDay $ takeBaseName path
                   ]
-  plots <- forM (drop 1 $ take 2 $ sort $ day'paths) \(Down day, path) -> do
+  plots <- forM (sort $ day'paths) \(Down day, path) -> do
                  plot <- getPlotForecastError day path
                  return (day, takeBaseName path, plot)
   defaultLayout $ do

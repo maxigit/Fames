@@ -47,7 +47,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
        
        todayBar = if start <= today && today <= (calculateDate (AddYears 1) start)
                   then [julius|
-                    shapes : [{
+                    {
                     type: 'line'
                     , x0: #{tshow today}, x1: #{tshow today}
                     , y0: 0 , y1: 1
@@ -55,10 +55,19 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                     , mode: "lines"
                     , line: {dash: "dash", color: "lightgray"}
                     }
-                    ]
-
                        |]
                   else [julius||]
+       jan = calculateDate (Chain [AddYears 1, BeginningOfYear]) start
+       janBar =[julius|
+                    {
+                    type: 'line'
+                    , x0: #{tshow jan}, x1: #{tshow jan}
+                    , y0: 0 , y1: 1
+                    , xref:"x", yref:"paper"
+                    , mode: "lines"
+                    , line: {dash: "dash", color: "lightgray"}
+                    }
+                       |]
    [whamlet|
      The plot
      <div. id="#{plotId}">
@@ -112,8 +121,11 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
          , line: {color: "green"}
          } // today
          ];
-         vbar = {^{todayBar} };
-      Plotly.newPlot(#{plotId}, traces, vbar );
+      Plotly.newPlot(#{plotId}
+                    , traces
+                    , {shapes: [^{todayBar}, ^{janBar} ]
+                      }
+                    )
       |]
 
 
