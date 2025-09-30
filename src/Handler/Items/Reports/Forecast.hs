@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Handler.Items.Reports.Forecast where
 
 import Import
@@ -6,6 +7,8 @@ import qualified Data.Csv as Csv
 import Handler.CsvUtils
 import Handler.Items.Category.Cache
 import Items.Internal
+import qualified Handler.Items.Index as I
+import qualified Handler.Items.Common as I
 import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
 import FA as FA hiding (unUserKey)
@@ -171,7 +174,7 @@ actualSalesSource start end = do
            " order BY stock_id, YEARWEEK(tran_date,5)  " :
            []
    -- only use stock moves to make it much faster
-   let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty) " : -- *price) " :
+   let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty)*price " :
    -- let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty*price) " :
            " FROM 0_stock_moves " :
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
@@ -200,8 +203,29 @@ actualSalesSource start end = do
 
 loadYearOfForecastCumulByWeek :: Day -> FilePath -> Handler (Map Sku UWeeklyAmount)
 loadYearOfForecastCumulByWeek end forecastDir = do
+  -- load forecast from files
   rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
   skuSpeed <- liftIO $ loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
+  -- The forecast gives us quantity but we need to weight it by price (to get Amount vs Quantity)
+  -- reuse the price cache
+  cache <- I.fillIndexCache
+  skuToStyleVar <- I.skuToStyleVarH
+  base <- basePriceList
+  let ?skuToStyleVar = skuToStyleVar
+  itemGroups <- I.loadVariations cache I.indexParam  {I.ipMode = ItemPriceView }
+                                                     {I.ipShowInactive = I.ShowAll}
+                                                     {I.ipSKU = Nothing } -- load everingy
+  let stylePriceMap = Map.fromList [ (iiStyle item, price)
+                                   | (item, _vars) <- itemGroups
+                                   , price <- maybeToList $ masterPrice base (iiInfo item)
+                                   ]
+      skuToPricem :: Sku -> Maybe Double
+      skuToPricem sku = let
+         (style,_) = skuToStyleVar sku
+         in lookup style stylePriceMap
+
+
+  -- creates weekly profiles for each month
   let weekProfiles = fmap expandProfileWeekly rawProfiles
       weekProfiles ::  Map Collection UWeeklyAmount
       monthWeekly :: [UWeeklyAmount] 
@@ -216,8 +240,11 @@ loadYearOfForecastCumulByWeek end forecastDir = do
       weeklyForRow (SkuSpeedRow _ weight collection) = V.map ((*1).(*weight)) weekly where
           weekly = findWithDefault linear collection weekProfiles
                           
-      skuMap = Map.fromList [(ssSku row, weeklyForRow row)
+      skuMap = Map.fromList [(sku, V.map (*price) (weeklyForRow row ))
                             | row <- skuSpeed
+                            , let sku = ssSku row
+                            , price <- maybeToList $ skuToPricem sku
+                            -- ^^^^^^^^ skip item without a price.
                             ]
   return skuMap
   

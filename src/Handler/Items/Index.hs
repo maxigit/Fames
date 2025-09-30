@@ -6,7 +6,7 @@ module Handler.Items.Index
 , postItemsIndexR
 , loadVariations
 , fillIndexCache
-, IndexParam(..)
+, IndexParam(..), indexParam
 , ShowInactive(..)
 )
 where
@@ -54,6 +54,27 @@ data IndexParam = IndexParam
   , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
   } deriving (Eq, Show)
 
+
+indexParam :: IndexParam
+indexParam = IndexParam{..} where
+  ipSKU = Nothing
+  ipCategory = Nothing
+  ipCategoryFilter = Nothing
+  ipVariationsF = Nothing
+  ipVariationGroup = Nothing
+  ipShowInactive = ShowAll
+  ipShowExtra = False
+  ipBases = mempty
+  ipChecked = []
+  ipColumns = []
+  ipMode = ItemFAStatusView
+  ipClearCache = False
+  ipGLStatusFilter = Nothing
+  ipSalesPriceStatusFilter = Nothing
+  ipPurchasePriceStatusFilter = Nothing
+  ipFAStatusFilter = Nothing
+  ipCategories = Nothing
+  ipBaseVariation= Nothing
 
 data IndexColumn = GLColumn Text
             | PriceColumn Int
