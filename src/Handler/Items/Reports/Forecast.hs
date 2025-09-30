@@ -198,10 +198,10 @@ actualSalesSource start end = do
 
 
 
-loadYearOfForecastCumulByWeek :: Day -> FilePath -> IO (Map Sku UWeeklyAmount)
+loadYearOfForecastCumulByWeek :: Day -> FilePath -> Handler (Map Sku UWeeklyAmount)
 loadYearOfForecastCumulByWeek end forecastDir = do
-  rawProfiles <- readProfiles $ forecastDir  </> "collection_profiles.csv"
-  skuSpeed <- loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
+  rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
+  skuSpeed <- liftIO $ loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
   let weekProfiles = fmap expandProfileWeekly rawProfiles
       weekProfiles ::  Map Collection UWeeklyAmount
       monthWeekly :: [UWeeklyAmount] 

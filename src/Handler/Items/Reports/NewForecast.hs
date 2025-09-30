@@ -96,7 +96,7 @@ plotForecastError plotId actuals0 naiveF forecastF = do -- actuals naiveForecast
 getPlotForecastError :: Day -> Handler Widget
 getPlotForecastError end = do
   settings <- getsYesod appSettings
-  skuMap <- liftIO $ loadYearOfForecastCumulByWeek end $ appForecastProfilesDir settings </> "Repeat"
+  skuMap <- loadYearOfForecastCumulByWeek end $ appForecastProfilesDir settings </> "Repeat"
   let (start, salesSource) = loadYearOfActualCumulSalesByWeek end
       (_, naiveSource) = loadYearOfActualCumulSalesByWeek start
       v0 = V.replicate 52 0
