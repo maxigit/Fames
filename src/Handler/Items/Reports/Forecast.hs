@@ -178,6 +178,7 @@ actualSalesSource start end = do
            " AND qty != 0" :
            " AND stock_id like 'M%'" :
            -- " AND stock_id like 'ML17-FD7-NAY'" :
+           -- " AND stock_id like 'ML13-AD1-IVY'" :
            " AND tran_date >= ? AND tran_date < ? " :
            " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
            " order BY stock_id, YEARWEEK(tran_date,5) " :
@@ -210,10 +211,9 @@ loadYearOfForecastCumulByWeek end forecastDir = do
                                                                         foldl1Ex' vadd  $ zipWith (\monthWeight weeks -> V.map (*monthWeight) weeks)
                                                                                                    profile
                                                                                                    monthWeekly
-                                                         vmax = trace "\nVMAX" $ traceShowId $ V.last v
-                                                     in V.map (/vmax) v
+                                                     in v
       linear = V.postscanl' (+) 0 $ V.replicate 52 (1/52)
-      weeklyForRow (SkuSpeedRow _ weight collection) = traceShowId  $ traceShow ("\nWEIGHT", weight, weekly) $ V.map ((*1).(*weight)) weekly where
+      weeklyForRow (SkuSpeedRow _ weight collection) = V.map ((*1).(*weight)) weekly where
           weekly = findWithDefault linear collection weekProfiles
                           
       skuMap = Map.fromList [(ssSku row, weeklyForRow row)
@@ -233,7 +233,9 @@ monthFractionPerWeek start = let
    v0 = V.replicate 52 0
    in [ V.accum (+) v0 updates
       | month <- [1..12]
-      , let updates = [ (w, 1/364) | (w, m) <- monthForWeek, m == month ]
+      , let updates = let ups = [ (w, 1/monthLength) | (w, m) <- monthForWeek, m == month ]
+                          monthLength = fromIntegral $ length ups
+                      in ups
       ]
        
 
