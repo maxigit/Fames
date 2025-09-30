@@ -2,6 +2,7 @@ module Handler.Items.Reports.NewForecast  (
 plotForecastError
 , getPlotForecastError
 , vadd, vmul, vsub, vdiv
+, forecastPathToDay
 ) where
 
 import Import
@@ -96,11 +97,11 @@ plotForecastError plotId actuals0 naiveF forecastF = do -- actuals naiveForecast
       |]
 
 
-getPlotForecastError :: Day -> Handler Widget
-getPlotForecastError day = do
+getPlotForecastError :: Day -> FilePath -> Handler Widget
+getPlotForecastError day path = do
   settings <- getsYesod appSettings
   let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek day
-  skuMap <- loadYearOfForecastCumulByWeek day $ appForecastProfilesDir settings </> "Repeat"
+  skuMap <- loadYearOfForecastCumulByWeek day $ appForecastProfilesDir settings </> path
   let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek (calculateDate (AddYears $ -1) start)
       v0 = V.replicate 52 0
       joinWithZeros (ForMap sku theseab) = ForMap sku ab where
@@ -132,10 +133,13 @@ getPlotForecastError day = do
 
         let plot = plotForecastError ("forecast-" <> tshow end) salesByWeek  naive forecast
         return [whamlet|
+          <div> #{path}
           ^{plot}
           <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
         |]
-        
+
+forecastPathToDay :: FilePath -> Maybe Day
+forecastPathToDay = readMay . take 10
         
 newtype Actual a = Actual a
 computeAbsoluteError :: Actual UWeeklyQuantity  -> UWeeklyQuantity -> WithError

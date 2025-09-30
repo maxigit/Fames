@@ -19,6 +19,8 @@ import qualified Data.Map as Map
 import Formatting hiding(now)
 import Data.Aeson.QQ(aesonQQ)
 import Control.Monad.Fail (MonadFail(..))
+import System.FilePath.Glob (glob)
+import System.FilePath (takeBaseName)
 
 pivotCss = [cassius|
   div.pivot-inline
@@ -667,14 +669,20 @@ collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = le
   
 getDForecastR :: Handler Html
 getDForecastR = do
-  today <- todayH
-  plot <- getPlotForecastError today
-  previous <- getPlotForecastError $ calculateDate (AddDays $ -365) today
-  pprevious <- getPlotForecastError $ calculateDate (AddDays $ -(365*2)) today
+  settings <- getsYesod appSettings
+  -- load all available forecasts
+  dirs <- liftIO $ glob (appForecastProfilesDir settings </> "????-??-??*")
+  traceShowM ("DIRS", dirs)
+  let day'paths = [ (Down day, path)
+                  | path <- dirs
+                  , day <- maybeToList $ forecastPathToDay $ takeBaseName path
+                  ]
+  traceShowM ("PATH", day'paths)
+  plots <- forM (sort $ day'paths) \(Down day, path) ->
+                 getPlotForecastError day path
   defaultLayout $ do
       [whamlet|
-        ^{plot}
-        ^{previous}
-        ^{pprevious}
+         $forall plot <- plots
+                 ^{plot}
       |]
 
