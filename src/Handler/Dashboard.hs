@@ -677,12 +677,16 @@ getDForecastR = do
                   | path <- dirs
                   , day <- maybeToList $ forecastPathToDay $ takeBaseName path
                   ]
-  traceShowM ("PATH", day'paths)
-  plots <- forM (sort $ day'paths) \(Down day, path) ->
-                 getPlotForecastError day path
+  plots <- forM (sort $ day'paths) \(Down day, path) -> do
+                 plot <- getPlotForecastError day path
+                 return (day, takeBaseName path, plot)
   defaultLayout $ do
       [whamlet|
-         $forall plot <- plots
+         $forall (_day, path, plot) <- plots
+            <div.panel.panel-primary>
+               <div.panel-heading data-toggle=collapse data-target="#dashboard-#{path}">
+                 <h2> #{path}
+               <div.panel-body.pivot-inline id="dashboard-#{path}">
                  ^{plot}
       |]
 
