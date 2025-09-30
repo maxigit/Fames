@@ -27,6 +27,9 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
        WithError forecasts0 forecastOvers0 forecastUnders0 = forecastF
    let x = take 52 $ iterate (calculateDate (AddWeeks 1)) start-- [1..  length actuals] :: [Int]
+       xbefore = case takeWhile (<= today) x of
+                      [] -> x
+                      before -> before
        adjust v =  v -- V.map (\x -> 100 * x / maxActual) v
        -- maxActual = V.last actuals0
        naiveOversY = actuals `vadd` naiveOvers
@@ -62,13 +65,13 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
    |]
    toWidgetBody [julius|
       traces = [{  // naive under
-         x: #{toJSON x}
+         x: #{toJSON xbefore}
          , y:#{toJSON naiveUndersY}
          , line: {shape: "spline", color: "transparent"}
          }
          ,
          {  // naive over
-         x: #{toJSON x}
+         x: #{toJSON xbefore}
          , y:#{toJSON naiveOversY}
          , fill: "tonexty"
          , line: {shape: "spline", color: "transparent"}
@@ -82,13 +85,13 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
          }
          ,
          { // forecast under
-         x: #{toJSON x}
+         x: #{toJSON xbefore}
          , y:#{toJSON forecastUndersY}
          , line: {shape: "spline", color: "transparent"}
          }
          ,
          {  // forecast over
-         x: #{toJSON x}
+         x: #{toJSON xbefore}
          , y:#{toJSON forecastOversY}
          , fill: "tonexty"
          , line: {shape: "spline", color: "transparent"}
@@ -103,7 +106,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
          }
          ,
          {  // actual
-         x: #{toJSON x}
+         x: #{toJSON xbefore}
          , y:#{toJSON actuals}
          , mode: "lines"
          , line: {color: "green"}
