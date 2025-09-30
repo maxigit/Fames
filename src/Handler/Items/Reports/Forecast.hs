@@ -179,7 +179,7 @@ actualSalesSource start end = do
            " AND qty != 0" :
            " AND stock_id like 'M%'" :
            -- " AND stock_id like 'ML17-FD7-NAY'" :
-           " AND stock_id like 'ML13-AD1-IVY'" :
+           -- " AND stock_id like 'ML13-AD1-IVY'" :
            " AND tran_date >= ? AND tran_date < ? " :
            " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
            " order BY stock_id, YEARWEEK(tran_date,5) " :

@@ -14,6 +14,7 @@ import qualified Data.Vector.Generic as V
 import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
 import GL.Utils
+import Data.List(iterate)
 
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
@@ -21,17 +22,18 @@ import GL.Utils
 data WithError = WithError { forecast, overError, underError :: UWeeklyQuantity }
    deriving (Show)
 
-plotForecastError ::  Text -> UWeeklyQuantity -> WithError -> WithError -> Widget
-plotForecastError plotId actuals0 naiveF forecastF = do -- actuals naiveForecast previousForecast currentForecast = do
+plotForecastError ::  Text -> Day -> Day -> UWeeklyQuantity -> WithError -> WithError -> Widget
+plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals naiveForecast previousForecast currentForecast = do
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
        WithError forecasts0 forecastOvers0 forecastUnders0 = forecastF
-   let x = [1..  length actuals] :: [Int]
+   let x = take 52 $ iterate (calculateDate (AddWeeks 1)) start-- [1..  length actuals] :: [Int]
        adjust v =  v -- V.map (\x -> 100 * x / maxActual) v
        -- maxActual = V.last actuals0
        naiveOversY = actuals `vadd` naiveOvers
        naiveUndersY = actuals `vsub` naiveUnders
        forecastOversY = actuals `vadd` forecastOvers
        forecastUndersY = actuals `vsub` forecastUnders
+
        actuals = adjust actuals0
        naive = adjust naives0
        naiveOvers = adjust naiveOvers0
@@ -39,39 +41,53 @@ plotForecastError plotId actuals0 naiveF forecastF = do -- actuals naiveForecast
        forecast = adjust forecasts0
        forecastOvers = adjust forecastOvers0
        forecastUnders = adjust forecastUnders0
+       
+       todayBar = if start <= today && today <= (calculateDate (AddYears 1) start)
+                  then [julius|
+                    shapes : [{
+                    type: 'line'
+                    , x0: #{tshow today}, x1: #{tshow today}
+                    , y0: 0 , y1: 1
+                    , xref:"x", yref:"paper"
+                    , mode: "lines"
+                    , line: {dash: "dash", color: "lightgray"}
+                    }
+                    ]
+
+                       |]
+                  else [julius||]
    [whamlet|
      The plot
      <div. id="#{plotId}">
    |]
    toWidgetBody [julius|
-      Plotly.plot(#{plotId} 
-      , [{ 
+      traces = [{  // naive under
          x: #{toJSON x}
          , y:#{toJSON naiveUndersY}
          , line: {shape: "spline", color: "transparent"}
          }
          ,
-         { 
+         {  // naive over
          x: #{toJSON x}
          , y:#{toJSON naiveOversY}
          , fill: "tonexty"
          , line: {shape: "spline", color: "transparent"}
          }
          ,
-         { 
+         {  // naive line
          x: #{toJSON x}
          , y:#{toJSON naive}
          , mode: "lines"
          , line: {dash: "dash", color: "black"}
          }
          ,
-         {
+         { // forecast under
          x: #{toJSON x}
          , y:#{toJSON forecastUndersY}
          , line: {shape: "spline", color: "transparent"}
          }
          ,
-         { 
+         {  // forecast over
          x: #{toJSON x}
          , y:#{toJSON forecastOversY}
          , fill: "tonexty"
@@ -79,26 +95,28 @@ plotForecastError plotId actuals0 naiveF forecastF = do -- actuals naiveForecast
          , fillcolor: "rgba(200,0,0,0.3)"
          }
          ,
-         { 
+         {  // forecast line
          x: #{toJSON x}
          , y:#{toJSON forecast}
          , mode: "lines"
-         , line: {dash: "dash", color: "red"}
+         , line: {dash: "dot", color: "rgb(200,0,0)"}
          }
          ,
-         { 
+         {  // actual
          x: #{toJSON x}
          , y:#{toJSON actuals}
          , mode: "lines"
          , line: {color: "green"}
-         }
-         ]
-      );
+         } // today
+         ];
+         vbar = {^{todayBar} };
+      Plotly.newPlot(#{plotId}, traces, vbar );
       |]
 
 
 getPlotForecastError :: Day -> FilePath -> Handler Widget
 getPlotForecastError day path = do
+  today <- todayH
   settings <- getsYesod appSettings
   let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek day
   skuMap <- loadYearOfForecastCumulByWeek day $ appForecastProfilesDir settings </> path
@@ -131,7 +149,7 @@ getPlotForecastError day path = do
 
         
 
-        let plot = plotForecastError ("forecast-" <> tshow end) salesByWeek  naive forecast
+        let plot = plotForecastError ("forecast-" <> tshow end) start today salesByWeek  naive forecast
         return [whamlet|
           <div> #{path}
           ^{plot}

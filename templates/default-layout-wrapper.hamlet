@@ -21,7 +21,7 @@ $newline never
     \<![endif]-->
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.js">
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/js-cookie/2.0.3/js.cookie.min.js">
-    <script type="text/javascript" src="https://cdn.plot.ly/plotly-latest.min.js">
+    <script type="text/javascript" src="https://cdn.plot.ly/plotly-3.1.0.min.js">
     <script>
       /* The `defaultCsrfMiddleware` Middleware added in Foundation.hs adds a CSRF token the request cookies. */
       /* AJAX requests should add that token to a header to be validated by the server. */
