@@ -7,8 +7,6 @@ import qualified Data.Csv as Csv
 import Handler.CsvUtils
 import Handler.Items.Category.Cache
 import Items.Internal
-import qualified Handler.Items.Index as I
-import qualified Handler.Items.Common as I
 import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
 import FA as FA hiding (unUserKey)
@@ -142,20 +140,21 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _
 -- * Forecast error
 
 -- | Load actual sales for a whole year 
-loadYearOfActualCumulSalesByWeek :: Day -> (Day, SqlConduit () (ForMap Sku UWeeklyQuantity) ())
-loadYearOfActualCumulSalesByWeek end = 
-   let endOfPreviousWeek = calculateDate (BeginningOfWeek  Monday) end
-       start = calculateDate (AddDays $ -365) endOfPreviousWeek -- exactly 52 weeks
+loadYearOfActualCumulSalesByWeek :: Day -> (Day, Day, SqlConduit () (ForMap Sku UWeeklyQuantity) ())
+loadYearOfActualCumulSalesByWeek start = 
+   let -- find first monday >= start
+       monday = calculateDate (Chain [AddDays 1, BeginningOfWeek Monday]) start
+       end = calculateDate (AddDays $ 364) monday -- exactly 52 weeks
        mkVec (ForMap sku week'quantitys) = let
            v0 = V.replicate 52 0 :: UWeeklyQuantity
            va = v0 V.// week'quantitys
            
            in -- traceShow (week'quantitys, v0) $
               (sku, va)
-       source = actualSalesSource start endOfPreviousWeek
+       source = actualSalesSource monday end
                  .| mapC mkVec
                  .| mapC  (\(sku, quantitys) -> ForMap sku  $ V.postscanl' (+) 0 quantitys)
-   in (start, source)
+   in (monday, end, source)
 
 -- | load sales from stock moves between the given date (end excluded)
 -- sorted by sku 
@@ -179,8 +178,8 @@ actualSalesSource start end = do
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
            " AND stock_id like 'M%'" :
-           " AND stock_id like 'ML17-FD7-NAY'" :
-           -- " AND stock_id like 'ML13-AD1-IVY'" :
+           -- " AND stock_id like 'ML17-FD7-NAY'" :
+           " AND stock_id like 'ML13-AD1-IVY'" :
            " AND tran_date >= ? AND tran_date < ? " :
            " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
            " order BY stock_id, YEARWEEK(tran_date,5) " :
@@ -201,7 +200,7 @@ actualSalesSource start end = do
 
 
 loadYearOfForecastCumulByWeek :: Day -> FilePath -> Handler (Map Sku UWeeklyQuantity)
-loadYearOfForecastCumulByWeek end forecastDir = do
+loadYearOfForecastCumulByWeek start forecastDir = do
   -- load forecast from files
   rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
   skuSpeed <- liftIO $ loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
@@ -209,7 +208,7 @@ loadYearOfForecastCumulByWeek end forecastDir = do
   let weekProfiles = fmap expandProfileWeekly rawProfiles
       weekProfiles ::  Map Collection UWeeklyQuantity
       monthWeekly :: [UWeeklyQuantity] 
-      monthWeekly = monthFractionPerWeek  (calculateDate (AddDays $ -364) end)
+      monthWeekly = monthFractionPerWeek  (calculateDate (AddDays 364) start)
       expandProfileWeekly :: SeasonProfile -> UWeeklyQuantity
       expandProfileWeekly (SeasonProfile profile) =  let v = V.postscanl' (+) 0 $
                                                                         foldl1Ex' vadd  $ zipWith (\monthWeight weeks -> V.map (*monthWeight) weeks)
@@ -220,7 +219,7 @@ loadYearOfForecastCumulByWeek end forecastDir = do
       weeklyForRow (SkuSpeedRow _ weight collection) = V.map ((*1).(*weight)) weekly where
           weekly = findWithDefault linear collection weekProfiles
                           
-      skuMap = Map.fromList [(ssSko row, weeklyForRow row )
+      skuMap = Map.fromList [(ssSku row, weeklyForRow row )
                             | row <- skuSpeed
                             ]
   return skuMap

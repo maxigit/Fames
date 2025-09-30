@@ -12,7 +12,10 @@ import Items.Types
 import qualified Data.Vector.Generic as V
 import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
+import GL.Utils
 
+-- import qualified Handler.Items.Index as I
+-- import qualified Handler.Items.Common as I
 
 data WithError = WithError { forecast, overError, underError :: UWeeklyQuantity }
    deriving (Show)
@@ -94,11 +97,11 @@ plotForecastError plotId actuals0 naiveF forecastF = do -- actuals naiveForecast
 
 
 getPlotForecastError :: Day -> Handler Widget
-getPlotForecastError end = do
+getPlotForecastError day = do
   settings <- getsYesod appSettings
-  skuMap <- loadYearOfForecastCumulByWeek end $ appForecastProfilesDir settings </> "Repeat"
-  let (start, salesSource) = loadYearOfActualCumulSalesByWeek end
-      (_, naiveSource) = loadYearOfActualCumulSalesByWeek start
+  let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek day
+  skuMap <- loadYearOfForecastCumulByWeek day $ appForecastProfilesDir settings </> "Repeat"
+  let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek (calculateDate (AddYears $ -1) start)
       v0 = V.replicate 52 0
       joinWithZeros (ForMap sku theseab) = ForMap sku ab where
           ab = these (,v0) (v0,) (,) theseab
@@ -130,6 +133,7 @@ getPlotForecastError end = do
         let plot = plotForecastError ("forecast-" <> tshow end) salesByWeek  naive forecast
         return [whamlet|
           ^{plot}
+          <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
         |]
         
         
