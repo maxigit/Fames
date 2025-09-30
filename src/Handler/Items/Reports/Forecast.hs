@@ -214,7 +214,7 @@ loadYearOfForecastCumulByWeek end forecastDir = do
   let ?skuToStyleVar = skuToStyleVar
   itemGroups <- I.loadVariations cache I.indexParam  {I.ipMode = ItemPriceView }
                                                      {I.ipShowInactive = I.ShowAll}
-                                                     {I.ipSKU = Nothing } -- load everingy
+                                                     {I.ipSKU = Just $ LikeFilter "M%"  } -- load everingy
   let stylePriceMap = Map.fromList [ (iiStyle item, price)
                                    | (item, _vars) <- itemGroups
                                    , price <- maybeToList $ masterPrice base (iiInfo item)
