@@ -737,10 +737,25 @@ getDForecastDetailedR pathm = do
           Nothing -> error $ "Unknown start date for Forecast profile " <> show path
           Just day -> do
              (plot,_) <- getPlotForecastError day path
-             tables <- getMostOffenders 10 day path
+             offendersM <- getMostOffenders 10 day path
              defaultLayout $ do
                 toWidgetHead commonCss
                 plot
-
+                [whamlet|
+                $maybe (tops, bottoms) <- offendersM
+                   <h3> Most under estimated SKU
+                   <table>
+                      $forall (sku, summary)  <- bottoms
+                         <tr>
+                           <td> #{sku}
+                           <td> #{tshow summary}
+                   <h3> Most overestimated SKU
+                   <table>
+                      $forall (sku, summary)  <- tops
+                         <tr>
+                           <td> #{sku}
+                           <td> #{tshow summary}
+                           |]
+                      
 
                 
