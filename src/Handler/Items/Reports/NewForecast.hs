@@ -20,10 +20,10 @@ import Data.List(iterate)
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
 
-data WithError = WithError { forecast, overError, underError :: UWeeklyQuantity }
+data WithError = WithError { forecastCumul, overError, underError :: UWeeklyQuantity }
    deriving (Show)
 
-data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPercent, naivePercent, aes :: Double }
+data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPercent, naivePercent, aes, trendPercent :: Double }
    deriving (Show)
 
 plotForecastError ::  Text -> Day -> Day -> UWeeklyQuantity -> WithError -> WithError -> Widget
@@ -229,9 +229,10 @@ getPlotForecastError day path = do
                              naivePercent = percentFor $ vadd (overError naive) (underError naive)
                              aes = overallPercent / naivePercent
                              percentFor v = V.last v / V.last salesByWeek
+                             trendPercent = V.last salesByWeek / V.last (forecastCumul naive) -1
                          in ForecastSummary{..} 
                        )
-             Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0)
+             Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0 0)
 
 forecastPathToDay :: FilePath -> Maybe Day
 forecastPathToDay = readMay . take 10

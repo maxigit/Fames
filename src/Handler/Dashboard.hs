@@ -693,20 +693,22 @@ getDForecastR = do
                     <th> Date
                     <th> Method
                     <th> Scaled Error
-                    <th> % Error estimation
                     <th> % Under estimation
                     <th> % Over estimation
+                    <th> % Error estimation
                     <th> % Error Naive
+                    <th> % Trend
                 <tbody>
                   $forall (day, path, _,summary) <- plot'summarys
                     <tr>
                       <td>#{tshow day}
                       <td>#{path}
-                      <td>#{toPercent $ aes summary}%
-                      <td>#{toPercent $ overallPercent summary}%
+                      <th>#{toPercent $ aes summary}%
                       <td>#{toPercent $ underPercent summary}%
                       <td>#{toPercent $ overPercent summary}%
+                      <th>#{toPercent $ overallPercent summary}%
                       <td>#{toPercent $ naivePercent summary}%
+                      <td>#{toPercent $ trendPercent summary}%
             
       $forall (_day, path, plot,_) <- plot'summarys
             <div.panel.panel-primary>
