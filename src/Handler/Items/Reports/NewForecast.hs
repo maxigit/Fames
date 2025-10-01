@@ -89,6 +89,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
          , y:#{toJSON naiveUndersY}
          , line: {shape: "spline", color: "transparent"}
            , yaxis: 'y'
+           , showlegend: false
          }
          , {  // naive over
            x: #{toJSON xbefore}
@@ -96,6 +97,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , fill: "tonexty"
            , line: {shape: "spline", color: "transparent"}
            , yaxis: 'y'
+           , showlegend: false
          }
          , {  // naive line
            x: #{toJSON x}
@@ -103,12 +105,14 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , mode: "lines"
            , line: {dash: "dash", color: "black"}
            , yaxis: 'y'
+           , name: "Naive"
            }
          , { // forecast under
            x: #{toJSON xbefore}
            , y:#{toJSON forecastUndersY}
            , line: {shape: "spline", color: "transparent"}
            , yaxis: 'y'
+           , showlegend: false
            }
          ,
          {  // forecast over
@@ -118,6 +122,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
             , line: {shape: "spline", color: "transparent"}
             , fillcolor: "rgba(200,0,0,0.3)"
            , yaxis: 'y'
+           , showlegend: false
             }
          , {  // forecast line
            x: #{toJSON x}
@@ -125,6 +130,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , mode: "lines"
            , line: {dash: "dot", color: "rgb(200,0,0)"}
            , yaxis: 'y'
+           , name: "Forecast"
            }
          , {  // actual
            x: #{toJSON xbefore}
@@ -132,6 +138,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , mode: "lines"
            , line: {color: "green"}
            , yaxis: 'y'
+           , name: "Actual"
            } // today
          , { // naive relative
            x: #{toJSON xbefore}
@@ -139,6 +146,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , mode: "lines"
            , line: {color: "black", dash:""}
            , yaxis : 'y2'
+           , name: "Naive %Error"
            }
          , { // naive relative
            x: #{toJSON xbefore}
@@ -146,6 +154,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , mode: "lines"
            , line: {dash: "", color: "red"}
            , yaxis : 'y2'
+           , name: "Forceast %Error"
            }
          ];
       Plotly.newPlot(#{plotId}
