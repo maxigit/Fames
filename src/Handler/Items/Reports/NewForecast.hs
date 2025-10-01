@@ -163,6 +163,14 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                                , line: {dash :"dashdot", color: "lightgray", width: 1}
                                , layer: "below"
                                },
+                               { x0: 0
+                               , x1: 1
+                               , y0: 0
+                               , y1: 0
+                               , xref: 'paper', yref: 'y2'
+                               , line: {dash :"dashdot", color: "lightgray", width: 1}
+                               , layer: "below"
+                               },
                                ]
                       , yaxis2: {side: "left", anchor: "x"}
                       , grid: {rows:2, columns:1 ,shared_xaxes:true}
