@@ -5,6 +5,7 @@ plotForecastError
 , forecastPathToDay
 , ForecastSummary(..)
 , averageForecastSummary
+, getMostOffenders
 ) where
 
 import Import
@@ -25,9 +26,37 @@ import Data.Time.Calendar (diffDays)
 data WithError = WithError { forecastCumul, overError, underError :: UWeeklyQuantity }
    deriving (Show)
 
+totalError :: WithError -> UWeeklyQuantity
+totalError w = overError w `vadd` underError w
+
+instance Semigroup WithError where 
+  (WithError c o u) <> (WithError c' o' u') = WithError (c `vadd` c')
+                                                        (o `vadd` o')
+                                                        (u `vadd` u')
+instance Monoid WithError where
+   mempty = WithError v0 v0 v0 where v0 = V.replicate 52 0
+      
+
 data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPercent, naivePercent, aes, trendPercent :: Double }
    deriving (Show)
    
+data WeeklySalesWithForecastErrors = 
+     WeeklySalesWithForecastErrors { wsSales :: UWeeklyQuantity
+                                   , wsNaiveErros :: WithError
+                                   , wsForecast :: WithError
+                                   }
+     deriving (Show)
+     
+instance Semigroup WeeklySalesWithForecastErrors where
+  (WeeklySalesWithForecastErrors sales naive forecast) <>  (WeeklySalesWithForecastErrors sales' naive' forecast') =
+    WeeklySalesWithForecastErrors (sales <> sales')
+                                  (naive <> naive')
+                                  (forecast <> forecast')
+                                  
+instance Monoid WeeklySalesWithForecastErrors where
+    mempty = WeeklySalesWithForecastErrors mempty mempty mempty
+
+
 plotForecastError ::  Text -> Day -> Day -> UWeeklyQuantity -> WithError -> WithError -> Widget
 plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals naiveForecast previousForecast currentForecast = do
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
@@ -193,10 +222,8 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                     )
       |]
 
-
-getPlotForecastError :: Day -> FilePath -> Handler (Widget, ForecastSummary)
-getPlotForecastError day path = do
-  today <- todayH
+getForecastErrors :: Day -> FilePath -> Handler ((Day, Day), ConduitT () (ForMap Sku WeeklySalesWithForecastErrors) SqlHandler ())
+getForecastErrors day path = do 
   settings <- getsYesod appSettings
   let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek day
   skuMap <- loadYearOfForecastCumulByWeek day $ appForecastProfilesDir settings </> path
@@ -204,51 +231,48 @@ getPlotForecastError day path = do
       v0 = V.replicate 52 0
       joinWithZeros (ForMap sku theseab) = ForMap sku ab where
           ab = these (,v0) (v0,) (,) theseab
-      addErrors (ForMap _ (salesV, naiveV, forecastV)) = (salesV, computeAbsoluteError (Actual salesV) naiveV
-                                                                , computeAbsoluteError (Actual salesV) forecastV)
-      replaceNaive (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, forecast) where
+      addErrors (ForMap sku (salesV, naiveV, forecastV)) =
+                   ForMap sku $ WeeklySalesWithForecastErrors salesV
+                                                              (computeAbsoluteError (Actual salesV) naiveV)
+                                                              (computeAbsoluteError (Actual salesV) forecastV)
+      addForecast (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, forecast) where
          forecast =  findWithDefault v0 sku skuMap
-  runDB do
-        salesM <- 
-             runConduit $ 
-             alignConduit salesSource naiveSource
-                 .|mapC  joinWithZeros
-                 .|mapC replaceNaive
-                 .|mapC  addErrors
-                 .| C.foldl1 \(salesA, WithError naiveA  overA  underA, WithError fA oA uA)
-                              (salesB, WithError naiveB overB underB, WithError fB oB uB)
-                              -> 
-                          (salesA `vadd` salesB
-                          , WithError (naiveA `vadd` naiveB)
-                                      (overA `vadd` overB)
-                                      (underA `vadd` underB)
-                          , WithError (fA `vadd` fB)
-                                      (oA `vadd` oB)
-                                      (uA `vadd` uB)
-                          )
-        case salesM of
-             Just (salesByWeek, naive, forecast) ->  do
-                let plot = plotForecastError ("forecast-" <> pack path) start today salesByWeek  naive forecast
-                return ([whamlet|
-                          <div> #{path}
-                          ^{plot}
-                          <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
-                        |]
-                       , let overPercent = percentFor $ overError forecast
-                             underPercent = percentFor $ underError forecast
-                             overallPercent = overPercent + underPercent
-                             naivePercent = percentFor $ vadd (overError naive) (underError naive)
-                             aes = overallPercent / naivePercent
-                             percentFor v = lastGood v / lastGood salesByWeek
-                             trendPercent = lastGood salesByWeek / lastGood (forecastCumul naive) -1
-                             weeksToToday =  fromInteger $ case diffDays today start `div` 7 of
-                                                          n | n < 0 -> 51
-                                                          n ->  min n 51
-                             lastGood v = v V.! weeksToToday
-                                                 
-                         in ForecastSummary{..} 
-                       )
-             Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0 0)
+      conduit = alignConduit salesSource naiveSource
+                         .|mapC  joinWithZeros
+                         .|mapC addForecast
+                         .|mapC  addErrors
+  return ((start, end), conduit)
+
+
+getPlotForecastError :: Day -> FilePath -> Handler (Widget, ForecastSummary)
+getPlotForecastError day path = do
+   today <- todayH
+   ((start, end), salesConduit) <- getForecastErrors day path
+   salesM <- runDB $ runConduit
+                   $ salesConduit
+                   .| mapC forMapValue
+                   .| C.foldl1 (<>)
+   case salesM of
+        Just (WeeklySalesWithForecastErrors salesByWeek naive forecast) ->  do
+           let plot = plotForecastError ("forecast-" <> pack path) start today salesByWeek  naive forecast
+           return ([whamlet|
+                     <div> #{path}
+                     ^{plot}
+                     <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
+                   |]
+                  , let overPercent = percentFor $ overError forecast
+                        underPercent = percentFor $ underError forecast
+                        overallPercent = overPercent + underPercent
+                        naivePercent = percentFor $ vadd (overError naive) (underError naive)
+                        aes = overallPercent / naivePercent
+                        percentFor v = lastGood v / lastGood salesByWeek
+                        trendPercent = lastGood salesByWeek / lastGood (forecastCumul naive) -1
+                        weeksToToday =  weeksTo start today
+                        lastGood v = v V.! weeksToToday
+                                            
+                    in ForecastSummary{..} 
+                  )
+        Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0 0)
 
 forecastPathToDay :: FilePath -> Maybe Day
 forecastPathToDay = readMay . take 10
@@ -276,22 +300,26 @@ averageForecastSummary sums = let
                        (avg aes)
                        (avg trendPercent)
 
---  -- The forecast gives us quantity but we need to weight it by price (to get Amount vs Quantity)
---  -- reuse the price cache
---  cache <- I.fillIndexCache
---  skuToStyleVar <- I.skuToStyleVarH
---  base <- basePriceList
---  let ?skuToStyleVar = skuToStyleVar
---  itemGroups <- I.loadVariations cache I.indexParam  {I.ipMode = ItemPriceView }
---                                                     {I.ipShowInactive = I.ShowAll}
---                                                     {I.ipSKU = Just $ LikeFilter "M%"  } -- load everingy
---  let stylePriceMap = Map.fromList [ (iiStyle item, price)
---                                   | (item, _vars) <- itemGroups
---                                   , price <- maybeToList $ masterPrice base (iiInfo item)
---                                   ]
---      skuToPricem :: Sku -> Maybe Double
---      skuToPricem sku = let
---         (style,_) = skuToStyleVar sku
---         in lookup style stylePriceMap
---
---
+-- | Computes the number of weeks from start to today if needed
+-- This is the week when the actual sales stops if Today is in a given year
+weeksTo start today =  fromInteger $ case diffDays today start `div` 7 of
+                                        n | n < 0 -> 51
+                                        n ->  min n 51
+
+getMostOffenders :: Int -> Day -> FilePath -> Handler (Maybe ([(Text, WeeklySalesWithForecastErrors)], [(Text, WeeklySalesWithForecastErrors)]))
+getMostOffenders topN day path = do
+  today <- todayH
+  ((start, _end), salesConduit) <- getForecastErrors  day path
+  let mkTopOffenders (ForMap (Sku sku) weekly) = ([(sku, weekly)],  [(sku, weekly)])
+      -- vvvv silly we should use a normal fold and  as A or B is always a singleton list
+      keepOffenders (topsA, bottomsA) (topsB, bottomsB) = let 
+              bots = sortOn (\(_, weekly) ->  Down . lastGood $ totalError (wsForecast weekly)) (bottomsA ++ bottomsB)
+              tops = sortOn (\(_, weekly) ->  lastGood $ totalError (wsForecast weekly)) (topsA ++ topsB)
+              in (take topN tops, take topN bots)
+      lastGood v = v V.! weeksToToday
+      weeksToToday = weeksTo start today
+
+  runDB $ runConduit
+                     $ salesConduit
+                     .| mapC mkTopOffenders
+                     .| C.foldl1 keepOffenders

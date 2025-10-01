@@ -737,6 +737,7 @@ getDForecastDetailedR pathm = do
           Nothing -> error $ "Unknown start date for Forecast profile " <> show path
           Just day -> do
              (plot,_) <- getPlotForecastError day path
+             tables <- getMostOffenders 10 day path
              defaultLayout $ do
                 toWidgetHead commonCss
                 plot
