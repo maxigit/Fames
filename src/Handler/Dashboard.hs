@@ -677,12 +677,38 @@ getDForecastR = do
                   | path <- dirs
                   , day <- maybeToList $ forecastPathToDay $ takeBaseName path
                   ]
-  plots <- forM (sort $ day'paths) \(Down day, path) -> do
-                 plot <- getPlotForecastError day path
-                 return (day, takeBaseName path, plot)
+  plot'summarys <- forM (sort $ day'paths) \(Down day, path) -> do
+                 (plot, summary) <- getPlotForecastError day path
+                 return (day, takeBaseName path, plot, summary)
+  let toPercent x = sformat (commasFixedWith' round 1) (x*100)
   defaultLayout $ do
       [whamlet|
-         $forall (_day, path, plot) <- plots
+      <div.panel.panel-primary>
+         <div.panel-heading data-toggle=collapse data-target="#dashboard-summary">
+           <h2> Summary
+         <div.panel-body.pivot-inline id="dashboard-summary">
+              <table.table.table-hover.table-striped>
+                <thead>
+                  <tr>
+                    <th> Date
+                    <th> Method
+                    <th> Scaled Error
+                    <th> % Error estimation
+                    <th> % Under estimation
+                    <th> % Over estimation
+                    <th> % Error Naive
+                <tbody>
+                  $forall (day, path, _,summary) <- plot'summarys
+                    <tr>
+                      <td>#{tshow day}
+                      <td>#{path}
+                      <td>#{toPercent $ aes summary}%
+                      <td>#{toPercent $ overallPercent summary}%
+                      <td>#{toPercent $ underPercent summary}%
+                      <td>#{toPercent $ overPercent summary}%
+                      <td>#{toPercent $ naivePercent summary}%
+            
+      $forall (_day, path, plot,_) <- plot'summarys
             <div.panel.panel-primary>
                <div.panel-heading data-toggle=collapse data-target="#dashboard-#{path}">
                  <h2> #{path}

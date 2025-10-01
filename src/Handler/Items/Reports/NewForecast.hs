@@ -3,6 +3,7 @@ plotForecastError
 , getPlotForecastError
 , vadd, vmul, vsub, vdiv
 , forecastPathToDay
+, ForecastSummary(..)
 ) where
 
 import Import
@@ -20,6 +21,9 @@ import Data.List(iterate)
 -- import qualified Handler.Items.Common as I
 
 data WithError = WithError { forecast, overError, underError :: UWeeklyQuantity }
+   deriving (Show)
+
+data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPercent, naivePercent, aes :: Double }
    deriving (Show)
 
 plotForecastError ::  Text -> Day -> Day -> UWeeklyQuantity -> WithError -> WithError -> Widget
@@ -179,7 +183,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
       |]
 
 
-getPlotForecastError :: Day -> FilePath -> Handler Widget
+getPlotForecastError :: Day -> FilePath -> Handler (Widget, ForecastSummary)
 getPlotForecastError day path = do
   today <- todayH
   settings <- getsYesod appSettings
@@ -214,12 +218,20 @@ getPlotForecastError day path = do
         case salesM of
              Just (salesByWeek, naive, forecast) ->  do
                 let plot = plotForecastError ("forecast-" <> tshow end) start today salesByWeek  naive forecast
-                return [whamlet|
-                  <div> #{path}
-                  ^{plot}
-                  <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
-                |]
-             Nothing -> return [whamlet| no data for #{tshow day}/#{path} |]
+                return ([whamlet|
+                          <div> #{path}
+                          ^{plot}
+                          <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
+                        |]
+                       , let overPercent = percentFor $ overError forecast
+                             underPercent = percentFor $ underError forecast
+                             overallPercent = overPercent + underPercent
+                             naivePercent = percentFor $ vadd (overError naive) (underError naive)
+                             aes = overallPercent / naivePercent
+                             percentFor v = V.last v / V.last salesByWeek
+                         in ForecastSummary{..} 
+                       )
+             Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0)
 
 forecastPathToDay :: FilePath -> Maybe Day
 forecastPathToDay = readMay . take 10
