@@ -680,8 +680,9 @@ getDForecastR = do
   plot'summarys <- forM (sort $ day'paths) \(Down day, path) -> do
                  (plot, summary) <- getPlotForecastError day path
                  return (day, takeBaseName path, plot, summary)
-  let toPercent x = sformat (commasFixedWith' round 1) (x*100)
+  let toPercent x = formatPercentage (x*100)
   defaultLayout $ do
+      toWidgetHead commonCss
       [whamlet|
       <div.panel.panel-primary>
          <div.panel-heading data-toggle=collapse data-target="#dashboard-summary">
@@ -703,12 +704,12 @@ getDForecastR = do
                     <tr>
                       <td>#{tshow day}
                       <td>#{path}
-                      <th>#{toPercent $ aes summary}%
-                      <td>#{toPercent $ underPercent summary}%
-                      <td>#{toPercent $ overPercent summary}%
-                      <th>#{toPercent $ overallPercent summary}%
-                      <td>#{toPercent $ naivePercent summary}%
-                      <td>#{toPercent $ trendPercent summary}%
+                      <th.just-right>#{toPercent $ aes summary}
+                      <td.just-right>#{toPercent $ underPercent summary}
+                      <td.just-right>#{toPercent $ overPercent summary}
+                      <th.just-right>#{toPercent $ overallPercent summary}
+                      <td.just-right>#{toPercent $ naivePercent summary}
+                      <td.just-right.negative-bad.positive-good>#{toPercent $ trendPercent summary}
             
       $forall (_day, path, plot,_) <- plot'summarys
             <div.panel.panel-primary>
