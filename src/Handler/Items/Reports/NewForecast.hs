@@ -51,12 +51,12 @@ data WeeklySalesWithForecastErrors =
      
 instance Semigroup WeeklySalesWithForecastErrors where
   (WeeklySalesWithForecastErrors sales naive forecast) <>  (WeeklySalesWithForecastErrors sales' naive' forecast') =
-    WeeklySalesWithForecastErrors (sales <> sales')
+    WeeklySalesWithForecastErrors (sales `vadd` sales')
                                   (naive <> naive')
                                   (forecast <> forecast')
                                   
 instance Monoid WeeklySalesWithForecastErrors where
-    mempty = WeeklySalesWithForecastErrors mempty mempty mempty
+    mempty = WeeklySalesWithForecastErrors (V.replicate 52 0)  mempty mempty
 
 
 plotForecastError ::  Text -> Day -> Day -> UWeeklyQuantity -> WithError -> WithError -> Widget
