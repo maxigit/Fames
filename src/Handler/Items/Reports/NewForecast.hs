@@ -16,6 +16,7 @@ import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
 import GL.Utils
 import Data.List(iterate)
+import Data.Time.Calendar (diffDays)
 
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
@@ -228,8 +229,13 @@ getPlotForecastError day path = do
                              overallPercent = overPercent + underPercent
                              naivePercent = percentFor $ vadd (overError naive) (underError naive)
                              aes = overallPercent / naivePercent
-                             percentFor v = V.last v / V.last salesByWeek
-                             trendPercent = V.last salesByWeek / V.last (forecastCumul naive) -1
+                             percentFor v = lastGood v / lastGood salesByWeek
+                             trendPercent = lastGood salesByWeek / lastGood (forecastCumul naive) -1
+                             weeksToToday =  fromInteger $ case diffDays today start `div` 7 of
+                                                          n | n < 0 -> 51
+                                                          n ->  min n 51
+                             lastGood v = v V.! weeksToToday
+                                                 
                          in ForecastSummary{..} 
                        )
              Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0 0)
