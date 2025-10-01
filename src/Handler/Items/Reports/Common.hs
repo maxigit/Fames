@@ -1700,7 +1700,7 @@ seriesChartProcessor all panel rupture mono groupTrace paramss name plotId group
          firstY = minimumEx yaxises
          overlay axis = if axis == firstY then "" else firstY
      toWidgetBody [julius|
-          Plotly.plot( #{toJSON plotId}
+          Plotly.newPlot( #{toJSON plotId}
                     , #{toJSON jsData}
                     , { margin: { t: 30 }
                       , title: #{toJSON name}
@@ -1789,7 +1789,7 @@ seriesBubbleProcessor all panel __rupture __mono paramss name plotId grouped = d
      let asList_ = nmapToNMapListWithRank grouped
          jsDatas = map (bubbleTrace all panel grouped asList_) paramss
      toWidgetBody [julius|
-          Plotly.plot( #{toJSON plotId}
+          Plotly.newPlot( #{toJSON plotId}
                     , #{toJSON jsDatas}
                     , { margin: { t: 30 }
                       , title: #{toJSON name}
@@ -1903,7 +1903,7 @@ seriesScatterProcessor all panel __rupture __mono paramss name plotId grouped = 
      let asList_ = nmapToNMapListWithRank grouped
          jsDatas = map (scatterTrace all panel grouped asList_) paramss
      toWidgetBody [julius|
-          Plotly.plot( #{toJSON plotId}
+          Plotly.newPlot( #{toJSON plotId}
                     , #{toJSON jsDatas}
                     , { margin: { t: 30 }
                       , title: #{toJSON name}

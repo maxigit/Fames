@@ -94,7 +94,6 @@ getDMainR = do
 
   cacheSeconds(3600*23)
   defaultLayout $ do
-    addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead commonCss
     toWidgetHead pivotCss
     toWidgetHead reportCss
@@ -166,7 +165,6 @@ getDMainFullR = do
 
   cacheSeconds (3600*23)
   defaultLayout $ do
-    addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead commonCss
     toWidgetHead pivotCss 
     toWidgetHead reportCss
@@ -256,7 +254,6 @@ getDYearR' suffix = do
 
   cacheSeconds (3600*23)
   defaultLayout $ do
-    addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead reportCss
     [whamlet|
   <div.panel_.panel_-primary>
