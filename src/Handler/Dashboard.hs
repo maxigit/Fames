@@ -738,24 +738,16 @@ getDForecastDetailedR pathm = do
           Just day -> do
              (plot,_) <- getPlotForecastError day path
              offendersM <- getMostOffenders 10 day path
+             let cat = "SKU" :: Text
              defaultLayout $ do
                 toWidgetHead commonCss
                 plot
                 [whamlet|
                 $maybe (tops, bottoms) <- offendersM
-                   <h3> Most under estimated SKU
-                   <table>
-                      $forall (sku, summary)  <- bottoms
-                         <tr>
-                           <td> #{sku}
-                           <td> #{tshow summary}
-                   <h3> Most overestimated SKU
-                   <table>
-                      $forall (sku, summary)  <- tops
-                         <tr>
-                           <td> #{sku}
-                           <td> #{tshow summary}
-                           |]
-                      
-
-                
+                  <div>
+                    <h3> Most overestimated #{cat}
+                         ^{makeOffenderTable cat tops}
+                  <div>
+                    <h3> Most underestimade #{cat}
+                         ^{makeOffenderTable cat bottoms}
+                         |]

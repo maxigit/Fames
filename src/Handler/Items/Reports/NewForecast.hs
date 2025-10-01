@@ -6,10 +6,12 @@ plotForecastError
 , ForecastSummary(..)
 , averageForecastSummary
 , getMostOffenders
+, totalError
+, makeOffenderTable
 ) where
 
 import Import
--- import Handler.Items.Reports.Common
+import Handler.Items.Reports.Common
 import Handler.Items.Reports.Forecast
 import Items.Types
 -- import Data.Conduit.List (consume)
@@ -42,7 +44,7 @@ data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPerce
    
 data WeeklySalesWithForecastErrors = 
      WeeklySalesWithForecastErrors { wsSales :: UWeeklyQuantity
-                                   , wsNaiveErros :: WithError
+                                   , wsNaiveError :: WithError
                                    , wsForecast :: WithError
                                    }
      deriving (Show)
@@ -229,7 +231,7 @@ getForecastErrors day path = do
   skuMap <- loadYearOfForecastCumulByWeek day $ appForecastProfilesDir settings </> path
   let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek (calculateDate (AddYears $ -1) start)
       v0 = V.replicate 52 0
-      joinWithZeros (ForMap sku theseab) = ForMap sku ab where
+      joinWithZeror (ForMap sku theseab) = ForMap sku ab where
           ab = these (,v0) (v0,) (,) theseab
       addErrors (ForMap sku (salesV, naiveV, forecastV)) =
                    ForMap sku $ WeeklySalesWithForecastErrors salesV
@@ -238,7 +240,7 @@ getForecastErrors day path = do
       addForecast (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, forecast) where
          forecast =  findWithDefault v0 sku skuMap
       conduit = alignConduit salesSource naiveSource
-                         .|mapC  joinWithZeros
+                         .|mapC  joinWithZeror
                          .|mapC addForecast
                          .|mapC  addErrors
   return ((start, end), conduit)
@@ -306,15 +308,24 @@ weeksTo start today =  fromInteger $ case diffDays today start `div` 7 of
                                         n | n < 0 -> 51
                                         n ->  min n 51
 
-getMostOffenders :: Int -> Day -> FilePath -> Handler (Maybe ([(Text, WeeklySalesWithForecastErrors)], [(Text, WeeklySalesWithForecastErrors)]))
+data OffenderSummary = OffenderSummary { osActual, osForecast, osNaive, osError :: Double }
+   deriving (Show)
+
+getMostOffenders :: Int -> Day -> FilePath -> Handler (Maybe ([(Text, OffenderSummary)], [(Text, OffenderSummary)]))
 getMostOffenders topN day path = do
   today <- todayH
   ((start, _end), salesConduit) <- getForecastErrors  day path
-  let mkTopOffenders (ForMap (Sku sku) weekly) = ([(sku, weekly)],  [(sku, weekly)])
+  let mkTopOffenders (ForMap (Sku sku) weekly) = let offenderSummary = OffenderSummary{..}
+                                                     get f = lastGood $ f weekly
+                                                     osActual = get wsSales
+                                                     osForecast = get (forecastCumul . wsForecast)
+                                                     osNaive = get (forecastCumul . wsNaiveError)
+                                                     osError = osActual - osForecast
+                                                 in ([(sku, offenderSummary)],  [(sku, offenderSummary)])
       -- vvvv silly we should use a normal fold and  as A or B is always a singleton list
       keepOffenders (topsA, bottomsA) (topsB, bottomsB) = let 
-              bots = sortOn (\(_, weekly) ->  Down . lastGood $ totalError (wsForecast weekly)) (bottomsA ++ bottomsB)
-              tops = sortOn (\(_, weekly) ->  lastGood $ totalError (wsForecast weekly)) (topsA ++ topsB)
+              bots = sortOn (Down . osError .snd)  (bottomsA ++ bottomsB)
+              tops = sortOn (osError .snd)  (topsA ++ topsB)
               in (take topN tops, take topN bots)
       lastGood v = v V.! weeksToToday
       weeksToToday = weeksTo start today
@@ -323,3 +334,29 @@ getMostOffenders topN day path = do
                      $ salesConduit
                      .| mapC mkTopOffenders
                      .| C.foldl1 keepOffenders
+                     
+makeOffenderTable :: Text -> [(Text, OffenderSummary)] -> Widget
+makeOffenderTable categoryName summaries =  do
+   let errorP os = case osActual os of 
+                      0 -> 100
+                      actual -> 100 * (osForecast os  / actual -1)
+   [whamlet|
+     <table.table.table-border.table-hover.table-striped>
+       <theader>
+         <tr>
+           <th> #{categoryName}
+           <th> Forecast
+           <th> Actual
+           <th> Error
+           <th> %
+           <th> Naive (previous year)
+       <tbody>
+         $forall (category, os) <-  summaries
+          <tr>
+            <td> #{category}
+            <td.just-right> #{formatDouble $ osForecast os}
+            <td.just-right> #{formatDouble $ osActual os}
+            <td.just-right> #{formatDouble $ osActual os - osForecast os}
+            <td.just-right> #{formatPercentage $ errorP os}
+            <td.just-right> #{formatDouble $ osNaive os}
+   |]
