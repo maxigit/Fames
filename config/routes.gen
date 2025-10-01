@@ -188,6 +188,8 @@
   /year DYearR GET !title=sales_year
   /all-year DAllYearR GET !title=sales_all_years
   /forecast DForecastR GET !group=Forceast !title=Forecast
+  /forecast/detailed/#Maybe-Text DForecastDetailedR GET !group=Forceast !title=Forecast_Details
+
 
 -- Warning ! This code has been generated !}
 

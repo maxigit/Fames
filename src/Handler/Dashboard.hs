@@ -7,6 +7,7 @@ module Handler.Dashboard
 , getDAllYearR
 -- * Forecast
 , getDForecastR
+, getDForecastDetailedR
 )
 where
 
@@ -669,7 +670,6 @@ getDForecastR = do
   settings <- getsYesod appSettings
   -- load all available forecasts
   dirs <- liftIO $ glob (appForecastProfilesDir settings </> "????-??-??*")
-  traceShowM ("DIRS", dirs)
   let day'paths = [ (Down day, path)
                   | path <- dirs
                   , day <- maybeToList $ forecastPathToDay $ takeBaseName path
@@ -701,7 +701,7 @@ getDForecastR = do
                   $forall (day, path, _,summary) <- plot'summarys
                     <tr>
                       <td>#{tshow day}
-                      <td>#{path}
+                      <td><a href=@{DashboardR $ DForecastDetailedR $ Just $ pack path}> #{path}
                       <th.just-right>#{toPercent $ aes summary}
                       <td.just-right>#{toPercent $ underPercent summary}
                       <td.just-right>#{toPercent $ overPercent summary}
@@ -727,3 +727,19 @@ getDForecastR = do
                  ^{plot}
       |]
 
+getDForecastDetailedR:: Maybe Text -> Handler Html
+getDForecastDetailedR pathm = do
+  settings <- getsYesod appSettings
+  let path = case pathm of
+                Just p -> unpack p
+                Nothing -> appForecastDefaultProfile settings
+  case forecastPathToDay  path of
+          Nothing -> error $ "Unknown start date for Forecast profile " <> show path
+          Just day -> do
+             (plot,_) <- getPlotForecastError day path
+             defaultLayout $ do
+                toWidgetHead commonCss
+                plot
+
+
+                
