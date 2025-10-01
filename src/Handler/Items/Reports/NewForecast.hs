@@ -4,6 +4,7 @@ plotForecastError
 , vadd, vmul, vsub, vdiv
 , forecastPathToDay
 , ForecastSummary(..)
+, averageForecastSummary
 ) where
 
 import Import
@@ -26,7 +27,7 @@ data WithError = WithError { forecastCumul, overError, underError :: UWeeklyQuan
 
 data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPercent, naivePercent, aes, trendPercent :: Double }
    deriving (Show)
-
+   
 plotForecastError ::  Text -> Day -> Day -> UWeeklyQuantity -> WithError -> WithError -> Widget
 plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals naiveForecast previousForecast currentForecast = do
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
@@ -262,6 +263,18 @@ computeAbsoluteError (Actual actuals) forecast = WithError forecast overError un
 over, under :: Double -> Double -> Double
 over a b = max 0 ( a -b )
 under a b = max 0 ( b - a)
+
+averageForecastSummary :: [ForecastSummary] -> ForecastSummary
+averageForecastSummary [] = ForecastSummary 0 0 0 0 0 0
+averageForecastSummary sums = let 
+    avg f = sum (map f sums ) / n 
+    n = fromIntegral (length sums)
+    in ForecastSummary (avg overPercent)
+                       (avg underPercent)
+                       (avg overallPercent)
+                       (avg naivePercent)
+                       (avg aes)
+                       (avg trendPercent)
 
 --  -- The forecast gives us quantity but we need to weight it by price (to get Amount vs Quantity)
 --  -- reuse the price cache

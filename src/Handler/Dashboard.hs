@@ -681,6 +681,7 @@ getDForecastR = do
                  (plot, summary) <- getPlotForecastError day path
                  return (day, takeBaseName path, plot, summary)
   let toPercent x = formatPercentage (x*100)
+      ssum = averageForecastSummary $ map (\(_,_,_,s) -> s) plot'summarys
   defaultLayout $ do
       toWidgetHead commonCss
       [whamlet|
@@ -710,6 +711,16 @@ getDForecastR = do
                       <th.just-right>#{toPercent $ overallPercent summary}
                       <td.just-right>#{toPercent $ naivePercent summary}
                       <td.just-right.negative-bad.positive-good>#{toPercent $ trendPercent summary}
+                <tfooter>
+                  <tr>
+                    <th> Average
+                    <td>
+                    <th.just-right>#{toPercent $ aes ssum}
+                    <th.just-right>#{toPercent $ underPercent ssum}
+                    <th.just-right>#{toPercent $ overPercent ssum}
+                    <th.just-right>#{toPercent $ overallPercent ssum}
+                    <th.just-right>#{toPercent $ naivePercent ssum}
+                    <th.just-right.negative-bad.positive-good>#{toPercent $ trendPercent ssum}
             
       $forall (_day, path, plot,_) <- plot'summarys
             <div.panel.panel-primary>
