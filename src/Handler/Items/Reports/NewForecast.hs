@@ -11,7 +11,7 @@ plotForecastError
 ) where
 
 import Import
-import Handler.Items.Reports.Common
+import Handler.Items.Reports.Common hiding(formatQuantity)
 import Handler.Items.Reports.Forecast
 import Items.Types
 -- import Data.Conduit.List (consume)
@@ -339,7 +339,7 @@ makeOffenderTable :: Text -> [(Text, OffenderSummary)] -> Widget
 makeOffenderTable categoryName summaries =  do
    let errorP os = case osActual os of 
                       0 -> 100
-                      actual -> 100 * (osForecast os  / actual -1)
+                      actual -> abs(100 * (osError os  / actual))
    [whamlet|
      <table.table.table-border.table-hover.table-striped>
        <theader>
@@ -354,9 +354,9 @@ makeOffenderTable categoryName summaries =  do
          $forall (category, os) <-  summaries
           <tr>
             <td> #{category}
-            <td.just-right> #{formatDouble $ osForecast os}
-            <td.just-right> #{formatDouble $ osActual os}
-            <td.just-right> #{formatDouble $ osActual os - osForecast os}
+            <td.just-right> #{formatQuantity $ osForecast os}
+            <td.just-right> #{formatQuantity $ osActual os}
+            <td.just-right> #{formatQuantity $ abs (osError os)}
             <td.just-right> #{formatPercentage $ errorP os}
-            <td.just-right> #{formatDouble $ osNaive os}
+            <td.just-right> #{formatQuantity $ osNaive os}
    |]
