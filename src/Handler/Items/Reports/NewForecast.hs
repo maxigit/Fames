@@ -228,7 +228,7 @@ getPlotForecastError day path = do
                           )
         case salesM of
              Just (salesByWeek, naive, forecast) ->  do
-                let plot = plotForecastError ("forecast-" <> tshow end) start today salesByWeek  naive forecast
+                let plot = plotForecastError ("forecast-" <> pack path) start today salesByWeek  naive forecast
                 return ([whamlet|
                           <div> #{path}
                           ^{plot}
