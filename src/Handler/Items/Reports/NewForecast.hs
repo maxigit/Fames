@@ -8,6 +8,7 @@ plotForecastError
 , getMostOffenders
 , totalError
 , makeOffenderTable
+, makeSummaryTable
 ) where
 
 import Import
@@ -224,12 +225,12 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                     )
       |]
 
-getForecastErrors :: Day -> FilePath -> Handler ((Day, Day), ConduitT () (ForMap Sku WeeklySalesWithForecastErrors) SqlHandler ())
-getForecastErrors day path = do 
+getForecastErrors :: Ord key => ForecastGrouper key -> Day -> FilePath -> Handler ((Day, Day), ConduitT () (ForMap key WeeklySalesWithForecastErrors) SqlHandler ())
+getForecastErrors grouper day path = do 
   settings <- getsYesod appSettings
-  let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek day
-  skuMap <- loadYearOfForecastCumulByWeek day $ appForecastProfilesDir settings </> path
-  let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek (calculateDate (AddYears $ -1) start)
+  let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek grouper day
+  skuMap <- loadYearOfForecastCumulByWeek grouper day $ appForecastProfilesDir settings </> path
+  let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek grouper (calculateDate (AddYears $ -1) start)
       v0 = V.replicate 52 0
       joinWithZeror (ForMap sku theseab) = ForMap sku ab where
           ab = these (,v0) (v0,) (,) theseab
@@ -246,17 +247,20 @@ getForecastErrors day path = do
   return ((start, end), conduit)
 
 
-getPlotForecastError :: Day -> FilePath -> Handler (Widget, ForecastSummary)
-getPlotForecastError day path = do
+getPlotForecastError :: Ord k => ForecastGrouper k -> Day -> FilePath -> Handler (Widget, ForecastSummary)
+getPlotForecastError grouper day path = do
    today <- todayH
-   ((start, end), salesConduit) <- getForecastErrors day path
+   ((start, end), salesConduit) <- getForecastErrors grouper day path
    salesM <- runDB $ runConduit
                    $ salesConduit
                    .| mapC forMapValue
                    .| C.foldl1 (<>)
    case salesM of
         Just (WeeklySalesWithForecastErrors salesByWeek naive forecast) ->  do
-           let plot = plotForecastError ("forecast-" <> pack path) start today salesByWeek  naive forecast
+           let plot = plotForecastError ("forecast-" <> pack path <> grouperName ) start today salesByWeek  naive forecast
+               grouperName = case grouper of
+                              SkuGroup -> "sku"
+                              CategoryGroup category -> category
            return ([whamlet|
                      <div> #{path}
                      ^{plot}
@@ -311,17 +315,18 @@ weeksTo start today =  fromInteger $ case diffDays today start `div` 7 of
 data OffenderSummary = OffenderSummary { osActual, osForecast, osNaive, osError :: Double }
    deriving (Show)
 
-getMostOffenders :: Int -> Day -> FilePath -> Handler (Maybe ([(Text, OffenderSummary)], [(Text, OffenderSummary)]))
-getMostOffenders topN day path = do
+getMostOffenders :: Ord k => ForecastGrouper k -> Int -> Day -> FilePath -> Handler (Maybe ([(Text, OffenderSummary)], [(Text, OffenderSummary)]))
+getMostOffenders grouper topN day path = do
   today <- todayH
-  ((start, _end), salesConduit) <- getForecastErrors  day path
-  let mkTopOffenders (ForMap (Sku sku) weekly) = let offenderSummary = OffenderSummary{..}
-                                                     get f = lastGood $ f weekly
-                                                     osActual = get wsSales
-                                                     osForecast = get (forecastCumul . wsForecast)
-                                                     osNaive = get (forecastCumul . wsNaiveError)
-                                                     osError = osActual - osForecast
-                                                 in ([(sku, offenderSummary)],  [(sku, offenderSummary)])
+  ((start, _end), salesConduit) <- getForecastErrors grouper  day path
+  let mkTopOffenders (ForMap key weekly) = let offenderSummary = OffenderSummary{..}
+                                               get f = lastGood $ f weekly
+                                               osActual = get wsSales
+                                               osForecast = get (forecastCumul . wsForecast)
+                                               osNaive = get (forecastCumul . wsNaiveError)
+                                               osError = osActual - osForecast
+                                               sku = unForecastKey grouper key 
+                                           in ([(sku, offenderSummary)],  [(sku, offenderSummary)])
       -- vvvv silly we should use a normal fold and  as A or B is always a singleton list
       keepOffenders (topsA, bottomsA) (topsB, bottomsB) = let 
               bots = sortOn (Down . osError .snd)  (bottomsA ++ bottomsB)
@@ -360,3 +365,42 @@ makeOffenderTable categoryName summaries =  do
             <td.just-right> #{formatPercentage $ errorP os}
             <td.just-right> #{formatQuantity $ osNaive os}
    |]
+
+makeSummaryTable :: [(Day, Text, ForecastSummary)] -> Widget
+makeSummaryTable  day'path'summarys  = do
+  let toPercent x = formatPercentage (x*100)
+      ssum = averageForecastSummary $ map (\(_,_,s) -> s) day'path'summarys
+  [whamlet|
+              <table.table.table-hover.table-striped>
+                <thead>
+                  <tr>
+                    <th> Date
+                    <th> Method
+                    <th> Scaled Error
+                    <th> % Under estimation
+                    <th> % Over estimation
+                    <th> % Error estimation
+                    <th> % Error Naive
+                    <th> % Trend
+                <tbody>
+                  $forall (day, path, summary) <- day'path'summarys
+                    <tr>
+                      <td>#{tshow day}
+                      <td><a href=@{DashboardR $ DForecastDetailedR $ Just $ path}> #{path}
+                      <th.just-right>#{toPercent $ aes summary}
+                      <td.just-right>#{toPercent $ underPercent summary}
+                      <td.just-right>#{toPercent $ overPercent summary}
+                      <th.just-right>#{toPercent $ overallPercent summary}
+                      <td.just-right>#{toPercent $ naivePercent summary}
+                      <td.just-right.negative-bad.positive-good>#{toPercent $ trendPercent summary}
+                <tfooter>
+                  <tr>
+                    <th> Average
+                    <td>
+                    <th.just-right>#{toPercent $ aes ssum}
+                    <th.just-right>#{toPercent $ underPercent ssum}
+                    <th.just-right>#{toPercent $ overPercent ssum}
+                    <th.just-right>#{toPercent $ overallPercent ssum}
+                    <th.just-right>#{toPercent $ naivePercent ssum}
+                    <th.just-right.negative-bad.positive-good>#{toPercent $ trendPercent ssum}
+    |]

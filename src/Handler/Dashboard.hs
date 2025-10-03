@@ -14,6 +14,7 @@ where
 import Import hiding(all)
 import Handler.Items.Reports.Common
 import Handler.Items.Reports.NewForecast
+import Handler.Items.Reports.Forecast(ForecastGrouper(..))
 import Items.Types
 import GL.Utils
 import qualified Data.Map as Map
@@ -675,10 +676,9 @@ getDForecastR = do
                   , day <- maybeToList $ forecastPathToDay $ takeBaseName path
                   ]
   plot'summarys <- forM (sort $ day'paths) \(Down day, path) -> do
-                 (plot, summary) <- getPlotForecastError day path
+                 (plot, summary) <- getPlotForecastError SkuGroup day path
                  return (day, takeBaseName path, plot, summary)
-  let toPercent x = formatPercentage (x*100)
-      ssum = averageForecastSummary $ map (\(_,_,_,s) -> s) plot'summarys
+  let forSummaries = [ (day, pack path, summary) | (day, path, _, summary) <- plot'summarys ]
   defaultLayout $ do
       toWidgetHead commonCss
       [whamlet|
@@ -686,39 +686,7 @@ getDForecastR = do
          <div.panel-heading data-toggle=collapse data-target="#dashboard-summary">
            <h2> Summary
          <div.panel-body.pivot-inline id="dashboard-summary">
-              <table.table.table-hover.table-striped>
-                <thead>
-                  <tr>
-                    <th> Date
-                    <th> Method
-                    <th> Scaled Error
-                    <th> % Under estimation
-                    <th> % Over estimation
-                    <th> % Error estimation
-                    <th> % Error Naive
-                    <th> % Trend
-                <tbody>
-                  $forall (day, path, _,summary) <- plot'summarys
-                    <tr>
-                      <td>#{tshow day}
-                      <td><a href=@{DashboardR $ DForecastDetailedR $ Just $ pack path}> #{path}
-                      <th.just-right>#{toPercent $ aes summary}
-                      <td.just-right>#{toPercent $ underPercent summary}
-                      <td.just-right>#{toPercent $ overPercent summary}
-                      <th.just-right>#{toPercent $ overallPercent summary}
-                      <td.just-right>#{toPercent $ naivePercent summary}
-                      <td.just-right.negative-bad.positive-good>#{toPercent $ trendPercent summary}
-                <tfooter>
-                  <tr>
-                    <th> Average
-                    <td>
-                    <th.just-right>#{toPercent $ aes ssum}
-                    <th.just-right>#{toPercent $ underPercent ssum}
-                    <th.just-right>#{toPercent $ overPercent ssum}
-                    <th.just-right>#{toPercent $ overallPercent ssum}
-                    <th.just-right>#{toPercent $ naivePercent ssum}
-                    <th.just-right.negative-bad.positive-good>#{toPercent $ trendPercent ssum}
-            
+           ^{makeSummaryTable forSummaries}
       $forall (_day, path, plot,_) <- plot'summarys
             <div.panel.panel-primary>
                <div.panel-heading data-toggle=collapse data-target="#dashboard-#{path}">
@@ -733,21 +701,48 @@ getDForecastDetailedR pathm = do
   let path = case pathm of
                 Just p -> unpack p
                 Nothing -> appForecastDefaultProfile settings
-  case forecastPathToDay  path of
-          Nothing -> error $ "Unknown start date for Forecast profile " <> show path
-          Just day -> do
-             (plot,_) <- getPlotForecastError day path
-             offendersM <- getMostOffenders 10 day path
-             let cat = "SKU" :: Text
-             defaultLayout $ do
-                toWidgetHead commonCss
-                plot
-                [whamlet|
-                $maybe (tops, bottoms) <- offendersM
-                  <div>
-                    <h3> Most overestimated #{cat}
-                         ^{makeOffenderTable cat tops}
-                  <div>
-                    <h3> Most underestimade #{cat}
-                         ^{makeOffenderTable cat bottoms}
-                         |]
+      report :: Ord k => ForecastGrouper k -> Handler ((Day, ForecastSummary) , Widget)
+      report grouper =
+       case forecastPathToDay  path of
+               Nothing -> error $ "Unknown start date for Forecast profile " <> show path
+               Just day -> do
+                  let cat = case grouper of 
+                              SkuGroup -> "SKU"
+                              CategoryGroup cat -> cat
+                  (plot,summary) <- getPlotForecastError grouper day path
+                  offendersM <- getMostOffenders grouper 10 day path
+                  return $ ((day , summary)
+                           , do
+                               plot
+                               [whamlet|
+                               $maybe (tops, bottoms) <- offendersM
+                                 <div>
+                                   <h3> Most overestimated #{cat}
+                                        ^{makeOffenderTable cat tops}
+                                 <div>
+                                   <h3> Most underestimade #{cat}
+                                        ^{makeOffenderTable cat bottoms}
+                                        |]
+                              )
+  skuReport <- report SkuGroup
+  let names  = ["style", "colour", "shape"] :: [Text]
+  otherReport <- mapM report (map CategoryGroup names)
+  let reports = ("SKU", skuReport) : zip names otherReport
+      summaries = [ (day, name, summary) | (name, ((day, summary), _)) <- reports ]
+  
+  defaultLayout $ do
+     toWidgetHead commonCss
+     [whamlet|
+     <div.panel.panel-primary>
+         <div.panel-heading data-toggle=collapse data-target="#dashboard-summary">
+           <h2> #{path} Summary
+         <div.panel-body.pivot-inline id="dashboard-summary">
+             ^{makeSummaryTable summaries}
+     $forall (name, (_,report)) <- reports
+       <div.panel.panel-primary>
+          <div.panel-heading data-toggle=collapse data-target="#dashboard-#{name}">
+             <h2> #{name}
+          <div.panel-body.pivot-inline id="dashboard-#{name}">
+            ^{report}
+   
+   |]

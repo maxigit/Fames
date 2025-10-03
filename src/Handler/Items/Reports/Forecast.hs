@@ -1,4 +1,4 @@
-{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE ImplicitParams, ScopedTypeVariables #-}
 module Handler.Items.Reports.Forecast where
 
 import Import
@@ -37,6 +37,17 @@ instance Csv.FromNamedRecord CollectionProfileRow where
     month <- parseMonth month'
     return $ CollectionProfileRow collection month weight
     
+data ForecastGrouper k where 
+         SkuGroup :: ForecastGrouper Sku
+         CategoryGroup :: Text  -> ForecastGrouper Text
+   
+mkForecastKey :: ForecastGrouper k -> Text -> k
+mkForecastKey SkuGroup txt = Sku txt
+mkForecastKey (CategoryGroup _) txt = txt
+
+unForecastKey :: ForecastGrouper k -> k -> Text
+unForecastKey SkuGroup (Sku sku) = sku
+unForecastKey (CategoryGroup category) name = category++":"++name
      
 parseMonth :: Text -> Csv.Parser Int
 parseMonth m = case m of
@@ -140,8 +151,8 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _
 -- * Forecast error
 
 -- | Load actual sales for a whole year 
-loadYearOfActualCumulSalesByWeek :: Day -> (Day, Day, SqlConduit () (ForMap Sku UWeeklyQuantity) ())
-loadYearOfActualCumulSalesByWeek start = 
+loadYearOfActualCumulSalesByWeek :: ForecastGrouper key -> Day -> (Day, Day, SqlConduit () (ForMap key UWeeklyQuantity) ())
+loadYearOfActualCumulSalesByWeek grouper start = 
    let -- find first monday >= start
        monday = calculateDate (Chain [AddDays 1, BeginningOfWeek Monday]) start
        end = calculateDate (AddDays $ 364) monday -- exactly 52 weeks
@@ -151,34 +162,47 @@ loadYearOfActualCumulSalesByWeek start =
            
            in -- traceShow (week'quantitys, v0) $
               (sku, va)
-       source = actualSalesSource monday end
+       source = actualSalesSource grouper monday end
                  .| mapC mkVec
                  .| mapC  (\(sku, quantitys) -> ForMap sku  $ V.postscanl' (+) 0 quantitys)
    in (monday, end, source)
 
 -- | load sales from stock moves between the given date (end excluded)
 -- sorted by sku 
-actualSalesSource :: Day -> Day -> SqlConduit () (ForMap Sku [(Int, Quantity)]) ()
-actualSalesSource start end = do
-   let sql = "SELECT stock_id, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty)" :
-           " FROM 0_stock_moves " :
+actualSalesSource :: forall key . ForecastGrouper key -> Day -> Day -> SqlConduit () (ForMap key [(Int, Quantity)]) ()
+actualSalesSource grouper start end = do
+   let sql = "SELECT " <> groupKey <> " AS groupKey, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty)" :
+           " FROM 0_stock_moves moves " :
+           sqlJoin ?:
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
-           " AND stock_id like 'M%'" :
+           " AND moves.stock_id like 'M%'" :
            -- " AND stock_id like 'ML17-FD7-NAY'" :
            -- " AND stock_id like 'ML13-AD1-IVY'" :
            " AND tran_date >= ? AND tran_date < ? " :
-           " GROUP BY stock_id, YEARWEEK(tran_date,5) " :
-           " order BY stock_id, YEARWEEK(tran_date,5) " :
+           " GROUP BY groupKey, YEARWEEK(tran_date,5) " :
+           " order BY groupKey, YEARWEEK(tran_date,5) " :
            []
-       weekSource = rawQuery  (mconcat sql) [toPersistValue start, toPersistValue start, toPersistValue end] 
-       myCoerce :: [PersistValue] -> (Sku, (Int, Quantity))
+       (groupKey, joinParams, sqlJoin) = case grouper of 
+                                   SkuGroup -> ("moves.stock_id"
+                                               , []
+                                               , Nothing
+                                               )
+                                   CategoryGroup category -> ("category.value"
+                                                             , [PersistText  category ]
+                                                             , Just "JOIN fames_item_category_cache AS category  ON (category = ? AND moves.stock_id = category.stock_id )"
+                                                             )
+       weekSource = rawQuery  (mconcat sql) $ toPersistValue start : joinParams ++ [ toPersistValue start, toPersistValue end] 
+       --                                     ^^^^^^^^^^^^^^^^^^^
+       --                                        |
+       --                                        +---- selecting week number
+       myCoerce :: [PersistValue] -> (Text, (Int, Quantity))
        myCoerce vs = case rawSqlProcessRow vs  of
                           Left e -> error $ unpack e
                           Right v -> coerce (v :: (Single Text, (Single Int, Single Quantity)))
-       run :: NonEmpty (Sku, (Int, Quantity)) -> ForMap Sku [(Int, Quantity)]
+       run :: NonEmpty (Text, (Int, Quantity)) -> ForMap key [(Int, Quantity)]
        run nonEmpty = let (sku :|  _, week'quantitys) = unzip nonEmpty
-                      in ForMap sku (toList week'quantitys)
+                      in ForMap (mkForecastKey grouper sku) (toList week'quantitys)
                  
    weekSource .| mapC myCoerce
               .| CL.groupOn fst
@@ -186,12 +210,19 @@ actualSalesSource start end = do
 
 
 
-loadYearOfForecastCumulByWeek :: Day -> FilePath -> Handler (Map Sku UWeeklyQuantity)
-loadYearOfForecastCumulByWeek start forecastDir = do
+loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> Day -> FilePath -> Handler (Map key UWeeklyQuantity)
+loadYearOfForecastCumulByWeek grouper start forecastDir = do
   -- load forecast from files
   rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
   skuSpeed <- liftIO $ loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
   -- creates weekly profiles for each month
+  mkKey <- case grouper of
+                SkuGroup -> return \sku -> Sku sku
+                CategoryGroup category -> do
+                     catFinder <- categoryFinderCached category
+                     return \sku -> case catFinder (FA.StockMasterKey sku) of
+                                         Nothing -> category
+                                         Just name -> name
   let weekProfiles = fmap expandProfileWeekly rawProfiles
       weekProfiles ::  Map Collection UWeeklyQuantity
       monthWeekly :: [UWeeklyQuantity] 
@@ -206,9 +237,9 @@ loadYearOfForecastCumulByWeek start forecastDir = do
       weeklyForRow (SkuSpeedRow _ weight collection) = V.map ((*1).(*weight)) weekly where
           weekly = findWithDefault linear collection weekProfiles
                           
-      skuMap = Map.fromList [(ssSku row, weeklyForRow row )
-                            | row <- skuSpeed
-                            ]
+      skuMap = Map.fromListWith vadd [(mkKey . unSku $ ssSku row, weeklyForRow row )
+                                     | row <- skuSpeed
+                                     ]
   return skuMap
   
   
