@@ -1703,7 +1703,7 @@ seriesChartProcessor all panel rupture mono groupTrace paramss name plotId group
           Plotly.newPlot( #{toJSON plotId}
                     , #{toJSON jsData}
                     , { margin: { t: 30 }
-                      , title: #{toJSON name}
+                      , title: {text: #{toJSON name}}
                       , yaxis2 : {overlaying: #{overlay "y2"}, title: "Quantities", side: "right"}
                       , yaxis3 : {overlaying: #{overlay "y3"}, title: "Amount(T)", side: "right"}
                       , yaxis4 : {overlaying: #{overlay "y4"}, title: "Quantities(T)", side: "left"}
@@ -1792,7 +1792,7 @@ seriesBubbleProcessor all panel __rupture __mono paramss name plotId grouped = d
           Plotly.newPlot( #{toJSON plotId}
                     , #{toJSON jsDatas}
                     , { margin: { t: 30 }
-                      , title: #{toJSON name}
+                      , title: {text: #{toJSON name}}
                       , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
                       , yaxis3 : {overlaying: 'y', title: "Amount(T)", side: "right"}
                       , yaxis4 : {overlaying: 'y', title: "Quantities(T)", side: "left"}
@@ -1906,7 +1906,7 @@ seriesScatterProcessor all panel __rupture __mono paramss name plotId grouped = 
           Plotly.newPlot( #{toJSON plotId}
                     , #{toJSON jsDatas}
                     , { margin: { t: 30 }
-                      , title: #{toJSON name}
+                      , title: {text: #{toJSON name}}
                       , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
                       , yaxis3 : {overlaying: 'y', title: "Amount(T)", side: "right"}
                       , yaxis4 : {overlaying: 'y', title: "Quantities(T)", side: "left"}
