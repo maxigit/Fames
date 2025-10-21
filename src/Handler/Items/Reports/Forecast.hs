@@ -12,7 +12,7 @@ import System.FilePath.Glob (glob)
 import FA as FA hiding (unUserKey)
 import Control.Monad.Fail (MonadFail(..))
 import GL.Utils
-import GL.Payroll.Settings(DayOfWeek(..))
+-- import GL.Payroll.Settings(DayOfWeek(..))
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
 import qualified Data.Conduit.List as CL
 import Data.Coerce (coerce)
@@ -154,18 +154,18 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _
 loadYearOfActualCumulSalesByWeek :: ForecastGrouper key -> Day -> (Day, Day, SqlConduit () (ForMap key UWeeklyQuantity) ())
 loadYearOfActualCumulSalesByWeek grouper start = 
    let -- find first monday >= start
-       monday = calculateDate (Chain [AddDays 1, BeginningOfWeek Monday]) start
-       end = calculateDate (AddDays $ 364) monday -- exactly 52 weeks
+       -- monday = calculateDate (Chain [AddDays 6, BeginningOfWeek Monday]) start
+       end = calculateDate (AddDays $ 364) start -- exactly 52 weeks
        mkVec (ForMap sku week'quantitys) = let
            v0 = V.replicate 52 0 :: UWeeklyQuantity
            va = v0 V.// week'quantitys
            
            in -- traceShow (week'quantitys, v0) $
               (sku, va)
-       source = actualSalesSource grouper monday end
+       source = actualSalesSource grouper start end
                  .| mapC mkVec
                  .| mapC  (\(sku, quantitys) -> ForMap sku  $ V.postscanl' (+) 0 quantitys)
-   in (monday, end, source)
+   in (start, end, source)
 
 -- | load sales from stock moves between the given date (end excluded)
 -- sorted by sku 

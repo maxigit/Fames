@@ -255,6 +255,7 @@ getPlotForecastError grouper day path = do
                    $ salesConduit
                    .| mapC forMapValue
                    .| C.foldl1 (<>)
+   let ftime = formatTime0 @Text "%a %d %b %Y"
    case salesM of
         Just (WeeklySalesWithForecastErrors salesByWeek naive forecast) ->  do
            let plot = plotForecastError ("forecast-" <> pack path <> grouperName ) start today salesByWeek  naive forecast
@@ -264,7 +265,7 @@ getPlotForecastError grouper day path = do
            return ([whamlet|
                      <div> #{path}
                      ^{plot}
-                     <div>forecast for period : #{tshow $ start} - #{tshow $ end} 
+                     <div>forecast for period : #{ftime start} - #{ftime end} 
                    |]
                   , let overPercent = percentFor $ overError forecast
                         underPercent = percentFor $ underError forecast
