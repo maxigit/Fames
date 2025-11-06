@@ -368,7 +368,7 @@ data TrustPaymentTransaction = TrustPaymentTransaction
 
 instance FromNamedRecord (TrustPaymentTransaction) where
   parseNamedRecord record = pure TrustPaymentTransaction
-                    <*> (parseTime ["%Y-%m-%d %T"]  =<< r .: "Timestamp (BST)")
+                    <*> (parseTime ["%Y-%m-%d %T"]  =<< (r .: "Timestamp (BST)" <|> r .: "Timestamp (GMT)"))
                     <*> r .: "Order reference"
                     <*> r .: "Settle amount"
                     <*> r .: "Error code"
