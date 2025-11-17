@@ -332,7 +332,7 @@ postCostUpdate connectInfo CostUpdate{..} = do
     -- "The new cost is the same as the old cost. Cost was not updated.\n" 
   case e of
     Left err  | take (length sameCostMsg) err == sameCostMsg  -> return $ Right Nothing
-    e -> return e
+    er -> return er
   
   
 -- ** GL 
