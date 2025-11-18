@@ -1256,12 +1256,16 @@ parsePackingList mixedBoxOrder orderRef bytes = either id ParsingCorrect $ do
                 (v,wg) = (,) <$> plVolume <*> plWeight $ final
                 onErrors :: [PLRaw -> PLRaw]
                 onErrors = catMaybes [ if orderQty /= validValue (plTotalQuantity main)
-                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't match order quantities" (tshow . validValue $ plTotalQuantity main)) }
+                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError ("Total quantity doesn't match order quantities (" <> tshow orderQty <> ")") (tshow . validValue $ plTotalQuantity main)) }
                                        else Nothing
                                      , if validValue (plTotalQuantity main)
                                           /= (validValue $ plQuantityPerCarton main)
                                              * (validValue $ plNumberOfCarton main)
-                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't carton quantities" (tshow . validValue $ plTotalQuantity main)) }
+                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError ("Total quantity doesn't carton quantities ("
+                                                                                                       <> tshow (validValue $ plQuantityPerCarton main)
+                                                                                                       <> "x"
+                                                                                                       <> tshow (validValue $ plNumberOfCarton main)
+                                                                                                       <> ")") (tshow . validValue $ plTotalQuantity main)) }
                                        else Nothing
                                      , if (validValue $ plLastCartonNumber main)
                                           - (validValue $ plFirstCartonNumber main)
