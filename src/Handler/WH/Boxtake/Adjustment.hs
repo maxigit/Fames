@@ -28,6 +28,7 @@ import Lens.Micro.Extras (preview)
 import Data.These.Lens
 import Util.ForConduit
 import qualified Data.Conduit.List as C
+import qualified Data.Map as Map
 
 type BoxtakePlus = (Entity Boxtake , [Entity Stocktake])
 type StocktakePlus = (Entity Stocktake, Key Boxtake)
@@ -35,13 +36,15 @@ type StocktakePlus = (Entity Stocktake, Key Boxtake)
 -- | All information regarging a style, QOH, boxtakes stocktakes etc.
 data StyleInfo = StyleInfo
    { siQoh :: Map Sku Double
+   , siLastStockTake :: Map Sku (Day, Double)
    , siBoxtakes :: [BoxtakePlus]
    } deriving (Show)
 instance Semigroup StyleInfo where
-   (StyleInfo a b) <>  (StyleInfo a' b') = StyleInfo (unionWith (+) a a') (b <> b')
+   (StyleInfo a b c) <>  (StyleInfo a' b' c') = StyleInfo (unionWith (+) a a') (unionWith addWithDate b b') (c <> c') where
+      addWithDate (day, qty) (day', qty') = (max day day', qty + qty')
   
 instance Monoid StyleInfo where
-  mempty = StyleInfo mempty mempty
+  mempty = StyleInfo mempty mempty mempty
 
 data UsedStatus e = Used Double e | Unused e
   deriving (Show,Eq,Ord)
@@ -92,7 +95,20 @@ computeInfoSummary useActiveStatus StyleInfo{..} =
   -- all boxes together but needs to sort priority for each colours independently
   let p's'bs = concatMap (computeStocktakePriority useActiveStatus) siBoxtakes
       stocktakesSorted = map snd $ sortOn fst p's'bs
-      (_qohLeft, stocktakesWithQ ) = mapAccumL assignQuantityToStocktake siQoh stocktakesSorted
+      (_, stocktakesWithQHack ) = mapAccumL assignQuantityToStocktake (fmap snd siLastStockTake) stocktakesSorted
+      (_qohLeft, stocktakesWithQ ) = mapAccumL assignQuantityToStocktake siQoh hackedStocktakes
+      hackedStocktakes = map usedSubject $ sortOn x stocktakesWithQHack
+      pickedSince = setFromList [ sku 
+                                | (sku, qoh)  <- Map.toList siQoh
+                                , fmap snd (lookup sku siLastStockTake)  /= Just qoh
+                                ] 
+                    :: Set Sku
+      x s = let (Entity _ sub, _) = usedSubject s 
+            in ( Down $ isUsed s    -- put Used box first and then sort them by quantity
+               , Down $ if (Sku $ stocktakeStockId sub)  `member` pickedSince
+                        then stocktakeQuantity sub
+                        else 1
+               )
       usedBoxes = usedStocktakeToBoxes (map fst siBoxtakes) stocktakesWithQ
       -- used boxes may contain the same box many times
       -- if it contains many colours
@@ -276,13 +292,49 @@ loadQohForAdjustment param =
            .| C.groupOn1 fst
            .| mapC \((style,x), st'xs) -> ForMap style (x: map snd st'xs)
   
+loadLastStocktake :: AdjustmentParam -> SqlConduit () (ForMap Style [(Sku, Day, Double)]) ()
+loadLastStocktake param =
+    let defaultLocation = aLocation param
+        sql = " SELECT value as style, stock_id, sum(qty) quantity, last_date "
+           <> " FROM fames_item_category_cache "
+           <> " JOIN 0_stock_moves USING (stock_id)"
+           <> " JOIN ( " <> stSql <> " ) as st USING(stock_id) "
+           <> " WHERE loc_code = ? AND category = 'style' AND tran_date <= last_date "
+        (after, stA, ap)  = case aDate param of
+                         Nothing -> ("", "", [])
+                         Just today -> ("  AND tran_date <= ? ", " WHERE date <= ? ", [ toPersistValue today ])
+        groupB =  " GROUP BY stock_id HAVING quantity != 0 "
+        (w,p) = case filterEKeyword <$> aStyleFilter param of
+          Nothing -> ("",  [] )
+          Just (keyword, v) -> (" AND value " <> keyword, v)
+        stSql  = " SELECT stock_id, MAX(st.date) as last_date "
+               <> " FROM fames_stocktake st "  
+               <> " JOIN fames_boxtake using(barcode) "
+               -- only use stocktake which corresponds to an existing box
+               <> stA
+               <> " GROUP BY stock_id"
+        convert :: (Single Text,  Single Text, Single Double, Single Day) -> (Style, (Sku, Day, Double))
+        convert (Single style, Single sku, Single quantity, Single date) = (Style style, (Sku sku, date, quantity))
+    in rawQuery (sql <> w <> after <> groupB) (ap <> [ toPersistValue defaultLocation ] <> p <> ap)
+           .| mapC (either (error . unpack ) convert . rawSqlProcessRow)
+           .| C.groupOn1 fst
+           .| mapC \((style,x), st'xs) -> ForMap style (x: map snd st'xs)
 
 loadAdjustementInfo :: AdjustmentParam -> SqlConduit () (ForMap Style StyleInfo) ()
 loadAdjustementInfo param = do
-  joinOnWith forMapKey forMapKey  mkInfo (loadBoxForAdjustment param) (loadQohForAdjustment param)
+  joinOnWith forMapKey forMapKey moreInfo (joinOnWith forMapKey forMapKey  mkInfo (loadBoxForAdjustment param) (loadQohForAdjustment param)) 
+                                           (loadLastStocktake param)
   where mkInfo (ForMap style boxes) qohs =
                let sku'qohs = concat [ sku'qoh | ForMap _ sku'qoh <- qohs ]
-               in ForMap style $ StyleInfo (mapFromList sku'qohs) boxes
+               in ForMap style $ StyleInfo (mapFromList sku'qohs) mempty boxes
+        moreInfo  :: ForMap Style StyleInfo -> [ForMap Style [(Sku, Day, Double)]] -> ForMap Style StyleInfo
+        moreInfo (ForMap style info) stocktakes =
+                 ForMap style info { siLastStockTake = mapFromList [ (sku, (day, qty))
+                                                                   | ForMap _ sdqs <- stocktakes
+                                                                   , (sku, day, qty) <- sdqs
+                                                                   ]
+                                   }
+         
   
 
 -- | Fetch boxtake and their status according to FA Stock
