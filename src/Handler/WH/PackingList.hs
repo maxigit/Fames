@@ -349,8 +349,9 @@ deliverPackingList key param = do
             forM_ delivers $ \k -> update k [PackingListDetailDelivered =. True]
             -- create associated boxtakes
             details <- selectList [PackingListDetailId <-. delivers] [] >>= lift . joinWithPlanner key
-            let boxtakes = [detailToBoxtake param docKey detail info | (Entity _ detail, info) <-  details]
+            let (boxtakes, concat -> stocktakes)  = unzip [detailToBoxtakeAndStocktakes param docKey detail info | (Entity _ detail, info) <-  details]
             insertMany_ boxtakes
+            insertMany_ stocktakes
             -- undeliver delete boxtakes and stocktakes
             forM_ undelivers $ \k -> update k [PackingListDetailDelivered =. False]
             undetails <- selectList [PackingListDetailId <-. undelivers] []
@@ -367,31 +368,53 @@ deliverPackingList key param = do
                       (parseDeliverList (dpCart param))
 
 
-detailToBoxtake :: DeliveryParam -> DocumentKeyId -> PackingListDetail -> PlannerInfo -> Boxtake
-detailToBoxtake param docKey detail info = Boxtake
-  (Just $ packingListDetailStyle detail)
-  reference
-  (packingListDetailLength detail)
-  (packingListDetailWidth detail)
-  (packingListDetailHeight detail)
-  (packingListDetailBarcode detail)
-  ((fromMaybe (dpLocation param) $ location info) <> coordinate)
-  (dpDate param)
-  True
-  (dpOperator param)
-  docKey
-  []
-  (packingListDetailBatch detail)
+detailToBoxtakeAndStocktakes :: DeliveryParam -> DocumentKeyId -> PackingListDetail -> PlannerInfo -> (Boxtake, [Stocktake ])
+detailToBoxtakeAndStocktakes param docKey detail info =
+  ( Boxtake
+    (Just $ packingListDetailStyle detail <> contents)
+    reference
+    (packingListDetailLength detail)
+    (packingListDetailWidth detail)
+    (packingListDetailHeight detail)
+    (packingListDetailBarcode detail)
+    (loc <> coordinate)
+    (dpDate param)
+    True
+    (dpOperator param)
+    docKey
+    []
+    (packingListDetailBatch detail)
+  , zipWith  mkStocktake (Map.toList $ packingListDetailContent detail) [1..]
+  )
   where reference =  intercalate "-" ([ packingListDetailReference
                      , packingListDetailStyle
                      , tshow . packingListDetailBoxNumber
                      ] <*> [detail]
                                      )
+        contents = case keys $ packingListDetailContent detail of
+                      [] -> ""
+                      vars -> "-" <> intercalate "&" vars
         coordinate = case ( lookup "coordinate" (extras info)
                           , lookup "orientation" (extras info)
                           ) of
                          (Just c, Just o) -> o <> c
                          _ -> ""
+        loc = fromMaybe (dpLocation param) $ location info
+        mkStocktake :: (Text, Int) -> Int -> Stocktake
+        mkStocktake (var, qty) index = Stocktake
+                                           (packingListDetailStyle detail <> "-" <> var)
+                                           qty
+                                           (packingListDetailBarcode detail)
+                                           index
+                                           (FA.LocationKey loc)
+                                           (dpDate param)
+                                           False -- don't create and adjustment.
+                                           (dpOperator param)
+                                           Nothing -- adjustment
+                                           docKey
+                                           [(dpDate param, dpOperator param)] -- history
+                                           (Just "Full box, not counted")
+                                           (packingListDetailBatch detail)
 
 -- ** View 
 
