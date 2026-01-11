@@ -136,7 +136,7 @@ uploadPlannerCsv _ _ (sessions, _) = do
         go location row = case rowBoxtake $ row of
                        Nothing -> Nothing
                        Just (Entity boxId boxtake) ->
-                            let loc = intercalate " " (location : rowForPlanner row)
+                            let loc = intercalate ":" [location , intercalate " " (rowForPlanner row) ]
                             in  Just ( Entity boxId $ boxtake {boxtakeLocation = loc}
                                      , []
                                      )
@@ -209,6 +209,7 @@ toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) =
               ) ++ mixed ::  [Text]
         (Location location, position ) =
                case extractPosition boxtakeLocation of
+                     (loc, Just (Nothing, pos)) -> (loc, pos)
                      (loc, posm) -> (loc, joinPosition (Location "") posm)
         mixed = case map unVar colours of
                      (_:_:_) -> "mixed" : [ "content" <> tshow index <> "=" <> colour
