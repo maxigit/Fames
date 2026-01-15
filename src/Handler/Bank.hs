@@ -634,9 +634,10 @@ renderReconciliate account param = do
       recGroup' = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
       -- sort FA Transaction within each group by pos and recalculate the balance
       recGroup = resortFA recGroup'
-      st'sts = case rpStartDate param of
-                Nothing -> st'sts1
-                Just _ -> let adjustedStart = minimumEx $ map (mergeTheseWith B._sDate B._sDate min) st'sts1
+      st'sts = case (rpStartDate param, st'sts1) of
+                (Nothing, _) -> st'sts1
+                (_, [])  -> st'sts1
+                _ -> let adjustedStart = minimumEx $ map (mergeTheseWith B._sDate B._sDate min) st'sts1
                           in  filter (transFilter2 adjustedStart) st'sts0
       -- exclude a pair if both date are outside the range
       transFilter _tartDate t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- (bsStartDate bankSettings), d < start = False
