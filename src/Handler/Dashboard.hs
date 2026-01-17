@@ -46,6 +46,9 @@ pivotCss = [cassius|
     span.VQuantity
       font-style: italic
       color: grey
+  div.plot-height
+    height: max-content
+     
                         |]
 reportCss = [cassius|
    div.report-summary
@@ -681,6 +684,7 @@ getDForecastR = do
   let forSummaries = [ (day, pack path, summary) | (day, path, _, summary) <- plot'summarys ]
   defaultLayout $ do
       toWidgetHead commonCss
+      toWidgetHead pivotCss
       [whamlet|
       <div.panel.panel-primary>
          <div.panel-heading data-toggle=collapse data-target="#dashboard-summary">
@@ -691,7 +695,7 @@ getDForecastR = do
             <div.panel.panel-primary>
                <div.panel-heading data-toggle=collapse data-target="#dashboard-#{path}">
                  <h2> #{path}
-               <div.panel-body.pivot-inline id="dashboard-#{path}">
+               <div.panel-body.pivot-inline.plot-height id="dashboard-#{path}">
                  ^{plot}
       |]
 
@@ -732,6 +736,7 @@ getDForecastDetailedR pathm = do
   
   defaultLayout $ do
      toWidgetHead commonCss
+     toWidgetHead pivotCss
      [whamlet|
      <div.panel.panel-primary>
          <div.panel-heading data-toggle=collapse data-target="#dashboard-summary">
@@ -742,7 +747,7 @@ getDForecastDetailedR pathm = do
        <div.panel.panel-primary>
           <div.panel-heading data-toggle=collapse data-target="#dashboard-#{name}">
              <h2> #{name}
-          <div.panel-body.pivot-inline.collapse.in id="dashboard-#{name}">
+          <div.panel-body.pivot-inline.collapse.in.plot-height id="dashboard-#{name}">
             ^{report}
    
    |]
