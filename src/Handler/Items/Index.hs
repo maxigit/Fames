@@ -1316,13 +1316,16 @@ refreshCategories params = do
 -- | Activates/deactivate and item in FrontAccounting.
 changeFAActivation :: Bool -> IndexParam -> Handler ()
 changeFAActivation activate_ param = do
-  changeActivation activate_ param
+  changeActivation param
                    [StockMasterInactive ==. activate_]
-                   (flip update [StockMasterInactive =. not activate_])
+                   (\stockId ->  update (StockMasterKey stockId) [StockMasterInactive =. not activate_])
+  changeActivation param
+                   [StockMasterInactive ==. activate_]
+                   (\stockId ->  updateWhere [ItemCodeStockId ==. stockId ]  [ItemCodeInactive =. not activate_])
   clearAppCache
 
-changeActivation :: Bool -> IndexParam -> _ -> _ -> Handler ()
-changeActivation __activate param activeFilter updateFn =  runDB $ do
+changeActivation :: IndexParam -> [ Filter StockMaster ]  -> (Text -> SqlHandler ()) -> Handler ()
+changeActivation param activeFilter updateFn =  runDB $ do
   -- we set ShowInactive to true to not filter anything yet using (StockMasterInactive)
   -- as it will be done before
   entities <- case selectedItemsFilter param {ipMode = ItemGLView, ipShowInactive = ShowAll } of
@@ -1330,10 +1333,10 @@ changeActivation __activate param activeFilter updateFn =  runDB $ do
     Right filter_ ->  selectList ( activeFilter ++ filter_) []
   -- traceShowM ("ACTI", param, entities)
   let toKeep = checkFilter param
-      keys_ = [ key
+      keys_ = [ unStockMasterKey key
              | (Entity key _) <- entities
              , toKeep (unStockMasterKey key)
-             ] :: [Key StockMaster]
+             ] -- :: [Key StockMaster]
   mapM_ updateFn keys_
 
 -- | Activated and item in  FrontAccounting or the Website
