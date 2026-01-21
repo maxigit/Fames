@@ -1001,8 +1001,11 @@ buttonStatus param DeactivateBtn = case ipMode param of
   _ -> BtnActive
   
 buttonStatus param DeleteBtn = case ipMode param of
-  ItemCategoryView -> BtnHidden
-  _ -> BtnActive
+  ItemPriceView -> BtnActive
+  ItemPurchaseView -> BtnActive
+  ItemFAStatusView | ipFAStatusFilter param == Just [ FAGhost ] -> BtnActive
+                   | otherwise -> BtnInactive "Please select ghosts"
+  _ -> BtnHidden
 
 buttonName :: ItemViewMode -> Button -> Text
 buttonName ItemCategoryView CreateMissingBtn = "Refresh Categories"
@@ -1178,10 +1181,14 @@ createMissing params = do
 deleteItems :: (?skuToStyleVar :: Sku -> (Style, Var))
                   => IndexParam -> Handler ()
 deleteItems params = do
-  resp <- ( case ipMode params of
+  resp <- runDB ( case ipMode params of
               ItemPriceView -> deleteSalesPrices params
               ItemPurchaseView -> deletePurchasePrices params
-              _ -> error "Should not happen"
+              ItemFAStatusView | ipFAStatusFilter params == Just [FAGhost]-> do
+                   deleteSalesPrices params
+                   deletePurchasePrices params
+                   deleteStockAndItems params
+              _ -> error "Only ghost can be deleted. Please set the running status filter to Ghost"
       )
   clearAppCache
   return resp
@@ -1270,11 +1277,11 @@ createGLMissings params = do
   return ()
 
 deleteSalesPrices :: (?skuToStyleVar :: Sku -> (Style, Var))
-                  => IndexParam -> Handler ()
+                  => IndexParam -> SqlHandler ()
 deleteSalesPrices params = do
-  cache <- fillIndexCache
+  cache <- lift fillIndexCache
   -- timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariationsToKeep cache (params {ipBases = mempty}) 
+  itemGroups <- lift $ loadVariationsToKeep cache (params {ipBases = mempty}) 
   let plIds = priceListsToKeep cache params
   -- delete all prices selected by the user for all given variations
   let deletePairs =
@@ -1284,14 +1291,14 @@ deleteSalesPrices params = do
         , (_, info) <- items
         ]
 
-  runDB $ mapM_ deleteWhere deletePairs
+  mapM_ deleteWhere deletePairs
 
 deletePurchasePrices :: (?skuToStyleVar :: Sku -> (Style, Var))
-                  => IndexParam -> Handler ()
+                  => IndexParam -> SqlHandler ()
 deletePurchasePrices  params = do
-  cache <- fillIndexCache
+  cache <- lift fillIndexCache
   -- timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariationsToKeep cache (params {ipBases = mempty}) 
+  itemGroups <- lift $ loadVariationsToKeep cache (params {ipBases = mempty}) 
   let supplierIds = suppliersToKeep cache params
   -- delete all prices selected by the user for all given variations
   let deletePairs =
@@ -1301,7 +1308,28 @@ deletePurchasePrices  params = do
         , (_, info) <- items
         ]
 
-  runDB $ mapM_ deleteWhere deletePairs
+  mapM_ deleteWhere deletePairs
+
+deleteStockAndItems :: (?skuToStyleVar :: Sku -> (Style, Var)) => IndexParam -> SqlHandler ()
+deleteStockAndItems params =  do
+  cache <- lift fillIndexCache
+  -- timestamp <- round <$> liftIO getPOSIXTime
+  itemGroups <- lift $ loadVariationsToKeep cache (params {ipBases = mempty} ) 
+  let skus = [ unSku (iiSku info)
+             | (_, items) <- itemGroups
+             , (_, info) <- items
+             , fmap (snd . faRunningStatus)  (impFAStatus (iiInfo info)) == Just  FAGhost
+             ]
+  forM_ skus \sku -> do
+        print "======================================"
+        print sku
+        -- delete bom
+        deleteWhere [ FA.BomParent ==. sku ]
+        deleteWhere [ FA.BomComponent ==. sku ]
+        -- delete items_code
+        deleteWhere [ FA.ItemCodeStockId ==. sku ]
+        -- delete stock_master
+        deleteWhere [ FA.StockMasterId ==. FA.StockMasterKey sku ]
 
 -- *** Categories
 refreshCategories :: (?skuToStyleVar :: Sku -> (Style, Var)) => IndexParam -> Handler ()
