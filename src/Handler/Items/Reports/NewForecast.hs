@@ -262,6 +262,7 @@ getPlotForecastError grouper day path = do
                grouperName = case grouper of
                               SkuGroup -> "sku"
                               CategoryGroup category -> category
+                              CustomerGroup -> "customer"
            return ([whamlet|
                      <div> #{path}
                      ^{plot}
@@ -350,12 +351,12 @@ makeOffenderTable categoryName summaries =  do
      <table.table.table-border.table-hover.table-striped>
        <theader>
          <tr>
-           <th> #{categoryName}
-           <th> Forecast
-           <th> Actual
-           <th> Error
-           <th> %
-           <th> Naive (previous year)
+           <th.just-right> #{categoryName}
+           <th.just-right> Forecast
+           <th.just-right> Actual
+           <th.just-right> Error
+           <th.just-right> %
+           <th.just-right> Naive (previous year)
        <tbody>
          $forall (category, os) <-  summaries
           <tr>
@@ -377,12 +378,12 @@ makeSummaryTable  day'path'summarys  = do
                   <tr>
                     <th> Date
                     <th> Method
-                    <th> Scaled Error
-                    <th> % Under estimation
-                    <th> % Over estimation
-                    <th> % Error estimation
-                    <th> % Error Naive
-                    <th> % Trend
+                    <th.just-right> Scaled Error
+                    <th.just-right> % Under estimation
+                    <th.just-right> % Over estimation
+                    <th.just-right> % Error estimation
+                    <th.just-right> % Error Naive
+                    <th.just-right> % Trend
                 <tbody>
                   $forall (day, path, summary) <- day'path'summarys
                     <tr>
