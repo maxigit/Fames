@@ -331,8 +331,9 @@ getMostOffenders grouper topN day path = do
                                            in ([(sku, offenderSummary)],  [(sku, offenderSummary)])
       -- vvvv silly we should use a normal fold and  as A or B is always a singleton list
       keepOffenders (topsA, bottomsA) (topsB, bottomsB) = let 
-              bots = sortOn (Down . osError .snd)  (bottomsA ++ bottomsB)
-              tops = sortOn (osError .snd)  (topsA ++ topsB)
+              bots = keepNonNull $ sortOn (Down . osError .snd)  (bottomsA ++ bottomsB)
+              tops = keepNonNull $ sortOn (osError .snd)  (topsA ++ topsB)
+              keepNonNull = filter (\(_,os) -> osError os /= 0)
               in (take topN tops, take topN bots)
       lastGood v = v V.! weeksToToday
       weeksToToday = weeksTo start today
