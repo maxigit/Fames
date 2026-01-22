@@ -173,9 +173,12 @@ actualSalesSource :: forall key . ForecastGrouper key -> Day -> Day -> SqlCondui
 actualSalesSource grouper start end = do
    let sql = "SELECT " <> groupKey <> " AS groupKey, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty)" :
            " FROM 0_stock_moves moves " :
+           " LEFT JOIN 0_debtor_trans USING(type, trans_no, tran_date) " :
+           " LEFT JOIN fames_customer_category_cache AS clearance ON (debtor_no = customer_id AND category = 'clearance') " :
            sqlJoin ?:
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
            " AND qty != 0" :
+           " AND (clearance.value is null OR clearance.value <> 'Yes' ) " :
            " AND moves.stock_id like 'M%'" :
            -- " AND stock_id like 'ML17-FD7-NAY'" :
            -- " AND stock_id like 'ML13-AD1-IVY'" :
@@ -190,7 +193,7 @@ actualSalesSource grouper start end = do
                                                )
                                    CategoryGroup category -> ("category.value"
                                                              , [PersistText  category ]
-                                                             , Just "JOIN fames_item_category_cache AS category  ON (category = ? AND moves.stock_id = category.stock_id )"
+                                                             , Just "JOIN fames_item_category_cache AS category  ON (category.category = ? AND moves.stock_id = category.stock_id )"
                                                              )
        weekSource = rawQuery  (mconcat sql) $ toPersistValue start : joinParams ++ [ toPersistValue start, toPersistValue end] 
        --                                     ^^^^^^^^^^^^^^^^^^^
