@@ -40,14 +40,17 @@ instance Csv.FromNamedRecord CollectionProfileRow where
 data ForecastGrouper k where 
          SkuGroup :: ForecastGrouper Sku
          CategoryGroup :: Text  -> ForecastGrouper Text
+         CustomerGroup :: ForecastGrouper Text
    
 mkForecastKey :: ForecastGrouper k -> Text -> k
 mkForecastKey SkuGroup txt = Sku txt
 mkForecastKey (CategoryGroup _) txt = txt
+mkForecastKey CustomerGroup txt = txt
 
 unForecastKey :: ForecastGrouper k -> k -> Text
 unForecastKey SkuGroup (Sku sku) = sku
 unForecastKey (CategoryGroup category) name = category++":"++name
+unForecastKey CustomerGroup name = name
      
 parseMonth :: Text -> Csv.Parser Int
 parseMonth m = case m of
@@ -195,6 +198,10 @@ actualSalesSource grouper start end = do
                                                              , [PersistText  category ]
                                                              , Just "JOIN fames_item_category_cache AS category  ON (category.category = ? AND moves.stock_id = category.stock_id )"
                                                              )
+                                   CustomerGroup -> ("0_debtors_master.name"
+                                                    , []
+                                                    , Just "JOIN 0_debtors_master USING (debtor_no) "
+                                                    )
        weekSource = rawQuery  (mconcat sql) $ toPersistValue start : joinParams ++ [ toPersistValue start, toPersistValue end] 
        --                                     ^^^^^^^^^^^^^^^^^^^
        --                                        |
@@ -226,6 +233,7 @@ loadYearOfForecastCumulByWeek grouper start forecastDir = do
                      return \sku -> case catFinder (FA.StockMasterKey sku) of
                                          Nothing -> category
                                          Just name -> name
+                CustomerGroup  -> return \cust -> cust
   let weekProfiles = fmap expandProfileWeekly rawProfiles
       weekProfiles ::  Map Collection UWeeklyQuantity
       monthWeekly :: [UWeeklyQuantity] 

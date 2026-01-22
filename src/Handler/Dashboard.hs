@@ -713,6 +713,7 @@ getDForecastDetailedR pathm = do
                   let cat = case grouper of 
                               SkuGroup -> "SKU"
                               CategoryGroup cat -> cat
+                              CustomerGroup -> "Customer"
                   (plot,summary) <- getPlotForecastError grouper day path
                   offendersM <- getMostOffenders grouper 10 day path
                   return $ ((day , summary)
@@ -729,9 +730,10 @@ getDForecastDetailedR pathm = do
                                         |]
                               )
   skuReport <- report SkuGroup
+  customerReport <- report CustomerGroup
   let names  = ["style", "colour", "shape"] :: [Text]
   otherReport <- mapM report (map CategoryGroup names)
-  let reports = ("SKU", skuReport) : zip names otherReport
+  let reports = ("SKU", skuReport) : zip names otherReport  ++ [ ("Customer", customerReport) ]
       summaries = [ (day, name, summary) | (name, ((day, summary), _)) <- reports ]
   
   defaultLayout $ do
