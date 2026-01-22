@@ -345,6 +345,7 @@ getMostOffenders grouper topN day path = do
 makeOffenderTable :: Text -> [(Text, OffenderSummary)] -> Widget
 makeOffenderTable categoryName summaries =  do
    let errorP os = case osActual os of 
+                      0 | osError os == 0 -> 0  
                       0 -> 100
                       actual -> abs(100 * (osError os  / actual))
    [whamlet|
