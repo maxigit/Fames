@@ -51,6 +51,7 @@ import qualified WarehousePlanner.Base as Planner
 import qualified WarehousePlanner.Selector as Planner
 import qualified Handler.Planner.FamesImport as Planner
 import Handler.WH.PLToPlanner
+import System.Directory(doesFileExist)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Show, Read, Enum)
@@ -1886,15 +1887,21 @@ normQ (DetailInfo qty vol cost) = DetailInfo 1 (forQ vol) (fmap forQ cost)
 joinWithPlanner :: Int64 -> [Entity PackingListDetail] -> Handler [(Entity PackingListDetail, PlannerInfo)]
 joinWithPlanner plId eDetails = do
   today <- todayH
-  let path = "pl-" <> show plId <> ".org"
+  let org = "pl-" <> show plId <> ".org"
       defInfo = PlannerInfo Nothing mempty
   let ?cache = Planner.memoryCache
       ?today = today
   plannerDir <- appPlannerDir <$> getsYesod appSettings
-  scenarioE <- Planner.readScenarioFromPaths False Planner.importFamesDispatch (Just plannerDir) [path, "Extra/for-pl.org"]
+  let archivedOrg = "PackingList" </> org
+  orgPath <- do
+             exists <- liftIO $ doesFileExist (plannerDir </> org)
+             return $ if exists 
+                         then org
+                         else archivedOrg
+  scenarioE <- Planner.readScenarioFromPaths False Planner.importFamesDispatch (Just plannerDir) [orgPath, "PackingList/extra.org"]
   case scenarioE of 
     Left _ -> do
-      setWarning $ [shamlet|Planner file #{path} has not been found.|]
+      setWarning $ [shamlet|Planner file #{orgPath} has not been found.|]
       let defInfo = PlannerInfo (Just "<location>") mempty
       return $ map (, defInfo) eDetails
     Right scenario -> do
