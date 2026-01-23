@@ -24,14 +24,6 @@ import Formatting hiding(base)
 import Data.Monoid(Sum(..), First(..))
 
 -- * Param 
-data StockFilter = StockFilter { sfSku :: Maybe FilterExpression
-                               , sfCategory :: Maybe (Text, FilterExpression)
-                               --                    ^^^^^  ^^^^^^^^^^^^^^^^
-                               --                      |           |
-                               --                      |           +--- value filter 
-                               --                      |
-                               --                      +---------------  category
-                               }
 data ReportParam = ReportParam
   { rpToday :: Day -- today
   , rpDeduceTax :: Bool 
@@ -219,9 +211,6 @@ data RunSum = RunSum | RunSumBack | RSNormal deriving Show
 data TraceType = Line | LineMarker | Smooth | SmoothMarker | Bar | Hv
   deriving (Show, Eq, Ord, Enum, Bounded )
 
--- ** Util
-mkStockFilter :: Maybe FilterExpression -> Maybe Text -> Maybe FilterExpression -> StockFilter
-mkStockFilter skum catm catFilterM = StockFilter skum ((,) <$> catm <*> catFilterM)
 
 -- ** Default  style 
 amountStyle 3 = smoothStyle AmountAxis
@@ -708,30 +697,6 @@ paramToDateIntervals param =
 toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
 toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
   
-stockFilterToSql :: StockFilter -> (Maybe Text, Maybe Text, [PersistValue ])
---                                  ^^^^              ^^^^  ^^^^^^^^^^^^^
---                                    |                 |        |
---                                    |                 |        +-- parameters
---                                    |                 +----------- where clause
---                                    +----------------------------- join
---                                  
-stockFilterToSql StockFilter{..} = ( join
-                                   , whereM
-                                   , concat params
-                                   ) where
-   join = case sfCategory of
-            Just _ -> Just " JOIN fames_item_category_cache AS filtered_category USING (stock_id) "
-            Nothing -> Nothing
-   (wheres, params) = unzip
-                    $ catMaybes [ flip fmap sfSku (filterEKeyword  "stock_id")
-                               , flip fmap  sfCategory \(cat, e) -> let (sql, params) = filterEKeyword "filtered_category.value" e
-                                                                   in ("filtered_category.category = ? AND " <> sql
-                                                                      , toPersistValue cat : params
-                                                                      )
-                               ]
-   whereM = case wheres of 
-                [] -> Nothing 
-                _ -> Just $ intercalate " AND " $ map (\t -> " ( " <> t <> " ) " ) wheres
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod

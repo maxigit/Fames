@@ -94,3 +94,41 @@ slidingYearShow today day =  let
   y' = y + s
   in show (y'-1) <> "-" <> show y'
 
+-- * Filtering
+data StockFilter = StockFilter { sfSku :: Maybe FilterExpression
+                               , sfCategory :: Maybe (Text, FilterExpression)
+                               --                    ^^^^^  ^^^^^^^^^^^^^^^^
+                               --                      |           |
+                               --                      |           +--- value filter 
+                               --                      |
+                               --                      +---------------  category
+                               }
+
+stockFilterToSql :: StockFilter -> (Maybe Text, Maybe Text, [PersistValue ])
+--                                  ^^^^              ^^^^  ^^^^^^^^^^^^^
+--                                    |                 |        |
+--                                    |                 |        +-- parameters
+--                                    |                 +----------- where clause
+--                                    +----------------------------- join
+--                                  
+stockFilterToSql = stockFilterToSqlWithColumn "stock_id"
+stockFilterToSqlWithColumn :: Text -> StockFilter -> (Maybe Text, Maybe Text, [PersistValue ])
+stockFilterToSqlWithColumn stockColumn StockFilter{..} = ( join
+                                   , whereM
+                                   , concat params
+                                   ) where
+   join = case sfCategory of
+            Just _ -> Just " JOIN fames_item_category_cache AS filtered_category USING (stock_id) "
+            Nothing -> Nothing
+   (wheres, params) = unzip
+                    $ catMaybes [ flip fmap sfSku (filterEKeyword  stockColumn)
+                               , flip fmap  sfCategory \(cat, e) -> let (sql, params) = filterEKeyword "filtered_category.value" e
+                                                                   in ("filtered_category.category = ? AND " <> sql
+                                                                      , toPersistValue cat : params
+                                                                      )
+                               ]
+   whereM = case wheres of 
+                [] -> Nothing 
+                _ -> Just $ intercalate " AND " $ map (\t -> " ( " <> t <> " ) " ) wheres
+mkStockFilter :: Maybe FilterExpression -> Maybe Text -> Maybe FilterExpression -> StockFilter
+mkStockFilter skum catm catFilterM = StockFilter skum ((,) <$> catm <*> catFilterM)

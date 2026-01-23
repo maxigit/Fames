@@ -9,13 +9,15 @@ plotForecastError
 , totalError
 , makeOffenderTable
 , makeSummaryTable
+, ForecastParam(..), defaultForecastParam
 ) where
 
 import Import
 import Handler.Items.Reports.Common hiding(formatQuantity)
 import Handler.Items.Reports.Forecast
+import Handler.Items.Common(mkStockFilter)
 import Items.Types
--- import Data.Conduit.List (consume)
+import Data.Conduit.List (mapMaybe)
 import qualified Data.Vector.Generic as V
 import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
@@ -28,6 +30,20 @@ import Data.Time.Calendar (diffDays)
 
 data WithError = WithError { forecastCumul, overError, underError :: UWeeklyQuantity }
    deriving (Show)
+
+data NoveltyMode = ExcludeNovelty | IncludeNovelty | NoveltyOnly
+  deriving (Eq, Ord, Enum, Bounded, Show)
+data ForecastParam = ForecastParam 
+       { fpSubdirectory :: Maybe FilePath
+       , fpNoveltyMode :: NoveltyMode
+       , fpStockFilter :: Maybe FilterExpression
+       } deriving Show
+
+defaultForecastParam :: ForecastParam
+defaultForecastParam = ForecastParam{..} where
+    fpSubdirectory = Nothing
+    fpNoveltyMode = IncludeNovelty
+    fpStockFilter = Nothing
 
 totalError :: WithError -> UWeeklyQuantity
 totalError w = overError w `vadd` underError w
@@ -225,15 +241,23 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                     )
       |]
 
-getForecastErrors :: Ord key => ForecastGrouper key -> Day -> FilePath -> Handler ((Day, Day), ConduitT () (ForMap key WeeklySalesWithForecastErrors) SqlHandler ())
-getForecastErrors grouper day path = do 
+getForecastErrors :: Ord key => ForecastParam -> ForecastGrouper key -> Day -> FilePath -> Handler ((Day, Day), ConduitT () (ForMap key WeeklySalesWithForecastErrors) SqlHandler ())
+getForecastErrors ForecastParam{..} grouper day path = do 
   settings <- getsYesod appSettings
-  let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek grouper day
-  skuMap <- loadYearOfForecastCumulByWeek grouper day $ appForecastProfilesDir settings </> path
-  let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek grouper (calculateDate (AddYears $ -1) start)
+  let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek grouper stockFilter day
+      stockFilter = mkStockFilter fpStockFilter Nothing Nothing
+  skuMap <- loadYearOfForecastCumulByWeek grouper stockFilter day $ appForecastProfilesDir settings </> (maybe id (</>) fpSubdirectory) path
+  let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek grouper stockFilter (calculateDate (AddYears $ -1) start)
       v0 = V.replicate 52 0
-      joinWithZeror (ForMap sku theseab) = ForMap sku ab where
-          ab = these (,v0) (v0,) (,) theseab
+      joinWithZeror (ForMap sku theseab) = ForMap sku <$> ab where
+          ab = case theseab of
+                  -- no naive forecast, ie no previous sales => NOVELTY
+                  This sales | fpNoveltyMode == ExcludeNovelty  -> Nothing
+                             | otherwise                      ->  Just (sales, v0) 
+                  That naive | fpNoveltyMode  == NoveltyOnly -> Nothing
+                             | otherwise                   -> Just (v0, naive)
+                  These sales naive | fpNoveltyMode == NoveltyOnly -> Nothing
+                                    | otherwise                  -> Just (sales, naive)
       addErrors (ForMap sku (salesV, naiveV, forecastV)) =
                    ForMap sku $ WeeklySalesWithForecastErrors salesV
                                                               (computeAbsoluteError (Actual salesV) naiveV)
@@ -241,16 +265,16 @@ getForecastErrors grouper day path = do
       addForecast (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, forecast) where
          forecast =  findWithDefault v0 sku skuMap
       conduit = alignConduit salesSource naiveSource
-                         .|mapC  joinWithZeror
+                         .|Data.Conduit.List.mapMaybe  joinWithZeror
                          .|mapC addForecast
                          .|mapC  addErrors
   return ((start, end), conduit)
 
 
-getPlotForecastError :: Ord k => ForecastGrouper k -> Day -> FilePath -> Handler (Widget, ForecastSummary)
-getPlotForecastError grouper day path = do
+getPlotForecastError :: Ord k => ForecastParam -> ForecastGrouper k -> Day -> FilePath -> Handler (Widget, ForecastSummary)
+getPlotForecastError param grouper day path = do
    today <- todayH
-   ((start, end), salesConduit) <- getForecastErrors grouper day path
+   ((start, end), salesConduit) <- getForecastErrors param grouper day path
    salesM <- runDB $ runConduit
                    $ salesConduit
                    .| mapC forMapValue
@@ -317,10 +341,10 @@ weeksTo start today =  fromInteger $ case diffDays today start `div` 7 of
 data OffenderSummary = OffenderSummary { osActual, osForecast, osNaive, osError :: Double }
    deriving (Show)
 
-getMostOffenders :: Ord k => ForecastGrouper k -> Int -> Day -> FilePath -> Handler (Maybe ([(Text, OffenderSummary)], [(Text, OffenderSummary)]))
-getMostOffenders grouper topN day path = do
+getMostOffenders :: Ord k => ForecastGrouper k  -> ForecastParam-> Int -> Day -> FilePath -> Handler (Maybe ([(Text, OffenderSummary)], [(Text, OffenderSummary)]))
+getMostOffenders grouper param topN day path = do
   today <- todayH
-  ((start, _end), salesConduit) <- getForecastErrors grouper  day path
+  ((start, _end), salesConduit) <- getForecastErrors param grouper  day path
   let mkTopOffenders (ForMap key weekly) = let offenderSummary = OffenderSummary{..}
                                                get f = lastGood $ f weekly
                                                osActual = get wsSales
@@ -370,12 +394,13 @@ makeOffenderTable categoryName summaries =  do
             <td.just-right> #{formatQuantity $ osNaive os}
    |]
 
-makeSummaryTable :: [(Day, Text, ForecastSummary)] -> Widget
-makeSummaryTable  day'path'summarys  = do
+-- | If no queryString is given, treat method as anchor
+makeSummaryTable :: Maybe ByteString -> [(Day, Text, ForecastSummary)] -> Widget
+makeSummaryTable  queryStrM day'path'summarys  = do
   let toPercent x = formatPercentage (x*100)
       ssum = averageForecastSummary $ map (\(_,_,s) -> s) day'path'summarys
   [whamlet|
-              <table.table.table-hover.table-striped>
+              <table data-searching=false data-paging=false *{datatable}>
                 <thead>
                   <tr>
                     <th> Date
@@ -390,7 +415,11 @@ makeSummaryTable  day'path'summarys  = do
                   $forall (day, path, summary) <- day'path'summarys
                     <tr>
                       <td>#{tshow day}
-                      <td><a href=@{DashboardR $ DForecastDetailedR $ Just $ path}> #{path}
+                      $case queryStrM
+                         $of Nothing
+                             <td><a href="#panel-#{path}"> #{path}
+                         $of Just queryStr
+                             <td><a href="@{DashboardR $ DForecastDetailedR $ Just $ path}#{decodeUtf8 queryStr}"> #{path}
                       <th.just-right>#{toPercent $ aes summary}
                       <td.just-right>#{toPercent $ underPercent summary}
                       <td.just-right>#{toPercent $ overPercent summary}

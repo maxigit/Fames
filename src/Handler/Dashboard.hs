@@ -12,6 +12,7 @@ module Handler.Dashboard
 where
 
 import Import hiding(all)
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.Items.Reports.Common
 import Handler.Items.Reports.NewForecast
 import Handler.Items.Reports.Forecast(ForecastGrouper(..))
@@ -23,6 +24,7 @@ import Data.Aeson.QQ(aesonQQ)
 import Control.Monad.Fail (MonadFail(..))
 import System.FilePath.Glob (glob)
 import System.FilePath (takeBaseName)
+import Network.Wai(rawQueryString)
 
 pivotCss = [cassius|
   div.pivot-inline
@@ -668,10 +670,22 @@ collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = le
                         |]
   in [(columns, mapFromList rankMap )]
   
-  
+forecastForm ForecastParam{..}= renderBootstrap3 BootstrapBasicForm form where
+    form = ForecastParam
+               <$> (fmap unpack <$> aopt textField "Subdirectory" (Just (fmap pack fpSubdirectory)))
+               <*> (areq  (selectField optionsEnum) "Novelty mode" (Just fpNoveltyMode))
+               <*> (aopt filterEField "SKU" (Just fpStockFilter))
+
+
 getDForecastR :: Handler Html
 getDForecastR = do
   settings <- getsYesod appSettings
+  ((resp, form), encType) <- runFormGet $ forecastForm  defaultForecastParam
+  reqParams <- rawQueryString <$> waiRequest
+  let param = case resp of
+                   FormSuccess p -> p
+                   _ -> defaultForecastParam
+     
   -- load all available forecasts
   dirs <- liftIO $ glob (appForecastProfilesDir settings </> "????-??-??*")
   let day'paths = [ (Down day, path)
@@ -679,18 +693,22 @@ getDForecastR = do
                   , day <- maybeToList $ forecastPathToDay $ takeBaseName path
                   ]
   plot'summarys <- forM (sort $ day'paths) \(Down day, path) -> do
-                 (plot, summary) <- getPlotForecastError SkuGroup day path
+                 (plot, summary) <- getPlotForecastError param SkuGroup day path
                  return (day, takeBaseName path, plot, summary)
   let forSummaries = [ (day, pack path, summary) | (day, path, _, summary) <- plot'summarys ]
   defaultLayout $ do
       toWidgetHead commonCss
       toWidgetHead pivotCss
       [whamlet|
+      <div.well>
+        <form.form.form-inline role=from method=get action="@{DashboardR DForecastR}" enctype="#{encType}">
+              ^{form}
+              <button.btn.btn-default type="submit" value="Submit"> Submit
       <div.panel.panel-primary>
          <div.panel-heading data-toggle=collapse data-target="#dashboard-summary">
            <h2> Summary
          <div.panel-body.pivot-inline id="dashboard-summary">
-           ^{makeSummaryTable forSummaries}
+           ^{makeSummaryTable (Just reqParams) forSummaries}
       $forall (_day, path, plot,_) <- plot'summarys
             <div.panel.panel-primary>
                <div.panel-heading data-toggle=collapse data-target="#dashboard-#{path}">
@@ -702,6 +720,10 @@ getDForecastR = do
 getDForecastDetailedR:: Maybe Text -> Handler Html
 getDForecastDetailedR pathm = do
   settings <- getsYesod appSettings
+  ((resp, form), encType) <- runFormGet $ forecastForm  defaultForecastParam
+  let param = case resp of
+                   FormSuccess p -> p
+                   _ -> defaultForecastParam
   let path = case pathm of
                 Just p -> unpack p
                 Nothing -> appForecastDefaultProfile settings
@@ -714,8 +736,8 @@ getDForecastDetailedR pathm = do
                               SkuGroup -> "SKU"
                               CategoryGroup cat -> cat
                               CustomerGroup -> "Customer"
-                  (plot,summary) <- getPlotForecastError grouper day path
-                  offendersM <- getMostOffenders grouper 10 day path
+                  (plot,summary) <- getPlotForecastError param grouper day path
+                  offendersM <- getMostOffenders grouper param 10 day path
                   return $ ((day , summary)
                            , do
                                plot
@@ -740,14 +762,18 @@ getDForecastDetailedR pathm = do
      toWidgetHead commonCss
      toWidgetHead pivotCss
      [whamlet|
+     <div.well>
+        <form.form.form-inline role=from method=get action="@{DashboardR (DForecastDetailedR pathm)}" enctype="#{encType}">
+              ^{form}
+              <button.btn.btn-default type="submit" value="Submit"> Submit
      <div.panel.panel-primary>
          <div.panel-heading data-toggle=collapse data-target="#dashboard-summary">
            <h2> #{path} Summary
          <div.panel-body.pivot-inline id="dashboard-summary">
-             ^{makeSummaryTable summaries}
+             ^{makeSummaryTable Nothing summaries}
      $forall (name, (_,report)) <- reports
        <div.panel.panel-primary>
-          <div.panel-heading data-toggle=collapse data-target="#dashboard-#{name}">
+          <div.panel-heading id="panel-#{name}" data-toggle=collapse data-target="#dashboard-#{name}">
              <h2> #{name}
           <div.panel-body.pivot-inline.collapse.in.plot-height id="dashboard-#{name}">
             ^{report}

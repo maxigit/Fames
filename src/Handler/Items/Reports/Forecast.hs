@@ -6,6 +6,7 @@ import Items.Types
 import qualified Data.Csv as Csv
 import Handler.CsvUtils
 import Handler.Items.Category.Cache
+import Handler.Items.Common(StockFilter, stockFilterToSqlWithColumn, stockFilterToSql)
 import Items.Internal
 import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
@@ -154,8 +155,8 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _
 -- * Forecast error
 
 -- | Load actual sales for a whole year 
-loadYearOfActualCumulSalesByWeek :: ForecastGrouper key -> Day -> (Day, Day, SqlConduit () (ForMap key UWeeklyQuantity) ())
-loadYearOfActualCumulSalesByWeek grouper start = 
+loadYearOfActualCumulSalesByWeek :: ForecastGrouper key -> StockFilter -> Day -> (Day, Day, SqlConduit () (ForMap key UWeeklyQuantity) ())
+loadYearOfActualCumulSalesByWeek grouper stockFilter start = 
    let -- find first monday >= start
        -- monday = calculateDate (Chain [AddDays 6, BeginningOfWeek Monday]) start
        end = calculateDate (AddDays $ 364) start -- exactly 52 weeks
@@ -165,21 +166,24 @@ loadYearOfActualCumulSalesByWeek grouper start =
            
            in -- traceShow (week'quantitys, v0) $
               (sku, va)
-       source = actualSalesSource grouper start end
+       source = actualSalesSource grouper stockFilter start end
                  .| mapC mkVec
                  .| mapC  (\(sku, quantitys) -> ForMap sku  $ V.postscanl' (+) 0 quantitys)
    in (start, end, source)
 
 -- | load sales from stock moves between the given date (end excluded)
 -- sorted by sku 
-actualSalesSource :: forall key . ForecastGrouper key -> Day -> Day -> SqlConduit () (ForMap key [(Int, Quantity)]) ()
-actualSalesSource grouper start end = do
+actualSalesSource :: forall key . ForecastGrouper key -> StockFilter -> Day -> Day -> SqlConduit () (ForMap key [(Int, Quantity)]) ()
+actualSalesSource grouper stockFilter start end = do
+   let (stockJoinM, stockWhereM, stockParams) = stockFilterToSqlWithColumn "moves.stock_id" stockFilter
    let sql = "SELECT " <> groupKey <> " AS groupKey, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty)" :
            " FROM 0_stock_moves moves " :
            " LEFT JOIN 0_debtor_trans USING(type, trans_no, tran_date) " :
            " LEFT JOIN fames_customer_category_cache AS clearance ON (debtor_no = customer_id AND category = 'clearance') " :
            sqlJoin ?:
+           stockJoinM ?:
            " WHERE type IN ("  : (tshow $ fromEnum ST_CUSTDELIVERY) : ",": (tshow $ fromEnum ST_CUSTCREDIT) : ") " :
+           (fmap (" AND " <>) stockWhereM) ?:
            " AND qty != 0" :
            " AND (clearance.value is null OR clearance.value <> 'Yes' ) " :
            " AND moves.stock_id like 'M%'" :
@@ -202,7 +206,7 @@ actualSalesSource grouper start end = do
                                                     , []
                                                     , Just "JOIN 0_debtors_master USING (debtor_no) "
                                                     )
-       weekSource = rawQuery  (mconcat sql) $ toPersistValue start : joinParams ++ [ toPersistValue start, toPersistValue end] 
+       weekSource = rawQuery  (mconcat sql) $ toPersistValue start : joinParams ++ stockParams ++ [ toPersistValue start, toPersistValue end] 
        --                                     ^^^^^^^^^^^^^^^^^^^
        --                                        |
        --                                        +---- selecting week number
@@ -220,8 +224,8 @@ actualSalesSource grouper start end = do
 
 
 
-loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> Day -> FilePath -> Handler (Map key UWeeklyQuantity)
-loadYearOfForecastCumulByWeek grouper start forecastDir = do
+loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> StockFilter -> Day -> FilePath -> Handler (Map key UWeeklyQuantity)
+loadYearOfForecastCumulByWeek grouper stockFilter start forecastDir = do
   -- load forecast from files
   rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
   skuSpeed <- liftIO $ loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
@@ -234,6 +238,17 @@ loadYearOfForecastCumulByWeek grouper start forecastDir = do
                                          Nothing -> category
                                          Just name -> name
                 CustomerGroup  -> return \cust -> cust
+  -- load filtered object
+  keepSku <- case stockFilterToSql stockFilter of
+               (Nothing, Nothing, _) -> return $ const True
+               (stockJoinM, stockWhereM, params) -> do
+                   let sql = "SELECT stock_id FROM 0_stock_master " <> fromMaybe "" stockJoinM
+                                                                    <> " WHERE "
+                                                                    <> fromMaybe "1" stockWhereM
+                   singles <- runDB $ rawSql sql params
+                   let stockSet = setFromList $ map unSingle singles :: Set Text
+                   return $ \(Sku sku) -> sku `member` stockSet
+                        
   let weekProfiles = fmap expandProfileWeekly rawProfiles
       weekProfiles ::  Map Collection UWeeklyQuantity
       monthWeekly :: [UWeeklyQuantity] 
@@ -250,6 +265,7 @@ loadYearOfForecastCumulByWeek grouper start forecastDir = do
                           
       skuMap = Map.fromListWith vadd [(mkKey . unSku $ ssSku row, weeklyForRow row )
                                      | row <- skuSpeed
+                                     , keepSku (ssSku row)
                                      ]
   return skuMap
   
