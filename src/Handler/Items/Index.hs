@@ -287,13 +287,13 @@ styleQuery IndexParam{..} =
   let selectClause = " SELECT ?? FROM 0_stock_master "
       (where0, p0) = case ipSKU of
           Nothing -> ("", [])
-          Just styleE ->  let (keyw, v) = filterEKeyword styleE
-                              where_ = " stock_id " <> keyw
+          Just styleE ->  let (keyw, v) = filterEKeyword "stock_id" styleE
+                              where_ = " " <> keyw
                           in (where_, v)
       (joinClause, where1 , p1) = case (ipCategory, ipCategoryFilter) of
                        (Just category, Just catFilter) -> let joinClause0 = " JOIN fames_item_category_cache AS category USING (stock_id) "
-                                                              (catw, catv) = filterEKeyword catFilter
-                                                              whereCat = [ "category.category = ? " , " category.value " <> catw ]
+                                                              (catw, catv) = filterEKeyword "category.value" catFilter
+                                                              whereCat = [ "category.category = ? " ,  catw ]
                                                           in (joinClause0, whereCat, (toPersistValue category : catv))
                        _ -> ("", [], [])
       makeWhere [] = ""
@@ -603,8 +603,7 @@ loadSalesPrices param = do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
             <> " WHERE curr_abrev = 'GBP' AND " <> stockF <> inactive
             <> " ORDER BY stock_id"
-           (fKeyword, p) = filterEKeyword styleF
-           stockF = "stock_id " <> fKeyword
+           (stockF, p) = filterEKeyword "stock_id" styleF
            inactive = case ipShowInactive param of
                         ShowActive -> " AND inactive = 0"
                         ShowInactive -> " AND inactive = 1"
@@ -648,8 +647,7 @@ loadPurchasePrices param = do
        let sql = "SELECT ?? FROM 0_purch_data JOIN 0_stock_master USING(stock_id)"
             <> " WHERE " <> stockF <> inactive
             <> " ORDER BY stock_id"
-           (fKeyword, p) = filterEKeyword styleF
-           stockF = "stock_id " <> fKeyword
+           (stockF, p) = filterEKeyword "stock_id" styleF
            inactive = case ipShowInactive param of
                         ShowActive -> " AND inactive = 0"
                         ShowInactive -> " AND inactive = 1"

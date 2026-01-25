@@ -262,8 +262,8 @@ loadStockMasterRuleInfos stockFilter = do
             <> "left join 0_dimensions as dim2 on (sm.dimension2_id = dim2.id) "
             <> "left join 0_stock_category as cat on (sm.category_id = cat.category_id) "
             <> "left join 0_prices as sales on (sm.stock_id = sales.stock_id AND sales.sales_type_id =?) "
-            <> "where sm.stock_id "<> keyw
-      (keyw, p) = filterEKeyword stockFilter
+            <> "where "<> keyw
+      (keyw, p) = filterEKeyword "sm.stock_id" stockFilter
 
   runDB $ rawSql sql (toPersistValue base : p)
 
@@ -719,9 +719,9 @@ loadFAStatus param showInactive = do
               <> "            FROM 0_purch_order_details "
               <> "            GROUP BY stock_id"
               <> "           ) on_order USING (stock_id)"
-              <> " WHERE stock_id " <> fKeyword
+              <> " WHERE " <> fKeyword
               <> inactive
-          (fKeyword, p) = filterEKeyword styleF
+          (fKeyword, p) = filterEKeyword "stock_id" styleF
           inactive = case showInactive of
                         ShowActive -> " AND inactive = 0"
                         ShowInactive -> " AND inactive = 1"

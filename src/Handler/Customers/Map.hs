@@ -135,8 +135,8 @@ loadCustomerMarkers from skuFilterM = do
           []
       (skuFilter, skup) = case skuFilterM of
                             Nothing -> ("", [])
-                            Just f -> let (e, p) = filterEKeyword  f
-                                      in ("AND stock_id " <> e, p)
+                            Just f -> let (e, p) = filterEKeyword  "stock_id" f
+                                      in ("AND " <> e, p)
       params = toPersistValue stockLike: toPersistValue from: skup
   sales <- runDB $ rawSql sql params 
   case sales of

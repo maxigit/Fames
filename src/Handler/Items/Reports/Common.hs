@@ -24,6 +24,14 @@ import Formatting hiding(base)
 import Data.Monoid(Sum(..), First(..))
 
 -- * Param 
+data StockFilter = StockFilter { sfSku :: Maybe FilterExpression
+                               , sfCategory :: Maybe (Text, FilterExpression)
+                               --                    ^^^^^  ^^^^^^^^^^^^^^^^
+                               --                      |           |
+                               --                      |           +--- value filter 
+                               --                      |
+                               --                      +---------------  category
+                               }
 data ReportParam = ReportParam
   { rpToday :: Day -- today
   , rpDeduceTax :: Bool 
@@ -210,6 +218,10 @@ data RunSum = RunSum | RunSumBack | RSNormal deriving Show
 
 data TraceType = Line | LineMarker | Smooth | SmoothMarker | Bar | Hv
   deriving (Show, Eq, Ord, Enum, Bounded )
+
+-- ** Util
+mkStockFilter :: Maybe FilterExpression -> Maybe Text -> Maybe FilterExpression -> StockFilter
+mkStockFilter skum catm catFilterM = StockFilter skum ((,) <$> catm <*> catFilterM)
 
 -- ** Default  style 
 amountStyle 3 = smoothStyle AmountAxis
@@ -696,11 +708,39 @@ paramToDateIntervals param =
 toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
 toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
   
+stockFilterToSql :: StockFilter -> (Maybe Text, Maybe Text, [PersistValue ])
+--                                  ^^^^              ^^^^  ^^^^^^^^^^^^^
+--                                    |                 |        |
+--                                    |                 |        +-- parameters
+--                                    |                 +----------- where clause
+--                                    +----------------------------- join
+--                                  
+stockFilterToSql StockFilter{..} = ( join
+                                   , whereM
+                                   , concat params
+                                   ) where
+   join = case sfCategory of
+            Just _ -> Just " JOIN fames_item_category_cache AS filtered_category USING (stock_id) "
+            Nothing -> Nothing
+   (wheres, params) = unzip
+                    $ catMaybes [ flip fmap sfSku (filterEKeyword  "stock_id")
+                               , flip fmap  sfCategory \(cat, e) -> let (sql, params) = filterEKeyword "filtered_category.value" e
+                                                                   in ("filtered_category.category = ? AND " <> sql
+                                                                      , toPersistValue cat : params
+                                                                      )
+                               ]
+   whereM = case wheres of 
+                [] -> Nothing 
+                _ -> Just $ intercalate " AND " $ map (\t -> " ( " <> t <> " ) " ) wheres
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
-  let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
+  let (stockJoin, stockWhere, stockParams) = stockFilterToSql 
+                                           $ mkStockFilter ( rpStockFilter param)
+                                                           ( rpCategoryToFilter param )
+                                                           ( rpCategoryFilter param )
+
   let sqlSelect = "SELECT ??, 0_debtor_trans.tran_date, 0_debtor_trans.debtor_no, 0_debtor_trans.branch_code, 0_debtor_trans.order_, loc_code"
   let sql0 = intercalate " " $
           " FROM 0_debtor_trans_details " :
@@ -708,7 +748,7 @@ loadItemSales param = do
           "                    AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
           (if rpShowInactive param then "" else "JOIN 0_stock_master USING (stock_id)") :
           " JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
-          (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
+          (fromMaybe "" stockJoin ) :
           "WHERE type IN ("  :
           (tshow $ fromEnum ST_CUSTDELIVERY) :
           ",":
@@ -718,21 +758,11 @@ loadItemSales param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id "<>keyw<>" ", v)
-                                               )) ?:
-                                (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
-
-                       case catFilterM of
-                            Nothing -> []
-                            Just (catToFilter, catFilter) ->
-                                 let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw, v)
-                                    , (" AND category.category = ? ", [PersistText catToFilter])
-                                    ]
-                       <> toT'Ps (generateTranDateIntervals param)
+      (w,concat -> p) = unzip $ (if rpShowInactive param then Nothing else Just (" AND inactive = False ", []))
+                                ?: (fmap (\w -> (" AND " <> w, stockParams)) stockWhere )
+                                ?: toT'Ps (generateTranDateIntervals param)
         
-      sql = sql0 <> intercalate " " w
+      sql = sql0 <> intercalate " "  w
   sales <- runDB $ rawSql (sqlSelect <> sql) p
   orderCategoryMap <- if rpLoadOrderInfo param
                       then loadOrderCategoriesFor "0_debtor_trans.order_ " sql p
@@ -770,15 +800,15 @@ loadItemOrders param io orderDateColumn qtyMode = do
           "AND quantity != 0" :
           ("AND stk_code LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           []
-      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stk_code " <> keyw, v)
+      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stk_code" e
+                                                      in (" AND " <> keyw, v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
-                                 let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw, v)
+                                 let (keyw, v) = filterEKeyword "category.value" catFilter
+                                 in [ (" AND " <> keyw, v)
                                     , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
                        <> toT'Ps (generateDateCondition orderDateField param)
@@ -819,15 +849,15 @@ loadItemPurchases param0 = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw, v)
+      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
+                                                      in (" AND  " <> keyw, v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
-                                 let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw, v)
+                                 let (keyw, v) = filterEKeyword "category.value" catFilter
+                                 in [ (" AND " <> keyw, v)
                                     , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
                        <> toT'Ps (generateTranDateIntervals param)
@@ -851,15 +881,15 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
             OQuantityLeft -> "AND quantity_received != quantity_ordered"
         ) :
         []
-      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                  in (" AND item_code " <> keyw, v)
+      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "item_code" e
+                                                  in (" AND  " <> keyw, v)
                                                  )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                         case catFilterM of
                           Nothing -> []
                           Just (catToFilter, catFilter) ->
-                                  let (keyw, v) = filterEKeyword catFilter
-                                  in [ (" AND category.value " <> keyw, v)
+                                  let (keyw, v) = filterEKeyword "category.value" catFilter
+                                  in [ (" AND " <> keyw, v)
                                      , (" AND category.category = ? ", [PersistText catToFilter])
                                      ]
                         <> toT'Ps (generateDateCondition dateField param)
@@ -888,15 +918,15 @@ loadStockAdjustments infoMap param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : 
           []
 
-      (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw, v)
+      (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
+                                                      in (" AND " <> keyw, v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
-                                 let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw, v)
+                                 let (keyw, v) = filterEKeyword "category.value" catFilter
+                                 in [ (" AND  " <> keyw, v)
                                     , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
                        <> toT'Ps (generateTranDateIntervals param)
@@ -924,15 +954,15 @@ loadUpComingContainer infoMap param = do
              ("AND stock_id LIKE '" <> stockLike <> "'") : 
              []
 
-         (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                          in (" AND stock_id " <> keyw, v)
+         (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
+                                                          in (" AND " <> keyw, v)
                                                    )) ?:
                                     (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                            case catFilterM of
                                 Nothing -> []
                                 Just (catToFilter, catFilter) ->
-                                     let (keyw, v) = filterEKeyword catFilter
-                                     in [ (" AND category.value " <> keyw, v)
+                                     let (keyw, v) = filterEKeyword "category.value" catFilter
+                                     in [ (" AND  " <> keyw, v)
                                         , (" AND category.category = ? ", [PersistText catToFilter])
                                         ]
                            <> toT'Ps (generateTranDateIntervals param { rpFrom = Nothing } )
@@ -991,15 +1021,15 @@ loadStockInfo param = do
           (" WHERE sm.stock_id LIKE '" <> stockLike <> "' and inactive = 0") : 
           []
       order = " ORDER BY sm.stock_id " 
-      (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND sm.stock_id " <> keyw, v)
+      (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "sm.stock_id" e
+                                                      in (" AND  " <> keyw, v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
-                                 let (keyw, v) = filterEKeyword catFilter
-                                 in [ (" AND category.value " <> keyw, v)
+                                 let (keyw, v) = filterEKeyword "category.value" catFilter
+                                 in [ (" AND " <> keyw, v)
                                     , (" AND category.category = ? ", [PersistText catToFilter])
                                     ]
       qoh = "SELECT stock_id, SUM(qty) as qty FROM 0_stock_moves WHERE tran_date < ? AND loc_code = ? GROUP BY stock_id"

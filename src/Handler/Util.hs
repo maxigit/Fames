@@ -458,7 +458,10 @@ a <-?. list  =   [a <-. list]
 -- In statements starts with ',' .,a,b,c
 --                     or '|'   |a|b
 -- or contains a new lines, in that case only, everything after the first space of each line will be ignored
-data FilterExpression = LikeFilter Text  | RegexFilter Text | InFilter Char [Text] deriving (Eq, Show)
+data FilterExpression = LikeFilter Text 
+                      | RegexFilter Text
+                      | InFilter Char [Text] -- ^ separotors list
+     deriving (Eq, Show)
 showFilterExpression :: FilterExpression -> Text
 showFilterExpression (LikeFilter t) = t
 showFilterExpression (RegexFilter t) = "/" <> t
@@ -510,10 +513,12 @@ filterE conv field (Just (InFilter _ elements)) =
   ]
   
 -- | SQL keyword.
-filterEKeyword ::  FilterExpression -> (Text, [PersistValue])
-filterEKeyword (LikeFilter f) = ("LIKE ?", [toPersistValue f])
-filterEKeyword (RegexFilter f) = ("RLIKE ?", [toPersistValue f])
-filterEKeyword (InFilter _ xs) = ("IN (" <> ( intercalate ", " (Data.List.replicate (length xs) "?")) <> ")", map toPersistValue xs)
+filterEKeyword ::  Text -> FilterExpression -> (Text, [PersistValue])
+filterEKeyword field e = first (\sql -> "( " <> sql <> " )") go where 
+   go = case e of 
+            LikeFilter f -> (field <> " LIKE ?", [toPersistValue f])
+            RegexFilter f ->  (field <> " RLIKE ?", [toPersistValue f])
+            InFilter _ xs -> (field <> " IN (" <> ( intercalate ", " (Data.List.replicate (length xs) "?")) <> ")", map toPersistValue xs)
 
 filterEAddWildcardRight :: FilterExpression -> FilterExpression
 filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")

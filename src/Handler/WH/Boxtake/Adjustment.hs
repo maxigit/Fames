@@ -269,9 +269,9 @@ loadQohForAdjustment param =
                  <> " FROM fames_item_category_cache "
                  <> " JOIN 0_denorm_qoh USING (stock_id)"
                  <> " WHERE loc_code = ? AND category = 'style' AND quantity != 0 "
-              (w,p) = case filterEKeyword <$> aStyleFilter param of
+              (w,p) = case filterEKeyword "value" <$> aStyleFilter param of
                 Nothing -> ("",  [] )
-                Just (keyword, v) -> (" AND value " <> keyword, v)
+                Just (keyword, v) -> (" AND " <> keyword, v)
            in (sql <> w, p) 
         Just today ->  
           -- use stock moves table, slower
@@ -281,9 +281,9 @@ loadQohForAdjustment param =
                  <> " WHERE loc_code = ? AND category = 'style' "
               after = " AND tran_date <= ? "
                     <> " GROUP BY stock_id HAVING quantity != 0 "
-              (w,p) = case filterEKeyword <$> aStyleFilter param of
+              (w,p) = case filterEKeyword "value" <$> aStyleFilter param of
                 Nothing -> ("",  [] )
-                Just (keyword, v) -> (" AND value " <> keyword, v)
+                Just (keyword, v) -> (" AND " <> keyword, v)
           in (sql <> w <> after, p ++ [toPersistValue today] )
       convert :: (Single Text, Single (Text), Single Double) -> (Style, (Sku, Double))
       convert (Single style, Single sku, Single quantity) = (Style style, (Sku sku, quantity))
@@ -304,9 +304,9 @@ loadLastStocktake param =
                          Nothing -> ("", "", [])
                          Just today -> ("  AND tran_date <= ? ", " WHERE date <= ? ", [ toPersistValue today ])
         groupB =  " GROUP BY stock_id HAVING quantity != 0 "
-        (w,p) = case filterEKeyword <$> aStyleFilter param of
+        (w,p) = case filterEKeyword "value" <$> aStyleFilter param of
           Nothing -> ("",  [] )
-          Just (keyword, v) -> (" AND value " <> keyword, v)
+          Just (keyword, v) -> (" AND " <> keyword, v)
         stSql  = " SELECT stock_id, MAX(st.date) as last_date "
                <> " FROM fames_stocktake st "  
                <> " JOIN fames_boxtake using(barcode) "
