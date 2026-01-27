@@ -176,7 +176,7 @@ loadYearOfActualCumulSalesByWeek grouper stockFilter start =
 actualSalesSource :: forall key . ForecastGrouper key -> StockFilter -> Day -> Day -> SqlConduit () (ForMap key [(Int, Quantity)]) ()
 actualSalesSource grouper stockFilter start end = do
    let (stockJoinM, stockWhereM, stockParams) = stockFilterToSqlWithColumn "moves.stock_id" stockFilter
-   let sql = "SELECT " <> groupKey <> " AS groupKey, (MIN(TO_DAYS(tran_date)) - TO_DAYS(?))/7 AS days, -sum(qty)" :
+   let sql = "SELECT " <> groupKey <> " AS groupKey, LEAST(51, (TO_DAYS(tran_date) - TO_DAYS(?)) DIV 7) AS days, -sum(qty)" :
            " FROM 0_stock_moves moves " :
            " LEFT JOIN 0_debtor_trans USING(type, trans_no, tran_date) " :
            " LEFT JOIN fames_customer_category_cache AS clearance ON (debtor_no = customer_id AND category = 'clearance') " :
@@ -189,9 +189,9 @@ actualSalesSource grouper stockFilter start end = do
            " AND moves.stock_id like 'M%'" :
            -- " AND stock_id like 'ML17-FD7-NAY'" :
            -- " AND stock_id like 'ML13-AD1-IVY'" :
-           " AND tran_date >= ? AND tran_date < ? " :
-           " GROUP BY groupKey, YEARWEEK(tran_date,5) " :
-           " order BY groupKey, YEARWEEK(tran_date,5) " :
+           " AND tran_date >= ? AND tran_date <= ? " :
+           " GROUP BY groupKey, days " :
+           " order BY groupKey, days " :
            []
        (groupKey, joinParams, sqlJoin) = case grouper of 
                                    SkuGroup -> ("moves.stock_id"
