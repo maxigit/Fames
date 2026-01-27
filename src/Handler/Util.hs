@@ -106,9 +106,10 @@ import Text.Read(readPrec)
 -- import Data.IOData (IOData)
 import Database.Persist.MySQL(unSqlBackendKey)
 import System.Directory(listDirectory, doesDirectoryExist)
-import Data.Char(isUpper, isSpace)
+import Data.Char(isUpper)
 import qualified Data.List.Split as Split 
 import Data.Aeson(encode)
+import Data.List.NonEmpty (NonEmpty(..))
 
 -- * Display entities 
 -- | Display Persist entities as paginated table
@@ -460,22 +461,42 @@ a <-?. list  =   [a <-. list]
 -- or contains a new lines, in that case only, everything after the first space of each line will be ignored
 data FilterExpression = LikeFilter Text 
                       | RegexFilter Text
+                      | NotLikeFilter Text
+                      | NotRegexFilter Text
                       | InFilter Char [Text] -- ^ separotors list
+                      | Filters (NonEmpty FilterExpression)
      deriving (Eq, Show)
 showFilterExpression :: FilterExpression -> Text
 showFilterExpression (LikeFilter t) = t
 showFilterExpression (RegexFilter t) = "/" <> t
+showFilterExpression (NotLikeFilter t) = "-" <> t
+showFilterExpression (NotRegexFilter t) = "!" <> t
 showFilterExpression (InFilter sep ts) = concat $ sep' : intersperse sep' ts
   where sep' = T.singleton sep
+showFilterExpression (Filters es) = unlines $ map showFilterExpression (toList es)
 
 readFilterExpression :: Text -> FilterExpression
-readFilterExpression  t = case uncons  t of
-  Just ('/', regex) -> RegexFilter regex
-  Just (sep, textlist) | sep `elem` (",|"  :: String) -> InFilter sep (filter (not . null) $ T.splitOn (T.singleton sep) textlist)
-  _ -> case T.lines t of
-             [_] -> LikeFilter t
-             lines -> InFilter '\n' (filter (not . null) $ map firstColumn lines)
-  where firstColumn =  fst . T.break isSpace
+readFilterExpression  t = let 
+  exprs = map parseLine $ map T.strip $ T.lines t
+  in case filter (not . nullExpression) exprs of 
+       [] -> InFilter ',' []
+       [exp] -> exp
+       (e: es) -> Filters (e :| es)
+  where parseLine l = case uncons l  of
+                  Just ('/', regex) -> RegexFilter regex
+                  Just ('!', regex) -> NotRegexFilter regex
+                  Just ('-', like) -> NotLikeFilter like
+                  Just (sep, textlist) | sep `elem` (",|"  :: String) -> InFilter sep (filter (not . null) $ T.splitOn (T.singleton sep) textlist)
+                  Just _ -> LikeFilter l
+                  Nothing -> InFilter ',' []
+        nullExpression e = case e of 
+                             InFilter _ [] -> True
+                             _ -> False
+
+filterExpressionIsNot :: FilterExpression -> Bool
+filterExpressionIsNot (NotLikeFilter _ ) = True
+filterExpressionIsNot (NotRegexFilter _ ) = True
+filterExpressionIsNot _ = False
 
 
 instance IsString FilterExpression where
@@ -496,34 +517,68 @@ filterE :: PersistField a =>
         -> Maybe FilterExpression
         -> [Filter record]
 filterE _ _ Nothing = []
+filterE _ _ (Just (InFilter _ [])) = []
 filterE conv field (Just (LikeFilter like)) = 
   [ Filter field
          (FilterValue $ conv like)
          (BackendSpecificFilter "LIKE")
+  ]
+filterE conv field (Just (NotLikeFilter like)) = 
+  [ Filter field
+         (FilterValue $ conv like)
+         (BackendSpecificFilter "NOT LIKE")
   ]
 filterE conv field (Just (RegexFilter regex)) =
   [ Filter field
          (FilterValue $ conv regex)
          (BackendSpecificFilter "RLIKE")
   ]
+filterE conv field (Just (NotRegexFilter regex)) =
+  [ Filter field
+         (FilterValue $ conv regex)
+         (BackendSpecificFilter "NOT RLIKE")
+  ]
 filterE conv field (Just (InFilter _ elements)) =
   [ Filter field
            (FilterValues $ map conv elements) 
            (In)
   ]
+filterE conv field (Just (Filters es)) = let
+  (nots, ors) = partition filterExpressionIsNot $ toList es
+  mk = concatMap (filterE conv field . Just )
+  in mk nots <> case ors of 
+             [] -> [] 
+             _ -> [ FilterOr $ mk ors ]
+  
+
   
 -- | SQL keyword.
 filterEKeyword ::  Text -> FilterExpression -> (Text, [PersistValue])
 filterEKeyword field e = first (\sql -> "( " <> sql <> " )") go where 
    go = case e of 
             LikeFilter f -> (field <> " LIKE ?", [toPersistValue f])
+            NotLikeFilter f -> (field <> " NOT LIKE ?", [toPersistValue f])
             RegexFilter f ->  (field <> " RLIKE ?", [toPersistValue f])
+            NotRegexFilter f ->  (field <> " NOT RLIKE ?", [toPersistValue f])
             InFilter _ xs -> (field <> " IN (" <> ( intercalate ", " (Data.List.replicate (length xs) "?")) <> ")", map toPersistValue xs)
+            Filters fs -> let (nots , ors) = partition filterExpressionIsNot $ toList fs
+                              (notSqls, notParams)   = unzip $ map (filterEKeyword field) nots
+                              (orSqls, orParams)   = unzip $ map (filterEKeyword field) ors
+                              orSql = case orSqls of
+                                      [] -> []
+                                      _ -> [ "( " <>  intercalate " OR " orSqls <> " )" ]
+                          in (intercalate "  AND  " (orSql <> notSqls )
+                             , concat $ orParams <> notParams
+                             )
+                        
 
 filterEAddWildcardRight :: FilterExpression -> FilterExpression
 filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")
 filterEAddWildcardRight (RegexFilter f) = RegexFilter (f<>"*")
+filterEAddWildcardRight (NotLikeFilter f) = LikeFilter (f<>"%")
+filterEAddWildcardRight (NotRegexFilter f) = RegexFilter (f<>"*")
 filterEAddWildcardRight f@(InFilter _ _) = f
+filterEAddWildcardRight (Filters fs) = Filters (map filterEAddWildcardRight fs)
 -- * Badges 
 badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe Text -> Text -> Html
 badgeSpan badgeWidth qty bgM klass = do
