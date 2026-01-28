@@ -24,6 +24,7 @@ import Data.Aeson.QQ(aesonQQ)
 import Control.Monad.Fail (MonadFail(..))
 import System.FilePath.Glob (glob)
 import System.FilePath (takeBaseName)
+import System.Directory  
 import Network.Wai(rawQueryString)
 
 pivotCss = [cassius|
@@ -670,24 +671,42 @@ collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = le
                         |]
   in [(columns, mapFromList rankMap )]
   
-forecastForm ForecastParam{..}= renderBootstrap3 BootstrapBasicForm form where
-    form = ForecastParam
-               <$> (fmap unpack <$> aopt textField "Subdirectory" (Just (fmap pack fpSubdirectory)))
+forecastForm :: Bool -> ForecastParam -> Html -> MForm Handler (FormResult ForecastParam, Widget)
+forecastForm showSubdir ForecastParam{..} html = do
+    settings <- getsYesod appSettings 
+    subdirs <- liftIO do
+               let dir = appForecastProfilesDir settings
+               entries <- listDirectory dir
+
+               filterM (doesDirectoryExist . (dir </>))  entries
+    let (toSubdir, subdirField) = if showSubdir
+                      then  (id, selectFieldList [(pack @Text d, d) | d <- subdirs ] )
+                      else let go subdirMN = do -- Maybe
+                                subdirN <- subdirMN
+                                n <- readMay subdirN
+                                headMay $ drop (n-1 :: Int) subdirs
+                           in (go , hiddenField)
+    let form = ForecastParam
+               <$> (fmap toSubdir $ aopt subdirField "Subdirectory"  (Just (fmap pack fpSubdirectory)))
                <*> (areq  (selectField optionsEnum) "Novelty mode" (Just fpNoveltyMode))
                <*> (aopt filterEField "SKU" (Just fpStockFilter))
+    renderBootstrap3 BootstrapBasicForm form html
 
 
 getDForecastR :: Handler Html
 getDForecastR = do
   settings <- getsYesod appSettings
-  ((resp, form), encType) <- runFormGet $ forecastForm  defaultForecastParam
+  ((resp, form), encType) <- runFormGet $ forecastForm True defaultForecastParam
   reqParams <- rawQueryString <$> waiRequest
   let param = case resp of
                    FormSuccess p -> p
                    _ -> defaultForecastParam
      
   -- load all available forecasts
-  dirs <- liftIO $ glob (appForecastProfilesDir settings </> "????-??-??*")
+  dirs <- liftIO $ glob $ ( case fpSubdirectory param of 
+                              Nothing -> appForecastProfilesDir settings
+                              Just p -> appForecastProfilesDir settings </> p 
+                              ) </> "????-??-??*"
   let day'paths = [ (Down day, path)
                   | path <- dirs
                   , day <- maybeToList $ forecastPathToDay $ takeBaseName path
@@ -720,7 +739,7 @@ getDForecastR = do
 getDForecastDetailedR:: Maybe Text -> Handler Html
 getDForecastDetailedR pathm = do
   settings <- getsYesod appSettings
-  ((resp, form), encType) <- runFormGet $ forecastForm  defaultForecastParam
+  ((resp, form), encType) <- runFormGet $ forecastForm False defaultForecastParam
   let param = case resp of
                    FormSuccess p -> p
                    _ -> defaultForecastParam
