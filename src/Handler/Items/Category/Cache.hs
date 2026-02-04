@@ -556,6 +556,7 @@ loadDebtorsMasterRuleInfos = do
               <> " , SUBSTRING_INDEX(GROUP_CONCAT(reference order by ord_date), ',', 1) AS first_ord_ref"
               <> " , SUBSTRING_INDEX(GROUP_CONCAT(reference order by ord_date desc), ',', 1) AS last_ord_ref"
               <> " from 0_sales_orders"
+              <> " where trans_type = " <> tshow (fromEnum ST_SALESORDER)
               <> " group by debtor_no"
       decode (debtorId , (Single name, Single note, Single taxCode, Single currency)
               , dims, firstOrder, lastOrder
@@ -563,7 +564,6 @@ loadDebtorsMasterRuleInfos = do
                               , Single . unpack . decodeHtmlEntities $ pack note, Single taxCode, Single currency)
               , dims, firstOrder, lastOrder
               )
-
   infos <- runDB $ rawSql sql []
   return $ map decode infos
 
