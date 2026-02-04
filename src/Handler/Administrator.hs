@@ -247,15 +247,7 @@ getACustomerCategoryR = do
 {-# NOINLINE getAResetOrderCategoryCacheR #-}
 getAResetOrderCategoryCacheR :: Handler Html
 getAResetOrderCategoryCacheR = do
-  Cache.refreshOrderCategoryCache (Just 1000)
-  setSuccess ("Order category cache sucessfully refreshed")
-  getAOrderCategoryR
-
--- | Computes the categories for ALL orders 
-{-# NOINLINE getAResetAllOrderCategoryCacheR #-}
-getAResetAllOrderCategoryCacheR :: Handler Html
-getAResetAllOrderCategoryCacheR = do
-  Cache.refreshOrderCategoryCache Nothing
+  Cache.refreshOrderCategoryCache
   setSuccess ("Order category cache sucessfully refreshed")
   getAOrderCategoryR
 
@@ -264,7 +256,7 @@ getAResetAllOrderCategoryCacheR = do
 {-# NOINLINE getAComputeNewOrderCategoryCacheR #-}
 getAComputeNewOrderCategoryCacheR :: Handler Html
 getAComputeNewOrderCategoryCacheR = do
-  Cache.refreshNewOrderCategoryCache (Just 1000)
+  Cache.refreshNewOrderCategoryCache
   setSuccess ("New Order category cache sucessfully computed")
   getAOrderCategoryR
 
@@ -288,7 +280,6 @@ getAOrderCategoryR = do
 <div.well>
   <a href=@{AdministratorR AResetOrderCategoryCacheR}>Reset Order Categories
   <a href=@{AdministratorR AComputeNewOrderCategoryCacheR}>Compute New Order Categories
-  <a href=@{AdministratorR AResetAllOrderCategoryCacheR}>Reset ALL Order Categories
 |]
 
 displayOrderCategorySummary :: Handler Widget
@@ -312,7 +303,7 @@ displayOrderCategorySummary = do
 -- find how many order have not been categoried
 displayPendingOrderCategory :: Handler Widget
 displayPendingOrderCategory = runDB $ do
-   [Single orderNb] <- rawSql "SELECT count(*) from 0_sales_orders" []
+   [Single orderNb] <- rawSql "SELECT count(*) from 0_sales_orders where trans_type = ? "  [toPersistValue ST_SALESORDER]
    [Single catNb] <- rawSql "SELECT count(distinct order_id) from fames_order_category_cache" []
    let leftOver = orderNb - catNb :: Int
    when (leftOver > 0) $ do

@@ -36,6 +36,7 @@ import Text.Printf(printf)
 import Data.Time (diffDays)
 import Items.Types
 import Items.Internal (faRunningStatus)
+import Data.Conduit.List (chunksOf)
 import qualified GHC.Exts as List
 {-# NOINLINE  categoryFinderCached #-}
 {-# NOINLINE  categoryFinderCachedFor #-}
@@ -621,23 +622,28 @@ customerCategoriesFor rules = let
 
 -- * Order Category caches 
 -- | Clears all order categories and computes the n first if given
-refreshOrderCategoryCache :: Maybe Int -> Handler ()
-refreshOrderCategoryCache nM = do
+refreshOrderCategoryCache :: Handler ()
+refreshOrderCategoryCache = do
   runDB $ deleteWhere ([] :: [Filter OrderCategory])
-  refreshNewOrderCategoryCache nM
+  refreshNewOrderCategoryCache
 
 -- | Computes Order category and cache them
-refreshNewOrderCategoryCache :: Maybe Int -> Handler ()
-refreshNewOrderCategoryCache nM = runDB $ do
+refreshNewOrderCategoryCache :: Handler ()
+refreshNewOrderCategoryCache = runDB $ do
   rulesMap <- appOrderCategoryRules <$> getsYesod appSettings
   -- find last order with a category
   [(Single lastOrderM)] <- rawSql "SELECT max(order_id) FROM fames_order_category_cache" []
-  orders <- selectList ( (FA.SalesOrderTransType ==. fromEnum ST_SALESORDER)
-                       : maybe [] (return . (FA.SalesOrderOrderNo >.)) lastOrderM
-                       ) (Asc FA.SalesOrderOrderNo : (maybe [] (return . LimitTo) nM))
-  let orderCategories = concatMap (orderCategoriesFor rules) orders
+  let ordersSource = selectSource ( (FA.SalesOrderTransType ==. fromEnum ST_SALESORDER)
+                                  : maybe [] (return . (FA.SalesOrderOrderNo >.)) lastOrderM
+                                  )
+                                  []
+  let orderCategories orders = concatMap (orderCategoriesFor rules) orders
       rules = map (first unpack) $ concatMap mapToList rulesMap
-  insertMany_ orderCategories
+  runConduit $ 
+      ordersSource
+      .| chunksOf 200
+      .| mapC orderCategories
+      .| mapM_C insertMany_
   
 orderCategoriesFor :: [(String, (OrderCategoryRule))] -> Entity FA.SalesOrder -> [OrderCategory]
 orderCategoriesFor rules = let
