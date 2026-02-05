@@ -703,9 +703,10 @@ loadFAStatus param showInactive = do
       let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(all_qoh, 0)"
               <> " , COALESCE(on_demand, 0), COALESCE(all_on_demand, 0) "
               <> " , COALESCE(on_order,0) "
-              <> " , ordered, demanded "
+              <> " , ordered, demanded, moved "
               <> " FROM 0_stock_master  "
               <> " LEFT  JOIN (SELECT stock_id, SUM(qty*stock_weight) as qoh, SUM(qty) as all_qoh"
+              <> "                    , 1 AS moved "
               <> "       FROM 0_stock_moves JOIN 0_locations USING(loc_code) "
               <> "       GROUP BY stock_id"
               <> "      ) qoh USING(stock_id)"
@@ -736,9 +737,9 @@ loadFAStatus param showInactive = do
       return [ (sku, status)
              | (Single sku, Single qoh, Single allQoh
                , Single onDemand, Single allOnDemand, Single onOrder
-               , Single ordered, Single demanded
+               , Single ordered, Single demanded, Single moved 
                ) <- rows
-             , let used = (demanded <|> ordered) == Just True
+             , let used = (demanded <|> ordered <|> moved ) == Just True
              , let status = ItemStatusF (pure qoh) (pure allQoh)
                                        (pure onDemand) (pure allOnDemand)
                                        (pure onOrder)
