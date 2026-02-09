@@ -331,7 +331,7 @@ data Axis = PriceAxis | AmountAxis | CumulAmountAxis | QuantityAxis | CumulQuant
 -- The key holds an optional rank part, which allows to the Map to be sorted
 -- by something different from the actual key.
 -- If the rank is present, we ignore the key
-data NMapKey = NMapKey {nkKey :: PersistValue
+newtype NMapKey = NMapKey {nkKey :: PersistValue
                        } deriving (Show, Eq, Ord)
 
 
