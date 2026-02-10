@@ -1,7 +1,6 @@
 module Handler.Items.Reports.NewForecast  (
 plotForecastError
 , getPlotForecastError
-, vadd, vmul, vsub, vdiv
 , forecastPathToDay
 , ForecastSummary(..)
 , averageForecastSummary
@@ -18,7 +17,7 @@ import Handler.Items.Reports.Forecast
 import Handler.Items.Common(mkStockFilter)
 import Items.Types
 import Data.Conduit.List (mapMaybe)
-import qualified Data.Vector.Generic as V
+import qualified Data.Vector.Generic.Sized as V
 import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
 import GL.Utils
@@ -28,7 +27,7 @@ import Data.Time.Calendar (diffDays)
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
 
-data WithError = WithError { forecastCumul, overError, underError :: UWeeklyQuantity }
+data WithError = WithError { forecastCumul, overError, underError :: U53Weeks Quantity }
    deriving (Show)
 
 data NoveltyMode = ExcludeNovelty | IncludeNovelty | NoveltyOnly
@@ -45,22 +44,22 @@ defaultForecastParam = ForecastParam{..} where
     fpNoveltyMode = IncludeNovelty
     fpStockFilter = Nothing
 
-totalError :: WithError -> UWeeklyQuantity
-totalError w = overError w `vadd` underError w
+totalError :: WithError -> U53Weeks Quantity
+totalError w = overError w + underError w
 
 instance Semigroup WithError where 
-  (WithError c o u) <> (WithError c' o' u') = WithError (c `vadd` c')
-                                                        (o `vadd` o')
-                                                        (u `vadd` u')
+  (WithError c o u) <> (WithError c' o' u') = WithError (c + c')
+                                                        (o + o')
+                                                        (u + u')
 instance Monoid WithError where
-   mempty = WithError v0 v0 v0 where v0 = V.replicate 52 0
+   mempty = WithError 0 0 0
       
 
 data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPercent, naivePercent, aes, trendPercent :: Double }
    deriving (Show)
    
 data WeeklySalesWithForecastErrors = 
-     WeeklySalesWithForecastErrors { wsSales :: UWeeklyQuantity
+     WeeklySalesWithForecastErrors { wsSales :: U53Weeks Quantity
                                    , wsNaiveError :: WithError
                                    , wsForecast :: WithError
                                    }
@@ -68,15 +67,15 @@ data WeeklySalesWithForecastErrors =
      
 instance Semigroup WeeklySalesWithForecastErrors where
   (WeeklySalesWithForecastErrors sales naive forecast) <>  (WeeklySalesWithForecastErrors sales' naive' forecast') =
-    WeeklySalesWithForecastErrors (sales `vadd` sales')
+    WeeklySalesWithForecastErrors (sales + sales')
                                   (naive <> naive')
                                   (forecast <> forecast')
                                   
 instance Monoid WeeklySalesWithForecastErrors where
-    mempty = WeeklySalesWithForecastErrors (V.replicate 52 0)  mempty mempty
+    mempty = WeeklySalesWithForecastErrors 0  mempty mempty
 
 
-plotForecastError ::  Text -> Day -> Day -> UWeeklyQuantity -> WithError -> WithError -> Widget
+plotForecastError ::  Text -> Day -> Day -> U53Weeks Quantity -> WithError -> WithError -> Widget
 plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals naiveForecast previousForecast currentForecast = do
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
        WithError forecasts0 forecastOvers0 forecastUnders0 = forecastF
@@ -86,10 +85,10 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                       before -> before
        adjust v =  v -- V.map (\x -> 100 * x / maxActual) v
        -- maxActual = V.last actuals0
-       naiveOversY = actuals `vadd` naiveOvers
-       naiveUndersY = actuals `vsub` naiveUnders
-       forecastOversY = actuals `vadd` forecastOvers
-       forecastUndersY = actuals `vsub` forecastUnders
+       naiveOversY = actuals + naiveOvers
+       naiveUndersY = actuals - naiveUnders
+       forecastOversY = actuals + forecastOvers
+       forecastUndersY = actuals - forecastUnders
 
        actuals = adjust actuals0
        naive = adjust naives0
@@ -99,8 +98,8 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
        forecastOvers = adjust forecastOvers0
        forecastUnders = adjust forecastUnders0
        
-       naiveErrorRel = V.map (*100) $ (naiveUnders `vadd` naiveOvers) `vdiv` actuals
-       forecastErrorRel = V.map (*100) $ (forecastUnders `vadd` forecastOvers) `vdiv` actuals
+       naiveErrorRel = V.map (*100) $ (naiveUnders + naiveOvers) / actuals
+       forecastErrorRel = V.map (*100) $ (forecastUnders + forecastOvers) / actuals
        
        todayBar = if start <= today && today <= (calculateDate (AddYears 1) start)
                   then [julius|
@@ -248,14 +247,13 @@ getForecastErrors ForecastParam{..} grouper day path = do
       stockFilter = mkStockFilter fpStockFilter Nothing Nothing
   skuMap <- loadYearOfForecastCumulByWeek grouper stockFilter day $ appForecastProfilesDir settings </> (maybe id (</>) fpSubdirectory) path
   let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek grouper stockFilter (calculateDate (AddYears $ -1) start)
-      v0 = V.replicate 52 0
       joinWithZeror (ForMap sku theseab) = ForMap sku <$> ab where
           ab = case theseab of
                   -- no naive forecast, ie no previous sales => NOVELTY
                   This sales | fpNoveltyMode == ExcludeNovelty  -> Nothing
-                             | otherwise                      ->  Just (sales, v0) 
+                             | otherwise                      ->  Just (sales, 0) 
                   That naive | fpNoveltyMode  == NoveltyOnly -> Nothing
-                             | otherwise                   -> Just (v0, naive)
+                             | otherwise                   -> Just (0, naive)
                   These sales naive | fpNoveltyMode == NoveltyOnly -> Nothing
                                     | otherwise                  -> Just (sales, naive)
       addErrors (ForMap sku (salesV, naiveV, forecastV)) =
@@ -263,7 +261,7 @@ getForecastErrors ForecastParam{..} grouper day path = do
                                                               (computeAbsoluteError (Actual salesV) naiveV)
                                                               (computeAbsoluteError (Actual salesV) forecastV)
       addForecast (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, forecast) where
-         forecast =  findWithDefault v0 sku skuMap
+         forecast =  findWithDefault 0 sku skuMap
       conduit = alignConduit salesSource naiveSource
                          .|Data.Conduit.List.mapMaybe  joinWithZeror
                          .|mapC addForecast
@@ -295,12 +293,12 @@ getPlotForecastError param grouper day path = do
                   , let overPercent = percentFor $ overError forecast
                         underPercent = percentFor $ underError forecast
                         overallPercent = overPercent + underPercent
-                        naivePercent = percentFor $ vadd (overError naive) (underError naive)
+                        naivePercent = percentFor $ overError naive + underError naive
                         aes = overallPercent / naivePercent
                         percentFor v = lastGood v / lastGood salesByWeek
                         trendPercent = lastGood salesByWeek / lastGood (forecastCumul naive) -1
                         weeksToToday =  weeksTo start today
-                        lastGood v = v V.! weeksToToday
+                        lastGood v = v `V.unsafeIndex` weeksToToday
                                             
                     in ForecastSummary{..} 
                   )
@@ -310,7 +308,7 @@ forecastPathToDay :: FilePath -> Maybe Day
 forecastPathToDay = readMay . take 10
         
 newtype Actual a = Actual a
-computeAbsoluteError :: Actual UWeeklyQuantity  -> UWeeklyQuantity -> WithError
+computeAbsoluteError :: Actual (U53Weeks Quantity)  -> U53Weeks Quantity -> WithError
 computeAbsoluteError (Actual actuals) forecast = WithError forecast overError underError where
    overError = V.zipWith over forecast actuals
    underError = V.zipWith under forecast actuals
@@ -359,7 +357,7 @@ getMostOffenders grouper param topN day path = do
               tops = keepNonNull $ sortOn (osError .snd)  (topsA ++ topsB)
               keepNonNull = filter (\(_,os) -> osError os /= 0)
               in (take topN tops, take topN bots)
-      lastGood v = v V.! weeksToToday
+      lastGood v = v `V.unsafeIndex` weeksToToday
       weeksToToday = weeksTo start today
 
   runDB $ runConduit

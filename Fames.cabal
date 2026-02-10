@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -212,6 +212,7 @@ library
     , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
+    , finite-typelits
     , formatting
     , ghc
     , ghc-prim
@@ -258,6 +259,7 @@ library
     , unliftio
     , unordered-containers
     , vector
+    , vector-sized
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
@@ -347,6 +349,7 @@ executable DPDDump
     , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
+    , finite-typelits
     , formatting
     , ghc
     , ghc-prim
@@ -393,6 +396,7 @@ executable DPDDump
     , unliftio
     , unordered-containers
     , vector
+    , vector-sized
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
@@ -479,6 +483,7 @@ executable DPDImport
     , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
+    , finite-typelits
     , formatting
     , ghc
     , ghc-prim
@@ -525,6 +530,7 @@ executable DPDImport
     , unliftio
     , unordered-containers
     , vector
+    , vector-sized
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
@@ -607,6 +613,7 @@ executable FAGenerator
     , fay-text ==0.3.*
     , file-embed
     , filepath
+    , finite-typelits
     , formatting
     , ghc
     , ghc-prim
@@ -653,6 +660,7 @@ executable FAGenerator
     , unliftio
     , unordered-containers
     , vector
+    , vector-sized
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
@@ -736,6 +744,7 @@ executable FPlanner
     , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
+    , finite-typelits
     , formatting
     , ghc
     , ghc-prim
@@ -782,6 +791,7 @@ executable FPlanner
     , unliftio
     , unordered-containers
     , vector
+    , vector-sized
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
@@ -896,6 +906,7 @@ executable Fames
     , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
+    , finite-typelits
     , formatting
     , ghc
     , ghc-prim
@@ -942,6 +953,7 @@ executable Fames
     , unliftio
     , unordered-containers
     , vector
+    , vector-sized
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
@@ -1059,6 +1071,7 @@ test-suite test
     , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
+    , finite-typelits
     , formatting
     , ghc
     , ghc-prim
@@ -1108,6 +1121,7 @@ test-suite test
     , unliftio
     , unordered-containers
     , vector
+    , vector-sized
     , wai
     , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4

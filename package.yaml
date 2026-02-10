@@ -48,6 +48,8 @@ dependencies:
 - safe
 - unordered-containers
 - vector
+- vector-sized
+- finite-typelits
 - time
 - case-insensitive
 - wai

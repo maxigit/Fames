@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveFunctor, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DeriveFunctor, DeriveAnyClass, DataKinds #-}
 {-# OPTIONS_GHC -Wno-missing-exported-signatures #-}
 module Items.Types where
 
@@ -14,6 +14,7 @@ import qualified Data.Foldable as Foldable
 import Database.Persist.Types
 import qualified Data.Map.Lazy as LMap
 import Import.NoFoundation
+import qualified Data.Vector.Generic.Sized as Vs
 
 -- * General 
 -- | Holder for miscellaneous information relative to an item.
@@ -525,8 +526,17 @@ seasonProfile weights0 = SeasonProfile (normalize weights) where
 seasonProfileFromMap m = seasonProfile [ findWithDefault 0 i m   | i <- [1..12]]
 
 
+-- * Vector
+
 -- | A 52 weeks year
 type UWeeklyQuantity = UVector Quantity
 type UWeeklyAmount = UVector Amount
 -- | A 12 months year
 type UMonthlyAmount = UVector Amount
+
+
+type U53Weeks a = Vs.Vector UVector 53 a
+
+
+instance ToJSON (v a) => ToJSON (Vs.Vector v  n a ) where
+   toJSON = toJSON . Vs.fromSized
