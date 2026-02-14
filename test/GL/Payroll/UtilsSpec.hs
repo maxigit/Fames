@@ -6,12 +6,13 @@ import GL.Payroll.Settings
 import Test.Hspec
 import Data.Time (fromGregorian)
 import Data.Map(fromList)
+import Data.Foldable(forM_)
+
 
 check calculator s1 s2 = let
   d1 = read s1
   d2 = read s2
   in calculateDate calculator d1 `shouldBe` d2
-
 
 spec :: Spec
 spec = dateSpec >> periodSpec
@@ -92,6 +93,72 @@ dateSpec = describe "@DateCalculator" $ do
     it "Sat -> Fri" $ check defaultCalculator "2019-05-04" "2019-05-03"
     it "Mon -> Fri" $ check defaultCalculator "2019-05-06" "2019-05-03"
     it "Tue -> Mon " $ check defaultCalculator "2019-05-07" "2019-05-06"
+  context "align" do
+    let monday = "2026-02-16"
+        tuesday = "2026-02-17"
+        sunday = "2026-02-15"
+        nextMonday = "2026-02-23"
+        prevMonday = "2026-02-09"
+        nextMonth = "2026-03-16"
+        prevMonth = "2026-01-16"
+        nextQuarter = "2026-05-16"
+        prevQuarter = "2025-11-16"
+        nextYear = "2027-02-16"
+        prevYear = "2025-02-16"
+        lastMonth = "2026-01-31"
+    context "weekly" do
+      let monday = "2026-02-16"
+      it "same day" do
+        check (Align StartOf (Weekly Monday)) monday monday
+        check (Align NextStart (Weekly Monday)) monday monday
+      it "next day" do
+        check (Align StartOf (Weekly Monday)) tuesday monday
+        check (Align NextStart (Weekly Monday)) tuesday nextMonday
+      it "prev day" do
+        check (Align StartOf (Weekly Monday)) sunday prevMonday
+        check (Align NextStart (Weekly Monday)) sunday monday
+    context "monthly" do
+      it "same day" do
+        check (Align StartOf (Monthly 16)) monday monday
+        check (Align NextStart (Monthly 16)) monday monday
+      it "next day" do
+        check (Align StartOf (Monthly 16)) tuesday monday
+        check (Align NextStart (Monthly 16)) tuesday nextMonth
+      it "previous day" do
+        check (Align StartOf (Monthly 16)) sunday prevMonth
+        check (Align NextStart (Monthly 16)) sunday monday
+    context "quarterly" do
+       forM_ [2,5,8,11] ( \qm -> 
+            context ("same but shift quarter to " <> show qm ) do
+               it "on day" do
+                  check (Align StartOf (Quarterly qm 16)) monday monday
+               it "on day - next " do
+                  check (Align NextStart (Quarterly qm 16)) monday monday
+               it "next day" do
+                  check (Align StartOf (Quarterly qm 16)) tuesday monday
+               it "next day - next " do
+                  check (Align NextStart (Quarterly qm 16)) tuesday nextQuarter
+               it "previous day" do
+                  check (Align StartOf (Quarterly qm 16)) sunday prevQuarter
+               it "previous day - next" do
+                  check (Align NextStart (Quarterly qm 16)) sunday monday
+               it "previous month" do
+                  check (Align StartOf (Quarterly qm 16)) lastMonth prevQuarter
+               it "previous month next" do
+                  check (Align NextStart (Quarterly qm 16)) lastMonth monday
+               )
+    context "yearly" do
+       it "same day" do
+          check (Align StartOf (Yearly 2 16)) monday monday
+          check (Align NextStart (Yearly 2 16)) monday monday
+       it "next day" do
+          check (Align StartOf (Yearly 2 16)) tuesday monday
+          check (Align NextStart (Yearly 2 16)) tuesday nextYear
+       it "previous day" do
+          check (Align StartOf (Yearly 2 16)) sunday prevYear
+          check (Align NextStart (Yearly 2 16)) sunday monday
+
+
 
 periodSpec = describe "@Period" $ do
   context "folding" do

@@ -12,12 +12,12 @@ import Handler.Items.Common
 import Handler.Items.Reports.Forecast
 import Handler.Items.Category.Cache
 import FA
-import Data.Time(addDays)
+import Data.Time(addDays, pattern YearMonthDay)
 import qualified Data.Map as Map
 import Data.List(cycle,scanl,scanl1,scanr1)
 import Database.Persist.MySQL(rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
-import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, toYear, generateDateIntervals)
+import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, toYear, generateDateIntervals, ) -- previousMonthStartingAt, previousWeekDay, nextWeekDay, nextMonthStartingAt)
 import GL.Payroll.Settings
 import Text.Printf(printf)
 import Formatting hiding(base)
@@ -54,6 +54,7 @@ data ReportParam = ReportParam
   , rpForecast :: (Maybe FilePath, Maybe InOutward, Maybe Day)
   , rpColourMode :: ColourMode
   , rpTraceGroupMode :: Maybe TraceGroupMode
+  , rpDateAlignment :: Maybe DateAlignmentMode
   }  deriving Show
 
 defaultReportParam :: Day -> Maybe DateCalculator -> ReportParam
@@ -84,12 +85,15 @@ defaultReportParam today fromToday = ReportParam {..} where
   rpForecast = (Nothing, Nothing, Nothing)
   rpColourMode = minBound
   rpTraceGroupMode = Nothing
+  rpDateAlignment = Just AlignToEnd
 
 data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
 data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
 data OrderQuantityMode = OOrderedQuantity | OQuantityLeft deriving (Eq, Show)
 data ColourMode = Panel'Band'Serie | Band'Colour'Serie | Panel'Colour'Serie | TraceColour deriving (Eq, Show, Bounded, Enum, Ord)
 data TraceGroupMode = GroupSeries | GroupTraces | GroupParams deriving (Eq, Show, Bounded, Enum, Ord)
+data DateAlignmentMode = AlignToStart | AlignToEnd deriving (Eq, Show, Bounded, Enum, Ord)
+
 rpJustFrom ReportParam{..} = fromMaybe rpToday rpFrom
 rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
 rpLoadForecast = isJust . rpForecastDir
@@ -467,10 +471,10 @@ foldDay p tkey = let
         Nothing -> (day, Start day)
         Just period -> foldTime period (tkDay tkey)
 
-mkDateColumn :: (Text, Day -> Day) -> Column
+mkDateColumn :: (Text, ReportParam -> Day -> Day) -> Column
 mkDateColumn (name, fn) = Column name fn' where
   fn' p tk = let (d0, _) = foldDay p tk
-                 d = fn d0
+                 d = fn p d0
               in case (rpPeriod p) of
                 Just FoldWeekly -> -- format_
                   let w = dayOfWeek d
@@ -558,7 +562,7 @@ customerCategoryColumnsH = do
 orderCategoryColumnsH = do
   categories <- orderCategoriesH
   let mkDateCol getDay (name, fn) = Column name fn' where
-        fn' _p tk = NMapKey $ maybe PersistNull (PersistDay . fn)  (getDay tk)
+        fn' p tk = NMapKey $ maybe PersistNull (PersistDay . fn p)  (getDay tk)
   return $ [ Column ("order:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkOrderCategory tk))
            | cat <- categories
            ]
@@ -567,13 +571,37 @@ orderCategoryColumnsH = do
   
 dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyColumn]
   = dateColumnsFor "" mkDateColumn
+dateColumnsFor :: Text -> ((Text , ReportParam -> Day -> Day) -> Column) -> [ Column ]
 dateColumnsFor prefix mkDateCol 
   = map (mkDateCol . first (prefix <>))
-                     [ ("Beginning of Year", calculateDate BeginningOfYear)
-                     , ("Beginning of Quarter", calculateDate (BeginningOfQuarter))
-                     , ("Beginning of Week", calculateDate (BeginningOfWeek Sunday))
-                     , ("Beginning of Month", calculateDate BeginningOfMonth)
-                     , ("Day", id)
+                     [ ("Yearly", \p -> case rpDateAlignment p of 
+                                         Just AlignToStart | Just (YearMonthDay _ m dom) <- rpFrom p ->
+                                              calculateDate (Align StartOf (Yearly m dom))
+                                         Just AlignToEnd | Just (YearMonthDay _ m dom) <- rpTo p -> 
+                                              calculateDate (Align NextStart (Yearly m dom))
+                                         _ -> calculateDate BeginningOfYear
+                                         )
+                     , ("Quarter", \p -> case rpDateAlignment p of 
+                                         Just AlignToStart | Just (YearMonthDay _ m dom) <- rpFrom p ->
+                                              calculateDate (Align StartOf (Quarterly m dom))
+                                         Just AlignToEnd | Just (YearMonthDay _ m dom) <- rpTo p -> 
+                                               calculateDate (Align NextStart (Quarterly m dom))
+                                         _ -> calculateDate BeginningOfQuarter
+                                         )
+                     , ("Week", \p -> case rpDateAlignment p of 
+                                       Just AlignToStart | Just start <- rpFrom p ->
+                                            calculateDate (Align StartOf (Weekly $ dayOfWeek start))
+                                       Just AlignToEnd | Just end <- rpTo p ->
+                                            calculateDate (Align NextStart (Weekly $ dayOfWeek end))
+                                       _ -> calculateDate (BeginningOfWeek Sunday))
+                     , ("Month", \p -> case rpDateAlignment p of 
+                                         Just AlignToStart | Just (YearMonthDay _ _ dom) <- rpFrom p ->
+                                              calculateDate (Align StartOf (Monthly dom))
+                                         Just AlignToEnd | Just (YearMonthDay _ _ dom) <- rpTo p -> 
+                                              calculateDate (Align NextStart (Monthly dom))
+                                         _ -> calculateDate BeginningOfYear
+                                         )
+                     , ("Day", const $ id)
                      ]
 w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo p)
                                  year_ = slidingYear day0 (tkDay tk)

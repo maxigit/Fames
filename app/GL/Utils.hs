@@ -19,6 +19,12 @@ import qualified FA as FA
 import Database.Persist(Entity(..))
 
 -- * Date calculator 
+
+-- | Shorthand to avoid building Chains
+calculateDateChain :: [DateCalculator] -> Day -> Day
+calculateDateChain chain = calculateDate (Chain chain)
+
+-- | Apply a DateCalculator to the given date.
 calculateDate :: DateCalculator -> Day -> Day
 calculateDate (DayOfMonth target cutoff) day = let
   (y, m, d) = toGregorian day
@@ -75,7 +81,45 @@ calculateDate (Oldest dcs) day = case dcs of
   _ -> minimumEx $ map (flip calculateDate day) dcs
 calculateDate (WeekDayCase m) day = maybe id calculateDate dcm $ day where
   dcm = lookup (Just $ dayOfWeek day) m <|> lookup Nothing m 
+calculateDate (Align mode (Weekly dow) ) day = 
+   ($ day) case mode of
+      StartOf -> previousWeekDay dow
+      NextStart -> nextWeekDay dow
+calculateDate (Align mode (Monthly dom)) day = 
+   ($ day) case mode of 
+        StartOf -> previousMonthStartingAt dom
+        NextStart -> nextMonthStartingAt dom
+calculateDate (Align mode (Quarterly qmonth qdom))  day =
+     let (year, month, _dom) = toGregorian day
+      --  * Q1 * * Q2 * * Q3 ** Q4 *
+      --       Q
+      --         d
+      --       
+         deltaMonth= (month - qmonth) `mod` 3
+         aligned = calculateDate (AddMonths $ - deltaMonth)
+                                 (fromGregorian year month qdom)
+         prevQuarter = calculateDate (AddMonths $ - 3) aligned
+         nextQuarter = calculateDate (AddMonths 3) aligned
+     in case mode of 
+          StartOf | aligned <= day -> aligned
+                  | nextQuarter <= day -> nextQuarter
+                  | otherwise -> prevQuarter
+          NextStart | nextQuarter < day -> calculateDate (AddMonths 3) nextQuarter
+                    | day <= aligned -> aligned
+                    | otherwise -> nextQuarter
+calculateDate (Align mode (Yearly ymonth ydom))  day =
+     let (year, _, _) = toGregorian day
+         aligned = fromGregorian year ymonth ydom
+         nextYear = fromGregorian (year+1) ymonth ydom
+         previousYear = fromGregorian (year-1) ymonth ydom
+     in case mode of 
+          StartOf | aligned <= day -> aligned
+                  | otherwise -> previousYear
+          NextStart | aligned < day -> nextYear
+                    | otherwise -> aligned
+   
 
+-- ^^^^ TODO merge with foldTime
 
 dayOfWeek :: Day -> DayOfWeek
 dayOfWeek day = toEnum . (`mod` 7) $ fromEnum day + 2
@@ -126,6 +170,9 @@ toYear d = y where (y, _, _ ) = toGregorian d
 --    5 (03 Mar) -> 5 Feb
 previousMonthStartingAt :: Int -> Day -> Day
 previousMonthStartingAt d day = addGregorianMonthsClip (-1) $  calculateDate (DayOfMonth d d) day
+
+nextMonthStartingAt :: Int -> Day -> Day
+nextMonthStartingAt d day = calculateDate (Chain [ AddDays (-1), DayOfMonth d d ]) day
 
 -- ** Date Folding 
 -- | Used to project a given a day into a given period. Useful for comparing or charting

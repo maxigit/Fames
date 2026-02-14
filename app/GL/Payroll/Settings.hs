@@ -69,7 +69,14 @@ data PayrollSettings = PayrollSettings
 
 -- ** Date Calculator 
 data DateCalculator
-  = DayOfMonth { dayX :: Int, cutoff :: Int } -- day , cut off
+  = DayOfMonth { dayX :: Int, cutoff :: Int } -- ^ day , cut off fnd the next day with the same daf of the monsh
+                                              -- use to find payment date for invoices
+                                              -- for example a supplier might want payment of the 14th of the month
+                                              -- an invoice issued on the 14 of Feb will be paid on the 14 of MARCH
+                                              -- but the 13 of Feb will be paid on the 14 of Feb.
+                                              -- This is where the cutoff come into action
+                                              -- if the cutoff is the 10, date before invoice < 10 Feb => payment 14 Feb
+                                              --                                              >=10 Feb => payment 14 March
   | AddDays Int
   | NextDayOfWeek { weekDay :: DayOfWeek, weekCutoff:: DayOfWeek } -- day, cut off
   | AddMonths Int
@@ -86,11 +93,21 @@ data DateCalculator
   | Newest [DateCalculator]
   | Oldest [DateCalculator]
   | WeekDayCase (Map (Maybe DayOfWeek) DateCalculator)
+  | Align PeriodAlignment Period
   deriving (Show, Read, Eq, Ord)
 
 data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
   deriving (Show, Read, Eq, Ord, Enum, Bounded)
           
+data Period = Weekly { weekday :: DayOfWeek }
+            | Monthly { day ::  Int }
+            | Quarterly { day, month :: Int }
+            | Yearly { day, month :: Int }
+     deriving (Show, Read, Eq, Ord)
+            
+data PeriodAlignment = StartOf {- | EndOf -} | NextStart
+     deriving (Show, Read, Eq, Ord, Enum, Bounded)
+
 predCyclic :: DayOfWeek -> DayOfWeek
 predCyclic Monday = Sunday
 predCyclic d = pred d
@@ -116,6 +133,8 @@ instance FromJSONKey (Maybe DayOfWeek) where
   fromJSONKey = FromJSONKeyValue parseW  where
     parseW v = (Just <$> parseJSON  v) <|> return Nothing
        
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Period)
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''PeriodAlignment)
 instance {-# OVERLAPPING #-}  ToJSON (Text, [PayrollFormula]) where
   toJSON (var, []) = String var
   toJSON (var, [PFVariable var']) | var == var' = String var
