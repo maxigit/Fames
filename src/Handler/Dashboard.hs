@@ -313,15 +313,15 @@ dispatchReport reportName __width __height = do
         "top100ColourYear" -> top100ItemYear False variationColumn
 
         "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentUp reportName 
-        "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember) reportName 
-        "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd) reportName
-        "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd) reportName
-        "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5, rpDataParam2 = emptyTrace}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd) reportName
+        "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember (Just AlignToEnd)) reportName 
+        "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd (Just AlignToEnd)) reportName
+        "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd (Just AlignToStart) ) reportName
+        "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5, rpDataParam2 = emptyTrace}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd (Just AlignToEnd)) reportName
         "salesCurrentMonthFull20" -> salesCurrentMonth (rep20 . salesCurrentUp) reportName 
-        "salesCurrentYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum beginJanuary endDecember) reportName 
-        "salesSlidingYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum slidingYear slidingYearEnd) reportName
-        "salesSlidingYearFullBackward20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSumBack slidingYear slidingYearEnd) reportName
-        "salesCurrentFiscalFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd) reportName
+        "salesCurrentYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum beginJanuary endDecember Nothing) reportName 
+        "salesSlidingYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum slidingYear slidingYearEnd Nothing) reportName
+        "salesSlidingYearFullBackward20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSumBack slidingYear slidingYearEnd Nothing) reportName
+        "salesCurrentFiscalFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd Nothing) reportName
         "top20ItemMonthFull" -> top20ItemMonth top20FullUp slidingMonth skuColumn
         "top20StyleMonthFull" -> top20ItemMonth top20FullUp slidingMonth styleColumn
         "top20ColourMonthFull" -> top20ItemMonth top20FullUp slidingMonth variationColumn
@@ -353,8 +353,8 @@ salesCurrentUp param = param {rpDataParam, rpDataParam2} where
       rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales) Nothing
       rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) Nothing
   
-salesCurrentYearUp :: RunSum -> Day -> Day -> ReportParam -> ReportParam
-salesCurrentYearUp runsum from to param =
+salesCurrentYearUp :: RunSum -> Day -> Day -> (Maybe DateAlignmentMode) -> ReportParam -> ReportParam
+salesCurrentYearUp runsum from to alignm param =
   (salesCurrentUp param) { rpFrom = Just from
         , rpTo = Just to
         , rpToday = to
@@ -362,6 +362,7 @@ salesCurrentYearUp runsum from to param =
         , rpColumnRupture = ColumnRupture (Just weeklyColumn) (DataParams QPSummary
                                           (Identifiable ("Column", [])) Nothing) Nothing Nothing False
         , rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales0) Nothing
+        , rpDateAlignment = alignm
         }
   where 
       cumulSales0 = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, runsum)] )
