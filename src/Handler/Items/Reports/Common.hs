@@ -960,7 +960,10 @@ loadUpComingContainer infoMap param = do
                                         ]
                            <> toT'Ps (generateTranDateIntervals param { rpFrom = Nothing } )
      moves0 <- runDB $ rawSql (sql <> intercalate " " w) p
-     let moves = mapMaybe (adjustDate $ maybe id max (rpFrom param) deliveryDate) moves0
+     let moves = mapMaybe (adjustDate $ maybe id max (rpFrom param) 
+                                      $ maybe id min (rpTo param) 
+                                      deliveryDate) moves0
+      
      -- let initials = createInitialStock infoMap
      return $ map (moveToTransInfo infoMap) moves -- <> initials
   
