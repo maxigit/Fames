@@ -141,6 +141,13 @@ getACacheR = do
                                                             , size
                                                             , duration
                                                             )
+                         OnError ex -> do
+                            let errMsg = show ex
+                            return ( [shamlet|<td><span.label.laber-danger>#{errMsg}|]
+                                   , [shamlet|<td>|]
+                                   , 0
+                                   , 0
+                                   )
                          _ -> do
                               return ( [shamlet|<td>|]
                                      , [shamlet|<td>|]
@@ -151,7 +158,7 @@ getACacheR = do
                       (s, True) -> [shamlet|<span.label.label-danger>#{show s}|]
                       (Waiting, False) -> [shamlet|<span.label.info-info>Waiting|]
                       (InProgress, False) -> [shamlet|<span.label.label-warning>In Progress|]
-                      (OnError, _) -> [shamlet|<span.label.label-danger>Error|]
+                      (OnError _, _) -> [shamlet|<span.label.label-danger>Error|]
                       (Finished, False) -> [shamlet|<span.label.label-success>Ready|]
                    , info
                    )

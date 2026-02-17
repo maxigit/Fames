@@ -51,7 +51,7 @@ data Delayed m a = Delayed
   , abort :: MVar ()
   } deriving (Typeable, Functor)
 
-data DelayedStatus = Waiting | InProgress | Finished | OnError deriving Show
+data DelayedStatus = Waiting | InProgress | Finished | OnError SomeException deriving Show
   
 -- | Delay in second. No Num instance as the point
 -- is to avoid implicit convertion to second.
@@ -130,7 +130,7 @@ statusDelayed d = liftIO $ do
        pollStatus <- poll (action d)
        case pollStatus of
           Nothing -> return InProgress
-          Just (Left _) -> return OnError
+          Just (Left ex) -> return $ OnError ex
           Just (Right _ ) -> return Finished
 
 -- * Cached 
