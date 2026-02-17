@@ -15,7 +15,11 @@ import Util.Cache
 
 memoryCache :: CacheFn Handler
 memoryCache = CacheFn{..} where
-     cache = cache0 False (cacheHour 1)
+     cache = \k m ->  do 
+           f <- cache0 False (cacheHour 1) k (fmap const m)
+           -- ^^^^^ hack to not compact warehouse empty warehouse
+           -- which crashes because of (error ...) to initialize shelfGroup
+           return $ f ()
      cacheOut = cache
      purgeKey key = purgeCacheKey key
     
