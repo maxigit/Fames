@@ -313,8 +313,8 @@ dispatchReport reportName __width __height = do
         "top100ColourYear" -> top100ItemYear False variationColumn
 
         "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentUp reportName 
-        "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember (Just AlignToEnd)) reportName 
-        "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd (Just AlignToEnd)) reportName
+        "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember (Just AlignToStart)) reportName 
+        "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd (Just AlignToStart)) reportName
         "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd (Just AlignToStart) ) reportName
         "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5, rpDataParam2 = emptyTrace}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd (Just AlignToEnd)) reportName
         "salesCurrentMonthFull20" -> salesCurrentMonth (rep20 . salesCurrentUp) reportName 
