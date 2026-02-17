@@ -130,7 +130,7 @@ categoryFinderCached category =  do
                  <> " ORDER BY stock_id"
          stock_ids <- runDB $ rawSql sql []
          return $ sort $ map unSingle stock_ids
-  cache0 False cacheForEver (categoryCacheKey category) $ do
+  skuMap <- cache0 False cacheForEver (categoryCacheKey category) $ do
          refreshCategoryCache False (Just category)
          let sql =  "SELECT stock_id AS order_key, value "
                  <> "FROM fames_item_category_cache "
@@ -150,11 +150,11 @@ categoryFinderCached category =  do
              lastStockId ss kv = (ss, kv)
          -- Don't use fromAscList
          -- align with existing stock id to reuse them if possible
-         let skuMap :: HMap.HashMap Text Text
-             skuMap = List.fromList $ snd $ Data.List.mapAccumL lastStockId idSets $ sort (key'values)
+         -- let skuMap :: HMap.HashMap Text Text
+         return  $ List.fromList $ snd $ Data.List.mapAccumL lastStockId idSets $ sort (key'values)
                                       -- ^^^^  reuse existing key in memory to save memory
-         let finder (FA.StockMasterKey sku) = HMap.lookup sku skuMap
-         return $ skuMap `seq` finder
+  let finder (FA.StockMasterKey sku) = HMap.lookup sku skuMap
+  return $ skuMap `seq` finder
 
 categoryCacheKey :: Text -> (String, Text)
 categoryCacheKey = ("category-finder",)
@@ -499,16 +499,17 @@ extractMainDeliveryRule maps = do -- Maybe
 -- The current implementation is based on TDFA regex
 -- which are pretty so we cache it into a big map
 customerCategoryFinderCached :: Handler (Text -> FA.DebtorsMasterId -> Maybe Text)
-customerCategoryFinderCached = cache0 False cacheForEver "customerCategory-finder" $ do
-  refreshCustomerCategoryCache False
-  customerCategories <- runDB $ selectList [] [Asc CustomerCategoryCustomerId, Asc CustomerCategoryCategory]
-  -- don't use fromAscLIs
-  let debtor'catMap = Map.fromList [((customerCategoryCustomerId , customerCategoryCategory ), customerCategoryValue )
-                           | (Entity _ CustomerCategory{..}) <- customerCategories
-                           ]
-      finder customerCategory (FA.DebtorsMasterKey debtor) = Map.lookup (debtor, customerCategory) debtor'catMap
+customerCategoryFinderCached = do
+  debtor'catMap <- cache0 False cacheForEver "customerCategory-finder" $ do
+         refreshCustomerCategoryCache False
+         customerCategories <- runDB $ selectList [] [Asc CustomerCategoryCustomerId, Asc CustomerCategoryCategory]
+         -- don't use fromAscLIs
+         return $ Map.fromList [((customerCategoryCustomerId , customerCategoryCategory ), customerCategoryValue )
+                                  | (Entity _ CustomerCategory{..}) <- customerCategories
+                                  ]
+  let finder customerCategory (FA.DebtorsMasterKey debtor) = Map.lookup (debtor, customerCategory) debtor'catMap
 
-  debtor'catMap `seq` return finder
+  return finder
 
 -- ** Computations 
 refreshCustomerCategoryFor :: Handler ()

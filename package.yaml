@@ -97,6 +97,7 @@ dependencies:
 - iso3166-country-codes
 - ghc
 - mono-traversable
+- ghc-compact
 default-extensions:
 - BlockArguments
 - DeriveDataTypeable

@@ -277,13 +277,14 @@ timesheetOpIdToTextH ts = do
 -- A solution would be to format them using printf like.
 -- Instead, we load all account from the DB And create a Map
 mkAccountH :: Handler (Int -> WFA.GLAccount)
-mkAccountH = cache0 False (cacheMinute 5) "gl-account-maker" $ do
-  accounts <- runDB $ selectList [] []
-  let accountMap = [ (asNum, account)
-                   | (Entity key _) <- accounts
-                   , let account = FA.unChartMasterKey key
-                   , Just asNum <- [readMay account]
-                   ]
+mkAccountH = do
+  accountMap <- cache0 False (cacheMinute 5) "gl-account-maker" $ do
+                accounts <- runDB $ selectList [] []
+                return [ (asNum, account)
+                       | (Entity key _) <- accounts
+                       , let account = FA.unChartMasterKey key
+                       , Just asNum <- [readMay account]
+                       ]
   return $ \acc -> WFA.GLAccount $ findWithDefault (tshow acc) acc accountMap
   
 

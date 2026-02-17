@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns, PolyKinds, MagicHash, ScopedTypeVariables, DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Util.Cache
 ( DAction(..)
 , Delayed(..)
@@ -36,6 +37,8 @@ import Data.Time
 import Control.Monad (filterM)
 import Unsafe.Coerce(unsafeCoerce)
 import Type.Reflection
+import Control.Exception (CompactionFailed(..))
+import GHC.Compact
 
 -- * Delayed 
 -- | A syncronous actions, which can be started from another thread.
@@ -46,7 +49,7 @@ data Delayed m a = Delayed
   { blocker :: MVar DAction
   , action :: Async (m a)
   , abort :: MVar ()
-  } deriving Typeable
+  } deriving (Typeable, Functor)
 
 data DelayedStatus = Waiting | InProgress | Finished | OnError deriving Show
   
@@ -192,6 +195,21 @@ expCache force cvar key vio (CacheDelay seconds)  = purgeExpired cvar >> do
           return $ fromDyn d (error "Wrong type for cached key.")
         else do
           putV mvar
+
+compactWithInfo :: (MonadIO io, Show k) => k -> io a -> io (a, Either String (Word, NominalDiffTime))
+compactWithInfo key toCompactIO = do
+  now <- liftIO getCurrentTime
+  toCompact  <- toCompactIO
+  compE <- liftIO $ try $ compact toCompact
+  case compE of 
+       Left (CompactionFailed _e) -> return (toCompact, Left ("Could NOT compact : " <> show key ))
+       Right comp -> do
+             after <- liftIO $ getCurrentTime
+             size <- liftIO $ compactSize comp
+             let v = getCompact comp
+             return (v, Right (size, diffUTCTime after now))
+
+
 -- | Purge from the cache the given key
 purgeKey :: (MonadIO io, Show k) => MVar ExpiryCache -> k -> io ()
 purgeKey cvar key = purgeKey' cvar (show key)
@@ -264,9 +282,9 @@ cacheForEver = cacheDay 365
 -- start delay is small. When precaching, we delay the start of the computation
 -- only to be started once the HTTP query has processed.
 preCache :: (MonadUnliftIO io, Show k, Typeable a, Typeable io)
-         => Bool -> MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io a)
+         => Bool -> MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io (a, Either String (Word, NominalDiffTime)))
 preCache force cvar key vio (CacheDelay delay) = do
-  d <- createDelayed vio
+  d <- createDelayed (compactWithInfo key vio)
   let ab = abort d
   -- \^ we don't need to keep a reference to d in the following thread
   _ <- async $ do

@@ -520,7 +520,8 @@ getSuggestedLinks = do
 preCache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler (Delayed Handler a)
 preCache0 force delay key action = do
   cache <- getsYesod appCache
-  preCache force cache key action delay 
+  d <- preCache force cache key action delay 
+  return (fmap fst d)
  
 preCache1 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> (k -> Handler a) -> Handler (Delayed Handler a)
 preCache1 force delay param action = preCache0 force delay param (action param)

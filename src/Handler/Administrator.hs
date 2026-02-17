@@ -14,6 +14,9 @@ import Database.Persist.MySQL     (Single(..), rawSql)
 import Handler.Items.Category(getItemsCategoryTermsR)
 import qualified Handler.Items.Category.Cache as Cache
 import GL.TaxReport.Settings
+import Formatting(format, bytes, fixed, (%))
+import Unsafe.Coerce(unsafeCoerce)
+import Data.Time(NominalDiffTime)
 
 -- | Page to test administrator authentication.
 -- might be empty
@@ -111,40 +114,82 @@ getACacheR = do
   let blockerH :: Delayed Maybe () -> Delayed Maybe ()
       blockerH = id
   let sorted = sortBy (comparing (\(k, (_, t)) -> (Down t,k))) info
-      extra :: Dynamic -> UTCTime -> Handler Html
+      extra :: Dynamic -> UTCTime -> Handler (Html, (Html, Html, Word, NominalDiffTime))
       extra dyn t = case castToDelayed blockerH dyn of
-        Nothing -> return ""
+        Nothing -> return ("", ([shamlet|<td><span.label.label-error>Bad CAST"|]
+                               , [shamlet|<td>|]
+                               , 0
+                               , 0 
+                               )
+                          )
         Just delayed -> do
             status <- statusDelayed $ delayed
-            return $ case (status, expired t) of
+            info <- case status of 
+                         Finished -> do
+                            -- finished so we can get the value
+                            einfo <- getDelayed $ unsafeCoerce delayed
+                            return $ case snd einfo of 
+                               Left err -> let e = err :: String
+                                           in ( [shamlet|<td><span.label.laber-danger>#{e}|]
+                                              , [shamlet|<td>|]
+                                              , 0
+                                              , 0
+                                              )
+                               Right (size, d) -> let (_,duration) = (size, d) :: (Word, NominalDiffTime)
+                                                         in ( [shamlet|<td data-order="#{size}">#{formatSize size}|]
+                                                            , [shamlet|<td data-order="#{dropEnd 1 (tshow duration)}">#{tshow duration}|]
+                                                            , size
+                                                            , duration
+                                                            )
+                         _ -> do
+                              return ( [shamlet|<td>|]
+                                     , [shamlet|<td>|]
+                                     , 0
+                                     , 0
+                                     )
+            return ( case (status, expired t) of
                       (s, True) -> [shamlet|<span.label.label-danger>#{show s}|]
                       (Waiting, False) -> [shamlet|<span.label.info-info>Waiting|]
                       (InProgress, False) -> [shamlet|<span.label.label-warning>In Progress|]
                       (OnError, _) -> [shamlet|<span.label.label-danger>Error|]
                       (Finished, False) -> [shamlet|<span.label.label-success>Ready|]
+                   , info
+                   )
       getExtra (k, (dyn, t)) = do
-        x <- extra dyn t
-        return (k, dyn, t, x)
-  withExtra <- mapM getExtra sorted
+        (x, (sizeHtml, durationHtml, size, duration)) <- extra dyn t
+        return ((k, dyn, t, sizeHtml, durationHtml, x)
+               , (size, duration)
+               )
+      formatSize s = format (bytes $ fixed 1% " ") s
+  (unzip -> (withExtra, size'durations)) <- mapM getExtra sorted
+  let (sizes, durations) = unzip size'durations
   defaultLayout $ do
     toWidgetHead [shamlet|<meta http-equiv="refresh" content="30">|]
     [whamlet|
 <h1>Cache
 <h2>Expiry Cache
+<div>
+     <p>Total size: #{formatSize (sum sizes)}
+     <p>Total duration: #{tshow (sum durations)}
+
 <table *{datatable}>
   <thead>
     <tr>
       <th>Time
       <th>Key
       <th>Value
+      <th>Size
+      <th>Duration
       <th>Extra
       <th>
-  $forall (k, dyn, t, ex) <- withExtra
+  $forall (k, dyn, t, tdsize, duration, ex) <- withExtra
     $with exp <- expired t
       <tr :exp:.txt-muted>
         <td>#{tshow $ t}
         <td>#{k}
         <td>#{tshow $ dynTypeRep dyn}
+        ^{tdsize}
+        ^{duration}
         <td>#{ex}
         <td>
           <form action=@{AdministratorR $ ACachePurgeKeyR $ pack k} method=POST>

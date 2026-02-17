@@ -754,22 +754,23 @@ allOperators = cacheEntities "all-operators" False
   
 -- | Find an operator by string, can be a mix of nickname, firstname, surname ...
 operatorFinder :: Handler (Text -> Maybe (Entity Operator))
-operatorFinder = cache0 False cacheForEver "operator-finder" $ do
-      operators <- runDB $ selectList [] []
-      let operatorKeys' = Map.fromListWith (++) $ concat
-                   [ [ (toLower $ operatorNickname op, [e] ) 
-                     , (toLower $ operatorFirstname op <> operatorSurname op, [e] )
-                     -- , (toLower $ operatorFirstname op <> " " <> operatorSurname op, [e] )
-                     , (toLower $ operatorFirstname op <> take 1 (operatorSurname op), [e] )
-                     , (toLower $ operatorNickname op <> take 1 (operatorSurname op), [e] )
-                     ]
-                   | e@(Entity _ op) <- operators
-                   ]
-           -- we need to filter operators key with more than one solution
-           -- but only if they are different solutions
-          operatorKeys = fmap (Data.List.nub . sort) operatorKeys'
-          pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
-          -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
+operatorFinder = do
+      pks <- cache0 False cacheForEver "operator-finder" $ do
+          operators <- runDB $ selectList [] []
+          let operatorKeys' = Map.fromListWith (++) $ concat
+                       [ [ (toLower $ operatorNickname op, [e] ) 
+                         , (toLower $ operatorFirstname op <> operatorSurname op, [e] )
+                         -- , (toLower $ operatorFirstname op <> " " <> operatorSurname op, [e] )
+                         , (toLower $ operatorFirstname op <> take 1 (operatorSurname op), [e] )
+                         , (toLower $ operatorNickname op <> take 1 (operatorSurname op), [e] )
+                         ]
+                       | e@(Entity _ op) <- operators
+                       ]
+               -- we need to filter operators key with more than one solution
+               -- but only if they are different solutions
+              operatorKeys = fmap (Data.List.nub . sort) operatorKeys'
+          return $ Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
+      -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
       return $ (flip Map.lookup) pks  . toLower . (filter (/= ' '))
 
 -- | Similar to operatorFinder but return an error instead of Nothing

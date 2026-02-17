@@ -332,7 +332,7 @@ fillIndexCache' categoriesm = do
                    Nothing -> categoriesH
                    Just cats -> return cats
   catFinder <- categoryFinderCachedFor categories
-  mkCache <- cache0 False (cacheDay 1) ("index_/static")  $ do
+  (salesTypes, priceListNames, supplierNames) <-  do
       salesTypes <- runDB $ selectList [] [] -- [Entity SalesType]
       let priceListNames = mapFromList [ (k, salesTypeSalesType t)
                                       | (Entity (SalesTypeKey k) t) <- salesTypes
@@ -343,8 +343,8 @@ fillIndexCache' categoriesm = do
 
       -- don't load webprices if the DC database is not configured
 
-      return $ IndexCache salesTypes priceListNames supplierNames
-  return $ mkCache catFinder categories
+      return  (salesTypes, priceListNames, supplierNames)
+  return $ IndexCache salesTypes priceListNames supplierNames catFinder categories
   
   
 -- ** StyleAdjustment 
