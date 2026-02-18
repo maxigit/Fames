@@ -85,7 +85,7 @@ renderParamDates param =
    where dateRanges = paramToDateIntervals param
          dateWs = map (\(fromM, toM) -> [whamlet|\< #{showDateM fromM} - #{showDateM toM}>|]) $ sort dateRanges
          showDateM :: Maybe Day -> Text
-         showDateM = maybe "" (formatTime0 "%d %b %Y")
+         showDateM = maybe "" (formatTime0 "%a %d %b %Y")
 -- Display a dashboard made of different report depending on the configuration file
 {-# NOINLINE getDMainR #-}
 getDMainR :: Handler Html
@@ -313,9 +313,9 @@ dispatchReport reportName __width __height = do
         "top100ColourYear" -> top100ItemYear False variationColumn
 
         "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentUp reportName 
-        "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember (Just AlignToStart)) reportName 
-        "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd (Just AlignToStart)) reportName
-        "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd (Just AlignToStart) ) reportName
+        "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember (Just AlignToEnd)) reportName 
+        "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd (Just AlignToEnd)) reportName
+        "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd (Just AlignToEnd) ) reportName
         "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5, rpDataParam2 = emptyTrace}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd (Just AlignToEnd)) reportName
         "salesCurrentMonthFull20" -> salesCurrentMonth (rep20 . salesCurrentUp) reportName 
         "salesCurrentYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum beginJanuary endDecember Nothing) reportName 

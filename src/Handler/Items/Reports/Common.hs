@@ -573,7 +573,7 @@ dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyCo
   = dateColumnsFor "" mkDateColumn
 dateColumnsFor :: Text -> ((Text , ReportParam -> Day -> Day) -> Column) -> [ Column ]
 dateColumnsFor prefix mkDateCol 
-  = map (mkDateCol . first (prefix <>))
+  = map (mkDateCol . first (prefix <>) . second clampDay )
                      [ ("Yearly", \p -> case rpDateAlignment p of 
                                          Just AlignToStart | Just (YearMonthDay _ m dom) <- rpFrom p ->
                                               calculateDate (Align StartOf (Yearly m dom))
@@ -592,7 +592,7 @@ dateColumnsFor prefix mkDateCol
                                        Just AlignToStart | Just start <- rpFrom p ->
                                             calculateDate (Align StartOf (Weekly $ dayOfWeek start))
                                        Just AlignToEnd | Just end <- rpTo p ->
-                                            calculateDate (Align NextStart (Weekly $ dayOfWeek end))
+                                            calculateDate (Align EndOf (Weekly $ dayOfWeek end))
                                        _ -> calculateDate (BeginningOfWeek Sunday))
                      , ("Month", \p -> case rpDateAlignment p of 
                                          Just AlignToStart | Just (YearMonthDay _ _ dom) <- rpFrom p ->
@@ -603,6 +603,9 @@ dateColumnsFor prefix mkDateCol
                                          )
                      , ("Day", const $ id)
                      ]
+        where clampDay f p  d = maybe id max (rpFrom p) 
+                              . maybe id min (rpTo p)
+                              $ f p d
 w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo p)
                                  year_ = slidingYear day0 (tkDay tk)
                              in mkNMapKey . PersistDay $ fromGregorian year_ 1 1

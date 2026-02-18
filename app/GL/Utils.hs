@@ -81,6 +81,9 @@ calculateDate (Oldest dcs) day = case dcs of
   _ -> minimumEx $ map (flip calculateDate day) dcs
 calculateDate (WeekDayCase m) day = maybe id calculateDate dcm $ day where
   dcm = lookup (Just $ dayOfWeek day) m <|> lookup Nothing m 
+calculateDate (Align EndOf period) day = 
+   -- next start -1 except f
+   calculateDateChain [AddDays (1), Align NextStart period, AddDays (-1)] day
 calculateDate (Align mode (Weekly dow) ) day = 
    ($ day) case mode of
       StartOf -> previousWeekDay dow

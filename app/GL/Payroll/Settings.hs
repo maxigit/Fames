@@ -105,7 +105,7 @@ data Period = Weekly { weekday :: DayOfWeek }
             | Yearly { day, month :: Int }
      deriving (Show, Read, Eq, Ord)
             
-data PeriodAlignment = StartOf {- | EndOf -} | NextStart
+data PeriodAlignment = StartOf | EndOf | NextStart
      deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
 predCyclic :: DayOfWeek -> DayOfWeek
