@@ -967,6 +967,6 @@ postRequestBackorderReport connectInfo debtorNo = do
      let options = extractInputsToCurl new
      tags <- curlSoup ajaxRequestReportUrl (options : fields) [200] "request backorder report"
      case extractSuccessMsgFromSoup tags of
-       Right msg | "BACKORDER REPORT  has been sent by email to destination." `ClassyPrelude.isPrefixOf` msg -> return "email sent"
+       Right msg | "Back Order  has been sent by email to destination." `ClassyPrelude.isPrefixOf` msg -> return "email sent"
        Right e ->  throwError $ "Unexpected success msg: ["  <> e <> "]"
        Left e  -> throwError e
