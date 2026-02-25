@@ -272,7 +272,7 @@ loadYearOfForecastCumulByWeek grouper stockFilter start forecastDir = do
 -- | Compute for each month its year fraction for each weeks
 monthFractionPerWeek :: Day -> [U53Weeks Quantity]
 monthFractionPerWeek start = let
-   monthForWeek = [ (d `div` 7,  month)
+   monthForWeek = [ (fromIntegral (d `div` 7),  month)
                   | (d, day) <- zip [0.. ] [start .. calculateDate (Chain [AddYears 1 , AddDays (-1)]) start ]
                   , let (_,month, _) = toGregorian day
                   ]
