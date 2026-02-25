@@ -22,7 +22,7 @@ import qualified Data.Map as Map
 import Formatting hiding(now)
 import Data.Aeson.QQ(aesonQQ)
 import Control.Monad.Fail (MonadFail(..))
-import System.FilePath.Glob (glob)
+import System.FilePath.Glob (glob, match)
 import System.FilePath (takeBaseName)
 import System.Directory  
 import Network.Wai(rawQueryString)
@@ -683,7 +683,11 @@ forecastForm showSubdir ForecastParam{..} html = do
                let dir = appForecastProfilesDir settings
                entries <- listDirectory dir
 
-               filterM (doesDirectoryExist . (dir </>))  entries
+               filterM (doesDirectoryExist . (dir </>))  $ filter (\path -> not ( match "????-??-??*" path || match ".*" path) )entries
+                                                                                  --     ^^^^^^^^^^^                ^^^
+                                                                                  --       |                         |
+                                                                                  --       |                         +--- hide hidden directories
+                                                                                  --       +----------------------------- hide directories which are forecast directory themselves
     let (toSubdir, subdirField) = if showSubdir
                       then  (id, selectFieldList [(pack @Text d, d) | d <- subdirs ] )
                       else let go subdirMN = do -- Maybe
