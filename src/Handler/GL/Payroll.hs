@@ -86,11 +86,13 @@ postGLPayrollValidateR = do
 
 validate :: UploadParam -> DocumentHash -> Handler Html
 validate param key = do
+          settings <- appSettings <$> getYesod
           viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
           viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+          operatorColourMap <- operatorColourMapH
           let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
               ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
-          settings <- appSettings <$> getYesod
+              ?operatorColourMap = operatorColourMap
           timesheetE <- parseTimesheetH param
           case validateTimesheet (appPayroll settings) =<< timesheetE of
             Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
@@ -192,8 +194,10 @@ getGLPayrollViewR key = do
   viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
   viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
   psettings <- appPayroll <$> getsYesod appSettings
+  operatorColourMap <- operatorColourMapH
   let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
       ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
+      ?operatorColourMap = operatorColourMap
       -- Date used for invoice and payment
       -- We don't provide a default value
       -- to prevent accidental save to FrontAccounting
@@ -239,6 +243,7 @@ getGLPayrollViewR key = do
                                 |]
           
       let showDate d =  formatTime defaultTimeLocale "%a %d %h %Y" d
+          is = [1 :: Int ..] -- for zipping report ids
       (upFormW, upEncType) <- generateFormPost $ uploadForm Validate
                                                             (Just $ UploadParam  (Textarea $ pack ">>" <> timesheetReference ts )
                                                                                  Nothing
@@ -249,11 +254,11 @@ getGLPayrollViewR key = do
           <div.row>
             <div.col-md-2><h2> #{timesheetReference ts} 
             <div.col-md-4.col-md-offset-6><h3> #{showDate $ timesheetStart ts } - #{showDate $ timesheetEnd ts}
-          $forall (name, trans, filter') <- reports
+          $forall (i, (name, trans, filter')) <- zip is reports
              $maybe object <- filter' ts'
               <div.panel.panel-info>
-                <div.panel-heading> #{name}
-                <div.panel-body>
+                <div.panel-heading.data-toggler data-toggle=collapse data-target="#report-#{i}"> #{name}
+                <div.panel-body.collapse.in id="report-#{i}">
                   <div>^{trans object }
           $if (timesheetStatus ts /= Process)
             <form role=form method=post action=@{GLR $ GLPayrollRejectR key}>
@@ -586,8 +591,5 @@ postTimesheetToFA param key timesheet shifts items = do
          __paymentIds <- savePayments today (ffReferenceSuffix param) (ffPayments param) settings key tsPayment invoiceId
          __credits <- saveExternalPayments settings key invoiceId mkAccount today ts
          return invoiceId
-
-operatorFullname :: Operator -> Text
-operatorFullname Operator{..} = operatorSurname <> ", " <> operatorNickname
 
   

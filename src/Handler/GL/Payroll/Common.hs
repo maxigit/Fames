@@ -669,7 +669,7 @@ displayTimesheetCalendar timed timesheet = do
 -- displayCalendar :: Show emp =>  Day -> Day -> Day -> Day
 --                 -> Map Text (Map Day [TS.Shift emp])
 --                 -> Widget
-displayCalendar :: (?viewPayrollDurationPermissions::Text -> Granted)
+displayCalendar :: (?viewPayrollDurationPermissions::Text -> Granted, ?operatorColourMap :: Map Text Text)
   => Bool --  ^ display total
   -> Day
   -> Day
@@ -696,12 +696,15 @@ displayCalendar displayTotal start end firstActive lastActive shifts = do
                    then rows' <> rowTotal start shiftMap operator'colors 
                    else rows'
       colors = defaultColors --  ["green", "blue", "orange", "purple", "brown"] :: [Text]
-      operator'colors = zip operators (cycle colors)
+      operator'colors = zipWith (\op col -> (op, findWithDefault col op ?operatorColourMap))  operators (cycle colors)
       css = [cassius|
              table tr.total
                 font-weight: 700
+             td
+                border-right: 1px dotted black !important
              td.Saturday, td.Sunday
                 background: #fee
+             tr
              span.badge.Holiday
                 color: white
                 background: lightgray
@@ -741,8 +744,16 @@ displayCalendar displayTotal start end firstActive lastActive shifts = do
                 display: inline-block
              td:hover span.Xnon-hover
                   display: none
+             tr:has(td.dayOfMonth), td.dayOfMonth
+               background-color: lightblue !important
+               border-top: 2px solid black !important
                   |]
-  displayTable columns colDisplay rows >> toWidget css
+  [whamlet|
+  <table.table.table-hover.datatable data-paging=false>
+     ^{displayTableRowsAndHeader columns colDisplay rows >> toWidget css}
+  |]
+
+  -- displayTable columns colDisplay rows >> toWidget css
 
 calendarFn :: (?viewPayrollDurationPermissions :: Text -> Granted)
            => (Map Text (Map Day [TS.Shift (Text,Day,ShiftType)]))
@@ -852,7 +863,7 @@ rowTotal :: (?viewPayrollDurationPermissions::Text -> Granted)
   -> [(Either Bool Integer -> Maybe (Html, [Text]), [Text])]
 rowTotal periodStart shiftMap operators = let
   header = (headerFn, ["total"])
-  headerFn (Left False) = Just ("Operator", [])
+  headerFn (Left False) = Just ("Operator", ["dayOfMonth"])
   headerFn (Left True) = Just ("Summary", [])
   headerFn _ =  Nothing
   shiftMap0 = shiftMap <&> \dateMap -> let
@@ -1229,6 +1240,19 @@ viewPayrollDurationPermissions = do
   let unlocker operator = granter role (ViewPriv, operator)
   return unlocker
 
+operatorColourMapH :: Handler (Map Text Text)
+operatorColourMapH = do
+  psettings <- appPayroll <$> getsYesod appSettings
+  operatorMapE <- allOperators
+  let operatorMap = mapFromList [ (operatorNickname op, op) | op <- toList operatorMapE ] :: Map Text Operator
+  return $ mapFromList [ (operatorFullname op, col)
+                       | (employee, EmployeeSettings{cssColour=Just col}) <- Map.toList $ employees psettings
+                       , op <- toList $ lookup employee operatorMap 
+                       ]
+
+
+operatorFullname :: Operator -> Text
+operatorFullname Operator{..} = operatorSurname <> ", " <> operatorNickname
 
 isShiftDurationUnlocked = isUnlocked ?viewPayrollDurationPermissions . TS._duration
 isShiftAmountUnlocked = isUnlocked ?viewPayrollDurationPermissions . TS._duration

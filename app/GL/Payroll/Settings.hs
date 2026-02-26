@@ -18,6 +18,7 @@ data EmployeeSettings = EmployeeSettings
   , faSKU :: Text
   , dimension1 :: Maybe Int
   , dimension2 :: Maybe Int
+  , cssColour :: Maybe Text
   } deriving (Show , Eq, Ord)
 
 -- | External party associated with deductions and costs

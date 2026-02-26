@@ -77,7 +77,10 @@ processCalendar :: CalendarParam -> Handler Widget
 processCalendar param =  do
   timesheets <- loadTimesheet' param
   viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  operatorColourMap <- operatorColourMapH
   let ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
+      ?operatorColourMap = operatorColourMap
+       
   -- group all shifts
   let allShifts = filter isShiftUnlocked $ concatMap TS._shifts timesheets
       days = map (^. TS.day) allShifts
