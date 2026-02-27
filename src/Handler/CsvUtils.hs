@@ -16,6 +16,7 @@ import Data.Char (ord,toUpper,toLower)
 import Data.List (nub)
 import Util.ValidField
 import Util.Transformable
+import qualified Data.Text as T
   
 import qualified Data.ByteString.Lazy as LazyBS
 
@@ -152,7 +153,7 @@ parseInvalidSpreadsheet opt columnMap bytes err =
              columnIndexes = catMaybes (map snd indexes)
              errorDescription = case traverse sequence sheet of
                                      Left _ -> "Encoding is wrong. Please make sure the file is in UTF8"
-                                     Right _ -> tshow err
+                                     Right _ -> "[[" <> tshow err <> "]]"
          InvalidSpreadsheet{..}
 
 -- | Helper to parse a field given different row names
@@ -279,6 +280,16 @@ parseDay str =
                   , "%a %d %b %0Y"
                   ]
 
+--  remove thousands separator
+newtype Thousands a  = ThousandsDouble {unThousands :: a}
+        deriving (Show, Num, Eq, Ord)
+
+instance Csv.FromField a => Csv.FromField (Thousands a) where
+  parseField bs = do
+    let txt = decodeUtf8 bs
+        noThousands = T.replace "," "" txt
+    ThousandsDouble <$> Csv.parseField (encodeUtf8 noThousands)
+
 instance (Csv.FromField a) => Csv.FromField (ValidField a) where
   parseField bs = do
     val <- Csv.parseField bs
@@ -323,6 +334,12 @@ instance Renderable Double where
 
 instance Renderable Text where
   render t = [whamlet|#{toHtmlWithBreak t}|]
+
+instance Renderable ByteString where
+  render t = [whamlet|#{toHtmlWithBreak $ decodeUtf8 t}|]
+
+instance Renderable [ByteString] where
+  render bs = mconcat $ map render bs
 
 instance Renderable Day where
   render t = [whamlet|#{tshow t}|]

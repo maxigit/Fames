@@ -60,6 +60,7 @@ library
       Handler.GL.Payroll.Calendar
       Handler.GL.Payroll.Common
       Handler.GL.Payroll.Import
+      Handler.GL.Payroll.Payroo
       Handler.GL.Payroll.QuickAdd
       Handler.GL.Payroll.Summary
       Handler.GL.TaxReport

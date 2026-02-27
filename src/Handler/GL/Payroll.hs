@@ -28,6 +28,8 @@ import Handler.GL.Payroll.Summary
 import Handler.GL.Payroll.Calendar
 import Handler.GL.Payroll.QuickAdd
 import Handler.GL.Payroll.Import
+import Handler.GL.Payroll.Payroo
+import Handler.CsvUtils(renderParsingResult)
 import GL.Payroll.Parser
 import GL.Payroll.Settings
 import Data.Text (strip)
@@ -44,8 +46,14 @@ import qualified FA as FA
 data Mode = Validate | Save deriving (Eq, Show)
 data UploadParam = UploadParam
   { upTimesheet :: Textarea
+  , upPayroo :: Maybe FileInfo
   , upPreviousKey :: Maybe DocumentHash
-  } deriving (Eq, Show)
+  } -- deriving (Show)
+
+-- data UploadPayrooParam = UploadPayrooParam
+--   { upPayroo :: Maybe FileInfo
+--   -- , upPreviousKey :: Maybe DocumentHash
+--   }
 
 data FAParam = FAParam
   { ffDate :: Day
@@ -56,9 +64,15 @@ data FAParam = FAParam
 uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
 uploadForm mode paramM = let
   form _ = UploadParam <$> areq textareaField "Timesheet" (upTimesheet <$> paramM)
+                       <*> aopt fileField ("payroo") (upPayroo <$> paramM)
                        <*> areq hiddenField "key" (Just $ upPreviousKey =<< paramM)
   in renderBootstrap3 BootstrapBasicForm . form $ mode
 
+-- uploadPayrooFrom :: Mode -> Maybe UploadPayrooParam -> _ (FormResult UploadPayrooParam, Widget)
+-- uploadPayrooFrom mode paramM = let
+--   form _ = UploadParam <$> areq fileField "Payroo" (upPayroo <$> paramM)
+--                        <*> areq hiddenField "key" (Just $ upPreviousKey =<< paramM)
+--   in renderBootstrap3 BootstrapBasicForm . form $ mode
 -- faForm :: _ (FormResult Day, Widget)
 faForm = renderBootstrap3 BootstrapBasicForm form  where
   form = FAParam <$> areq dayField "Processing date" Nothing
@@ -82,6 +96,7 @@ postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
   case actionM of
    Just "quickadd" -> processTimesheet Validate quickadd
+   Just "payroo" -> processTimesheet Validate uploadPayroo
    _ -> processTimesheet Validate validate
 
 validate :: UploadParam -> DocumentHash -> Handler Html
@@ -247,6 +262,7 @@ getGLPayrollViewR key = do
       (upFormW, upEncType) <- generateFormPost $ uploadForm Validate
                                                             (Just $ UploadParam  (Textarea $ pack ">>" <> timesheetReference ts )
                                                                                  Nothing
+                                                                                 Nothing
                                                             )
       defaultLayout $ do
         setTitle . toHtml $ "Timesheet " <> timesheetReference ts
@@ -267,7 +283,8 @@ getGLPayrollViewR key = do
               <button type="submit" .btn.btn-info>Download Payroo 
             <form #upload-form role=form method=post action=@{GLR GLPayrollValidateR} enctype=#{upEncType}>
               ^{upFormW}
-             <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
+              <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
+              <button type="submit" name="action" value="payroo" class="btn btn-danger">Upload Payroo
           $else 
             <form role=form method=get action=@{GLR $ GLPayrollVoidFAR key}>
               <button type="submit" .btn.btn-danger>Void in FrontAccounting
@@ -473,6 +490,30 @@ saveQuickadd  param key = do
             getGLPayrollR
             -- renderMain Validate Nothing created201 msg w
 
+-- ** Upload Payroo
+uploadPayroo :: UploadParam -> DocumentHash -> Handler Html
+uploadPayroo param _key = do 
+   viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+   viewPayrollDurationPermissions' <- viewPayrollAmountPermissions
+   let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+       ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
+   psettings <- appPayroll <$> getsYesod appSettings
+   case upPayroo param of 
+        Nothing -> renderMain Validate Nothing  badRequest400 (setInfo "Enter a valid employees sheet") (return ())
+        Just fileinfo -> do 
+            (content, docKey) <- readUploadUTF8 fileinfo UTF8
+            let onSuccess dacs = do
+                      let Textarea ref = upTimesheet param
+                      -- TODO not reuse quickadd but extract the relevant bit and inject the dacs into it.
+                      quickadd param { upTimesheet = Textarea (unlines $ lines ref <> toTimeSheet dacs)
+                                     , upPreviousKey = Nothing
+                                     } docKey
+                onError m err = renderMain Validate Nothing  badRequest400 m err
+            renderParsingResult  onError onSuccess (readPayroo (employees psettings) content)
+   where toTimeSheet dacs = map (pack . displayDAC ) dacs
+      
+
+
 -- ** Renders 
 -- | Renders the main page. It displays recent timesheet and also allows to upload a new one.
 -- The given mode is actually the next one, if the spreadsheet needs to be validated or saved.
@@ -482,6 +523,7 @@ renderMain mode paramM status message pre = do
         Validate -> (GLPayrollValidateR, "validate" :: Text, "primary" :: Text)
         Save -> (GLPayrollSaveR, "save", "danger")
   (upFormW, upEncType) <- generateFormPost $ uploadForm mode paramM
+  -- (payrooFormW, prEncType) <- generateFormPost $ uploadPayrooFrom mode paramM
   message
   sendResponseStatus status =<< defaultLayout
      [whamlet|
