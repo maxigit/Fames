@@ -557,6 +557,7 @@ employeeSummaryColumns summaries = let
 -- the header to generate different column that then one actually needed.
 -- this is usefull when displaying different timesheet in different tables
 -- but with all the table  having the same header.
+employeeSummaryTable :: [col] -> (col -> (Html, [Text])) -> [(col ->  Maybe (Html, [Text]), [Text])]-> Widget
 employeeSummaryTable columns colNames rows = let 
   table =  displayTableRowsAndHeader columns colNames rows 
   in [whamlet|

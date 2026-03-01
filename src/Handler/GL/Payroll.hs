@@ -43,7 +43,7 @@ import qualified Data.Map as Map
 import qualified FA as FA
 
 -- * Types 
-data Mode = Validate | Save deriving (Eq, Show)
+data Mode = Validate | Save |SaveQuickAdd deriving (Eq, Show)
 data UploadParam = UploadParam
   { upTimesheet :: Textarea
   , upPayroo :: Maybe FileInfo
@@ -95,7 +95,7 @@ postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
   case actionM of
-   Just "quickadd" -> processTimesheet Validate quickadd
+   Just "quickadd" -> processTimesheet Validate (quickadd Nothing)
    Just "payroo" -> processTimesheet Validate uploadPayroo
    _ -> processTimesheet Validate validate
 
@@ -466,12 +466,12 @@ transactionMapFilterForTS timesheetId =  do
           ||. for PayrollItemE unPayrollItemKey itemIds
 
 -- ** Quick Add 
-quickadd :: UploadParam -> DocumentHash -> Handler Html
-quickadd  param key = do
-  wE <- saveQuickAdd False (unTextarea $ upTimesheet param) key
+quickadd :: Maybe ([TS.EmployeeSummary Text Text ], TS.EmployeeSummary Text ()) -> UploadParam -> DocumentHash -> Handler Html
+quickadd  expectedSummaries param key = do
+  wE <- saveQuickAdd False (unTextarea $ upTimesheet param) expectedSummaries key
   case wE of
     Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
-    Right w -> renderMain Save (Just $ param { upPreviousKey = Just key}) ok200 (return()) w
+    Right w -> renderMain SaveQuickAdd (Just $ param { upPreviousKey = Just key}) ok200 (return()) w
     -- Right w -> defaultLayout [whamlet|
     --    <form #quick-form role=form method=post action=@{GLR GLPayrollSaveR }> 
     --      <input type=hidden name=quickadd value="#{unTextarea $ upTimesheet param}">
@@ -480,9 +480,9 @@ quickadd  param key = do
 saveQuickadd :: UploadParam -> DocumentHash -> Handler Html
 saveQuickadd  param key = do
   if   Just key /= upPreviousKey param
-      then quickadd param key
+      then quickadd Nothing param key
       else do
-        wE <- saveQuickAdd True (unTextarea $ upTimesheet param) key
+        wE <- saveQuickAdd True (unTextarea $ upTimesheet param) Nothing key
         case wE of
           Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
           Right __w -> do
@@ -502,10 +502,11 @@ uploadPayroo param _key = do
         Nothing -> renderMain Validate Nothing  badRequest400 (setInfo "Enter a valid employees sheet") (return ())
         Just fileinfo -> do 
             (content, docKey) <- readUploadUTF8 fileinfo UTF8
-            let onSuccess dacs = do
+            let onSuccess (dacs, expectedSummaries) = do
                       let Textarea ref = upTimesheet param
                       -- TODO not reuse quickadd but extract the relevant bit and inject the dacs into it.
-                      quickadd param { upTimesheet = Textarea (unlines $ lines ref <> toTimeSheet dacs)
+                      quickadd (Just expectedSummaries)
+                               param { upTimesheet = Textarea (unlines $ lines ref <> toTimeSheet dacs)
                                      , upPreviousKey = Nothing
                                      } docKey
                 onError m err = renderMain Validate Nothing  badRequest400 m err
@@ -521,7 +522,7 @@ renderMain :: Mode -> (Maybe UploadParam) -> Status -> Handler() -> Widget -> Ha
 renderMain mode paramM status message pre = do
   let (action, button,btn) = case mode of
         Validate -> (GLPayrollValidateR, "validate" :: Text, "primary" :: Text)
-        Save -> (GLPayrollSaveR, "save", "danger")
+        _Save -> (GLPayrollSaveR, "save", "danger")
   (upFormW, upEncType) <- generateFormPost $ uploadForm mode paramM
   -- (payrooFormW, prEncType) <- generateFormPost $ uploadPayrooFrom mode paramM
   message
@@ -531,7 +532,8 @@ renderMain mode paramM status message pre = do
      <div.well>
        <form #upload-form role=form method=post action=@{GLR action} enctype=#{upEncType}>
          ^{upFormW}
-        <button type="submit" name="#{button}" value="#{tshow mode}" class="btn btn-#{btn}">#{button}
+         $if mode /= SaveQuickAdd
+             <button type="submit" name="#{button}" value="#{tshow mode}" class="btn btn-#{btn}">#{button}
         <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
         |]
 -- | Quick documentation to remind the timesheet syntax

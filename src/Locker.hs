@@ -27,8 +27,11 @@ import Data.Either(isRight)
 data Locker r a where
   Locker :: Ord r => Set r -> a -> Locker r a
 
-deriving instance  (Eq a, Eq r) => Eq (Locker r a) 
-deriving instance  (Ord a, Ord r) => Ord (Locker r a) 
+
+instance  (Eq a, Eq r) => Eq (Locker r a)  where
+   (Locker _ a) == (Locker _ b) = a == b
+instance  (Ord a, Ord r) => Ord (Locker r a)  where
+   compare (Locker _ a )  (Locker _ b) = compare a b
 
 data Granted = Granted | Forbidden deriving (Eq, Ord, Show)
 

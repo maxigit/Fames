@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns, NamedFieldPuns #-}
 module Handler.GL.Payroll.Payroo
 (
 readPayroo
@@ -14,6 +15,7 @@ import Control.Monad.Fail(fail)
 
 import qualified Data.ByteString.Char8 as BS
 import GL.Payroll.Parser (lockA)
+import GL.Payroll.Report (mkSummary)
 import qualified Data.Map as Map
 
 data PayrooRecord = PayrooRecord
@@ -44,7 +46,7 @@ columnNames = [ ( "worksNo"            , [ "Works\nNo." ] )
               , ("totalGrossPay"       , [ "Total\nGross Pay" ] )
               , ("employerNetNIC"      , [ "Employer\nNet NIC" ] )
               , ("employerPension"     , [ "Employer\nPension" ] )
-              , ("totalNotionalPayment", [ "Total\nNotional\nPayment" ] )
+              , ("totalNotionalPayment", [ "Total\nNotional\nPayment", "Total \nNotional \nPayment"  ] )
               , ("totalEmployerCost"   , [ "Total\nEmployer\nCost" ] )
               , ("departmentName"      , [ "Department\nName" ] )
               , ("costCenterName"      , [ "Cost Center\nName" ] )
@@ -70,14 +72,14 @@ instance Csv.FromNamedRecord PayrooRecord where
              <*> m `parse` total
              <*> m `parse` niR
              <*> m `parse` penR
-             <*> m `parse` totalCost
              <*> m `parse` totalNP
+             <*> m `parse` totalCost
              <*> m `parse` dept
              <*> m `parse` costCenter
              <*> m `parse` branch
       
 -- | 
-readPayroo :: (Map Text EmployeeSettings) -> ByteString -> ParsingResult ByteString [DeductionAndCost  (String, Text)]
+readPayroo :: (Map Text EmployeeSettings) -> ByteString -> ParsingResult ByteString ([DeductionAndCost  (String, Text)], ([ EmployeeSummary Text Text], EmployeeSummary Text ()))
 readPayroo employeesMap content = let 
      empMap = mapFromList [  (payrollId e, nickName)
                           | (nickName, e) <- Map.toList employeesMap
@@ -86,37 +88,60 @@ readPayroo employeesMap content = let
      -- the file should have at lise 21 for the header and 1 line for the footer
      ls = map (BS.filter (/='\r')) $ BS.lines content
      in case drop 5 ls of 
-        employesAndTotal@(header :  _) {- | "\"Works"  `BS.isPrefixOf` header -} -> either id id do
+        employesAndTotal@(header :  _) | "\"Works"  `BS.isPrefixOf` header -> either id id do
                              employees <- parseSpreadsheet columnNameMap
                                                          Nothing
                                                          (BS.unlines $ employesAndTotal)
                                           <|&> \inv -> WrongHeader inv
-                             dacs <- traverse (makeDACs empMap) employees 
+                             (unzip -> (dacs, summariesAndTotal)) <- traverse (makeDACs empMap) employees 
                                      <|&> \e -> InvalidData [e] [] []
-                             Right $ ParsingCorrect $ concat dacs
-
-
+                             case lastMay summariesAndTotal of
+                                  Just total | _sumEmployee total == Nothing ->
+                                                           Right $ ParsingCorrect ( concat dacs
+                                                                                  , (mapMaybe sequence summariesAndTotal
+                                                                                    , fmap (const ()) total
+                                                                                    )
+                                                                                  )
+                                  _ -> Left $ InvalidData ["Total missing"] [] employesAndTotal
         [] -> WrongHeader  $ InvalidSpreadsheet "Wrong heador or data" [] [] []
         (header: others) -> InvalidData  ["Wrong header or data"] [header] others
         
-makeDACs :: Map Int Text -> PayrooRecord -> Either Text [ DeductionAndCost (String, Text) ]
+-- | Convert a payroo record to the deductions, a summary or  the total (Nothing)
+makeDACs :: Map Int Text -> PayrooRecord -> Either Text ([ DeductionAndCost (String, Text) ], EmployeeSummary Text (Maybe Text) )
 makeDACs empMap PayrooRecord{..} =
          case lookup (fromMaybe 0 worksNo) empMap of
-           Just e -> let go = dac e
-                     in Right $ catMaybes [ go "PAYE" employeePAYE 0
-                                          , go "NI" employeeNetNIC employerNetNIC
-                                          , go "NEST" employeePension employerPension
-                                          ]
-           Nothing | employeeName == "Grand Total" -> Right []
+           Just e -> let dacs = makeDacs e
+                     in Right ( dacs
+                              , makeEmployee (Just e) dacs
+                              )
+           Nothing | employeeName == "Grand Total" -> Right ([], makeEmployee Nothing $ makeDacs "Grand Total")
            Nothing -> Left $ "Employee " <> employeeName <> " #" <> tshow worksNo <> " is not configured"
-  where dac em key ee er = 
+  where dac :: e -> String -> Thousands Double -> Thousands Double -> Maybe (DeductionAndCost (String, e))
+        --    ^^^ Text or Maybe Text for Grand Total
+        dac em key ee er = 
                case (lockA $ unThousands ee, lockA $ unThousands er) of 
                  (_, _) | zero ee , zero er -> Nothing
                  (_, ler) | zero ee -> Just $ DeductionAndCost (key , em) (That ler)
                  (lee, _ )| zero er  -> Just $ DeductionAndCost (key , em) (This lee)
                  (lee, ler) -> Just $ DeductionAndCost (key , em) (These lee ler)
+        makeDacs :: e -> [ DeductionAndCost (String, e) ]
+        makeDacs em = let go = dac em
+               in catMaybes [ go "PAYE" employeePAYE 0
+                            , go "NI" employeeNetNIC employerNetNIC
+                            , go "NEST" employeePension employerPension
+                            ]
         zero x = abs (unThousands x) < 1e-6
-
+        makeEmployee :: e -> [DeductionAndCost (String, Text) ] -> EmployeeSummary Text e
+        makeEmployee e dacs = let EmployeeSummary{_deductions, _netDeductions, _costs} = mkSummary (e, That $ map (fmap (pack . fst)) dacs) 
+                              in EmployeeSummary e 
+                                         (lockA . unThousands $ (totalGrossPay - employeePAYE - employeeNetNIC - employeePension) )
+                                         (lockA . unThousands $ totalEmployerCost )
+                                         (lockA . unThousands $ netPay )
+                                         (lockA . unThousands $ totalGrossPay )
+                                         _deductions
+                                         _netDeductions
+                                         _costs
+                                         mempty
 
      
 
