@@ -54,9 +54,9 @@ saveQuickAdd  save text expectedSummariesM __key  = do
               -- for example have forgotten to input holidays or bonus in PAYROO
               diffWithExpecteds = case expectedSummariesM of 
                                           Just expectedSummaries | not save -> case checkCostSummaries mergedTts' expectedSummaries of
-                                                                   [] -> Nothing -- Ok
-                                                                   diffs -> Just diffs
-                                          _ -> Nothing
+                                                                   [] -> Right True -- Ok
+                                                                   diffs -> Left diffs
+                                          _ -> Right False
 
           when save $ lift $ do
             runDB $ do
@@ -81,23 +81,31 @@ saveQuickAdd  save text expectedSummariesM __key  = do
                      <h3> Final
                      $forall (cols, orders) <- views_
                       ^{displayEmployeeSummary' orders cols mergedTts'}
-              $maybe diff <-  diffWithExpecteds
-                 <div.panel.panel-warning>
-                   <div.panel-heading>
-                     <h3> there are some difference with PAYROO
-                   <div.panel-body>
-                      <h4> Difference (Expected - actual)
-                      $with (cols, colnames) <- employeeSummaryColumns diff
-                            ^{employeeSummaryTable cols colnames (employeeSummaryRows diff) }
-                      $with (cols, colnames) <- employeeSummaryColumns diff
-                        $with Just (expectedSummaries, total) <- expectedSummariesM
-                          <h4> Expected (from PAYROO)
-                            ^{employeeSummaryTable cols colnames (employeeSummaryRows expectedSummaries) }
-                            ^{employeeSummaryTable cols colnames (employeeSummaryRows [fmap (const "Grand Total") total]) }
-                      $with summaries <- paymentSummary mergedTts'
-                            $with (cols, colnames) <- employeeSummaryColumns summaries
-                                  <h4> Computed (PAYROO + Actual Timesheet)
-                                      ^{employeeSummaryTable cols colnames (employeeSummaryRows summaries) }
+              $case diffWithExpecteds
+                $of Left diff
+                    <div.panel.panel-warning>
+                      <div.panel-heading>
+                        <h3> there are some difference with PAYROO
+                      <div.panel-body>
+                         <h4> Difference (Expected - actual)
+                         $with (cols, colnames) <- employeeSummaryColumns diff
+                               ^{employeeSummaryTable cols colnames (employeeSummaryRows diff) }
+                         $with (cols, colnames) <- employeeSummaryColumns diff
+                           $with Just (expectedSummaries, total) <- expectedSummariesM
+                             <h4> Expected (from PAYROO)
+                               ^{employeeSummaryTable cols colnames (employeeSummaryRows expectedSummaries) }
+                               ^{employeeSummaryTable cols colnames (employeeSummaryRows [fmap (const "Grand Total") total]) }
+                         $with summaries <- paymentSummary mergedTts'
+                               $with (cols, colnames) <- employeeSummaryColumns summaries
+                                     <h4> Computed (PAYROO + Actual Timesheet)
+                                         ^{employeeSummaryTable cols colnames (employeeSummaryRows summaries) }
+                $of Right True
+                    <div.panel.panel-success>
+                      <div.panel-heading>
+                        <h3> there are NO difference with PAYROO
+                      <div.panel-body>
+                           You are good to go.
+                $of Right False
                          |]
         _ -> ExceptT . return $ Left $ "No timesheet with reference '"  <> ref <> "''"
 
