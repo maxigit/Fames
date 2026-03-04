@@ -14,7 +14,7 @@ plotForecastError
 import Import
 import Handler.Items.Reports.Common hiding(formatQuantity)
 import Handler.Items.Reports.Forecast
-import Handler.Items.Common(mkStockFilter)
+import Handler.Items.Common(mkStockFilter, year)
 import Items.Types
 import Data.Conduit.List (mapMaybe)
 import qualified Data.Vector.Generic.Sized as V
@@ -22,7 +22,7 @@ import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
 import GL.Utils
 import Data.List(iterate)
-import Data.Time.Calendar (diffDays)
+import Data.Time.Calendar (diffDays, pattern YearMonthDay)
 
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
@@ -36,6 +36,9 @@ data ForecastParam = ForecastParam
        { fpSubdirectory :: Maybe FilePath
        , fpNoveltyMode :: NoveltyMode
        , fpStockFilter :: Maybe FilterExpression
+       , fpStartDate :: Maybe Day -- ^ Make all forecast start on given day of the year
+       , fpDurationLimit :: Maybe Int -- ^ Limit forecast to the same duration so they can be compared
+                                      -- this is from the forecast or global start date
        } deriving Show
 
 defaultForecastParam :: ForecastParam
@@ -43,6 +46,8 @@ defaultForecastParam = ForecastParam{..} where
     fpSubdirectory = Nothing
     fpNoveltyMode = IncludeNovelty
     fpStockFilter = Nothing
+    fpStartDate = Nothing
+    fpDurationLimit = Nothing
 
 totalError :: WithError -> U53Weeks Quantity
 totalError w = overError w + underError w
@@ -270,8 +275,21 @@ getForecastErrors ForecastParam{..} grouper day path = do
 
 
 getPlotForecastError :: Ord k => ForecastParam -> ForecastGrouper k -> Day -> FilePath -> Handler (Widget, ForecastSummary)
-getPlotForecastError param grouper day path = do
-   today <- todayH
+getPlotForecastError param grouper day0 path = do
+   today0 <- todayH
+   let day = case fpStartDate param of
+                  Nothing -> day0
+                  Just (YearMonthDay _y m d) -> let start = YearMonthDay (year day0) m d 
+                                                    candidate 
+                                                       | start < day0 = calculateDate (AddYears 1) start
+                                                       | otherwise = start
+                                                in 
+                                                   if candidate > today0
+                                                           then day0
+                                                           else candidate
+       today = case fpDurationLimit param of
+                 Nothing -> today0
+                 Just duration -> min (calculateDate (AddDays duration) day) today0
    ((start, end), salesConduit) <- getForecastErrors param grouper day path
    salesM <- runDB $ runConduit
                    $ salesConduit
