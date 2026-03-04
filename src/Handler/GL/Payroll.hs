@@ -242,7 +242,11 @@ getGLPayrollViewR key = do
           summaries = case summaries0 of
             [] -> [summaryReport]
             ss -> ss
-      timedShifts <- loadTimedShiftsFromTS ts'
+      timedShifts_ <- loadTimedShiftsFromTS ts'
+      let nickToFullMap = Map.fromList [ (operatorNickname op, operatorFullname op)
+                                   | op <- toList operatorMap
+                                   ]
+          timedShifts = map (fmap $ \(e,d,s) -> (findWithDefault e e nickToFullMap, d, s)) timedShifts_
       let calendar = ("Calendar", displayTimesheetCalendar timedShifts, TS.filterTimesheet isShiftDurationUnlocked (const False) )
           -- reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
           reports0 = [calendar, dacsReport] <> summaries
