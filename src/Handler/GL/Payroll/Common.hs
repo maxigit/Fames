@@ -710,19 +710,19 @@ displayCalendar displayTotal start end firstActive lastActive shifts = do
                 color: white
                 background: lightgray
              span.badge.timed-extra
-                color: white
+                color: black
                 background: orangered
              span.badge.timed-slacking-off
-                color: white
+                color: black
                 background: darkorange
              span.badge.timed-bad
-                color: white
+                color: black
                 background: orange
              span.badge.timed-ok
-                color: white
+                color: black
                 background: gold
              span.badge.timed-good
-                color: white
+                color: black
                 background: lawngreen
              span.badge.Work
                 color: white
