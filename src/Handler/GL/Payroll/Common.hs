@@ -799,7 +799,7 @@ displayTimeBadges color maxDuration durations0 =
         TS.Work ->  "background:" <> color
         -- TS.Work | Just timed <- timedM, Right duration <- unlock' (TS._duration shift),  timed <= duration -> "background:" <> color
         -- TS.Work | Nothing <- timedM  -> "background:" <> color
-        _ -> "" -- use css default. gray for holiday, red for Work < than clocked timed
+        _ -> "background:gray" -- use css default. gray for holiday, red for Work < than clocked timed
       classForTimed Nothing _ = "timed-extra"
       classForTimed (Just worked) timed = let ratio = timed /worked
          in case () of
