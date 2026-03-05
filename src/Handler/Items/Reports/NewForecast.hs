@@ -407,8 +407,8 @@ makeOffenderTable categoryName summaries =  do
                       0 -> 100
                       actual -> abs(100 * (osError os  / actual))
    [whamlet|
-     <table.table.table-border.table-hover.table-striped>
-       <theader>
+     <table *{datatable}>
+       <thead>
          <tr>
            <th.just-right> #{categoryName}
            <th.just-right> Forecast

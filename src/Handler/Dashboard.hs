@@ -767,7 +767,7 @@ getDForecastDetailedR pathm = do
                               CategoryGroup cat -> cat
                               CustomerGroup -> "Customer"
                   (plot,summary) <- getPlotForecastError param grouper day path
-                  offendersM <- getMostOffenders grouper param 10 day path
+                  offendersM <- getMostOffenders grouper param 100 day path
                   return $ ((day , summary)
                            , do
                                plot
@@ -775,13 +775,13 @@ getDForecastDetailedR pathm = do
                                $maybe (tops, bestFits, bottoms) <- offendersM
                                  <div>
                                    <h3> Best Fit #{cat}
-                                        ^{makeOffenderTable cat bestFits}
+                                   ^{makeOffenderTable cat bestFits}
                                  <div>
                                    <h3> Most overestimated #{cat}
-                                        ^{makeOffenderTable cat tops}
+                                   ^{makeOffenderTable cat tops}
                                  <div>
                                    <h3> Most underestimade #{cat}
-                                        ^{makeOffenderTable cat bottoms}
+                                   ^{makeOffenderTable cat bottoms}
                                         |]
                               )
   skuReport <- report SkuGroup
