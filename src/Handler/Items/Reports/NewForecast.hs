@@ -362,7 +362,7 @@ weeksTo start today =  fromInteger $ case diffDays today start `div` 7 of
 data OffenderSummary = OffenderSummary { osActual, osForecast, osNaive, osError :: Double }
    deriving (Show)
 
-getMostOffenders :: Ord k => ForecastGrouper k  -> ForecastParam-> Int -> Day -> FilePath -> Handler (Maybe ([(Text, OffenderSummary)], [(Text, OffenderSummary)]))
+getMostOffenders :: Ord k => ForecastGrouper k  -> ForecastParam-> Int -> Day -> FilePath -> Handler (Maybe ([(Text, OffenderSummary)], [(Text, OffenderSummary)], [(Text, OffenderSummary)]))
 getMostOffenders grouper param topN day0 path = do
   today0 <- todayH
   let (today, day) = adjustTodayAndStart param today0 day0
@@ -375,13 +375,23 @@ getMostOffenders grouper param topN day0 path = do
                                                osNaive = get (forecastCumul . wsNaiveError)
                                                osError = osActual - osForecast
                                                sku = unForecastKey grouper key 
-                                           in ([(sku, offenderSummary)],  [(sku, offenderSummary)])
+                                               sku'offenders = [(sku, offenderSummary)]
+                                           in (sku'offenders
+                                              , if zero osActual && zero osForecast 
+                                                              then []
+                                                              else sku'offenders
+                                              , sku'offenders
+                                              )
+      zero x = abs x < 1 -- e-3
       -- vvvv silly we should use a normal fold and  as A or B is always a singleton list
-      keepOffenders (topsA, bottomsA) (topsB, bottomsB) = let 
+      --      keepOffenders perform 3 fold at the same time, adding the current element (B) to the existing mosts A
+      keepOffenders (topsA, midsA, bottomsA) (topsB, midsB, bottomsB) = let 
               bots = keepNonNull $ sortOn (Down . osError .snd)  (bottomsA ++ bottomsB)
               tops = keepNonNull $ sortOn (osError .snd)  (topsA ++ topsB)
+              -- best fit sort by 
+              mids = keepNonNull $ sortOn (abs . osError . snd) (midsA ++ midsB)
               keepNonNull = filter (\(_,os) -> osError os /= 0)
-              in (take topN tops, take topN bots)
+              in (take topN tops, take topN mids, take topN bots)
       lastGood v = v `V.unsafeIndex` weeksToToday
       weeksToToday = weeksTo start today
 

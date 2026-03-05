@@ -772,7 +772,10 @@ getDForecastDetailedR pathm = do
                            , do
                                plot
                                [whamlet|
-                               $maybe (tops, bottoms) <- offendersM
+                               $maybe (tops, bestFits, bottoms) <- offendersM
+                                 <div>
+                                   <h3> Best Fit #{cat}
+                                        ^{makeOffenderTable cat bestFits}
                                  <div>
                                    <h3> Most overestimated #{cat}
                                         ^{makeOffenderTable cat tops}
