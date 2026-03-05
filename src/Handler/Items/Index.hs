@@ -499,13 +499,20 @@ getVarsFor forceCache param =
                        return $ const $ map (snd . ?skuToStyleVar . Sku . unStockMasterKey) keys'
        (Nothing, Nothing) -> 
           case ipSKU param of
-            Just (InFilter _ skus) ->  let  styleToVars = groupAsMap fst (return . snd) $ map (?skuToStyleVar . Sku) skus
+            Just filterE  ->  let  styleToVars = groupAsMap fst (return . snd) $ map (?skuToStyleVar . Sku) (filterToSkus filterE)
                                in return $ \st -> findWithDefault [] st styleToVars
 
             _ -> return . const $ [] -- (Left $ map  entityKey styles)
        (_ ,Just group_) -> do
          varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
          return . const $ (Map.findWithDefault [] group_ varGroupMap)
+  where filterToSkus e = case e of 
+                         (LikeFilter t)  -> if any (`elem` t) ("%_" :: [Char]) -- LIKE expression
+                                            then []
+                                            else [t]
+                         (InFilter _ ts ) -> ts
+                         (Filters es) -> concatMap filterToSkus $ toList es
+                         _ -> []
 
 -- | Filters according to FA and DC status but KEEP base variation if needed.
 -- This is needed To be able to copy price or other information when creating missing
