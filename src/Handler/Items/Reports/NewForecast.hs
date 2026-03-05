@@ -273,10 +273,8 @@ getForecastErrors ForecastParam{..} grouper day path = do
                          .|mapC  addErrors
   return ((start, end), conduit)
 
-
-getPlotForecastError :: Ord k => ForecastParam -> ForecastGrouper k -> Day -> FilePath -> Handler (Widget, ForecastSummary)
-getPlotForecastError param grouper day0 path = do
-   today0 <- todayH
+adjustTodayAndStart :: ForecastParam -> Day -> Day -> (Day, Day) -- 
+adjustTodayAndStart param today0 day0  =
    let day = case fpStartDate param of
                   Nothing -> day0
                   Just (YearMonthDay _y m d) -> let start = YearMonthDay (year day0) m d 
@@ -290,6 +288,13 @@ getPlotForecastError param grouper day0 path = do
        today = case fpDurationLimit param of
                  Nothing -> today0
                  Just duration -> min (calculateDate (AddDays duration) day) today0
+   in (today, day)
+
+
+getPlotForecastError :: Ord k => ForecastParam -> ForecastGrouper k -> Day -> FilePath -> Handler (Widget, ForecastSummary)
+getPlotForecastError param grouper day0 path = do
+   today0 <- todayH
+   let (today, day) = adjustTodayAndStart param today0 day0
    ((start, end), salesConduit) <- getForecastErrors param grouper day path
    salesM <- runDB $ runConduit
                    $ salesConduit
@@ -358,8 +363,10 @@ data OffenderSummary = OffenderSummary { osActual, osForecast, osNaive, osError 
    deriving (Show)
 
 getMostOffenders :: Ord k => ForecastGrouper k  -> ForecastParam-> Int -> Day -> FilePath -> Handler (Maybe ([(Text, OffenderSummary)], [(Text, OffenderSummary)]))
-getMostOffenders grouper param topN day path = do
-  today <- todayH
+getMostOffenders grouper param topN day0 path = do
+  today0 <- todayH
+  let (today, day) = adjustTodayAndStart param today0 day0
+
   ((start, _end), salesConduit) <- getForecastErrors param grouper  day path
   let mkTopOffenders (ForMap key weekly) = let offenderSummary = OffenderSummary{..}
                                                get f = lastGood $ f weekly
