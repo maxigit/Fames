@@ -13,6 +13,7 @@ module Handler.GL.Payroll
 , postGLPayrollRejectR
 , postGLPayrollToFAR
 , postGLPayrollToPayrooR
+, postGLPayrollToNestR
 , getGLPayrollVoidFAR
 , postGLPayrollVoidFAR
 , module Handler.GL.Payroll.Summary
@@ -32,9 +33,11 @@ import Handler.GL.Payroll.Payroo
 import Handler.CsvUtils(renderParsingResult)
 import GL.Payroll.Parser
 import GL.Payroll.Settings
+import GL.Utils (calculateDate)
 import Data.Text (strip)
 import Database.Persist.MySQL
-import Lens.Micro.Extras (preview)
+import Lens.Micro.Extras (preview, view)
+import Lens.Micro
 import Data.These.Lens
 import Data.Align
 import Data.List(nub)
@@ -290,6 +293,8 @@ getGLPayrollViewR key = do
               <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
               <button type="submit" name="action" value="payroo" class="btn btn-danger">Upload Payroo
           $else 
+            <form role=form method=post action=@{GLR $ GLPayrollToNestR key}>
+              <button type="submit" .btn.btn-info>Download Nest 
             <form role=form method=get action=@{GLR $ GLPayrollVoidFAR key}>
               <button type="submit" .btn.btn-danger>Void in FrontAccounting
                               |]
@@ -368,6 +373,52 @@ postGLPayrollToPayrooR key = do
             setAttachment (fromStrict $ "payroo" <> tshow start <> "--" <> tshow end  <> ".csv")
             respondSource "text/csv" (source .| mapC toFlushBuilder)
         Left e -> error $ "Problem generating payroo csv: " <> unpack e
+
+postGLPayrollToNestR :: Int64 -> Handler TypedContent
+postGLPayrollToNestR key = do
+  modelE <- loadTimesheet key
+  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
+  -- we need to get the formula from the nest view which calculate the "Qualified earnings"
+  -- TODO we could only get NEST or filter the formula to just get the right ones
+  -- but Haskell is lazy so it probably doesn't matter
+  psettings <- appPayroll <$> getsYesod appSettings
+  let formulas = concat $ map fst $ toList $ views psettings
+
+  case (modelE, nest psettings) of
+    (Nothing, _) -> error $ "Can't load Timesheet with id #" ++ show key
+    (_, Nothing) -> -- error "Nest is not configured in the payroll settings"
+                    error $ show psettings
+    (Just (tsE, shifts, items), Just nest) -> do
+        let tsOId = modelToTimesheetOpId tsE shifts items
+        tsE <- timesheetOpIdToO'SH tsOId
+        case tsE of 
+           Left e -> error $ "Problem generating NEST contributions csv: " <> unpack e
+           Right ts -> do
+               -- we only need the paymeng and apply the NEST formula from the config
+               let nestCsv = TS.nest (employerRef nest)
+                                     (paymentSource nest)
+                                     formulas 
+                                     $ TS.mapPayee fst
+                                     $ adjustPeriod
+                                     $ fmap ((,) <$> view (_1 . to entityVal . to operatorSurname)
+                                                <*> view (_2 . to payrollId )
+                                             )
+                                            ts
+                   adjustPeriod ts_ = case startAdjustment nest of 
+                                       Nothing -> ts_
+                                       Just adj -> ts_ & TS.periodStart %~ (calculateDate adj )
+                   source = yieldMany $ map (<> "\n") nestCsv
+                   start = TS._periodStart ts
+                   end = TS.periodEnd ts
+               setAttachment (fromStrict $ "nest-" <> tshow start <> "--" <> tshow end  <> ".csv")
+               respondSource "text/csv" (source .| mapC toFlushBuilder)
+
+
+
+
 
 -- ** Void 
 {-# NOINLINE getGLPayrollVoidFAR #-}

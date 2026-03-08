@@ -244,6 +244,7 @@ instance FromJSON AppSettings  where
                                                           0 "" "" 0
                                                           (Map.fromList [])
                                                           (mempty)
+                                                          Nothing
         -- statemens settings should be a list, each element corresponding to a page
         -- if a map is found, we consider there is only one page
         appBankStatements <-  (o .: "bank-statements" <&> Map.singleton "Main") <|>  (o .:? "bank-statements" .!= mempty)

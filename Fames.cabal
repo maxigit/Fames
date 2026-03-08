@@ -126,6 +126,7 @@ library
       GL
       GL.Check.ItemCostSettings
       GL.FA
+      GL.Payroll.Nest
       GL.Payroll.Parser
       GL.Payroll.Report
       GL.Payroll.Settings
@@ -829,6 +830,7 @@ executable Fames
       GL
       GL.Check.ItemCostSettings
       GL.FA
+      GL.Payroll.Nest
       GL.Payroll.Parser
       GL.Payroll.Report
       GL.Payroll.Settings

@@ -6,17 +6,20 @@ import Lens.Micro
 import Lens.Micro.Extras
 import           Data.Map(Map)
 import qualified Data.Map as Map
-import GL.Payroll.Timesheet
+import GL.Payroll.Timesheet as TS
 import           Data.Time ( Day
                            , addDays
                            , formatTime
                            )
+import qualified GL.Payroll.Nest as Nest
+import GL.Payroll.Settings (PayrollFormula(..))
 import Data.Time.Format    (defaultTimeLocale)
 import Data.These
 import Data.Align
 import Locker
-import Data.Text (Text)
+import Data.Text (Text, unpack, pack)
 import System.FilePath((</>))
+import Data.Maybe(mapMaybe, fromMaybe)
 -- * Formatting 
 -- ** Display 
 -- Custom show
@@ -189,6 +192,38 @@ writePayroo dir ts = do
 
     writeFile (dir </> path) (unlines (payroo ts))
 
+-- ** NEST
+-- 
+nest :: ( ?viewPayrollAmountPermissions :: (Text -> Granted)
+          , ?viewPayrollDurationPermissions :: (Text -> Granted)
+          )
+       => Text -> Text -> [(Text, [PayrollFormula])] -> Timesheet Text (Text, Int) -> [String]
+nest employerRef paymentSource formulas ts = let
+  --                           ^^^^^^^^  
+  --                              |
+  --                              +--- contains Qualified Earning. In theory we just need this one
+  header =  Nest.Header (unpack employerRef)
+                        (periodEnd ts)
+                        (unpack paymentSource)
+                        (ts ^. frequency)
+                        (ts ^. periodStart)
+  summaries :: [EmployeeSummary Text (Text, Int)]
+  summaries = map (tweakSummary formulas) $ paymentSummary ts
+  details = mapMaybe mkDetail summaries
+  mkDetail emp = let employee = Map.findWithDefault 0 "NEST(e)" (_deductions emp)
+                     employer = Map.findWithDefault 0 "NEST(r)" (_costs emp)
+                     qualifiedEarnings = Map.findWithDefault 0 "Qualified Earnings (M)" (_netDeductions emp)
+  
+                 in case (employee, employer) of 
+                         (0,0) -> Nothing
+                         _ -> Just $ Nest.Detail (unpack $ emp ^. sumEmployee . _1) -- surname
+                                                 (show $ emp ^. sumEmployee . _2 )
+                                                 (unlockAmount qualifiedEarnings)
+                                                 (unlockAmount employee)
+                                                 (unlockAmount employer)
+  unlockAmount = either (error . show) id . unlock ?viewPayrollAmountPermissions
+  in Nest.makeCsv header details
+
 -- * Payment summary 
 paymentSummary :: (Ord e, Ord p) => Timesheet p e -> [EmployeeSummary p e]
 paymentSummary timesheet_ = let
@@ -223,3 +258,46 @@ mkSummary (emp, These shiftMap dacs) = let
   in EmployeeSummary emp final totalCost_ net_ gross_ deductions_ netDeductions_ costs_ hours
 mkSummary (emp, This s) = mkSummary (emp , These s [])
 mkSummary (emp, That dacs) = mkSummary (emp , These Map.empty dacs)
+
+-- * Formula
+-- Add virtual columns corresponding to the give formulas
+tweakSummary :: [(Text, [PayrollFormula])] -> TS.EmployeeSummary Text e -> TS.EmployeeSummary Text e
+tweakSummary formulas emp =  let
+  val118 = (\x -> x - 118) <$> emp ^. TS.gross -- unside a locker
+  val512 = (\x -> x - 512) <$> emp ^. TS.gross -- unside a locker
+  deducs = emp ^. TS.netDeductions
+  suffixKeys suffix = Map.mapKeysMonotonic (<> suffix) 
+  emp' = emp & TS.deductions %~ (suffixKeys "(e)")
+                 & TS.costs %~ (suffixKeys "(r)")
+  in emp' & TS.netDeductions .~ deducs <> Map.fromList ([ ("Do Not Use Earnings (W)", val118)
+                                                       , ("Qualified Earnings (M)", val512)
+                                                       ] <> 
+                                                       [ (name, evalFormulas emp' formula)
+                                                       | (name, formula) <- formulas
+                                                       , [PFVariable name] /= formula
+                                                       , [] /= formula
+                                                       -- \^ we need to filter normal field
+                                                       -- but only keep calculated formula
+                                                       ] 
+                                                     )
+
+evalFormulas :: TS.EmployeeSummary Text e -> [PayrollFormula] -> TS.Amount
+evalFormulas emp = sum . map (fromMaybe 0 . evalFormula emp) 
+evalFormula :: TS.EmployeeSummary _Text e -> PayrollFormula -> Maybe TS.Amount
+evalFormula  emp formula = let
+   values = TS._deductions emp
+             <> TS._netDeductions emp
+             <> TS._costs emp
+             <> Map.fromList ([ ("Gross",  TS._gross emp)
+                             , ("Net", TS._net emp)
+                             , ("To Pay", TS._finalPayment emp)
+                             , ("Total Cost", TS._totalCost emp)
+                             ]
+                             <> [( pack $ show k, h)
+                                | (k,h)  <- Map.toList (TS._totalHours emp)
+                                ]
+                             )
+   in case formula of
+       PFVariable var -> Map.lookup var values
+       PFNegVariable var -> fmap (fmap negate) $ Map.lookup var values
+       PFValue v -> return (pure v)

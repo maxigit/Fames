@@ -64,9 +64,17 @@ data PayrollSettings = PayrollSettings
   , views :: Map Text ([(Text,  [PayrollFormula]) ]
                       , [Text] -- employe order by name
                       )
+  , nest:: Maybe NestSettings
   -- , formulas :: Map Text PayrollFormula
   } deriving (Show, Eq, Ord)
 
+
+data NestSettings = NestSettings
+  { employerRef :: Text
+  , paymentSource :: Text
+  , startAdjustment :: Maybe DateCalculator
+  }
+  deriving (Show, Eq, Ord)
 
 -- ** Date Calculator 
 data DateCalculator
@@ -186,6 +194,7 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DACPaymentSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField} ''DACSettings)
 $(deriveJSON defaultOptions ''PayrollExternalSettings)
+$(deriveJSON defaultOptions ''NestSettings)
 $(deriveJSON defaultOptions ''PayrollSettings)
 
 -- * Utils 
