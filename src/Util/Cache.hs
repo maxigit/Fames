@@ -3,7 +3,7 @@
 module Util.Cache
 ( DAction(..)
 , Delayed(..)
-, getDelayed
+, getDelayed, getDelayedWithoutInfo
 , createDelayed 
 , cancelDelayed
 , startDelayed
@@ -107,6 +107,9 @@ getDelayed d = do
   startDelayed d
   r <- wait (action d)
   r
+
+getDelayedWithoutInfo :: (MonadUnliftIO io) => Delayed io (a, Either String (Word, NominalDiffTime)) -> io a
+getDelayedWithoutInfo d = fmap fst $ getDelayed d
 
 -- | Big Hack to get the blocker from a Dynamic Delayed
 --  Without knowing it's actual type (which we don't need)

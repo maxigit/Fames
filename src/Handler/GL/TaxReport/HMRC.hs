@@ -84,8 +84,8 @@ getHMRCAuthorizationCode reportType HMRCProcessorParameters{..} = do
       (dyn, _) <- readMVar mvar 
       case fromDynamic dyn of
         Nothing -> error $ "Authorization code of the wrong type for key: " <> show cacheKey
-        Just codeD -> do
-          code <- getDelayed codeD
+        Just (codeD) -> do
+          code <- getDelayedWithoutInfo codeD
           return $ AuthorizationCode code
     Nothing -> do
       let 
@@ -121,7 +121,7 @@ getHMRCToken reportType params = do
         Nothing -> error $ "Authorization code of the wrong type for key: " <> show cacheKey
         Just tokenD -> do
           -- we check the expiration 
-          token <- getDelayed tokenD
+          token <- getDelayedWithoutInfo tokenD
           now <- liftIO getCurrentTime 
           if diffUTCTime now cacheTime >= fromIntegral (expiresIn token)
             then do
