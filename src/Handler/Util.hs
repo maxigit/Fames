@@ -574,9 +574,9 @@ filterEKeyword field e = first (\sql -> "( " <> sql <> " )") go where
 
 filterEAddWildcardRight :: FilterExpression -> FilterExpression
 filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")
-filterEAddWildcardRight (RegexFilter f) = RegexFilter (f<>"*")
+filterEAddWildcardRight (RegexFilter f) = RegexFilter (f<>".*")
 filterEAddWildcardRight (NotLikeFilter f) = LikeFilter (f<>"%")
-filterEAddWildcardRight (NotRegexFilter f) = RegexFilter (f<>"*")
+filterEAddWildcardRight (NotRegexFilter f) = RegexFilter (f<>".*")
 filterEAddWildcardRight f@(InFilter _ _) = f
 filterEAddWildcardRight (Filters fs) = Filters (map filterEAddWildcardRight fs)
 -- * Badges 
