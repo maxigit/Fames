@@ -56,7 +56,12 @@ data Delivery = Delivery
   , countryOfOrigin :: CountryCode -- GB origin of the parcel
   , shipping'freightCost :: Double
   , reasonForExport :: ReasonForExport
-  , receiverVAT'PID'EORI :: Text
+  , receiverVAT'PID'EORI :: Text -- importer EORI if importerVAT provide
+  -- Specific for Northern Ireland
+  , isBusiness :: Maybe Bool
+  , parcelAtRiskOfEnteringEU :: Maybe Bool
+  , importerUKIMS :: Maybe Text
+  , importerVAT :: Maybe Text
   } deriving (Show)
 
 data YesNo = Y | N deriving (Show, Eq)
@@ -154,6 +159,12 @@ deliveryToFields Delivery{..} =
     , "shipperContactTelephone" .= shipperContactTelephone
     , "shipperOrganisation" .= shipperOrganisation
     , "shipperEORI" .= shipperEORI
+    , "isBusiness" .= maybe "" tshow isBusiness
+    , "parcelAtRiskOfEnteringEU" .= maybe "" tshow parcelAtRiskOfEnteringEU
+    , "importerUKIMS" .= importerUKIMS
+    , "importerVAT" .= importerVAT
+    , "importer EORI" .= (importerVAT *> Just receiverVAT'PID'EORI)
+                             
     ]
 
 instance ToNamedRecord ProductDetail where

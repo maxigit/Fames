@@ -299,6 +299,16 @@ mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
   shipping'freightCost = FA.debtorTranOvFreight $ iiInvoice info
   reasonForExport = Sale
   receiverVAT'PID'EORI = fromMaybe "" shTaxId
+  importerUKIMS = shImporterUKIMS
+  importerVAT = shImporterVAT
+  (isBusiness, parcelAtRiskOfEnteringEU) =
+     case importerUKIMS of
+        Nothing -> (Nothing, Nothing)
+        Just _ -> (case importerVAT of
+                       Nothing -> Just False
+                       Just _ -> Just True
+                   , Just False
+                   )
   
 data UsePPD = UsePPD | NoPPD deriving (Show)
    
@@ -356,6 +366,8 @@ data ShippingForm = ShippingForm
   , shAdditionalInformation :: Maybe Text
   , shGenerateCustomData :: Bool
   , shTaxId :: Maybe Text
+  , shImporterVAT :: Maybe Text
+  , shImporterUKIMS :: Maybe Text
   -- , shCustomValue ::  Double
   , shServiceCode :: ServiceCode
   , shSave :: Bool
@@ -398,7 +410,11 @@ fillShippingForm info customerInfo detailKeyM = do
         shNoOfPackages = 1
         shWeight = 9
         shAdditionalInformation = Nothing
-        shTaxId = Just $ FA.debtorsMasterTaxId customer
+        (shTaxId, shImporterVAT, shImporterUKIMS ) =
+          case words $ FA.debtorsMasterTaxId customer of
+              [tax] -> (Just tax, Nothing, Nothing)
+              [tax, vat, ukims ] -> (Just tax, Just vat, Just ukims)
+              _ -> (Nothing, Nothing, Nothing)
         -- shCustomValue ::  Double
         -- shService = ""
         shSave = detailKeyM == Nothing
@@ -425,7 +441,7 @@ customerCountryInfo :: CustomerInfo -> (Maybe CountryCode, Bool, ServiceCode)
 customerCountryInfo CustomerInfo{..} = 
   case FA.areaDescription custBranchArea of 
     "UK" -> (Just GB, False, Parcel12AM)
-    "Northern Ireland" -> (Just GB, False, ParcelTwoDay)
+    "Northern Ireland" -> (Just GB, True, ParcelTwoDay)
     "Rep. of Ireland" -> (Just IE, True, ParcelTwoDay)
     "Europe" -> -- extract the code from the VAT
       case lookup (take 2 $ FA.debtorsMasterTaxId cuDebtor) countryMap of
@@ -463,6 +479,8 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     additionalInformation <- mopt textField (size 35 $ f 50 "Additional Information") (ship <&> fmap (take 50) . shAdditionalInformation)
     generateCustomData <- mreq boolField "Custom Data" (ship <&> shGenerateCustomData)
     taxId <- mopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
+    impVAT <- mopt textField (f 14 "VAT (NI)") (ship <&>  fmap (take 35) .shImporterVAT)
+    impUKIMS <- mopt textField (f 35 "UKIMS (NI)") (ship <&>  fmap (take 35) .shImporterUKIMS)
     serviceCode <- mreq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
     save <- mreq boolField "Save" (ship <&> shSave)
     let widget = [whamlet|
@@ -491,6 +509,8 @@ shippingForm fam m'dpdm (shipm)  extra =  do
           ^{renderRow normalize (fromMaybe "" . shippingDetailsAdditionalInformation) additionalInformation}
           ^{renderRow0  generateCustomData}
           ^{renderRow id (fromMaybe "" . shippingDetailsTaxId) taxId}
+          ^{renderRow id (fromMaybe "" . shippingDetailsImporterVAT) impVAT}
+          ^{renderRow id (fromMaybe "" . shippingDetailsImporterUKIMS) impUKIMS}
           ^{renderRow0  serviceCode}
           ^{renderRow0' save         (tlabel "Match") keyMatch }
     |]
@@ -526,6 +546,8 @@ shippingForm fam m'dpdm (shipm)  extra =  do
                  <*> fst additionalInformation
                  <*> fst generateCustomData
                  <*> fst taxId
+                 <*> fst impVAT
+                 <*> fst impUKIMS
                  <*> fst serviceCode
                  <*> fst save
           , widget)
@@ -599,6 +621,8 @@ truncateForm ShippingForm{..} =
                (fmap (take 50 . joinSpaces) shAdditionalInformation)
                (shGenerateCustomData)
                ( fmap (take 35)shTaxId)
+               ( fmap (take 35)shImporterVAT)
+               ( fmap (take 35)shImporterUKIMS)
                (shServiceCode)
                (shSave)
   
@@ -772,6 +796,8 @@ toDetails userm shippingDetailsCourrier ShippingForm{..} = details {shippingDeta
   shippingDetailsNotificationEmail = shNotificationEmail
   shippingDetailsNotificationText = shNotificationText
   shippingDetailsTaxId = shTaxId
+  shippingDetailsImporterVAT = shImporterVAT
+  shippingDetailsImporterUKIMS = shImporterUKIMS
   shippingDetailsLastUsed = Nothing
   shippingDetailsSource = maybe "<Anonymous>" FA.userUserId userm
   shippingDetailsAdditionalInformation = shAdditionalInformation
@@ -799,6 +825,8 @@ fromDetails template ShippingDetails{..} = ShippingForm{..} where
   shNotificationText = shippingDetailsNotificationText
   shTaxId = shippingDetailsTaxId
   shAdditionalInformation = shippingDetailsAdditionalInformation
+  shImporterVAT = shippingDetailsImporterVAT
+  shImporterUKIMS = shippingDetailsImporterUKIMS
   ShippingForm{shNoOfPackages, shWeight, shGenerateCustomData, shServiceCode, shSave} = template
   
   

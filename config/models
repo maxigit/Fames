@@ -412,6 +412,8 @@ ShippingDetails sql=fames_shipping_details
   notificationEmail Text Maybe
   notificationText Text Maybe
   taxId Text Maybe
+  importerVAT Text Maybe
+  importerUKIMS Text Maybe
   lastUsed Day Maybe
   UniqueCB courrier key
   deriving Show
