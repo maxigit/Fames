@@ -42,6 +42,8 @@ mkShippingDetails CustomerInfo{..} = details {shippingDetailsKey = unDetailsKey 
   shippingDetailsNotificationEmail = textToMaybe notification_email
   shippingDetailsNotificationText =  textToMaybe notification_text
   shippingDetailsTaxId = Nothing
+  shippingDetailsImporterVAT = Nothing
+  shippingDetailsImporterUKIMS = Nothing
   shippingDetailsLastUsed = Nothing
   shippingDetailsKey = "" --  unDetailsKey $ computeKey details
   shippingDetailsAdditionalInformation = Nothing
