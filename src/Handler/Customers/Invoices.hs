@@ -120,16 +120,17 @@ getCustInvoiceCCodesR key detailIdM = do
   let weight = fromMaybe "<Weight>" . categoryFor unit_weight
   let duty = fromMaybe "<Duty>" . categoryFor duty_
   let table = [whamlet|
-      <table *{datatable} data-tab-index=-1>
+      <table *{datatable} data-tab-index=-1 id="invoice">
         <thead>
-          <th> SKU
-          <th> Quantity
-          <th> Box Number
-          <th> Unit Price
-          <th> Unit Price With PPD
-          <th> Commodity Code
-          <th> Weight
-          <th> Duty
+          <tr>
+            <th> SKU
+            <th> Quantity
+            <th> Box Number
+            <th> Unit Price
+            <th> Unit Price With PPD
+            <th> Commodity Code
+            <th> Weight
+            <th> Duty
         <tbody>
           $forall detail <- iiDetails
             <tr>
@@ -144,6 +145,51 @@ getCustInvoiceCCodesR key detailIdM = do
               <td> #{weight detail}
               <td> #{duty detail}
     |]
+      js = [julius|
+          /* create button in search bar */
+          $(document).ready(function() {
+          var invoice_filter = $('#invoice_filter');
+          invoice_filter.append(`
+               <input type="number" id="bulkBox">
+               <button id=setValue type="button">Set 
+               <button id=clearValue type="button">Clear Visible
+           `);
+           invoice_filter.parent().siblings().removeClass('col-sm-6').addClass('col-sm-3');
+           invoice_filter.parent().removeClass('col-sm-6').addClass('col-sm-9');
+           /* set values to all visible and unset inputs */
+           $('#setValue').on('click', function() {
+               var raw = $('#bulkBox')
+               var value = parseInt(raw.val(), 10)
+               if(isNaN(value)) {
+                  alert('Please enter a valid box number');
+               }
+               else {
+                    var invoice = $('table#invoice').DataTable();
+                    invoice
+                        .cells(null, 2, {search: 'applied', page: 'current'})
+                        .every(function() {
+                            var $input = $(this.node()).find('input');
+                            if(!$input.val()) {
+                              $input.val(value).trigger('change');
+                            }
+                         })
+                    // invoice.draw();
+               }
+           });
+           /* Clear all visible inputs */
+           $('#clearValue').on('click', function() {
+                var invoice = $('table#invoice').DataTable();
+                invoice
+                    .cells(null, 2, {search: 'applied', page: 'current'})
+                    .every(function() {
+                          var $input = $(this.node()).find('input');
+                          $input.val('').trigger('change');
+                     })
+                // invoice.draw();
+           });
+          });
+      
+      |]
       info = infoPanel ("Info") [whamlet|$newline always
     <p.text-break>
       If custom data are required and there is more than one parcel,
@@ -163,7 +209,9 @@ getCustInvoiceCCodesR key detailIdM = do
       |] 
 
 
-  defaultLayout $ [whamlet|
+  defaultLayout $ 
+    toWidget js >>
+    [whamlet|
     <form.form method=POST action="@{CustomersR $ CustInvoiceDPDR iiKey }" enctype="#{encType}">
       ^{info}
       ^{primaryPanel ("Invoice #" <> tshow key) table}
