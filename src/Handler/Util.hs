@@ -573,11 +573,20 @@ filterEKeyword field e = first (\sql -> "( " <> sql <> " )") go where
                         
 
 filterEAddWildcardRight :: FilterExpression -> FilterExpression
-filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")
-filterEAddWildcardRight (RegexFilter f) = RegexFilter (f<>".*")
-filterEAddWildcardRight (NotLikeFilter f) = LikeFilter (f<>"%")
-filterEAddWildcardRight (NotRegexFilter f) = RegexFilter (f<>".*")
-filterEAddWildcardRight f@(InFilter _ _) = f
+filterEAddWildcardRight lf@(LikeFilter f) = if "%" `isSuffixOf` f 
+                                            then lf
+                                            else LikeFilter (f<>"%")
+filterEAddWildcardRight rf@(RegexFilter f) = if ".*" `isSuffixOf` f 
+                                             then rf 
+                                             else RegexFilter (f<>".*")
+filterEAddWildcardRight lf@(NotLikeFilter f) = if "%" `isSuffixOf` f
+                                               then lf
+                                               else NotLikeFilter (f<>"%")
+filterEAddWildcardRight rf@(NotRegexFilter f) = if ".*" `isSuffixOf` f
+                                                then rf
+                                                else NotRegexFilter (f<>".*")
+filterEAddWildcardRight f@(InFilter _ []) = f
+filterEAddWildcardRight (InFilter _ (t:ts)) = Filters $ map (filterEAddWildcardRight . LikeFilter) (t :| ts)
 filterEAddWildcardRight (Filters fs) = Filters (map filterEAddWildcardRight fs)
 -- * Badges 
 badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe Text -> Text -> Html
