@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, ImplicitParams #-}
 module Handler.Dashboard
 ( getDMainR 
 , getDMainFullR
@@ -8,6 +8,7 @@ module Handler.Dashboard
 -- * Forecast
 , getDForecastR
 , getDForecastDetailedR
+, reportDiv
 )
 where
 
@@ -60,9 +61,9 @@ reportCss = [cassius|
      font-style: italic
      margin-bottom: 0.5em
 |]
-reportDiv :: Text -> Handler Widget
-reportDiv reportId = do
-  widgetE <- dispatchReport reportId 800 400
+reportDiv :: Day -> Text -> Handler Widget
+reportDiv today reportId = do
+  widgetE <- dispatchReport today reportId 800 400
   case widgetE of
     Left err -> return [whamlet|
        <div id=#{reportId}>
@@ -90,15 +91,16 @@ renderParamDates param =
 {-# NOINLINE getDMainR #-}
 getDMainR :: Handler Html
 getDMainR = do
+  today <- todayH
   now <- liftIO $ getCurrentTime
   -- refactor
-  currentMonthPcent <- reportDiv "salesCurrentMonthP" 
-  topStyleMonthPcent <- reportDiv "top20StyleMonth" 
-  topColourMonthPcent <- reportDiv "top20ColourMonth" 
-  topSkuMonthPcent <- reportDiv "top20ItemMonth" 
-  topStyleJanuaryPcent <- reportDiv "top20StyleJanuary" 
-  topColourJanuaryPcent <- reportDiv "top20ColourJanuary" 
-  topSkuJanuaryPcent <- reportDiv "top20ItemJanuary" 
+  currentMonthPcent <- reportDiv today "salesCurrentMonthP" 
+  topStyleMonthPcent <- reportDiv today "top20StyleMonth" 
+  topColourMonthPcent <- reportDiv today "top20ColourMonth" 
+  topSkuMonthPcent <- reportDiv today "top20ItemMonth" 
+  topStyleJanuaryPcent <- reportDiv today "top20StyleJanuary" 
+  topColourJanuaryPcent <- reportDiv today "top20ColourJanuary" 
+  topSkuJanuaryPcent <- reportDiv today "top20ItemJanuary" 
 
   cacheSeconds(3600*23)
   defaultLayout $ do
@@ -146,9 +148,10 @@ getDMainR = do
 getDMainFullR :: Handler Html
 getDMainFullR = do
   now <- liftIO $ getCurrentTime
+  today <- todayH
   let reportDiv' :: Text -> Handler Widget
       reportDiv' reportId = do
-        widgetE <- dispatchReport reportId 800 400
+        widgetE <- dispatchReport today reportId 800 400
         case widgetE of
           Left err -> return [whamlet|
              <div id=#{reportId}>
@@ -226,10 +229,11 @@ getDMainFullR = do
 {-# NOINLINE getDCustomR #-}
 getDCustomR :: Text -> Int64 -> Int64 -> Handler Html
 getDCustomR reportName width height = do
+  today <- todayH
   role <- currentRole
   when (not $ authorizeFromAttributes role (setFromList [reportName]) ReadRequest)
        (permissionDenied reportName)
-  reportMakerE <- dispatchReport reportName width height
+  reportMakerE <- dispatchReport today reportName width height
   let widget = case reportMakerE of
         Left err -> error (unpack err)
         Right (w,_) -> w
@@ -253,12 +257,13 @@ getDYearR, getDAllYearR :: Handler Html
 getDYearR = getDYearR' ""
 getDAllYearR = getDYearR' "20"
 getDYearR' suffix = do
+  today <- todayH
   now <- liftIO $ getCurrentTime
   -- refactor
-  slidingFull <- reportDiv $ "salesSlidingYearFull" ++ suffix
-  slidingBack <- reportDiv $ "salesSlidingYearFullBackward" ++ suffix
-  currentFull <- reportDiv $ "salesCurrentYearFull" ++ suffix
-  fiscalFull <- reportDiv $ "salesCurrentFiscalFull"++ suffix
+  slidingFull <- reportDiv today $ "salesSlidingYearFull" ++ suffix
+  slidingBack <- reportDiv today $ "salesSlidingYearFullBackward" ++ suffix
+  currentFull <- reportDiv today $ "salesCurrentYearFull" ++ suffix
+  fiscalFull <- reportDiv today $ "salesCurrentFiscalFull"++ suffix
 
   cacheSeconds (3600*23)
   defaultLayout $ do
@@ -285,10 +290,10 @@ getDYearR' suffix = do
     Last update #{tshow now}
   |]
 
-dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text (Widget, ReportParam))
-dispatchReport reportName __width __height = do
-  today <- todayH
+dispatchReport :: Day -> Text -> Int64 -> Int64 -> Handler (Either Text (Widget, ReportParam))
+dispatchReport today reportName __width __height = do
   fiscalYear <- fiscalYearH
+  let ?today = today
   let slidingMonth = calculateDate (AddMonths (-1)) today
       beginJanuary = fromGregorian (currentYear) 1 1
       endDecember = fromGregorian currentYear 12 31
@@ -372,9 +377,9 @@ top20FullUp param = param {rpDataParam2,rpDataParam3} where
       -- rpDataParam3 = DataParams QPSales (mkIdentifialParam quantityOutOption) Nothing
 -- | Sales current months
 
-salesCurrentMonth:: (ReportParam -> ReportParam) -> Text -> Handler (Widget, ReportParam)
+salesCurrentMonth:: (?today :: Day) => (ReportParam -> ReportParam) -> Text -> Handler (Widget, ReportParam)
 salesCurrentMonth f plotName = do
-  today <- todayH
+  let today = ?today
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   -- The display period is the current month. However, during the first days of a new month
   -- we display the previous month extended to today
@@ -441,9 +446,9 @@ salesCurrentMonth f plotName = do
 
 
 -- | Top style
-top20ItemMonth :: (ReportParam -> ReportParam) -> Day -> Column -> Handler (Widget, ReportParam)
+top20ItemMonth :: (?today :: Day) => (ReportParam -> ReportParam) -> Day -> Column -> Handler (Widget, ReportParam)
 top20ItemMonth f begin rupture = do
-  today <- todayH
+  let today = ?today
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
 
   let param = f ReportParam{..}
@@ -479,9 +484,9 @@ top20ItemMonth f begin rupture = do
             in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
   return $ (report, param)
 
-top100ItemYear ::  Bool -> Column -> Handler (Widget, ReportParam)
+top100ItemYear ::  (?today :: Day) => Bool -> Column -> Handler (Widget, ReportParam)
 top100ItemYear which rupture = do
-  today <- todayH
+  let today = ?today
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
 
   let beginYear = fromGregorian (currentYear) 1 1
@@ -527,7 +532,7 @@ top100ItemYear which rupture = do
   return $ (report, param)
       
 
-top100ItemYearChart :: Text -> Handler (Widget, ReportParam)
+top100ItemYearChart :: (?today :: Day) => Text -> Handler (Widget, ReportParam)
 top100ItemYearChart plotName = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 

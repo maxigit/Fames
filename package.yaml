@@ -275,41 +275,18 @@ tests:
     - yaml
     - temporary
     - http-types >=0.12.3 && <0.13
-      #       # zghcid: # z so test is picked first
-      #   zghicd:
-      #     main: Spec.hs
-      #     source-dirs:
-      #     - test
-      #     - legacy
-      #     - src
-      #     - app
-      #     ghc-options:
-      #     - -w
-      #     - -threaded
-      #     - -rtsopts
-      #     - -with-rtsopts=-N
-      #     dependencies:
-      #     - base
-      #     - yesod-test >=1.5.0.1 && <1.6
-      #     - yesod-core
-      #     - yesod
-      #     - yesod-auth
-      #     - persistent
-      #     - persistent-mysql
-      #     - resourcet
-      #     - monad-logger
-      #     - shakespeare
-      #     - transformers
-      #     - hspec >=2.0.0
-      #     - QuickCheck
-      #     - classy-prelude
-      #     - classy-prelude-yesod
-      #     - aeson
-      #     - cassava
-      #     - yaml
-      #     - temporary
-      #     - http-types >=0.9
 
+benchmarks:
+  bench:
+    source-dirs:
+    - benchmarks
+    main: bench.hs
+    dependencies:
+    - criterion
+    - Fames
+    ghc-options:
+    - -rtsopts
+    - -Wno-missing-exported-signatures
 flags:
   library-only:
     description: Build for use with "yesod devel"

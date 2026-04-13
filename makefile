@@ -208,3 +208,11 @@ pin_nix: .nixpkgs
 .PHONY: .nixpkgs
 .nixpkgs:
 	cat ~/.nix-defexpr/channels/nixpkgs/.git-revision | sed 's/.*/"&"/' > $@
+	
+	
+bench_%:
+	mkdir -p bench-results
+	stack bench --ba '-m prefix $* --output bench-results/$*.html --csv bench-results/$*.csv'
+bench:
+	mkdir -p bench-results
+	stack bench --ba '--output bench-results/all.html --csv bench-results/al.csv'

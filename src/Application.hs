@@ -11,6 +11,7 @@ module Application
     -- * for GHCI
     , handler
     , handlerWith
+    , makeHandlerWith
     , db
     ) where
 
@@ -190,8 +191,14 @@ shutdownApp _ = return ()
 handler :: Handler a -> IO a
 handler h = handlerWith id h
 handlerWith :: (AppSettings -> AppSettings) -> Handler a -> IO a
-handlerWith f h = getAppSettings >>= makeFoundation . f >>= flip unsafeHandler h
+-- handlerWith f h = getAppSettings >>= makeFoundation . f >>= flip unsafeHandler h
+handlerWith f h = makeHandlerWith f >>= ($ h)
 
+makeHandlerWith :: (AppSettings -> AppSettings) -> IO (Handler a -> IO a )
+makeHandlerWith f = do
+    settings <- getAppSettings
+    foundation <- makeFoundation (f settings)
+    return  $ unsafeHandler foundation
 -- | Run DB queries
 db :: ReaderT SqlBackend Handler a -> IO a
 db = handler . runDB
