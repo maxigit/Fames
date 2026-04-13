@@ -22,7 +22,7 @@ prepareDB = do
         Just doc <- insertUnique $ DocumentKey "key" "test" "ref0" "" userId  processedAt
         insertMany_ [ (Stocktake sku qty sku  1 defLoc
                                  (fromGregorian 2017 05 26)
-                            True jack Nothing doc [] Nothing) :: Stocktake
+                            True jack Nothing doc [] Nothing Nothing) :: Stocktake
                     | (sku, qty) <- [("A", 5), ("B", 7), ("C", 14)
                                     , ("Before", 4), ("After", 4), ("Before'" , 4), ("After'", 4)
                                     ]
@@ -196,7 +196,7 @@ appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
               Just doc <- insertUnique $ DocumentKey "key" "test" "ref0" "" userId  processedAt
               insertMany_ [ (Stocktake sku qty sku  1 defLoc
                                        (fromGregorian 2017 06 21)
-                                  True jack Nothing doc [] Nothing) :: Stocktake
+                                  True jack Nothing doc [] Nothing Nothing) :: Stocktake
                           | (sku, qty) <- [("Bug", 7)]
                           ]
             runDB $ do

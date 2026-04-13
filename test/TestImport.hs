@@ -84,7 +84,7 @@ keepAllTables _ = Keep
 wipeDB :: (Text -> KeepOrWipe) -> App -> IO ()
 wipeDB toKeep app = runDBWithApp app $ do
     tables <- filter ((== Wipe) . toKeep) <$> getTables
-    let queries = map (\t -> "TRUNCATE TABLE " ++ t) tables
+    let queries = map (\t -> "TRUNCATE TABLE `" ++ t ++ "`") tables
 
     -- In MySQL, a table cannot be truncated if another table references it via foreign key.
     -- Since we're wiping both the parent and child tables, though, it's safe
@@ -95,8 +95,9 @@ wipeDB toKeep app = runDBWithApp app $ do
 
 -- getTables ::  SqlHandler [Text]
 getTables = do
-    tables <- rawSql "SHOW TABLES;" []
-    return $ map unSingle tables
+    tables <- rawSql "SHOW TABLES like '0_%';" []
+    fames_tables <- rawSql "SHOW TABLES like 'fames_%';" []
+    return $ map unSingle (tables <> fames_tables)
 
 
 -- * Utility function 

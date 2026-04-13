@@ -5,6 +5,7 @@ import Items.Internal
 import Items.Types
 import Test.QuickCheck(property, (===), (==>))
 import qualified Data.IntMap as IM
+import ModelField
 
 
 iMaster = (StockMasterF {smfCategoryId = Identity 23
@@ -57,16 +58,16 @@ iFA = ItemStatusF {isfQoh = Identity 0
                    , isfOnOrder = Identity 0
                    , isfUsed = Identity False}
 
-fullWhite= [[ItemInfo {iiStyle = "Bob"
-                     , iiVariation = "White"
+fullWhite= [[ItemInfo {iiStyle = Style "Bob"
+                     , iiVariation = Var "White"
                      , iiInfo = ItemMasterAndPrices {impMaster = Just iMaster
                                                     , impSalesPrices = Nothing
                                                     , impPurchasePrices = Nothing
                                                     , impFAStatus = Nothing
                                                     }}]
           
-          ,[ItemInfo {iiStyle = "Bob"
-                     , iiVariation = "White"
+          ,[ItemInfo {iiStyle = Style "Bob"
+                     , iiVariation = Var "White"
                      , iiInfo = ItemMasterAndPrices {impMaster = Nothing
                                                     , impSalesPrices = Just iPrices
                                                     , impPurchasePrices = Nothing
@@ -74,16 +75,16 @@ fullWhite= [[ItemInfo {iiStyle = "Bob"
                                                     }}]
           
           
-          ,[ItemInfo {iiStyle = "Bob"
-                     , iiVariation = "White"
+          ,[ItemInfo {iiStyle = Style "Bob"
+                     , iiVariation = Var "White"
                      , iiInfo = ItemMasterAndPrices {impMaster = Nothing
                                                     , impSalesPrices = Nothing
                                                     , impPurchasePrices = Nothing
                                                     , impFAStatus = Just iFA
                                                     }}]
           
-          ,[ItemInfo {iiStyle = "Bob"
-                     , iiVariation = "White"
+          ,[ItemInfo {iiStyle = Style "Bob"
+                     , iiVariation = Var "White"
                      , iiInfo = ItemMasterAndPrices {impMaster = Nothing
                                                     , impSalesPrices = Nothing
                                                     , impPurchasePrices = Nothing
@@ -95,23 +96,23 @@ spec :: Spec
 spec = bug >> forecast
 bug = describe "bug" $ do
   it "merges info" $ do
-    mergeInfoSources fullWhite `shouldBe` [ItemInfo {iiStyle = "Bob"
-                                            , iiVariation ="White"
+    mergeInfoSources fullWhite `shouldBe` [ItemInfo {iiStyle = Style "Bob"
+                                            , iiVariation = Var"White"
                                             , iiInfo = ItemMasterAndPrices {impMaster = Just iMaster
                                                                            , impSalesPrices = Just iPrices
                                                                            , impPurchasePrices = Nothing
                                                                            , impFAStatus = Just iFA
                                                                            }   }]
   it "computes diff" $ do
-    let bob = ItemInfo {iiStyle = "Bob"
-                       , iiVariation ="White"
+    let bob = ItemInfo {iiStyle = Style "Bob"
+                       , iiVariation = Var"White"
                        , iiInfo = ItemMasterAndPrices {impMaster = Just iMaster
                                                       , impSalesPrices = Just iPrices
                                                       , impPurchasePrices = Nothing
                                                       , impFAStatus = Just iFA
                                                                            }   }
-    let bobF = ItemInfo {iiStyle = "Bob"
-                       , iiVariation ="White"
+    let bobF = ItemInfo {iiStyle = Style "Bob"
+                       , iiVariation = Var"White"
                        , iiInfo = ItemMasterAndPrices {
                            impMaster = Just (StockMasterF {smfCategoryId = ([] ,23)
                                                           , smfTaxTypeId = ([] ,1)

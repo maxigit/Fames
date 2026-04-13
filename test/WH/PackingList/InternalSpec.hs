@@ -4,7 +4,10 @@ module WH.PackingList.InternalSpec (spec) where
 
 import TestImport
 import WH.PackingList.Internal
+import ModelField
 
+instance IsString Style where
+  fromString = Style . fromString
 
 spec :: Spec
 spec = parallel $ pureSpec
