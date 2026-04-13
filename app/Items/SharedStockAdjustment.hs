@@ -1,4 +1,4 @@
-module SharedStockAdjustment where
+module Items.SharedStockAdjustment where
 
 import Prelude
 

@@ -30,13 +30,11 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
 import System.Log.FastLogger                (defaultBufSize 
                                             , newStderrLoggerSet
                                             )
-import Yesod.Fay                            (getFaySite)
 
 -- Import all relevant handler modules here.
 -- Don't forget to add new modules to your cabal file!
 import Handler.Administrator
 import Handler.Common
-import Handler.Fay
 import Handler.Home
 import Handler.GL
 import Handler.FA
@@ -70,7 +68,6 @@ makeFoundation appSettings = do
         (if appMutableStatic appSettings then staticDevel else static)
         (appStaticDir appSettings)
     appCache <- newExpiryCache
-    let appFayCommandHandler = onCommand
 
     -- We need a log function to create a connection pool. We need a connection
     -- pool to create our foundation. And we need our foundation to get a

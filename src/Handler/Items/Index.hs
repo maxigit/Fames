@@ -1105,7 +1105,7 @@ $('[data-toggle="tooltip"]').tooltip();
     <div#items-table>
       ^{main}
 |]
-      fay = $(fayFile "ItemsIndex")
+      fay = $(widgetFile "OldFay/fay-runtime") <> $(widgetFile "OldFay/faygen-p4z67lcn") -- 
   selectRep $ do
     provideRep  $ do
       html <- sendResponseStatus status =<< defaultLayout (widget >> fay >> toWidget css >> toWidget js)

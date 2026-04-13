@@ -11,10 +11,6 @@ dependencies:
 - yesod-static >=1.4.0.3 && <1.6
 - yesod-form >=1.4.0 && <1.5
 - yesod-persistent >=1.6.0 && <1.7
-- yesod-fay >=0.7 && <0.9
-- fay >=0.24.0.2 && <0.25
-- fay-jquery >=0.6 && <0.7
-- fay-text >=0.3 && <0.4
 - cassava >=0.4.5 && <0.5
 - classy-prelude >=0.10.2
 - classy-prelude-conduit >=0.10.2
@@ -131,7 +127,6 @@ library:
   - src
   - legacy
   - app
-  - fay-shared
   when:
   - condition: (flag(dev)) || (flag(library-only))
     then:
@@ -286,7 +281,6 @@ tests:
       #     source-dirs:
       #     - test
       #     - legacy
-      #     - fay-shared
       #     - src
       #     - app
       #     ghc-options:

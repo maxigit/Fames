@@ -3,7 +3,7 @@ module Handler.WHStockAdjustmentSpec (spec) where
 
 import TestImport
 import Handler.WH.StockAdjustment
-import SharedStockAdjustment
+import Items.SharedStockAdjustment
 import FA hiding(User)
 
 spec :: Spec

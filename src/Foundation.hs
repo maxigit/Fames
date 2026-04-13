@@ -24,7 +24,6 @@ import qualified Yesod.Auth.Message    as Msg
 import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
-import Yesod.Fay
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
 import qualified FA as FA
@@ -55,7 +54,6 @@ data App = App
     , appConnPool    :: ConnectionPool -- ^ Database connection pool.
     , appHttpManager :: Manager
     , appLogger      :: Logger
-    , appFayCommandHandler :: CommandHandler App
     , appCache :: MVar ExpiryCache
     }
 
@@ -87,7 +85,6 @@ instance EnumTreeable Bool where enumTree = EnumTree []
 
 instance EnumTreeable (Route Static) where enumTree = EnumTree []
 instance EnumTreeable (Route Auth) where enumTree = EnumTree []
-instance EnumTreeable (Route FaySite) where enumTree = EnumTree []
 deriving instance Generic (GLR)
 instance EnumTreeable (GLR) 
 deriving instance Generic (WarehouseR)
@@ -286,14 +283,7 @@ instance Yesod App where
 
     makeLogger = return . appLogger
 
-instance YesodJquery App
-instance YesodFay App where
-
-    fayRoute = FaySiteR
-
-    yesodFayCommand render command = do
-        master <- getYesod
-        appFayCommandHandler master render command
+-- instance YesodJquery App
 
 -- How to run database actions.
 instance YesodPersist App where

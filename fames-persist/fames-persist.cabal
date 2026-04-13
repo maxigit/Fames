@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7e3e9c2f44624bc45223b286a47755ba79e3eee3f020b3ff11e21b545b2242c4
+-- hash: 24b9079205beab6f12a506a327d2421be2c9da0bae3ecc75f7dd7b0d763b0220
 
 name:           fames-persist
 version:        0.0.1
@@ -71,9 +71,6 @@ library
     , data-default
     , directory >=1.1 && <1.4
     , fast-logger >=2.2 && <2.5
-    , fay >=0.21.2.1 && <0.24
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
     , file-embed
     , formatting
     , generics-sop
@@ -112,7 +109,6 @@ library
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
-    , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-static >=1.4.0.3 && <1.6
   exposed-modules:

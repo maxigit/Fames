@@ -24,11 +24,11 @@ let ghc = pkgs.ghc ;
                ] ;
     barcode-libs = [qrencode ];
     dev-inputs = [
-                 pkg-config
-                 # to compile FAY
-                 haskellPackages.cpphs
-                 ghc
-                 which # to find the executable using stack exec which 
+                 # pkg-config
+                 # # to compile FAY
+                 # haskellPackages.cpphs
+                 # ghc
+                 # which # to find the executable using stack exec which 
                ];
     inputs = runtime-inputs
              ++ (if  stack_ghc == null

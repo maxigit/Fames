@@ -544,7 +544,8 @@ renderReportForm  route modeM paramM status resultM = do
       -- \^ We use a button instead for the CSV
       mode = fromMaybe ReportTable modeM
       navClass nav = if mode == nav then "active" else "" :: Html
-      fay = $(fayFile "ItemsReport")
+      -- fay = $(fayFile "ItemsReport")
+      fay = $(widgetFile "OldFay/fay-runtime") <> $(widgetFile "OldFay/faygen-LLGTVqVV") -- js to post form when tab change
       -- in theory we only need plotly when display a chart
       -- but it is need to be loaded on the first page, otherwise
       -- Ajax call with plot won't work

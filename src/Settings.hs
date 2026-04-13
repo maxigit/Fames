@@ -27,7 +27,6 @@ import Yesod.Default.Config2      (applyEnvValue, configSettingsYml)
 import Yesod.Default.Util         (WidgetFileSettings, widgetFileNoReload,
                                    widgetFileReload)
 import qualified Database.MySQL.Base as MySQL
-import Yesod.Fay
 import  Role
 import  CategoryRule
 import WH.Barcode
@@ -37,7 +36,6 @@ import qualified GL.Check.ItemCostSettings as ItemCost
 import GL.Receipt
 import qualified Data.Map as Map
 import Customers.Settings
-import Fay.Config(Config(..))
 import ModelField(Var)
 
 
@@ -301,21 +299,6 @@ widgetFile = (if appReloadTemplates compileTimeAppSettings
                 then widgetFileReload
                 else widgetFileNoReload)
               widgetFileSettings
-
-fayFile' :: Exp -> FayFile
-fayFile' staticR moduleName =
-    (if appReloadTemplates compileTimeAppSettings
-        then fayFileReload
-        else fayFileProdWithConfig modifier )
-     settings
-  where
-    modifier config = config {configTypecheck = False }
-    settings = (yesodFaySettings moduleName)
-        { yfsSeparateRuntime = Just ("static", staticR)
-        -- , yfsPostProcess = readProcess "java" ["-jar", "closure-compiler.jar"]
-        , yfsExternal = Just ("static", staticR)
-        , yfsPackages = ["fay-dom", "fay-jquery", "fay-text", "fay"]
-        }
 
 -- | Raw bytes at compile time of @config/settings.yml@
 configSettingsYmlBS :: ByteString

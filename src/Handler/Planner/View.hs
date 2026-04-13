@@ -311,7 +311,7 @@ renderView param0 = do
   (formW, encType) <- generateFormPost $ paramForm (Just param)
   let navs = [PlannerSummaryView .. ]
       navClass nav = if vmode == Just nav then "active" else "" :: Html
-      fay = $(fayFile "PlannerView") -- js to post form when tab change
+      fay = $(widgetFile "OldFay/fay-runtime") <> $(widgetFile "OldFay/faygen-PESIFw7q") -- js to post form when tab change
       mainW = [whamlet|
 <form #planner-view-form role=form method=post action="@{PlannerR (PViewR (pPlannerPath param) (pViewMode param))}" encType="#{encType}">
   <div.well>

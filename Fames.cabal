@@ -48,7 +48,6 @@ library
       Handler.FAMES.Def
       Handler.FAX
       Handler.FAX.Def
-      Handler.Fay
       Handler.GL
       Handler.GL.Check
       Handler.GL.Check.ItemCost
@@ -138,21 +137,19 @@ library
       GL.Utils
       Items
       Items.Internal
+      Items.SharedStockAdjustment
       Items.Types
       WH.Barcode
       WH.FA
       WH.FA.Curl
       WH.FA.Types
       WH.PackingList.Internal
-      SharedStockAdjustment
-      SharedTypes
   other-modules:
       Paths_Fames
   hs-source-dirs:
       src
       legacy
       app
-      fay-shared
   default-extensions:
       BlockArguments
       DeriveDataTypeable
@@ -209,9 +206,6 @@ library
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.24.0.2 && <0.25
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , finite-typelits
@@ -272,7 +266,6 @@ library
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
-    , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7
@@ -347,9 +340,6 @@ executable DPDDump
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.24.0.2 && <0.25
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , finite-typelits
@@ -411,7 +401,6 @@ executable DPDDump
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
-    , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7
@@ -482,9 +471,6 @@ executable DPDImport
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.24.0.2 && <0.25
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , finite-typelits
@@ -546,7 +532,6 @@ executable DPDImport
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
-    , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7
@@ -613,9 +598,6 @@ executable FAGenerator
     , directory
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.24.0.2 && <0.25
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
     , file-embed
     , filepath
     , finite-typelits
@@ -676,7 +658,6 @@ executable FAGenerator
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
-    , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7
@@ -745,9 +726,6 @@ executable FPlanner
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.24.0.2 && <0.25
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , finite-typelits
@@ -808,7 +786,6 @@ executable FPlanner
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
-    , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7
@@ -842,6 +819,7 @@ executable Fames
       GL.Utils
       Items
       Items.Internal
+      Items.SharedStockAdjustment
       Items.Types
       WH.Barcode
       WH.FA
@@ -909,9 +887,6 @@ executable Fames
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.24.0.2 && <0.25
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , finite-typelits
@@ -972,7 +947,6 @@ executable Fames
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
-    , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7
@@ -1075,9 +1049,6 @@ test-suite test
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.24.0.2 && <0.25
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , finite-typelits
@@ -1141,7 +1112,6 @@ test-suite test
     , yesod
     , yesod-auth
     , yesod-core
-    , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-persistent >=1.6.0 && <1.7

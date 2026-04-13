@@ -21,7 +21,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 
-import SharedStockAdjustment
+import Items.SharedStockAdjustment
 import qualified FA as FA
 import qualified WH.FA.Types as WFA
 import qualified WH.FA.Curl as WFA
@@ -224,7 +224,8 @@ postWHStockAdjustmentR = do
             Save -> saveStockAdj param rows
             Reject -> rejectTakes param rows
             View -> do
-              let fay = $(fayFile "WHStockAdjustment")
+              -- let fay = $(fayFile "WHStockAdjustment")
+              let fay = $(widgetFile "OldFay/fay-runtime") <> $(widgetFile "OldFay/faygen-IMjMZ5h5") -- js to post form when tab change
               return $ fay <> [whamlet|
 <div>
   <table.table.table-border.table-hover>
