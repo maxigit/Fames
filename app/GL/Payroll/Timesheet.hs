@@ -148,7 +148,8 @@ data Timesheet p e = Timesheet
     , _frequency :: PayrollFrequency
     , _deductionAndCosts :: [DeductionAndCost (p, e)]
     }
-    deriving (Show, Eq, Functor, Foldable, Traversable)
+    deriving (Eq, Functor, Foldable, Traversable)
+deriving instance (Show p, Show e) => Show (Timesheet p e)
 
 makeClassy ''Timesheet
 traversePayee :: Monad m => (p -> m p' ) -> Timesheet p e -> m (Timesheet p' e)

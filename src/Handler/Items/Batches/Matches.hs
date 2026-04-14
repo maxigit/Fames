@@ -1,10 +1,11 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds, TypeOperators #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Handler.Items.Batches.Matches where
 
 import Import hiding((.:))
+import Data.Type.Equality(type (~))
 import qualified Data.Csv as Csv
 import Data.List(scanl, nub)
 import qualified Data.List as List

@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DerivingStrategies, UndecidableInstances, DataKinds #-}
+{-# LANGUAGE DerivingStrategies, UndecidableInstances, DataKinds, TypeOperators #-}
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
 {-# OPTIONS_GHC  -Wno-deprecations #-}
 
@@ -22,7 +22,7 @@ import qualified Language.Haskell.TH as TH
 
 share [ mkPersist sqlSettings
       , mkMigrate "migrateAll"
-      , mkDeleteCascade sqlSettings
+      -- , mkDeleteCascade sqlSettings
       ]
     $(persistFileWith lowerCaseSettings "config/models")
 

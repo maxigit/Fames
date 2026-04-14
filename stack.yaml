@@ -2,7 +2,7 @@
 # For more information, see: http://docs.haskellstack.org/en/stable/yaml_configuration/
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-20.26
+resolver: lts-24.36
 require-stack-version: ">= 2.1.3"
 
 # Local packages, usually specified by relative directory name
@@ -17,9 +17,10 @@ packages:
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - git: https://github.com/maxigit/metamorphosis
-  commit: cf6931606f96ef150f65626c7cc69b3b6d542aa8
+  commit: f8f0217fb17e24c158c370451105c022d084a5af
+
 - github: maxigit/warehouse-planner
-  commit: e2aa1c9e3462e47a4ee73e432fb479e8decfafba
+  commit: 0b643d0da06db69b1b65675642e232cfeb7c8afe
 - yesod-media-simple-0.2.0.1
 # - classy-prelude-yesod-1.5.0@sha256:8f7e183bdfd6d2ea9674284c4f285294ab086aff60d9be4e5d7d2f3c1a2b05b7,1330
 # - diagrams-cairo-1.4.1.1@sha256:8b62e90fcb0a2c9343f594940698a148b2e778b203f3297c0bed3097d34b559a,3801
@@ -74,7 +75,33 @@ allow-newer: true
 nix:
   enable: true
   pure: true
-  shell-file: shell.nix
+  # shell-file: shell.nix
+  packages:
+  - pkg-config
+  - expat
+  - curl
+  - openssl
+  - libmysqlclient
+  - pcre
+  - pcre2
+  - zlib
+  - glib
+  - cairo
+  - pango
+  - glabels-qt
+  - ncurses6
+  # for cairo
+  - xorg.libXdmcp
+  - xorg.libxcb
+  - libsysprof-capture
+  # gio
+  - util-linux
+  - libselinux
+  - libsepol
+  # pango
+  - fribidi
+  - libthai
+  - libdatrie
   # packages:
   #   - pkg-config
   #   - curl
@@ -88,8 +115,9 @@ nix:
   #   # to compile FAY
   #   - haskellPackages.cpphs
   #   - ghc
-  # path:
-  #   - nixpkgs=https://github.com/NixOS/nixpkgs/archive/1c1f5649bb9c1b0d98637c8c365228f57126f361.tar.gz
+  path:
+  - nixpkgs=https://github.com/NixOS/nixpkgs/archive/13043924aaa7375ce482ebe2494338e058282925.tar.gz
+  # - nixpkgs=https://github.com/NixOS/nixpkgs/archive/nixos-24.05.tar.gz
   #   
 build:
   bench: true

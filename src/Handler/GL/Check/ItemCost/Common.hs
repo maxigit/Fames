@@ -30,6 +30,7 @@ module Handler.GL.Check.ItemCost.Common
 where
 
 import Import hiding(mapM_)
+import Prelude (mapM_)
 import GL.Check.ItemCostSettings
 import Database.Persist.Sql  (rawSql, Single(..), rawExecute, fromSqlKey)
 import qualified FA as FA
@@ -40,7 +41,7 @@ import Data.Monoid(First(..))
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Util.Decimal
-import Control.Monad.Except (runExceptT, ExceptT(..), mapM_)
+import Control.Monad.Except (runExceptT, ExceptT(..))
 import Data.List(nub)
 import Data.Conduit.List(chunksOf, groupOn1)
 import Data.Time (addDays)

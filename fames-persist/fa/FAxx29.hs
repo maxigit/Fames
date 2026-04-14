@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances, DeriveGeneric #-}
 module FAxx29 where
 
+
 import ClassyPrelude.Yesod
 import Database.Persist.Quasi
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 -- The fast timesheet format allows
 -- to enter quickly a timesheet.
 -- For that, each day can be written a line and the parser

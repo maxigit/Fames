@@ -7,6 +7,7 @@ module Handler.GL.Payroll.Import
 )
 where
 import Import
+import Control.Monad(fail)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.GL.Payroll.Common
 import GL.Payroll.Settings
@@ -18,6 +19,7 @@ import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
 import Control.Monad.Except
 import qualified Data.Map as Map
+import Data.Time.Calendar()
 
 -- * Type 
 data ImportParam = ImportParam
@@ -40,7 +42,7 @@ data Invoice = Invoice
 -- * Form 
 -- ** Type 
 -- ** Form 
-importForm :: Maybe ImportParam -> _ -- (FormResult SummaryParam, Widget)
+-- importForm :: Maybe ImportParam -> _ -- (FormResult SummaryParam, Widget)
 importForm paramM = let
   form = ImportParam
                  <$> aopt dayField "From" (from <$> paramM)

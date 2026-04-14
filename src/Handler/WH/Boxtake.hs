@@ -249,7 +249,7 @@ csvHeaderWithPosition, csvHeaderWithoutPosition :: Text
 csvHeaderWithPosition = "Bay No,Position,Style,Length,Width,Height,Orientations" 
 csvHeaderWithoutPosition = "Bay No,Style,QTY,Length,Width,Height,Orientations"
 
-spreadSheetToCsv :: (Session -> Boxtake -> Boxtake) ->  _conduit -> Handler TypedContent
+spreadSheetToCsv :: _ => (Session -> Boxtake -> Boxtake) ->  _conduit -> Handler TypedContent
 spreadSheetToCsv adjust renderCsv = processBoxtakeSheet' Save go
   where go _ _ (sessions, _) = do
           let boxSources = sourceList (concatMap sessionBoxesWithNewLocation sessions)
@@ -334,7 +334,7 @@ getWHBoxtakeAdjustmentForR style skipOk todaym = do
   
 
 -- * Forms 
-inquiryForm :: Maybe BoxtakeInquiryParam -> _
+inquiryForm :: _ => Maybe BoxtakeInquiryParam -> _
 inquiryForm param0 = renderBootstrap3 BootstrapBasicForm form
   where form = BoxtakeInquiryParam
           <$> aopt filterEField "Barcode" (pBarcode <$> param0)

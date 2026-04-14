@@ -24,6 +24,7 @@ where
 import Control.Applicative
 import Data.Maybe
 import Control.Monad.State(State,evalState, get, put)
+import Control.Monad.Trans.Except(runExcept, except)
 
 import Lens.Micro hiding(filtered)
 import Lens.Micro.TH
@@ -50,6 +51,7 @@ import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays, UTCTime, ParseT
 import Data.Time.Format(defaultTimeLocale)
 import Data.Char(isSpace, isAscii)
 import Util.ValidField
+import Data.Kind(Type)
 
 import GHC.Generics
 
@@ -347,7 +349,7 @@ parseSantanderStatement = do
   trans <- many parseSantanderTransaction
   return $ SantanderStatement l_from l_to account trans
 
-parseSantanderTransaction :: forall s (m :: * -> *) u. P.Stream s m Char
+parseSantanderTransaction :: forall s (m :: Type -> Type) u. P.Stream s m Char
                           => P.ParsecT s u m SantanderTransaction
 parseSantanderTransaction = do
   P.spaces
@@ -441,7 +443,7 @@ mergeTrans transs dailyss0 = let
   filteredStatements =
     zipWith (\(ss,_) (_,d) -> filterStatement ss d)
             orderedStatements
-            (tail orderedStatements ++ [(error "Shoudn't be evaluated", Nothing)])
+            (drop 1 $  orderedStatements ++ [(error "Shoudn't be evaluated", Nothing)])
   -- | Take all transaction before the minDate + the ones on the day
   -- minus the count
   filterStatement :: [HSBCDaily] -> Maybe (Day, Int, Day)  -> [HSBCDaily]
@@ -487,7 +489,7 @@ readHSBCTransactions discardPatM path = do
     hs <- readCsv' discardPatM path
     ps <- readCsv' discardPatM path :: IO (Either String [PaypalTransaction])
     let phs = fmap (map (dailyToHTrans . pToS)) ps :: Either String [HSBCTransactions]
-    case hs <|> phs  of
+    case runExcept . asum $ map except [hs , phs ]  of
       Left s -> do
                content <- readWithFilter discardPatM path
                case P.parse parseSantanderStatement path content of
@@ -529,7 +531,7 @@ readDaily discardPat path = do
     -- it is important to start with decodeHSBC because if a file as only one line
     -- trying to parse first with a decoder expecting a header will return a empty list
     -- instead of failing: the header is actually not used (and not checked if there is no lines)
-    case decodeHSBC <|> decodeNewHSBC <|> decodePaypal <|> decodeSantander <|> decodeTrustPayment of
+    case runExcept . asum $ map except [ decodeHSBC , decodeNewHSBC , decodePaypal , decodeSantander , decodeTrustPayment ] of
         Left s -> error $ "can't parse Statement:" ++ path ++ "\n" ++ s
         Right v -> return . V.toList $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
@@ -612,7 +614,7 @@ best hfs hs fs = if minDistance < 31
                 else (hs, fs, hfs) where
     ((hi1,fi1),minDistance) = minimumBy (comparing snd) pairs
     pairs = [((hi, fi), distance h f) | (h, hi) <- hs `zip` [0..], (f,fi) <- fs `zip` [0..]]
-    deleteAt i xs =  head' ++ (tail tail')
+    deleteAt i xs =  head' ++ (drop 1 $  tail')
         where (head', tail') = splitAt i xs
 
 -- * Output 

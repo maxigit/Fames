@@ -14,7 +14,7 @@ import GL.Utils(calculateDate, DateCalculator(..))
 import Data.Text (splitOn)
 import Network.Curl
 import Curl
-import Control.Monad.Except hiding (mapM_, forM_)
+import Control.Monad.Except
 import Data.Aeson
 
 data Marker = Marker

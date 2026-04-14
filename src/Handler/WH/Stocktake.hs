@@ -1231,7 +1231,7 @@ generateMissingsFor rows@(row:_) = do
 -- | Stock done in the past, .i.e before an existing one for the same style
 -- shouldn't be active and shouldn't trigger deactivation of other stocktakes.
 -- To do, we need to check the latest stocktakes for each stock_id
-deactivateOldStocktakes :: [Stocktake] -> _ [Stocktake]
+deactivateOldStocktakes :: [Stocktake] -> SqlHandler [Stocktake]
 deactivateOldStocktakes sts = do
   latests <- findLatestActiveStocktakes (map stocktakeStockId sts)
   let activate st = if Just (stocktakeDate st) < Map.lookup (stocktakeStockId st) latests
@@ -1241,7 +1241,7 @@ deactivateOldStocktakes sts = do
   return $ map activate sts
  
 -- find the earliest date of the latest stocktake for each style
-findLatestActiveStocktakes :: [Text] -> _ (Map Text Day)
+findLatestActiveStocktakes :: [Text] -> SqlHandler (Map Text Day)
 findLatestActiveStocktakes [] = return mempty
 findLatestActiveStocktakes stockIds = do
   let skus = toList stockIds

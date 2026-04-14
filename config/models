@@ -172,7 +172,7 @@ Timesheet sql=fames_timesheet
 -- Should normally be done day, but could also span multiple days
 -- (for monthly pay for example)
 PayrollShift sql=fames_payroll_shift
-  timesheet TimesheetId sql=timesheet_id
+  timesheet TimesheetId sql=timesheet_id onDeleteCascade
   duration Double
   cost Double
   operator OperatorId sql=operator_id
@@ -180,7 +180,7 @@ PayrollShift sql=fames_payroll_shift
   type Text -- normal, holidays etc ...
   
 PayrollItem sql=fames_payroll_item
-  timesheet TimesheetId sql=timesheet_id
+  timesheet TimesheetId sql=timesheet_id onDeleteCascade
   amount Double
   type CostOrDeduction
   operator OperatorId sql=operator_id

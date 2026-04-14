@@ -253,6 +253,7 @@ library
     , these
     , these-lens
     , time
+    , transformers >=0.6 && <7
     , unliftio
     , unordered-containers
     , vector
@@ -387,6 +388,7 @@ executable DPDDump
     , these
     , these-lens
     , time
+    , transformers >=0.6 && <7
     , unliftio
     , unordered-containers
     , vector
@@ -518,6 +520,7 @@ executable DPDImport
     , these
     , these-lens
     , time
+    , transformers >=0.6 && <7
     , unliftio
     , unordered-containers
     , vector
@@ -645,6 +648,7 @@ executable FAGenerator
     , these
     , these-lens
     , time
+    , transformers >=0.6 && <7
     , unliftio
     , unordered-containers
     , vector
@@ -773,6 +777,7 @@ executable FPlanner
     , these
     , these-lens
     , time
+    , transformers >=0.6 && <7
     , unliftio
     , unordered-containers
     , vector
@@ -934,6 +939,7 @@ executable Fames
     , these
     , these-lens
     , time
+    , transformers >=0.6 && <7
     , unliftio
     , unordered-containers
     , vector
@@ -1233,6 +1239,7 @@ benchmark bench
     , these
     , these-lens
     , time
+    , transformers >=0.6 && <7
     , unliftio
     , unordered-containers
     , vector

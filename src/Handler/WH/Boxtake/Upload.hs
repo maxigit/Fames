@@ -449,7 +449,7 @@ loadMissing sessions = do
   (_, new) <- runDB $ foldM loadMissingForSession (barcodeSet, []) sessions
   return (reverse new, [])
 
-loadMissingForSession :: ((Set Text), [Session]) -> Session -> _ (Set Text, [Session])
+loadMissingForSession :: ((Set Text), [Session]) -> Session -> SqlHandler (Set Text, [Session])
 loadMissingForSession (barcodes, sessions) session = do
   let location = sessionLocation session
   allboxes <- selectList ( (BoxtakeActive ==. True)

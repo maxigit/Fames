@@ -64,7 +64,7 @@ data FAParam = FAParam
   , ffPayments :: Map Text (Maybe Double, Maybe Day)
   } deriving (Eq, Show)
 -- * Form 
-uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
+uploadForm :: _ => Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
 uploadForm mode paramM = let
   form _ = UploadParam <$> areq textareaField "Timesheet" (upTimesheet <$> paramM)
                        <*> aopt fileField ("payroo") (upPayroo <$> paramM)
@@ -324,7 +324,7 @@ postGLPayrollRejectR tId = do
              count  ((TransactionMapVoided ==. False) : criteria)
             if c == 0
             then  do
-              runDB $ deleteCascade key  >> deleteWhere [TransactionMapEventNo ==. fromIntegral tId , TransactionMapEventType ==. TimesheetE, TransactionMapVoided ==. True]
+              runDB $ delete key  >> deleteWhere [TransactionMapEventNo ==. fromIntegral tId , TransactionMapEventType ==. TimesheetE, TransactionMapVoided ==. True]
               renderMain Validate Nothing ok200 (setSuccess $ toHtml $ "Timesheet #" <> tshow tId <> " has been deleted sucessfully" ) (return ())
             else do
                -- linked to Fa transaction, only clear

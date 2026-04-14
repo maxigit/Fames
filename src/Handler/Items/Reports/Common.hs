@@ -5,6 +5,7 @@ where
 
 import Import hiding(computeCategory, formatAmount, formatQuantity, panel, trace, all)
 import Items.Types
+import Data.Kind(Type)
 import Data.Aeson.Key (fromText)
 import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
@@ -122,7 +123,7 @@ data DataParams' f g = DataParams
 
 type DataParams = DataParams' Identifiable []
 
-pattern DataParamsU :: forall (g :: * -> *).
+pattern DataParamsU :: forall (g :: Type -> Type).
                        QPType
                     -> g TraceParam
                     -> Maybe NormalizeMode
@@ -2052,7 +2053,7 @@ bandPivotProcessor tparams __panelId key0 rank0 parents ruptures = createKeyRank
 
 -- get the list of the columns for that we need to
  -- nmap is a serie
-collectColumnsForPivot :: [DataParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, _ -> Widget)]
+collectColumnsForPivot :: _ => [DataParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, _ -> Widget)]
 collectColumnsForPivot tparams key rank0 parents ruptures@(r, ()) nmap = let
   (band, (panel, (all, ()))) = parents
   -- we are within a serie, we need to get all the used columns

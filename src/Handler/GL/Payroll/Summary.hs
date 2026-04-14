@@ -27,7 +27,7 @@ data SummaryParam = SummaryParam
   , dueDateMap :: Map Text Day -- override expected due date for a give timesheet
   }
 -- ** Form 
-filterForm :: Maybe SummaryParam -> _ -- (FormResult SummaryParam, Widget)
+-- filterForm :: Maybe SummaryParam -> _ -- (FormResult SummaryParam, Widget)
 filterForm paramM = let
   form = SummaryParam
                  <$> aopt dayField "From" (from <$> paramM)

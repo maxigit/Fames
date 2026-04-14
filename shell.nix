@@ -8,7 +8,6 @@ in if stack_ghc != null && stack_ghc.version != pkgs.ghc.version
    then abort ("stack ghc " + stack_ghc.version + " different from " + pkgs.ghc.version)
    else with pkgs;
 let ghc = pkgs.ghc ;
-    glabels-qr = glabels.overrideAttrs (oldAttrs: {nativeBuildInputs = oldAttrs.nativeBuildInputs ++ barcode-libs;});
     runtime-inputs = [ 
                     curl
                     openssl
@@ -18,7 +17,7 @@ let ghc = pkgs.ghc ;
                     glib
                     cairo
                     pango
-                    glabels-qr
+                    glabels-qt
                     ncurses6
 		   barcode
                ] ;

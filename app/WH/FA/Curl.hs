@@ -23,6 +23,7 @@ module WH.FA.Curl
 ) where
 
 import ClassyPrelude hiding(traceM, mapM_)
+import Prelude(mapM_)
 import WH.FA.Types
 import Network.Curl
 import Control.Monad.Except

@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, DataKinds #-}
+{-# LANGUAGE TypeFamilies, DataKinds, TypeOperators #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
@@ -14,6 +14,7 @@ import GL.Receipt (ReceiptTemplateExpanded, ReceiptTemplate'(..))
 import Data.List(mapAccumL)
 import GL.FA
 import Data.Time(fromGregorianValid)
+import Data.Type.Equality(type (~))
 
 -- | Represents a row of the spreadsheet.
 -- The actual type of each field depend of a status or stage

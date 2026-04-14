@@ -17,6 +17,7 @@ import Data.List (nub)
 import Util.ValidField
 import Util.Transformable
 import qualified Data.Text as T
+import Control.Monad.Trans.Except
   
 import qualified Data.ByteString.Lazy as LazyBS
 
@@ -124,6 +125,9 @@ type family ForRowT (s :: RowTypes) raw partial valid final where
   
 -- * Functions 
 
+esum :: Monoid e => [Either e a ] -> Either e a
+esum = runExcept . asum . map except
+
 parseInvalidSpreadsheet :: Show a
   => Csv.DecodeOptions
   -> Map String [String]
@@ -191,7 +195,7 @@ parseSpreadsheet columnMap seps bytes = do
   let lbytes = fromStrict bytes
       options = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- fromMaybe ",;\t" seps ]
       tries =  [(Csv.decodeByNameWith opt lbytes, opt) | opt <- options ]
-  case asum (map fst tries) of
+  case esum (map fst tries) of
     Left _ -> let
                 invalids = [parseInvalidSpreadsheet opt columnMap lbytes err | (Left err, opt) <- tries ]
               in  Left $ minimumByEx (comparing $ length . missingColumns) invalids

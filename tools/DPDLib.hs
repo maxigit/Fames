@@ -11,7 +11,7 @@ import Test.WebDriver
 -- import Test.WebDriver.Commands
 import Test.WebDriver.Commands.Wait
 -- import qualified Test.WebDriver.Common.Keys as K
-import Data.Text
+import Data.Text hiding(show)
 import Debug.Trace
 import Data.Csv
 import qualified Data.ByteString.Lazy as BS

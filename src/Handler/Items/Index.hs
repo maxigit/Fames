@@ -29,6 +29,7 @@ import qualified Data.IntSet as IntSet
 import Util.Cache
 import Control.Comonad
 import qualified Generics.OneLiner as OL
+import Data.Time.Calendar()
   
 -- * Types 
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.

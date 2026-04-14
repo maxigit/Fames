@@ -14,6 +14,7 @@ import GL.Utils
 import qualified GL.Payroll.Timesheet as TS
 import Data.Time (addGregorianMonthsClip)
 import Lens.Micro ((^.))
+import Data.Time.Calendar()
 -- * Forms 
 -- ** Type 
 data CalendarParam = CalendarParam
@@ -24,7 +25,7 @@ data CalendarParam = CalendarParam
   , shiftType :: Maybe TS.ShiftType
   }
 -- ** Form 
-filterForm :: Maybe CalendarParam -> _ -- (FormResult CalendarParam, Widget)
+-- filterForm :: Maybe CalendarParam -> _ -- (FormResult CalendarParam, Widget)
 filterForm paramM = let
   form = CalendarParam
                  <$> aopt dayField "From" (from <$> paramM)

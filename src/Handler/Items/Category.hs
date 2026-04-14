@@ -64,7 +64,7 @@ data TesterParam = TesterParam
   , tpShowFields :: Bool
   } deriving Show
 
-categoryTesterForm :: Maybe TesterParam -> _
+categoryTesterForm :: _ => Maybe TesterParam -> _
 categoryTesterForm param = renderBootstrap3 BootstrapBasicForm form
   where form = TesterParam
          <$> areq filterEField "styles" (tpStockFilter <$> param)

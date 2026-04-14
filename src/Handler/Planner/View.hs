@@ -355,7 +355,7 @@ sendResponseDiag width diag =  do
   M.renderContent (M.SizedDiagram size diag)
 
 -- ** Graphical View 
-renderGraphicCompactView :: (Text -> _) ->  Scenario -> Handler Widget
+renderGraphicCompactView :: _ => (Text -> _) ->  Scenario -> Handler Widget
 renderGraphicCompactView imageRoute scenario = do
   let ?cache = memoryCache
   (sha, layoutSize) <- cacheScenarioIn scenario
@@ -367,7 +367,7 @@ renderGraphicCompactView imageRoute scenario = do
     <tr><td><a href="@{imgRoute 4000 i}"><img src=@{PlannerR $ PImageR sha 350 i} style="width:800;">
 |]
 
-renderGraphicBigView :: (Text-> _) -> Scenario -> Handler Widget
+renderGraphicBigView :: _ => (Text-> _) -> Scenario -> Handler Widget
 renderGraphicBigView imageRoute scenario = do
   let ?cache = memoryCache
   (sha, layoutSize) <- cacheScenarioIn scenario

@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 -- | Miscellaneous functions to help rendering
 -- | and/or accessing the database
 module Handler.Util
@@ -98,7 +99,7 @@ import System.Directory (doesFileExist)
 import qualified Data.Map.Strict as Map
 import qualified Data.List as Data.List
 import Model.DocumentKey
-import Control.Monad.Except hiding(mapM_, filterM)
+import Control.Monad.Except
 import Text.Printf(printf) 
 import qualified Data.Text as T
 import Data.Maybe(fromJust)

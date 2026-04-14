@@ -25,7 +25,7 @@ import Items.SharedStockAdjustment
 import qualified FA as FA
 import qualified WH.FA.Types as WFA
 import qualified WH.FA.Curl as WFA
-import Control.Monad.Except hiding (mapM_)
+import Control.Monad.Except
 
 -- 3 sections
 -- displays all, or each in a row

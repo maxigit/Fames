@@ -23,12 +23,13 @@ import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
 import Data.Align
 import Handler.WH.Boxtake.Common
 import Handler.Items.Common
-import Data.List(mapAccumL, tails, inits)
+import Data.List(mapAccumL)
 import Lens.Micro.Extras (preview)
 import Data.These.Lens
 import Util.ForConduit
 import qualified Data.Conduit.List as C
 import qualified Data.Map as Map
+import Data.Time.Calendar()
 
 type BoxtakePlus = (Entity Boxtake , [Entity Stocktake])
 type StocktakePlus = (Entity Stocktake, Key Boxtake)
@@ -391,7 +392,7 @@ decorateQuantity AdjustmentParam{..} (Just (Sku sku)) qw =
                       |]
 xxx :: AdjustmentParam
     -> (Sku -> Widget)
-    -> _ -- (Maybe Text -> _ -> Widget)
+    -> (Maybe Sku -> String -> Widget) -- (Maybe Text -> _ -> Widget)
     -> StyleInfoSummary
     -> Widget
 xxx AdjustmentParam{..} decorateSku _decorateQuantity StyleInfoSummary{..} =

@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies, UndecidableInstances, DataKinds #-}
+{-# LANGUAGE DerivingStrategies, UndecidableInstances, DataKinds, TypeOperators #-}
 module FAX where
 
 import ClassyPrelude.Yesod

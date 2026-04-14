@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies, UndecidableInstances, DataKinds #-}
+{-# LANGUAGE DerivingStrategies, UndecidableInstances, DataKinds, TypeOperators #-}
 -- Not needed at it duplicates all classes from model
 -- Just easier to get a quick view of db
 module FAMES where

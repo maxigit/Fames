@@ -877,7 +877,7 @@ generateStocktake key pl = do
   setAttachment (fromStrict $ "stocktake" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".csv") )
   respondSource "text/csv" (source .| mapC toFlushBuilder)
 
-editDetailsForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
+editDetailsForm :: _ => Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
 editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
   where form = areq textareaField "cart" (Textarea <$> defCart)
 
@@ -985,7 +985,7 @@ showEvent TransactionMap{..} = case transactionMapEventType of
                    PackingListDutyE -> Just "duty"
                    _ -> Nothing
 
-editInvoicesForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
+editInvoicesForm :: _ => Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
 editInvoicesForm defCart  = renderBootstrap3 BootstrapBasicForm form
   where form = areq textareaField "invoices" (Textarea <$> defCart)
 renderEditInvoices :: Int64 -> [Entity TransactionMap] -> Handler Widget

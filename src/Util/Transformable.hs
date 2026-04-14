@@ -1,6 +1,8 @@
+{-# LANGUAGE TypeOperators #-}
 module Util.Transformable where
 import Import.NoFoundation
 import Util.ValidField
+import Data.Type.Equality(type (~))
 
 -- * Transformables 
 -- | Sort of convert but can loose information
