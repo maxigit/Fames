@@ -302,7 +302,7 @@ loadLastStocktake param =
            <> " WHERE loc_code = ? AND category = 'style' AND tran_date <= last_date "
         (after, stA, ap)  = case aDate param of
                          Nothing -> ("", "", [])
-                         Just today -> ("  AND tran_date <= ? ", " WHERE date <= ? ", [ toPersistValue today ])
+                         Just today -> ("  AND tran_date <= ? ", " WHERE st.date <= ? ", [ toPersistValue today ])
         groupB =  " GROUP BY stock_id HAVING quantity != 0 "
         (w,p) = case filterEKeyword "value" <$> aStyleFilter param of
           Nothing -> ("",  [] )
