@@ -215,4 +215,4 @@ bench_%:
 	stack bench --ba '-m prefix $* --output bench-results/$*.html --csv bench-results/$*.csv'
 bench:
 	mkdir -p bench-results
-	stack bench --ba '--output bench-results/all.html --csv bench-results/al.csv'
+	stack bench --ba '--output bench-results/all.html --csv bench-results/all.csv'
