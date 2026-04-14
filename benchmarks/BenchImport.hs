@@ -24,7 +24,9 @@ overrideDB settings = let
                                                               , connectHost = "127.0.0.1"
                                                               , connectPassword  = "bench"
                                                               , connectDatabase = "fa"
-                                                              } }}
+                                                              } }
+               , appForecastProfilesDir = "../bench-data/Forecasts"
+               }
 
 -- | Create a handler but read settings once
 -- Clear arguments so that they don't interfere with criterion ones.
