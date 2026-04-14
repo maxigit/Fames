@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Application
     ( getApplicationDev
+    , getAppSettings
     , appMain
     , develMain
     , makeFoundation

@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE PartialTypeSignatures, ImplicitParams #-}
 {-# OPTIONS_GHC -Wno-missing-exported-signatures #-}
 
 module BenchImport
@@ -30,12 +30,11 @@ overrideDB settings = let
 -- Clear arguments so that they don't interfere with criterion ones.
 -- Moreover we don't want external things to modify the behavior of the benchmarks.
 -- All setting modification must be done through `AppSettings -> AppSettings`
-benchHandlerWithH :: [String] -> (AppSettings -> AppSettings)  -> IO (Handler a -> IO a)
-benchHandlerWithH args f = do
-   withArgs args do
-      handler <- A.makeHandlerWith (f . overrideDB)
-      return $ \h -> handler (clearAppCache >> h)
+benchmarkFoundationWith args f = withArgs args do 
+   A.getAppSettings >>= A.makeFoundation . f . overrideDB 
   
+h ::  App -> Handler a -> IO a
+h foundation =  unsafeHandler foundation
 
 
    
