@@ -119,5 +119,3 @@ nix:
   - nixpkgs=https://github.com/NixOS/nixpkgs/archive/13043924aaa7375ce482ebe2494338e058282925.tar.gz
   # - nixpkgs=https://github.com/NixOS/nixpkgs/archive/nixos-24.05.tar.gz
   #   
-build:
-  bench: true
