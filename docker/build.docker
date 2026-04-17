@@ -1,0 +1,15 @@
+FROM haskell:9.10.3
+
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libglib2.0-dev \
+    libssl-dev \
+    libgmp-dev \
+    zlib1g-dev \
+    default-libmysqlclient-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/opt/ghc/9.10.3/bin:${PATH}"
+WORKDIR /app

@@ -1,0 +1,26 @@
+allow-newer:
+  regex-compat-tdfa:base
+  ,Metamorphosis:containers
+  ,fames-persist:all
+  ,diagrams-lib:all
+  ,diagrams-lib
+  ,base
+  ,warehouse-planner:all
+
+ignore-project: False
+
+source-repository-package
+  type: git
+  location: https://github.com/maxigit/metamorphosis.git
+  tag: f8f0217fb17e24c158c370451105c022d084a5af
+source-repository-package
+  type: git
+  location: https://github.com/maxigit/warehouse-planner.git
+  tag: 0b643d0da06db69b1b65675642e232cfeb7c8afe
+source-repository-package
+  type: git
+  location: https://github.com/maxigit/regex-compat-tdfa.git
+  tag: 576bac0b0b4ad99b415a92c5bd2ef05e944f2dae
+packages:
+  .
+  fames-persist

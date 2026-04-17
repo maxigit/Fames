@@ -178,99 +178,99 @@ library
       MultiWayIf
       LambdaCase
   build-depends:
-      Decimal >=0.5.1 && <0.6
+      Decimal >=0.5.1
     , Glob
     , Metamorphosis >=0.1.0.1
-    , aeson >=0.6 && <1.3
+    , aeson >=0.6
     , aeson-qq
-    , base ==4.*
+    , base >= 4.0
     , blaze-html
     , blaze-markup
-    , bytestring >=0.9 && <0.11
+    , bytestring >=0.9
     , case-insensitive
-    , cassava >=0.4.5 && <0.5
+    , cassava >=0.4.5
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3 && <2.4
+    , colour >=2.3.3
     , comonad
-    , conduit >=1.0 && <2.0
+    , conduit >=1.0
     , conduit-extra
     , containers
     , cryptohash
-    , curl >=1.3.8 && <1.4
+    , curl >=1.3.8
     , data-default
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
-    , directory >=1.1 && <1.4
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
+    , directory >=1.1
     , fames-persist
-    , fast-logger >=2.2 && <2.5
+    , fast-logger >=2.2
     , file-embed
-    , filepath >=1.4.1.1 && <1.5
+    , filepath >=1.4.1.1
     , finite-typelits
     , formatting
     , ghc
     , ghc-compact
     , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.12.3 && <0.13
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
+    , http-conduit >=2.1
+    , http-types >=0.12.3
     , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
-    , monad-logger ==0.3.*
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
+    , monad-logger >=0.3.0
     , mono-traversable
-    , mtl ==2.2.*
+    , mtl >=2.2.0
     , mysql
     , mysql-simple
-    , network >=3.1.1.1 && <3.2
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
-    , persistent >=2.0 && <2.8
-    , persistent-mysql >=2.1.2 && <2.7
-    , persistent-template >=2.0 && <2.6
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
+    , persistent >=2.0
+    , persistent-mysql >=2.1.2
+    , persistent-template >=2.0
     , pointed >=5
     , pretty-simple
-    , reducers ==3.12.*
+    , reducers >=3.12.0
     , regex-base
     , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
+    , regex-tdfa >=1.2.2
     , safe
     , semialign
-    , shakespeare ==2.0.*
+    , shakespeare >=2.0.0
     , split
     , streaming-commons
     , tagged
-    , tagsoup >=0.14.1 && <0.15
+    , tagsoup >=0.14.1
     , template-haskell
     , temporary
-    , text >=0.11 && <2.0
+    , text >=0.11
     , these
     , these-lens
     , time
-    , transformers >=0.6 && <7
+    , transformers >=0.6
     , unliftio
     , unordered-containers
     , vector
     , vector-sized
     , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
     , warehouse-planner >=3.1.1
-    , warp >=3.0 && <3.3
-    , yaml ==0.8.*
-    , yesod >=1.4.1 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-persistent >=1.6.0 && <1.7
-    , yesod-static >=1.4.0.3 && <1.6
+    , warp >=3.0
+    , yaml >=0.8.0
+    , yesod >=1.4.1
+    , yesod-auth >=1.4.0 && <= 1.6.11.3
+    , yesod-core >=1.4.17
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
   default-language: Haskell2010
   if (flag(dev)) || (flag(library-only))
     ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -Wno-missing-local-signatures -O0 -j6
@@ -312,10 +312,10 @@ executable DPDDump
       MultiWayIf
       LambdaCase
   build-depends:
-      Decimal >=0.5.1 && <0.6
+      Decimal >=0.5.1
     , Glob
     , Metamorphosis >=0.1.0.1
-    , aeson >=0.6 && <1.3
+    , aeson >=0.6
     , aeson-qq
     , base
     , blaze-html
@@ -326,87 +326,87 @@ executable DPDDump
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3 && <2.4
+    , colour >=2.3.3
     , comonad
-    , conduit >=1.0 && <2.0
+    , conduit >=1.0
     , conduit-extra
     , containers
     , cryptohash
-    , curl >=1.3.8 && <1.4
+    , curl >=1.3.8
     , data-default
     , data-default-class
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
-    , directory >=1.1 && <1.4
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
+    , directory >=1.1
     , fames-persist
-    , fast-logger >=2.2 && <2.5
+    , fast-logger >=2.2
     , file-embed
-    , filepath >=1.4.1.1 && <1.5
+    , filepath >=1.4.1.1
     , finite-typelits
     , formatting
     , ghc
     , ghc-compact
     , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.12.3 && <0.13
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
+    , http-conduit >=2.1
+    , http-types >=0.12.3
     , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
-    , monad-logger ==0.3.*
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
+    , monad-logger >=0.3.0
     , mono-traversable
-    , mtl ==2.2.*
+    , mtl >=2.2.0
     , mysql
     , mysql-simple
-    , network >=3.1.1.1 && <3.2
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
-    , persistent >=2.0 && <2.8
-    , persistent-mysql >=2.1.2 && <2.7
-    , persistent-template >=2.0 && <2.6
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
+    , persistent >=2.0
+    , persistent-mysql >=2.1.2
+    , persistent-template >=2.0
     , pointed >=5
     , pretty-simple
-    , reducers ==3.12.*
+    , reducers >=3.12.0
     , regex-base
     , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
+    , regex-tdfa >=1.2.2
     , safe
     , semialign
-    , shakespeare ==2.0.*
+    , shakespeare >=2.0.0
     , split
     , streaming-commons
     , tagged
-    , tagsoup >=0.14.1 && <0.15
+    , tagsoup >=0.14.1
     , template-haskell
     , temporary
     , text
     , these
     , these-lens
     , time
-    , transformers >=0.6 && <7
+    , transformers >=0.6
     , unliftio
     , unordered-containers
     , vector
     , vector-sized
     , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
     , warehouse-planner >=3.1.1
-    , warp >=3.0 && <3.3
+    , warp >=3.0
     , webdriver
-    , yaml ==0.8.*
-    , yesod >=1.4.1 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-persistent >=1.6.0 && <1.7
-    , yesod-static >=1.4.0.3 && <1.6
+    , yaml >=0.8.0
+    , yesod >=1.4.1
+    , yesod-auth >=1.4.0 && <= 1.6.11.3
+    , yesod-core >=1.4.17
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
   default-language: Haskell2010
 
 executable DPDImport
@@ -443,11 +443,11 @@ executable DPDImport
       MultiWayIf
       LambdaCase
   build-depends:
-      Decimal >=0.5.1 && <0.6
+      Decimal >=0.5.1
     , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
-    , aeson >=0.6 && <1.3
+    , aeson >=0.6
     , aeson-qq
     , base
     , blaze-html
@@ -458,87 +458,87 @@ executable DPDImport
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3 && <2.4
+    , colour >=2.3.3
     , comonad
-    , conduit >=1.0 && <2.0
+    , conduit >=1.0
     , conduit-extra
     , containers
     , cryptohash
-    , curl >=1.3.8 && <1.4
+    , curl >=1.3.8
     , data-default
     , data-default-class
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
-    , directory >=1.1 && <1.4
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
+    , directory >=1.1
     , fames-persist
-    , fast-logger >=2.2 && <2.5
+    , fast-logger >=2.2
     , file-embed
-    , filepath >=1.4.1.1 && <1.5
+    , filepath >=1.4.1.1
     , finite-typelits
     , formatting
     , ghc
     , ghc-compact
     , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.12.3 && <0.13
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
+    , http-conduit >=2.1
+    , http-types >=0.12.3
     , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
-    , monad-logger ==0.3.*
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
+    , monad-logger >=0.3.0
     , mono-traversable
-    , mtl ==2.2.*
+    , mtl >=2.2.0
     , mysql
     , mysql-simple
-    , network >=3.1.1.1 && <3.2
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
-    , persistent >=2.0 && <2.8
-    , persistent-mysql >=2.1.2 && <2.7
-    , persistent-template >=2.0 && <2.6
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
+    , persistent >=2.0
+    , persistent-mysql >=2.1.2
+    , persistent-template >=2.0
     , pointed >=5
     , pretty-simple
-    , reducers ==3.12.*
+    , reducers >=3.12.0
     , regex-base
     , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
+    , regex-tdfa >=1.2.2
     , safe
     , semialign
-    , shakespeare ==2.0.*
+    , shakespeare >=2.0.0
     , split
     , streaming-commons
     , tagged
-    , tagsoup >=0.14.1 && <0.15
+    , tagsoup >=0.14.1
     , template-haskell
     , temporary
     , text
     , these
     , these-lens
     , time
-    , transformers >=0.6 && <7
+    , transformers >=0.6
     , unliftio
     , unordered-containers
     , vector
     , vector-sized
     , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
     , warehouse-planner >=3.1.1
-    , warp >=3.0 && <3.3
+    , warp >=3.0
     , webdriver
-    , yaml ==0.8.*
-    , yesod >=1.4.1 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-persistent >=1.6.0 && <1.7
-    , yesod-static >=1.4.0.3 && <1.6
+    , yaml >=0.8.0
+    , yesod >=1.4.1
+    , yesod-auth >=1.4.0 && <= 1.6.11.3
+    , yesod-core >=1.4.17
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
   default-language: Haskell2010
 
 executable FAGenerator
@@ -573,34 +573,34 @@ executable FAGenerator
       MultiWayIf
       LambdaCase
   build-depends:
-      Decimal >=0.5.1 && <0.6
+      Decimal >=0.5.1
     , Glob
     , Metamorphosis >=0.1.0.1
-    , aeson >=0.6 && <1.3
+    , aeson >=0.6
     , aeson-qq
     , base
     , blaze-html
     , blaze-markup
-    , bytestring >=0.9 && <0.11
+    , bytestring >=0.9
     , case-insensitive
-    , cassava >=0.4.5 && <0.5
+    , cassava >=0.4.5
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3 && <2.4
+    , colour >=2.3.3
     , comonad
-    , conduit >=1.0 && <2.0
+    , conduit >=1.0
     , conduit-extra
     , containers
     , cryptohash
-    , curl >=1.3.8 && <1.4
+    , curl >=1.3.8
     , data-default
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
     , directory
     , fames-persist
-    , fast-logger >=2.2 && <2.5
+    , fast-logger >=2.2
     , file-embed
     , filepath
     , finite-typelits
@@ -608,64 +608,64 @@ executable FAGenerator
     , ghc
     , ghc-compact
     , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.12.3 && <0.13
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
+    , http-conduit >=2.1
+    , http-types >=0.12.3
     , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
-    , monad-logger ==0.3.*
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
+    , monad-logger >=0.3.0
     , mono-traversable
-    , mtl ==2.2.*
+    , mtl >=2.2.0
     , mysql
     , mysql-simple
-    , network >=3.1.1.1 && <3.2
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
-    , persistent >=2.0 && <2.8
-    , persistent-mysql >=2.1.2 && <2.7
-    , persistent-template >=2.0 && <2.6
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
+    , persistent >=2.0
+    , persistent-mysql >=2.1.2
+    , persistent-template >=2.0
     , pointed >=5
     , pretty-simple
-    , reducers ==3.12.*
+    , reducers >=3.12.0
     , regex-base
     , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
+    , regex-tdfa >=1.2.2
     , safe
     , semialign
-    , shakespeare ==2.0.*
+    , shakespeare >=2.0.0
     , split
     , streaming-commons
     , tagged
-    , tagsoup >=0.14.1 && <0.15
+    , tagsoup >=0.14.1
     , template-haskell
     , temporary
-    , text >=0.11 && <2.0
+    , text >=0.11
     , these
     , these-lens
     , time
-    , transformers >=0.6 && <7
+    , transformers >=0.6
     , unliftio
     , unordered-containers
     , vector
     , vector-sized
     , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
     , warehouse-planner >=3.1.1
-    , warp >=3.0 && <3.3
-    , yaml ==0.8.*
-    , yesod >=1.4.1 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-persistent >=1.6.0 && <1.7
-    , yesod-static >=1.4.0.3 && <1.6
+    , warp >=3.0
+    , yaml >=0.8.0
+    , yesod >=1.4.1
+    , yesod-auth >=1.4.0 && <= 1.6.11.3
+    , yesod-core >=1.4.17
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
   default-language: Haskell2010
 
 executable FPlanner
@@ -701,100 +701,100 @@ executable FPlanner
       LambdaCase
   ghc-options: -threaded -rtsopts
   build-depends:
-      Decimal >=0.5.1 && <0.6
+      Decimal >=0.5.1
     , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
-    , aeson >=0.6 && <1.3
+    , aeson >=0.6
     , aeson-qq
-    , base ==4.*
+    , base >=4.0
     , blaze-html
     , blaze-markup
-    , bytestring >=0.9 && <0.11
+    , bytestring >=0.9
     , case-insensitive
-    , cassava >=0.4.5 && <0.5
+    , cassava >=0.4.5
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3 && <2.4
+    , colour >=2.3.3
     , comonad
-    , conduit >=1.0 && <2.0
+    , conduit >=1.0
     , conduit-extra
     , containers
     , cryptohash
-    , curl >=1.3.8 && <1.4
+    , curl >=1.3.8
     , data-default
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
-    , directory >=1.1 && <1.4
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
+    , directory >=1.1
     , fames-persist
-    , fast-logger >=2.2 && <2.5
+    , fast-logger >=2.2
     , file-embed
-    , filepath >=1.4.1.1 && <1.5
+    , filepath >=1.4.1.1
     , finite-typelits
     , formatting
     , ghc
     , ghc-compact
     , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.12.3 && <0.13
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
+    , http-conduit >=2.1
+    , http-types >=0.12.3
     , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
-    , monad-logger ==0.3.*
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
+    , monad-logger >=0.3.0
     , mono-traversable
-    , mtl ==2.2.*
+    , mtl >=2.2.0
     , mysql
     , mysql-simple
-    , network >=3.1.1.1 && <3.2
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
-    , persistent >=2.0 && <2.8
-    , persistent-mysql >=2.1.2 && <2.7
-    , persistent-template >=2.0 && <2.6
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
+    , persistent >=2.0
+    , persistent-mysql >=2.1.2
+    , persistent-template >=2.0
     , pointed >=5
     , pretty-simple
-    , reducers ==3.12.*
+    , reducers >=3.12.0
     , regex-base
     , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
+    , regex-tdfa >=1.2.2
     , safe
     , semialign
-    , shakespeare ==2.0.*
+    , shakespeare >=2.0.0
     , split
     , streaming-commons
     , tagged
-    , tagsoup >=0.14.1 && <0.15
+    , tagsoup >=0.14.1
     , template-haskell
     , temporary
-    , text >=0.11 && <2.0
+    , text >=0.11
     , these
     , these-lens
     , time
-    , transformers >=0.6 && <7
+    , transformers >=0.6
     , unliftio
     , unordered-containers
     , vector
     , vector-sized
     , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
     , warehouse-planner
-    , warp >=3.0 && <3.3
-    , yaml ==0.8.*
-    , yesod >=1.4.1 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-persistent >=1.6.0 && <1.7
-    , yesod-static >=1.4.0.3 && <1.6
+    , warp >=3.0
+    , yaml >=0.8.0
+    , yesod >=1.4.1
+    , yesod-auth >=1.4.0 && <= 1.6.11.3
+    , yesod-core >=1.4.17
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
   default-language: Haskell2010
   if flag(library-only)
     buildable: False
@@ -863,100 +863,100 @@ executable Fames
       LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
   build-depends:
-      Decimal >=0.5.1 && <0.6
+      Decimal >=0.5.1
     , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
-    , aeson >=0.6 && <1.3
+    , aeson >=0.6
     , aeson-qq
-    , base ==4.*
+    , base >=4.0
     , blaze-html
     , blaze-markup
-    , bytestring >=0.9 && <0.11
+    , bytestring >=0.9
     , case-insensitive
-    , cassava >=0.4.5 && <0.5
+    , cassava >=0.4.5
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3 && <2.4
+    , colour >=2.3.3
     , comonad
-    , conduit >=1.0 && <2.0
+    , conduit >=1.0
     , conduit-extra
     , containers
     , cryptohash
-    , curl >=1.3.8 && <1.4
+    , curl >=1.3.8
     , data-default
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
-    , directory >=1.1 && <1.4
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
+    , directory >=1.1
     , fames-persist
-    , fast-logger >=2.2 && <2.5
+    , fast-logger >=2.2
     , file-embed
-    , filepath >=1.4.1.1 && <1.5
+    , filepath >=1.4.1.1
     , finite-typelits
     , formatting
     , ghc
     , ghc-compact
     , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.12.3 && <0.13
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
+    , http-conduit >=2.1
+    , http-types >=0.12.3
     , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
-    , monad-logger ==0.3.*
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
+    , monad-logger >=0.3.0
     , mono-traversable
-    , mtl ==2.2.*
+    , mtl >=2.2.0
     , mysql
     , mysql-simple
-    , network >=3.1.1.1 && <3.2
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
-    , persistent >=2.0 && <2.8
-    , persistent-mysql >=2.1.2 && <2.7
-    , persistent-template >=2.0 && <2.6
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
+    , persistent >=2.0
+    , persistent-mysql >=2.1.2
+    , persistent-template >=2.0
     , pointed >=5
     , pretty-simple
-    , reducers ==3.12.*
+    , reducers >=3.12.0
     , regex-base
     , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
+    , regex-tdfa >=1.2.2
     , safe
     , semialign
-    , shakespeare ==2.0.*
+    , shakespeare >=2.0.0
     , split
     , streaming-commons
     , tagged
-    , tagsoup >=0.14.1 && <0.15
+    , tagsoup >=0.14.1
     , template-haskell
     , temporary
-    , text >=0.11 && <2.0
+    , text >=0.11
     , these
     , these-lens
     , time
-    , transformers >=0.6 && <7
+    , transformers >=0.6
     , unliftio
     , unordered-containers
     , vector
     , vector-sized
     , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
     , warehouse-planner >=3.1.1
-    , warp >=3.0 && <3.3
-    , yaml ==0.8.*
-    , yesod >=1.4.1 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-persistent >=1.6.0 && <1.7
-    , yesod-static >=1.4.0.3 && <1.6
+    , warp >=3.0
+    , yaml >=0.8.0
+    , yesod >=1.4.1
+    , yesod-auth >=1.4.0 && <= 1.6.11.3
+    , yesod-core >=1.4.17
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
   default-language: Haskell2010
   if flag(library-only)
     buildable: False
@@ -1025,7 +1025,7 @@ test-suite test
       LambdaCase
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      Decimal >=0.5.1 && <0.6
+      Decimal >=0.5.1
     , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
@@ -1035,61 +1035,61 @@ test-suite test
     , base
     , blaze-html
     , blaze-markup
-    , bytestring >=0.9 && <0.11
+    , bytestring >=0.9
     , case-insensitive
     , cassava
     , classy-prelude
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod
-    , colour >=2.3.3 && <2.4
+    , colour >=2.3.3
     , comonad
-    , conduit >=1.0 && <2.0
+    , conduit >=1.0
     , conduit-extra
     , containers
     , cryptohash
-    , curl >=1.3.8 && <1.4
+    , curl >=1.3.8
     , data-default
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
-    , directory >=1.1 && <1.4
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
+    , directory >=1.1
     , fames-persist
-    , fast-logger >=2.2 && <2.5
+    , fast-logger >=2.2
     , file-embed
-    , filepath >=1.4.1.1 && <1.5
+    , filepath >=1.4.1.1
     , finite-typelits
     , formatting
     , ghc
     , ghc-compact
     , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
     , hspec >=2.0.0
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.12.3 && <0.13
+    , http-conduit >=2.1
+    , http-types >=0.12.3
     , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
     , monad-logger
     , mono-traversable
-    , mtl ==2.2.*
+    , mtl >=2.2.0
     , mysql
     , mysql-simple
-    , network >=3.1.1.1 && <3.2
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
     , persistent
     , persistent-mysql
-    , persistent-template >=2.0 && <2.6
+    , persistent-template >=2.0
     , pointed >=5
     , pretty-simple
-    , reducers ==3.12.*
+    , reducers >=3.12.0
     , regex-base
     , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
+    , regex-tdfa >=1.2.2
     , resourcet
     , safe
     , semialign
@@ -1097,10 +1097,10 @@ test-suite test
     , split
     , streaming-commons
     , tagged
-    , tagsoup >=0.14.1 && <0.15
+    , tagsoup >=0.14.1
     , template-haskell
     , temporary
-    , text >=0.11 && <2.0
+    , text >=0.11
     , these
     , these-lens
     , time
@@ -1110,19 +1110,19 @@ test-suite test
     , vector
     , vector-sized
     , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
     , warehouse-planner >=3.1.1
-    , warp >=3.0 && <3.3
+    , warp >=3.0
     , yaml
     , yesod
-    , yesod-auth
+    , yesod-auth <= 1.6.11.3
     , yesod-core
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-persistent >=1.6.0 && <1.7
-    , yesod-static >=1.4.0.3 && <1.6
-    , yesod-test >=1.5.0.1 && <1.6
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
+    , yesod-test >=1.5.0.1
   default-language: Haskell2010
 
 benchmark bench
@@ -1162,99 +1162,99 @@ benchmark bench
       LambdaCase
   ghc-options: -rtsopts -Wno-missing-exported-signatures
   build-depends:
-      Decimal >=0.5.1 && <0.6
+      Decimal >=0.5.1
     , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
-    , aeson >=0.6 && <1.3
+    , aeson >=0.6
     , aeson-qq
-    , base ==4.*
+    , base >=4.0
     , blaze-html
     , blaze-markup
-    , bytestring >=0.9 && <0.11
+    , bytestring >=0.9
     , case-insensitive
-    , cassava >=0.4.5 && <0.5
+    , cassava >=0.4.5
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3 && <2.4
+    , colour >=2.3.3
     , comonad
-    , conduit >=1.0 && <2.0
+    , conduit >=1.0
     , conduit-extra
     , containers
     , criterion
     , cryptohash
-    , curl >=1.3.8 && <1.4
+    , curl >=1.3.8
     , data-default
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
-    , directory >=1.1 && <1.4
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
+    , directory >=1.1
     , fames-persist
-    , fast-logger >=2.2 && <2.5
+    , fast-logger >=2.2
     , file-embed
-    , filepath >=1.4.1.1 && <1.5
+    , filepath >=1.4.1.1
     , finite-typelits
     , formatting
     , ghc
     , ghc-compact
     , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.12.3 && <0.13
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
+    , http-conduit >=2.1
+    , http-types >=0.12.3
     , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
-    , monad-logger ==0.3.*
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
+    , monad-logger >=0.3.0
     , mono-traversable
-    , mtl ==2.2.*
+    , mtl >=2.2.0
     , mysql
     , mysql-simple
-    , network >=3.1.1.1 && <3.2
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
-    , persistent >=2.0 && <2.8
-    , persistent-mysql >=2.1.2 && <2.7
-    , persistent-template >=2.0 && <2.6
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
+    , persistent >=2.0
+    , persistent-mysql >=2.1.2
+    , persistent-template >=2.0
     , pointed >=5
     , pretty-simple
-    , reducers ==3.12.*
+    , reducers >=3.12.0
     , regex-base
     , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
+    , regex-tdfa >=1.2.2
     , safe
     , semialign
-    , shakespeare ==2.0.*
+    , shakespeare >=2.0.0
     , split
     , streaming-commons
     , tagged
-    , tagsoup >=0.14.1 && <0.15
+    , tagsoup >=0.14.1
     , template-haskell
     , temporary
-    , text >=0.11 && <2.0
+    , text >=0.11
     , these
     , these-lens
     , time
-    , transformers >=0.6 && <7
+    , transformers >=0.6
     , unliftio
     , unordered-containers
     , vector
     , vector-sized
     , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
     , warehouse-planner >=3.1.1
-    , warp >=3.0 && <3.3
-    , yaml ==0.8.*
-    , yesod >=1.4.1 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-persistent >=1.6.0 && <1.7
-    , yesod-static >=1.4.0.3 && <1.6
+    , warp >=3.0
+    , yaml >=0.8.0
+    , yesod >=1.4.1
+    , yesod-auth >=1.4.0 && <= 1.6.11.3
+    , yesod-core >=1.4.17
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
   default-language: Haskell2010
