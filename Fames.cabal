@@ -1,9 +1,4 @@
-cabal-version: 1.12
-
--- This file has been generated from package.yaml by hpack version 0.38.1.
---
--- see: https://github.com/sol/hpack
-
+cabal-version: 3.14
 name:           Fames
 version:        0.1.1
 license:        MIT
@@ -19,12 +14,149 @@ flag dev
   manual: False
   default: False
 
-flag library-only
-  description: Build for use with "yesod devel"
+flag tools
+  description: Build extra tools
   manual: False
   default: False
 
+
+common deps
+  build-depends:
+      Decimal >=0.5.1
+    , Glob
+    , Metamorphosis >=0.1.0.1
+    , aeson >=0.6
+    , aeson-qq
+    , base ^>= 4.20
+    , blaze-html
+    , blaze-markup
+    , bytestring >=0.9
+    , case-insensitive
+    , cassava >=0.4.5
+    , classy-prelude >=0.10.2
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod >=0.10.2
+    , colour >=2.3.3
+    , comonad
+    , conduit >=1.0
+    , conduit-extra
+    , containers
+    , cryptohash
+    , curl >=1.3.8
+    , data-default
+    , diagrams-cairo >=1.4.0
+    , diagrams-lib >=1.4.1.2
+    , diagrams-svg >=1.4.0
+    , directory >=1.1
+    , fames-persist
+    , fast-logger >=2.2
+    , file-embed
+    , filepath >=1.4.1.1
+    , finite-typelits
+    , formatting
+    , ghc
+    , ghc-compact
+    , ghc-prim
+    , gitrev >=0.1.3.1
+    , hjsmin >=0.1
+    , http-conduit >=2.1
+    , http-types >=0.12.3
+    , iso3166-country-codes
+    , microlens >=0.4.1.1
+    , microlens-th >=0.4.1.1
+    , monad-control >=0.3
+    , monad-logger >=0.3.0
+    , mono-traversable
+    , mtl >=2.2.0
+    , mysql
+    , mysql-simple
+    , network >=3.1.1.1
+    , one-liner >=1.0
+    , palette >=0.3.0
+    , parsec >=3.1.0
+    , path-pieces >=0.2.0
+    , persistent >=2.0
+    , persistent-mysql >=2.1.2
+    , persistent-template >=2.0
+    , pointed >=5
+    , pretty-simple
+    , reducers >=3.12.0
+    , regex-base
+    , regex-compat-tdfa
+    , regex-tdfa >=1.2.2
+    , safe
+    , semialign
+    , shakespeare >=2.0.0
+    , split
+    , streaming-commons
+    , tagged
+    , tagsoup >=0.14.1
+    , template-haskell
+    , temporary
+    , text >=0.11
+    , these
+    , these-lens
+    , time
+    , transformers >=0.6
+    , unliftio
+    , unordered-containers
+    , vector
+    , vector-sized
+    , wai
+    , wai-extra >=3.0.0
+    , wai-logger >=2.2
+    , warehouse-planner >=3.1.1
+    , warp >=3.0
+    , yaml >=0.8.0
+    , yesod >=1.4.1
+    , yesod-auth >=1.4.0 && <= 1.6.11.3
+    , yesod-core >=1.4.17
+    , yesod-form >=1.4.0
+    , yesod-media-simple >=0.2.0.1
+    , yesod-persistent >=1.6.0
+    , yesod-static >=1.4.0.3 && < 1.6.1.1
+
+common build
+  default-extensions:
+      BlockArguments
+      DeriveDataTypeable
+      EmptyDataDecls
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      NamedWildCards
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedStrings
+      PartialTypeSignatures
+      PatternGuards
+      PatternSynonyms
+      QuasiQuotes
+      RankNTypes
+      RecordWildCards
+      StandaloneDeriving
+      TemplateHaskell
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      ViewPatterns
+      MultiWayIf
+      LambdaCase
+  default-language: Haskell2010
+  if (flag(dev))
+    ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -Wno-missing-local-signatures -O0 -j6
+    cpp-options: -DDEVELOPMENT
+  else
+    ghc-options: -W -fwarn-tabs -Wno-type-defaults -Wno-partial-type-signatures -O2 -j6
+
 library
+  import: deps, build
+  hs-source-dirs:
+      src
+      legacy
+      app
   exposed-modules:
       Application
       CategoryRule
@@ -144,665 +276,46 @@ library
       WH.FA.Curl
       WH.FA.Types
       WH.PackingList.Internal
-  hs-source-dirs:
-      src
-      legacy
-      app
-  default-extensions:
-      BlockArguments
-      DeriveDataTypeable
-      EmptyDataDecls
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      MultiParamTypeClasses
-      NamedWildCards
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedStrings
-      PartialTypeSignatures
-      PatternGuards
-      PatternSynonyms
-      QuasiQuotes
-      RankNTypes
-      RecordWildCards
-      StandaloneDeriving
-      TemplateHaskell
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      ViewPatterns
-      MultiWayIf
-      LambdaCase
-  build-depends:
-      Decimal >=0.5.1
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , aeson >=0.6
-    , aeson-qq
-    , base >= 4.0
-    , blaze-html
-    , blaze-markup
-    , bytestring >=0.9
-    , case-insensitive
-    , cassava >=0.4.5
-    , classy-prelude >=0.10.2
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3
-    , comonad
-    , conduit >=1.0
-    , conduit-extra
-    , containers
-    , cryptohash
-    , curl >=1.3.8
-    , data-default
-    , diagrams-cairo >=1.4.0
-    , diagrams-lib >=1.4.1.2
-    , diagrams-svg >=1.4.0
-    , directory >=1.1
-    , fames-persist
-    , fast-logger >=2.2
-    , file-embed
-    , filepath >=1.4.1.1
-    , finite-typelits
-    , formatting
-    , ghc
-    , ghc-compact
-    , ghc-prim
-    , gitrev >=0.1.3.1
-    , hjsmin >=0.1
-    , http-conduit >=2.1
-    , http-types >=0.12.3
-    , iso3166-country-codes
-    , microlens >=0.4.1.1
-    , microlens-th >=0.4.1.1
-    , monad-control >=0.3
-    , monad-logger >=0.3.0
-    , mono-traversable
-    , mtl >=2.2.0
-    , mysql
-    , mysql-simple
-    , network >=3.1.1.1
-    , one-liner >=1.0
-    , palette >=0.3.0
-    , parsec >=3.1.0
-    , path-pieces >=0.2.0
-    , persistent >=2.0
-    , persistent-mysql >=2.1.2
-    , persistent-template >=2.0
-    , pointed >=5
-    , pretty-simple
-    , reducers >=3.12.0
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2
-    , safe
-    , semialign
-    , shakespeare >=2.0.0
-    , split
-    , streaming-commons
-    , tagged
-    , tagsoup >=0.14.1
-    , template-haskell
-    , temporary
-    , text >=0.11
-    , these
-    , these-lens
-    , time
-    , transformers >=0.6
-    , unliftio
-    , unordered-containers
-    , vector
-    , vector-sized
-    , wai
-    , wai-extra >=3.0.0
-    , wai-logger >=2.2
-    , warehouse-planner >=3.1.1
-    , warp >=3.0
-    , yaml >=0.8.0
-    , yesod >=1.4.1
-    , yesod-auth >=1.4.0 && <= 1.6.11.3
-    , yesod-core >=1.4.17
-    , yesod-form >=1.4.0
-    , yesod-media-simple >=0.2.0.1
-    , yesod-persistent >=1.6.0
-    , yesod-static >=1.4.0.3 && < 1.6.1.1
-  default-language: Haskell2010
-  if (flag(dev)) || (flag(library-only))
-    ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -Wno-missing-local-signatures -O0 -j6
-    cpp-options: -DDEVELOPMENT
-  else
-    ghc-options: -W -fwarn-tabs -Wno-type-defaults -Wno-partial-type-signatures -O2 -j6
 
+common tools
+  hs-source-dirs:
+      tools
+  if flag(tools)
+     buildable: True
+  else
+    buildable: False
 executable DPDDump
+  import: deps, build, tools
   main-is: DPDDump.hs
   other-modules:
       DPDLib
-  hs-source-dirs:
-      tools
-  default-extensions:
-      BlockArguments
-      DeriveDataTypeable
-      EmptyDataDecls
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      MultiParamTypeClasses
-      NamedWildCards
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedStrings
-      PartialTypeSignatures
-      PatternGuards
-      PatternSynonyms
-      QuasiQuotes
-      RankNTypes
-      RecordWildCards
-      StandaloneDeriving
-      TemplateHaskell
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      ViewPatterns
-      MultiWayIf
-      LambdaCase
-  build-depends:
-      Decimal >=0.5.1
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , aeson >=0.6
-    , aeson-qq
-    , base
-    , blaze-html
-    , blaze-markup
-    , bytestring
-    , case-insensitive
-    , cassava
-    , classy-prelude >=0.10.2
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3
-    , comonad
-    , conduit >=1.0
-    , conduit-extra
-    , containers
-    , cryptohash
-    , curl >=1.3.8
-    , data-default
-    , data-default-class
-    , diagrams-cairo >=1.4.0
-    , diagrams-lib >=1.4.1.2
-    , diagrams-svg >=1.4.0
-    , directory >=1.1
-    , fames-persist
-    , fast-logger >=2.2
-    , file-embed
-    , filepath >=1.4.1.1
-    , finite-typelits
-    , formatting
-    , ghc
-    , ghc-compact
-    , ghc-prim
-    , gitrev >=0.1.3.1
-    , hjsmin >=0.1
-    , http-conduit >=2.1
-    , http-types >=0.12.3
-    , iso3166-country-codes
-    , microlens >=0.4.1.1
-    , microlens-th >=0.4.1.1
-    , monad-control >=0.3
-    , monad-logger >=0.3.0
-    , mono-traversable
-    , mtl >=2.2.0
-    , mysql
-    , mysql-simple
-    , network >=3.1.1.1
-    , one-liner >=1.0
-    , palette >=0.3.0
-    , parsec >=3.1.0
-    , path-pieces >=0.2.0
-    , persistent >=2.0
-    , persistent-mysql >=2.1.2
-    , persistent-template >=2.0
-    , pointed >=5
-    , pretty-simple
-    , reducers >=3.12.0
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2
-    , safe
-    , semialign
-    , shakespeare >=2.0.0
-    , split
-    , streaming-commons
-    , tagged
-    , tagsoup >=0.14.1
-    , template-haskell
-    , temporary
-    , text
-    , these
-    , these-lens
-    , time
-    , transformers >=0.6
-    , unliftio
-    , unordered-containers
-    , vector
-    , vector-sized
-    , wai
-    , wai-extra >=3.0.0
-    , wai-logger >=2.2
-    , warehouse-planner >=3.1.1
-    , warp >=3.0
-    , webdriver
-    , yaml >=0.8.0
-    , yesod >=1.4.1
-    , yesod-auth >=1.4.0 && <= 1.6.11.3
-    , yesod-core >=1.4.17
-    , yesod-form >=1.4.0
-    , yesod-media-simple >=0.2.0.1
-    , yesod-persistent >=1.6.0
-    , yesod-static >=1.4.0.3 && < 1.6.1.1
-  default-language: Haskell2010
 
 executable DPDImport
+  import: deps, build, tools
   main-is: DPDImport.hs
   other-modules:
       DPDLib
-  hs-source-dirs:
-      tools
-  default-extensions:
-      BlockArguments
-      DeriveDataTypeable
-      EmptyDataDecls
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      MultiParamTypeClasses
-      NamedWildCards
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedStrings
-      PartialTypeSignatures
-      PatternGuards
-      PatternSynonyms
-      QuasiQuotes
-      RankNTypes
-      RecordWildCards
-      StandaloneDeriving
-      TemplateHaskell
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      ViewPatterns
-      MultiWayIf
-      LambdaCase
-  build-depends:
-      Decimal >=0.5.1
-    , Fames
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , aeson >=0.6
-    , aeson-qq
-    , base
-    , blaze-html
-    , blaze-markup
-    , bytestring
-    , case-insensitive
-    , cassava
-    , classy-prelude >=0.10.2
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3
-    , comonad
-    , conduit >=1.0
-    , conduit-extra
-    , containers
-    , cryptohash
-    , curl >=1.3.8
-    , data-default
-    , data-default-class
-    , diagrams-cairo >=1.4.0
-    , diagrams-lib >=1.4.1.2
-    , diagrams-svg >=1.4.0
-    , directory >=1.1
-    , fames-persist
-    , fast-logger >=2.2
-    , file-embed
-    , filepath >=1.4.1.1
-    , finite-typelits
-    , formatting
-    , ghc
-    , ghc-compact
-    , ghc-prim
-    , gitrev >=0.1.3.1
-    , hjsmin >=0.1
-    , http-conduit >=2.1
-    , http-types >=0.12.3
-    , iso3166-country-codes
-    , microlens >=0.4.1.1
-    , microlens-th >=0.4.1.1
-    , monad-control >=0.3
-    , monad-logger >=0.3.0
-    , mono-traversable
-    , mtl >=2.2.0
-    , mysql
-    , mysql-simple
-    , network >=3.1.1.1
-    , one-liner >=1.0
-    , palette >=0.3.0
-    , parsec >=3.1.0
-    , path-pieces >=0.2.0
-    , persistent >=2.0
-    , persistent-mysql >=2.1.2
-    , persistent-template >=2.0
-    , pointed >=5
-    , pretty-simple
-    , reducers >=3.12.0
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2
-    , safe
-    , semialign
-    , shakespeare >=2.0.0
-    , split
-    , streaming-commons
-    , tagged
-    , tagsoup >=0.14.1
-    , template-haskell
-    , temporary
-    , text
-    , these
-    , these-lens
-    , time
-    , transformers >=0.6
-    , unliftio
-    , unordered-containers
-    , vector
-    , vector-sized
-    , wai
-    , wai-extra >=3.0.0
-    , wai-logger >=2.2
-    , warehouse-planner >=3.1.1
-    , warp >=3.0
-    , webdriver
-    , yaml >=0.8.0
-    , yesod >=1.4.1
-    , yesod-auth >=1.4.0 && <= 1.6.11.3
-    , yesod-core >=1.4.17
-    , yesod-form >=1.4.0
-    , yesod-media-simple >=0.2.0.1
-    , yesod-persistent >=1.6.0
-    , yesod-static >=1.4.0.3 && < 1.6.1.1
-  default-language: Haskell2010
 
 executable FAGenerator
+  import: deps, build, tools
   main-is: FAGenerator.hs
-  hs-source-dirs:
-      tools
-  default-extensions:
-      BlockArguments
-      DeriveDataTypeable
-      EmptyDataDecls
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      MultiParamTypeClasses
-      NamedWildCards
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedStrings
-      PartialTypeSignatures
-      PatternGuards
-      PatternSynonyms
-      QuasiQuotes
-      RankNTypes
-      RecordWildCards
-      StandaloneDeriving
-      TemplateHaskell
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      ViewPatterns
-      MultiWayIf
-      LambdaCase
-  build-depends:
-      Decimal >=0.5.1
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , aeson >=0.6
-    , aeson-qq
-    , base
-    , blaze-html
-    , blaze-markup
-    , bytestring >=0.9
-    , case-insensitive
-    , cassava >=0.4.5
-    , classy-prelude >=0.10.2
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3
-    , comonad
-    , conduit >=1.0
-    , conduit-extra
-    , containers
-    , cryptohash
-    , curl >=1.3.8
-    , data-default
-    , diagrams-cairo >=1.4.0
-    , diagrams-lib >=1.4.1.2
-    , diagrams-svg >=1.4.0
-    , directory
-    , fames-persist
-    , fast-logger >=2.2
-    , file-embed
-    , filepath
-    , finite-typelits
-    , formatting
-    , ghc
-    , ghc-compact
-    , ghc-prim
-    , gitrev >=0.1.3.1
-    , hjsmin >=0.1
-    , http-conduit >=2.1
-    , http-types >=0.12.3
-    , iso3166-country-codes
-    , microlens >=0.4.1.1
-    , microlens-th >=0.4.1.1
-    , monad-control >=0.3
-    , monad-logger >=0.3.0
-    , mono-traversable
-    , mtl >=2.2.0
-    , mysql
-    , mysql-simple
-    , network >=3.1.1.1
-    , one-liner >=1.0
-    , palette >=0.3.0
-    , parsec >=3.1.0
-    , path-pieces >=0.2.0
-    , persistent >=2.0
-    , persistent-mysql >=2.1.2
-    , persistent-template >=2.0
-    , pointed >=5
-    , pretty-simple
-    , reducers >=3.12.0
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2
-    , safe
-    , semialign
-    , shakespeare >=2.0.0
-    , split
-    , streaming-commons
-    , tagged
-    , tagsoup >=0.14.1
-    , template-haskell
-    , temporary
-    , text >=0.11
-    , these
-    , these-lens
-    , time
-    , transformers >=0.6
-    , unliftio
-    , unordered-containers
-    , vector
-    , vector-sized
-    , wai
-    , wai-extra >=3.0.0
-    , wai-logger >=2.2
-    , warehouse-planner >=3.1.1
-    , warp >=3.0
-    , yaml >=0.8.0
-    , yesod >=1.4.1
-    , yesod-auth >=1.4.0 && <= 1.6.11.3
-    , yesod-core >=1.4.17
-    , yesod-form >=1.4.0
-    , yesod-media-simple >=0.2.0.1
-    , yesod-persistent >=1.6.0
-    , yesod-static >=1.4.0.3 && < 1.6.1.1
-  default-language: Haskell2010
 
 executable FPlanner
+  import: build, deps
   main-is: Planner.hs
+  if flag(brick)
+     buildable: True
+  else 
+    buildable: False
+  build-depends: Fames
   hs-source-dirs:
       tools
-  default-extensions:
-      BlockArguments
-      DeriveDataTypeable
-      EmptyDataDecls
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      MultiParamTypeClasses
-      NamedWildCards
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedStrings
-      PartialTypeSignatures
-      PatternGuards
-      PatternSynonyms
-      QuasiQuotes
-      RankNTypes
-      RecordWildCards
-      StandaloneDeriving
-      TemplateHaskell
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      ViewPatterns
-      MultiWayIf
-      LambdaCase
   ghc-options: -threaded -rtsopts
-  build-depends:
-      Decimal >=0.5.1
-    , Fames
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , aeson >=0.6
-    , aeson-qq
-    , base >=4.0
-    , blaze-html
-    , blaze-markup
-    , bytestring >=0.9
-    , case-insensitive
-    , cassava >=0.4.5
-    , classy-prelude >=0.10.2
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3
-    , comonad
-    , conduit >=1.0
-    , conduit-extra
-    , containers
-    , cryptohash
-    , curl >=1.3.8
-    , data-default
-    , diagrams-cairo >=1.4.0
-    , diagrams-lib >=1.4.1.2
-    , diagrams-svg >=1.4.0
-    , directory >=1.1
-    , fames-persist
-    , fast-logger >=2.2
-    , file-embed
-    , filepath >=1.4.1.1
-    , finite-typelits
-    , formatting
-    , ghc
-    , ghc-compact
-    , ghc-prim
-    , gitrev >=0.1.3.1
-    , hjsmin >=0.1
-    , http-conduit >=2.1
-    , http-types >=0.12.3
-    , iso3166-country-codes
-    , microlens >=0.4.1.1
-    , microlens-th >=0.4.1.1
-    , monad-control >=0.3
-    , monad-logger >=0.3.0
-    , mono-traversable
-    , mtl >=2.2.0
-    , mysql
-    , mysql-simple
-    , network >=3.1.1.1
-    , one-liner >=1.0
-    , palette >=0.3.0
-    , parsec >=3.1.0
-    , path-pieces >=0.2.0
-    , persistent >=2.0
-    , persistent-mysql >=2.1.2
-    , persistent-template >=2.0
-    , pointed >=5
-    , pretty-simple
-    , reducers >=3.12.0
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2
-    , safe
-    , semialign
-    , shakespeare >=2.0.0
-    , split
-    , streaming-commons
-    , tagged
-    , tagsoup >=0.14.1
-    , template-haskell
-    , temporary
-    , text >=0.11
-    , these
-    , these-lens
-    , time
-    , transformers >=0.6
-    , unliftio
-    , unordered-containers
-    , vector
-    , vector-sized
-    , wai
-    , wai-extra >=3.0.0
-    , wai-logger >=2.2
-    , warehouse-planner
-    , warp >=3.0
-    , yaml >=0.8.0
-    , yesod >=1.4.1
-    , yesod-auth >=1.4.0 && <= 1.6.11.3
-    , yesod-core >=1.4.17
-    , yesod-form >=1.4.0
-    , yesod-media-simple >=0.2.0.1
-    , yesod-persistent >=1.6.0
-    , yesod-static >=1.4.0.3 && < 1.6.1.1
-  default-language: Haskell2010
-  if flag(library-only)
-    buildable: False
-  if (flag(dev))
-    ghc-options: -O0
-  else
-    ghc-options: -O2
 
 executable Fames
+  import: deps, build
   main-is: main.hs
+  build-depends: Fames
   other-modules:
       Curl
       Customers.Settings
@@ -832,138 +345,10 @@ executable Fames
       Paths_Fames
   hs-source-dirs:
       app
-  default-extensions:
-      BlockArguments
-      DeriveDataTypeable
-      EmptyDataDecls
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      MultiParamTypeClasses
-      NamedWildCards
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedStrings
-      PartialTypeSignatures
-      PatternGuards
-      PatternSynonyms
-      QuasiQuotes
-      RankNTypes
-      RecordWildCards
-      StandaloneDeriving
-      TemplateHaskell
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      ViewPatterns
-      MultiWayIf
-      LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
-  build-depends:
-      Decimal >=0.5.1
-    , Fames
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , aeson >=0.6
-    , aeson-qq
-    , base >=4.0
-    , blaze-html
-    , blaze-markup
-    , bytestring >=0.9
-    , case-insensitive
-    , cassava >=0.4.5
-    , classy-prelude >=0.10.2
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3
-    , comonad
-    , conduit >=1.0
-    , conduit-extra
-    , containers
-    , cryptohash
-    , curl >=1.3.8
-    , data-default
-    , diagrams-cairo >=1.4.0
-    , diagrams-lib >=1.4.1.2
-    , diagrams-svg >=1.4.0
-    , directory >=1.1
-    , fames-persist
-    , fast-logger >=2.2
-    , file-embed
-    , filepath >=1.4.1.1
-    , finite-typelits
-    , formatting
-    , ghc
-    , ghc-compact
-    , ghc-prim
-    , gitrev >=0.1.3.1
-    , hjsmin >=0.1
-    , http-conduit >=2.1
-    , http-types >=0.12.3
-    , iso3166-country-codes
-    , microlens >=0.4.1.1
-    , microlens-th >=0.4.1.1
-    , monad-control >=0.3
-    , monad-logger >=0.3.0
-    , mono-traversable
-    , mtl >=2.2.0
-    , mysql
-    , mysql-simple
-    , network >=3.1.1.1
-    , one-liner >=1.0
-    , palette >=0.3.0
-    , parsec >=3.1.0
-    , path-pieces >=0.2.0
-    , persistent >=2.0
-    , persistent-mysql >=2.1.2
-    , persistent-template >=2.0
-    , pointed >=5
-    , pretty-simple
-    , reducers >=3.12.0
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2
-    , safe
-    , semialign
-    , shakespeare >=2.0.0
-    , split
-    , streaming-commons
-    , tagged
-    , tagsoup >=0.14.1
-    , template-haskell
-    , temporary
-    , text >=0.11
-    , these
-    , these-lens
-    , time
-    , transformers >=0.6
-    , unliftio
-    , unordered-containers
-    , vector
-    , vector-sized
-    , wai
-    , wai-extra >=3.0.0
-    , wai-logger >=2.2
-    , warehouse-planner >=3.1.1
-    , warp >=3.0
-    , yaml >=0.8.0
-    , yesod >=1.4.1
-    , yesod-auth >=1.4.0 && <= 1.6.11.3
-    , yesod-core >=1.4.17
-    , yesod-form >=1.4.0
-    , yesod-media-simple >=0.2.0.1
-    , yesod-persistent >=1.6.0
-    , yesod-static >=1.4.0.3 && < 1.6.1.1
-  default-language: Haskell2010
-  if flag(library-only)
-    buildable: False
-  if (flag(dev))
-    ghc-options: -O0
-  else
-    ghc-options: -O2
 
 test-suite test
+  import: deps, build
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
@@ -992,138 +377,10 @@ test-suite test
       WH.BarcodeSpec
       WH.PackingList.InternalSpec
       Paths_Fames
-  hs-source-dirs:
-      test
-  default-extensions:
-      BlockArguments
-      DeriveDataTypeable
-      EmptyDataDecls
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      MultiParamTypeClasses
-      NamedWildCards
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedStrings
-      PartialTypeSignatures
-      PatternGuards
-      PatternSynonyms
-      QuasiQuotes
-      RankNTypes
-      RecordWildCards
-      StandaloneDeriving
-      TemplateHaskell
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      ViewPatterns
-      MultiWayIf
-      LambdaCase
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      Decimal >=0.5.1
-    , Fames
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , QuickCheck
-    , aeson
-    , aeson-qq
-    , base
-    , blaze-html
-    , blaze-markup
-    , bytestring >=0.9
-    , case-insensitive
-    , cassava
-    , classy-prelude
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod
-    , colour >=2.3.3
-    , comonad
-    , conduit >=1.0
-    , conduit-extra
-    , containers
-    , cryptohash
-    , curl >=1.3.8
-    , data-default
-    , diagrams-cairo >=1.4.0
-    , diagrams-lib >=1.4.1.2
-    , diagrams-svg >=1.4.0
-    , directory >=1.1
-    , fames-persist
-    , fast-logger >=2.2
-    , file-embed
-    , filepath >=1.4.1.1
-    , finite-typelits
-    , formatting
-    , ghc
-    , ghc-compact
-    , ghc-prim
-    , gitrev >=0.1.3.1
-    , hjsmin >=0.1
-    , hspec >=2.0.0
-    , http-conduit >=2.1
-    , http-types >=0.12.3
-    , iso3166-country-codes
-    , microlens >=0.4.1.1
-    , microlens-th >=0.4.1.1
-    , monad-control >=0.3
-    , monad-logger
-    , mono-traversable
-    , mtl >=2.2.0
-    , mysql
-    , mysql-simple
-    , network >=3.1.1.1
-    , one-liner >=1.0
-    , palette >=0.3.0
-    , parsec >=3.1.0
-    , path-pieces >=0.2.0
-    , persistent
-    , persistent-mysql
-    , persistent-template >=2.0
-    , pointed >=5
-    , pretty-simple
-    , reducers >=3.12.0
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2
-    , resourcet
-    , safe
-    , semialign
-    , shakespeare
-    , split
-    , streaming-commons
-    , tagged
-    , tagsoup >=0.14.1
-    , template-haskell
-    , temporary
-    , text >=0.11
-    , these
-    , these-lens
-    , time
-    , transformers
-    , unliftio
-    , unordered-containers
-    , vector
-    , vector-sized
-    , wai
-    , wai-extra >=3.0.0
-    , wai-logger >=2.2
-    , warehouse-planner >=3.1.1
-    , warp >=3.0
-    , yaml
-    , yesod
-    , yesod-auth <= 1.6.11.3
-    , yesod-core
-    , yesod-form >=1.4.0
-    , yesod-media-simple >=0.2.0.1
-    , yesod-persistent >=1.6.0
-    , yesod-static >=1.4.0.3 && < 1.6.1.1
-    , yesod-test >=1.5.0.1
-  default-language: Haskell2010
 
 benchmark bench
+  import: deps, build
   type: exitcode-stdio-1.0
   main-is: bench.hs
   other-modules:
@@ -1131,128 +388,4 @@ benchmark bench
       Paths_Fames
   hs-source-dirs:
       benchmarks
-  default-extensions:
-      BlockArguments
-      DeriveDataTypeable
-      EmptyDataDecls
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      MultiParamTypeClasses
-      NamedWildCards
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedStrings
-      PartialTypeSignatures
-      PatternGuards
-      PatternSynonyms
-      QuasiQuotes
-      RankNTypes
-      RecordWildCards
-      StandaloneDeriving
-      TemplateHaskell
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      ViewPatterns
-      MultiWayIf
-      LambdaCase
   ghc-options: -rtsopts -Wno-missing-exported-signatures
-  build-depends:
-      Decimal >=0.5.1
-    , Fames
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , aeson >=0.6
-    , aeson-qq
-    , base >=4.0
-    , blaze-html
-    , blaze-markup
-    , bytestring >=0.9
-    , case-insensitive
-    , cassava >=0.4.5
-    , classy-prelude >=0.10.2
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod >=0.10.2
-    , colour >=2.3.3
-    , comonad
-    , conduit >=1.0
-    , conduit-extra
-    , containers
-    , criterion
-    , cryptohash
-    , curl >=1.3.8
-    , data-default
-    , diagrams-cairo >=1.4.0
-    , diagrams-lib >=1.4.1.2
-    , diagrams-svg >=1.4.0
-    , directory >=1.1
-    , fames-persist
-    , fast-logger >=2.2
-    , file-embed
-    , filepath >=1.4.1.1
-    , finite-typelits
-    , formatting
-    , ghc
-    , ghc-compact
-    , ghc-prim
-    , gitrev >=0.1.3.1
-    , hjsmin >=0.1
-    , http-conduit >=2.1
-    , http-types >=0.12.3
-    , iso3166-country-codes
-    , microlens >=0.4.1.1
-    , microlens-th >=0.4.1.1
-    , monad-control >=0.3
-    , monad-logger >=0.3.0
-    , mono-traversable
-    , mtl >=2.2.0
-    , mysql
-    , mysql-simple
-    , network >=3.1.1.1
-    , one-liner >=1.0
-    , palette >=0.3.0
-    , parsec >=3.1.0
-    , path-pieces >=0.2.0
-    , persistent >=2.0
-    , persistent-mysql >=2.1.2
-    , persistent-template >=2.0
-    , pointed >=5
-    , pretty-simple
-    , reducers >=3.12.0
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2
-    , safe
-    , semialign
-    , shakespeare >=2.0.0
-    , split
-    , streaming-commons
-    , tagged
-    , tagsoup >=0.14.1
-    , template-haskell
-    , temporary
-    , text >=0.11
-    , these
-    , these-lens
-    , time
-    , transformers >=0.6
-    , unliftio
-    , unordered-containers
-    , vector
-    , vector-sized
-    , wai
-    , wai-extra >=3.0.0
-    , wai-logger >=2.2
-    , warehouse-planner >=3.1.1
-    , warp >=3.0
-    , yaml >=0.8.0
-    , yesod >=1.4.1
-    , yesod-auth >=1.4.0 && <= 1.6.11.3
-    , yesod-core >=1.4.17
-    , yesod-form >=1.4.0
-    , yesod-media-simple >=0.2.0.1
-    , yesod-persistent >=1.6.0
-    , yesod-static >=1.4.0.3 && < 1.6.1.1
-  default-language: Haskell2010

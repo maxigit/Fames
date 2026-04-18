@@ -40,3 +40,4 @@ stack.yaml.lock
 .trash
 nogit
 .crew
+cabal.project.local
