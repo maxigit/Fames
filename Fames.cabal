@@ -144,8 +144,6 @@ library
       WH.FA.Curl
       WH.FA.Types
       WH.PackingList.Internal
-  other-modules:
-      Paths_Fames
   hs-source-dirs:
       src
       legacy

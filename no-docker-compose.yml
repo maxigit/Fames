@@ -12,18 +12,22 @@ services:
        # initialization
        - /home/max/devel/mae/envs/test:/docker-entrypoint-initdb.d
   dev:
-    image: haskell:9.10.3
-    # build:
-    #   context: .
-    #   dockerfile: docker/build.docker
+    # image: haskell:9.10.3
+    build:
+      context: .
+      dockerfile: docker/build.docker
 
-    working_dir: /app
+    working_dir: /home/max/devel/mae/Fames
+    ports:
+    - 3000:3000
 
     environment:
-      HOME: /home/cabal
+      HOME: /home/cabal-dev
 
     volumes:
-      - .:/app
+      - /home/max/devel/mae/Fames:/home/max/devel/mae/Fames
+      - /home/max/devel/mae/fames-config:/home/max/devel/mae/fames-config
+      - cabal-home:/home/cabal-dev
 
     entrypoint: ["bash", "-lc"]
 

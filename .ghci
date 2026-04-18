@@ -24,6 +24,7 @@
 :set prompt "> "
 :set +m
 :set -W
+:set -Wno-missing-home-modules
 :set -Werror
 :set -Wno-partial-type-signatures
 :set -Wno-type-defaults
