@@ -159,12 +159,16 @@ build_profile_planner:
 	stack build Fames:exe:FPlanner  --profile --work-dir .stack-profile \
 			 --flag Fames:-dev --flag warehouse-planner:brick \
 			 --library-profiling --executable-profiling
-profile: build_profile
-	stack exec --work-dir .stack-profile Fames --library-profiling --enable-profiling -
-			 --flag Fames:-dev --flag warehouse-planner:brick \
-	-- $(RUN_CONFIG) +RTS -p
-	mkdir -p .prof
-	mv Fames.hp Fames.prof  .prof
+profile: profile_default
+prof_exported: profile_exported-functions
+prof_all: profile_all-functions
+prof_late: profile_late # = late_toplevel
+profile_%:  # profiling detail
+	-cabal run Fames --enable-profiling --profiling-detail=$@ \
+			 -f-dev --builddir=dist-profile-$* \
+		-- $(RUN_CONFIG) +RTS -p -l -hc # -poprof-$*-$(shell date +%Y%m%d-%H%M%S)
+	mkdir -p .prof-$*
+	mv -f Fames.hp Fames.prof  .prof-$*
 
 run_with_stack_trace: build_profile
 	stack exec --work-dir .stack-profile Fames --library-profiling -- $(RUN_CONFIG) +RTS -hy -p -xc -M500M
