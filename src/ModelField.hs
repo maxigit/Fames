@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingStrategies, DeriveGeneric, GeneralizedNewtypeDeriving #-}
 -- | For TH stage problem
 module ModelField
 ( module ModelField
@@ -40,15 +40,15 @@ instance PersistFieldSql MatchScore where
 
 -- * Style and Sku ...
 newtype Style = Style {unStyle :: Text }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, NFData)
   deriving (FromJSON)
 
 newtype Sku = Sku {unSku :: Text }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, NFData)
   deriving (FromJSON, ToJSON)
   
 newtype Var = Var {unVar :: Text }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, NFData)
   deriving (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 
 -- * Payroll 

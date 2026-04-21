@@ -23,6 +23,7 @@ import GL.Payroll.Settings
 import Text.Printf(printf)
 import Formatting hiding(base)
 import Data.Monoid(Sum(..), First(..))
+import Debug.Trace
 
 -- * Param 
 data ReportParam = ReportParam
@@ -634,34 +635,36 @@ loadItemTransactions param grouper = do
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
   -- load each type of transaction
-  let grouper' k'vs = do
-        let grp = grouper $ fmap categoryComputer k'vs
+  let grouper' title k'vs = do
+        let grp = grouper $ fmap categoryComputer $ force k'vs
         -- foldM (\_ v -> void $ evaluate v) () grp
+        liftIO $ traceMarkerIO $ "grouping " <> title
         evaluate $ force grp
+        return grp
       categoryComputer = computeCategory skuToStyleVar categories catFinder custCategories custCatFinder
   --------------
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments stockInfo param
   futureDeliveries <- loadIf rpLoadAdjustment $ loadUpComingContainer stockInfo param
-  adjGroups <- grouper' $ adjustments <> futureDeliveries
+  adjGroups <- grouper' "adjustment" $ adjustments <> futureDeliveries
   --------------
   forecasts <- case rpForecast param of
     (Nothing, _, _) -> return []
     (Just forecastDir, io, forecastStart) -> loadItemForecast io forecastDir stockInfo (fromMaybe (rpJustFrom param) forecastStart) (rpJustTo param)
-  forecastGroups <- grouper' forecasts
+  forecastGroups <- grouper' "forecasts" forecasts
   -- for efficiency reason
   -- it is better to group_ sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
-  salesGroups <- grouper' sales
+  salesGroups <- grouper' "sales" sales
   --------------
   salesOrdersM <- forM (rpLoadSalesOrders param) $ \(io, dateColumn, qtyMode) -> loadItemOrders param io dateColumn qtyMode
   let salesOrders = fromMaybe [] salesOrdersM
-  orderGroups <- grouper' salesOrders
+  orderGroups <- grouper' "sales orders" salesOrders
   --------------
   purchases <- loadIf rpLoadPurchases $ loadItemPurchases param
-  purchaseGroups <- grouper'  purchases
+  purchaseGroups <- grouper'  "purchase" purchases
   --------------
   purchaseOrders <- forM (rpLoadPurchaseOrders param) $ \(dateColumn, qtyMode) -> loadPurchaseOrders param dateColumn qtyMode
-  purchaseOrderGroups <- grouper'  $ fromMaybe [] purchaseOrders
+  purchaseOrderGroups <- grouper' "purchase orders"  $ fromMaybe [] purchaseOrders
         
 
   return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups <> orderGroups <> purchaseOrderGroups
@@ -1194,10 +1197,13 @@ itemReportWithRank
      -> (NMap (Sum Double, TranQP) -> a )
      -> Handler a
 itemReportWithRank param cols processor = do
+  liftIO $ traceMarkerIO "item report"
   let grouper =  groupTranQPs param ((map cpColumn cols))
   grouped <- loadItemTransactions param grouper
   -- ranke
-  let ranked = sortAndLimitTranQP cols grouped
+  liftIO $ traceMarkerIO "forcing rank"
+  ranked <- evaluate $  force $ sortAndLimitTranQP cols grouped
+  liftIO $ traceMarkerIO "forced rank"
   return $ processor ranked
 
 itemReport :: ReportParam

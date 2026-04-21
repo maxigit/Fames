@@ -310,7 +310,7 @@ data TranKey = TranKey
   , tkOrderDay :: Maybe Day
   , tkOrderDeliveryDay :: Maybe Day
   , tkOrderCategory :: Map Text Text
-  } deriving (Show, Eq, Ord)
+  } deriving (Show, Eq, Ord, Generic, NFData)
 
 tkCustomer :: TranKey -> Maybe (Int64, Int64)
 tkCustomer = (either Just (const Nothing)) <=< tkCustomerSupplier

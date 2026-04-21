@@ -1,6 +1,10 @@
+{-# LANGUAGE DerivingStrategies, DeriveGeneric, DeriveAnyClass, GeneralizedNewtypeDeriving #-}
 module FATransType
 where 
 import Prelude
+import Control.DeepSeq
+import GHC.Generics
+
 data FATransType
   = ST_JOURNAL
   | ST_BANKPAYMENT
@@ -24,7 +28,7 @@ data FATransType
   | ST_SALESQUOTE
   | ST_COSTUPDATE
   | ST_DIMENSION
-  deriving (Eq, Show, Ord, Bounded)
+  deriving (Eq, Show, Ord, Bounded, Generic, NFData)
 
 instance Enum FATransType where
   fromEnum ST_JOURNAL = 0
