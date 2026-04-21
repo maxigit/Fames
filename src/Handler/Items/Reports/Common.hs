@@ -626,31 +626,42 @@ loadItemTransactions :: ReportParam
                      -> Handler (NMap TranQP) 
 loadItemTransactions param grouper = do
   let loadIf f loader = if f param then loader else return []
+  -- misc to transform keys
   categories <- categoriesH
   custCategories <- customerCategoriesH
   catFinder <- categoryFinderCachedFor categories
   stockInfo <- loadStockInfo param
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
+  -- load each type of transaction
+  let grouper' k'vs = do
+        let grp = grouper $ fmap categoryComputer k'vs
+        -- foldM (\_ v -> void $ evaluate v) () grp
+        evaluate $ force grp
+      categoryComputer = computeCategory skuToStyleVar categories catFinder custCategories custCatFinder
+  --------------
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments stockInfo param
   futureDeliveries <- loadIf rpLoadAdjustment $ loadUpComingContainer stockInfo param
+  adjGroups <- grouper' $ adjustments <> futureDeliveries
+  --------------
   forecasts <- case rpForecast param of
     (Nothing, _, _) -> return []
     (Just forecastDir, io, forecastStart) -> loadItemForecast io forecastDir stockInfo (fromMaybe (rpJustFrom param) forecastStart) (rpJustTo param)
+  forecastGroups <- grouper' forecasts
   -- for efficiency reason
   -- it is better to group_ sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
+  salesGroups <- grouper' sales
+  --------------
   salesOrdersM <- forM (rpLoadSalesOrders param) $ \(io, dateColumn, qtyMode) -> loadItemOrders param io dateColumn qtyMode
   let salesOrders = fromMaybe [] salesOrdersM
+  orderGroups <- grouper' salesOrders
+  --------------
   purchases <- loadIf rpLoadPurchases $ loadItemPurchases param
+  purchaseGroups <- grouper'  purchases
+  --------------
   purchaseOrders <- forM (rpLoadPurchaseOrders param) $ \(dateColumn, qtyMode) -> loadPurchaseOrders param dateColumn qtyMode
-  let salesGroups = grouper' sales
-      orderGroups = grouper' salesOrders
-      purchaseGroups = grouper'  purchases
-      purchaseOrderGroups = grouper'  $ fromMaybe [] purchaseOrders
-      adjGroups = grouper' $ adjustments <> futureDeliveries
-      forecastGroups = grouper' forecasts
-      grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder custCategories custCatFinder) 
+  purchaseOrderGroups <- grouper'  $ fromMaybe [] purchaseOrders
         
 
   return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups <> orderGroups <> purchaseOrderGroups

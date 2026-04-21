@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveFunctor, DeriveAnyClass, DataKinds #-}
+{-# LANGUAGE DeriveGeneric, DeriveFunctor, DeriveAnyClass, DerivingStrategies, DataKinds #-}
 {-# OPTIONS_GHC -Wno-missing-exported-signatures #-}
 module Items.Types where
 
@@ -29,7 +29,7 @@ deriving instance (Eq a) => Eq (ItemInfo a)
 deriving instance (Ord a) => Ord (ItemInfo a)
 
 -- | MinMax Min and Max functor
-data MinMax a = MinMax a a deriving (Functor, Eq, Ord, Show)
+data MinMax a = MinMax a a deriving (Functor, Eq, Ord, Show, Generic, NFData)
 
 instance Ord a => Semigroup (MinMax a) where
   (MinMax x y) <> (MinMax x' y') = MinMax (min x x') (max y y')
@@ -178,7 +178,7 @@ data QPrice = QPrice
   , _qpQty :: Quantity
   , _qpAmount :: Amount
   , qpPrice :: MinMax Amount
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic, NFData)
 
 mkQPrice io qty price = QPrice io qty (qty*price) (pure $ abs price)
 qpQty io qp = _qpQty (qpTo io qp)
@@ -207,7 +207,7 @@ instance Monoid QPrice where
 -- | Specifies whether the quantities are seen  as inward or outward (from the company point of view)
 -- Positive quantities for Inward transaction means we are getting more in
 -- For example, a Sales is outward, whereas a customer credit note in inward (<0) or (outward <0)
-data InOutward = Inward | Outward deriving (Show, Eq, Ord, Enum, Bounded) 
+data InOutward = Inward | Outward deriving (Show, Eq, Ord, Enum, Bounded, Generic, NFData) 
 
 -- | Type of transaction corresponding to a QPrice
 -- Types are actually not disjoint, and can be converted from one (sub)type to another one.
@@ -216,7 +216,8 @@ data QPType = QPSales | QPPurchase | QPAdjustment | QPCredit | QPInvoice
             | QPSalesInvoice | QPSalesCredit | QPPurchInvoice | QPPurchCredit
             | QPSalesForecast | QPSalesOrder
             | QPSummary
-  deriving(Read, Show, Eq, Ord, Enum, Bounded)
+  deriving(Read, Show, Eq, Ord, Enum, Bounded, Generic, NFData)
+
 
 -- | Quantity price for a transaction, either sales or purchase
 -- A lazy map depending on the QPType.
@@ -237,6 +238,10 @@ instance Semigroup TranQP where
   --   go (Just a) (Just b) = Just $ a <> b
 instance Monoid TranQP where
   mempty = TranQP mempty
+  
+  
+instance NFData TranQP where
+   rnf (TranQP tmap) = rnf tmap
 -- type TranQP = Map QPType QPrice
 tranQP :: QPType -> QPrice -> TranQP
 tranQP qtype qp = tranQP' extra qtype qp where
@@ -333,7 +338,8 @@ data Axis = PriceAxis | AmountAxis | CumulAmountAxis | QuantityAxis | CumulQuant
 -- by something different from the actual key.
 -- If the rank is present, we ignore the key
 newtype NMapKey = NMapKey {nkKey :: PersistValue
-                       } deriving (Show, Eq, Ord)
+                       } deriving (Show, Eq, Ord, Generic)
+                         deriving newtype NFData
 
 
 mkNMapKey :: PersistField a => a -> NMapKey
@@ -341,7 +347,7 @@ mkNMapKey v = NMapKey (toPersistValue v)
 
 data NMap a = NMap a [Maybe Text] (Map NMapKey (NMap a))
             | NLeaf a
-            deriving (Show, Eq)
+            deriving (Show, Eq, Generic, NFData)
 
 nmapToMap :: NMap a -> Map NMapKey (NMap a)
 nmapToMap (NMap _ _ m) = m
