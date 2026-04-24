@@ -150,7 +150,7 @@ VAR_YML= prod-var.yml
 CONFIG_DIR= /home/max/devel/mae/fames-config
 RUN_CONFIG= ${CONFIG_DIR}/development.yml ${CONFIG_DIR}/staging.yml ${CONFIG_DIR}/${VAR_YML} ${CONFIG_DIR}/default.yml ${CONFIG_DIR}/item-cost.yml
 run:
-	stack exec  Fames -- ${RUN_CONFIG}
+	cabal exec  Fames -- ${RUN_CONFIG}
 
 build_profile:
 	stack build Fames:exe:Fames  --profile --work-dir .stack-profile --flag Fames:-dev --library-profiling --executable-profiling
