@@ -60,7 +60,13 @@ test: up
 	stack test
 	docker-compose down -v
 
-BIN_PATH= $(shell stack exec which Fames)
+BIN_PATH= $(shell docker-compose run --rm dev 'cabal list-bin Fames')
+echo_bin:
+	echo $(BIN_PATH)
+
+dock:
+	docker-compose run --rm --service-ports dev bash 
+
 .PHONY: install
 install: install_bin install_static
 install_bin:
@@ -151,6 +157,10 @@ CONFIG_DIR= /home/max/devel/mae/fames-config
 RUN_CONFIG= ${CONFIG_DIR}/development.yml ${CONFIG_DIR}/staging.yml ${CONFIG_DIR}/${VAR_YML} ${CONFIG_DIR}/default.yml ${CONFIG_DIR}/item-cost.yml
 run:
 	cabal exec  Fames -- ${RUN_CONFIG}
+
+# should be the same as running `make run` from inside the container
+run_dock:
+	docker-compose run --rm --service-ports dev 'cabal exec Fames -- ${RUN_CONFIG}'
 
 build_profile:
 	stack build Fames:exe:Fames  --profile --work-dir .stack-profile --flag Fames:-dev --library-profiling --executable-profiling

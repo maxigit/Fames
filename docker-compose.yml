@@ -1,0 +1,36 @@
+services:
+  db:
+     image: mariadb:10.7.1
+     environment:
+       # assign a different root password for each environments.
+       # Prevent to log my mistake on the wrong environment.
+       MYSQL_ROOT_PASSWORD: test
+       MAE_ENV: test
+     ports:
+     - 3317:3306
+     volumes:
+       # initialization
+       - /home/max/devel/mae/envs/test:/docker-entrypoint-initdb.d
+  dev:
+    # image: haskell:9.10.3
+    build:
+      context: .
+      dockerfile: docker/build.docker
+
+    working_dir: /home/max/prod-fames/
+    ports:
+    - 3000:3000
+
+    environment:
+      HOME: /home/cabal-dev
+
+    volumes:
+      - /home/max/prod-fames:/home/max/prod-fames
+      - /home/max/devel/mae/fames-config:/home/max/devel/mae/fames-config
+      - cabal-home:/home/cabal-dev
+
+    entrypoint: ["bash", "-c"]
+
+volumes:
+  cabal-home:
+    external: true

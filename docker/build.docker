@@ -10,7 +10,9 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     zlib1g-dev \
     default-libmysqlclient-dev \
+		glabels \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+ENV PATH="/opt/ghc/9.10.3/bin:${PATH}"
