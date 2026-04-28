@@ -77,6 +77,7 @@ module Handler.Util
 , fiscalYearH
 , currentFAUser
 , getSubdirOptions
+, rawSource
 ) where
 import Foundation
 import Import.NoFoundation hiding(exp)
@@ -105,7 +106,7 @@ import qualified Data.Text as T
 import Data.Maybe(fromJust)
 import Text.Read(readPrec)
 -- import Data.IOData (IOData)
-import Database.Persist.MySQL(unSqlBackendKey)
+import Database.Persist.MySQL(unSqlBackendKey, RawSql(..), rawQuery)
 import System.Directory(listDirectory, doesDirectoryExist)
 import Data.Char(isUpper)
 import qualified Data.List.Split as Split 
@@ -892,3 +893,8 @@ fiscalYearH = do
     Nothing -> do
       fiscal <- runDB $ selectFirst [] [Desc FA.FiscalYearBegin]
       return . fromMaybe (error "No fiscal year configured in the database") $  fiscal >>= (FA.fiscalYearBegin . entityVal)
+
+-- | RawSql but returns a conduit instead of a list
+rawSource :: RawSql a => Text -> [ PersistValue ]  -> SqlConduit () a ()
+rawSource sql params = do
+  rawQuery  sql params .| mapC (either (error . unpack) id  . rawSqlProcessRow )
