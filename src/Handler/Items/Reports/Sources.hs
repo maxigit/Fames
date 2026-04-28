@@ -1,34 +1,55 @@
+{-# LANGUAGE OverloadedLabels, OverloadedRecordDot, TypeOperators #-}
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-}
 module Handler.Items.Reports.Sources
 where 
 
-import Import
+import Import hiding(on, (==.), selectSource)
+-- import qualified Database.Persist as P
+import Database.Esqueleto.Experimental
+-- import Handler.Util
+import FA
+
+type EntityX a = SqlExpr (Entity a)
 
 
+itemSalesSource = select $ itemSalesQuery  "M%" "" ""
+itemSalesQuery :: Text -> Text -> _StockFilter -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail)
+itemSalesQuery stockLike _defaultLocation  _stockFilter = 
+  -- let (stockJoin, stockWhere, stockParams) = stockFilterToSql  stockFilter
+  let query = do 
+            (trans :& detail) <- from $ debtorTransAndDetailsTable
+                                             `innerJoinIf` ( Just $ 
+                                                           (table @StockMove) `on` (\( trans :& detail :& move)  -> detail.stockId ==. move.stockId
+                                                                                                          &&. detail.debtorTransNo ==. just move.transNo
+                                                                                                          &&. detail.debtorTransType ==. just (move ^. #type)
+                                                                                                          &&. trans.tranDate ==. move.tranDate
+                                                                                 )
+                                                           )
+            where_ (detail.stockId `like` val (stockLike :: Text) )
+            pure (trans :& detail)
 
--- itemSalesParam 
-itemSalesSource :: SqlConduit () 
-itemsalesSource = let
-  sqlSelect = "SELECT ??, 0_debtor_trans.tran_date, 0_debtor_trans.debtor_no, 0_debtor_trans.branch_code, 0_debtor_trans.order_, loc_code"
-  sql0 = intercalate " " $
-          " FROM 0_debtor_trans_details " :
-          "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
-          "                    AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
-          (if rpShowInactive param then "" else "JOIN 0_stock_master USING (stock_id)") :
-          " JOIN 0_stock_moves using(trans_no, type, stock_id, tran_date)" : -- ignore credit note without move => damaged
-          (fromMaybe "" stockJoin ) :
-          "WHERE type IN ("  :
-          (tshow $ fromEnum ST_CUSTDELIVERY) :
-          ",":
-          (tshow $ fromEnum ST_CUSTCREDIT) :
-          ") " :
-          "AND qty_done != 0" :
-          ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
-          -- " LIMIT 100" :
-          []
-  (w,concat -> p) = unzip $ (if rpShowInactive param then Nothing else Just (" AND inactive = False ", []))
-                            ?: (fmap (\w -> (" AND " <> w, stockParams)) stockWhere )
-                            ?: toT'Ps (generateTranDateIntervals param)
+  in query
 
-  sql = sql0 <> intercalate " "  w
-  in rawQuery (sqlSelect <> sql) p
-   
+  
+t `innerJoinIf` (Just b) = From do
+     (a :& _, fn) <- unFrom $ t `innerJoin` b
+     return $ (a, fn)
+t `innerJoinIf` Nothing = t
+                
+-- debtorTransAndDetailsTable :: From (SqlExpr (Entity DebtorTran) :& SqlExpr (Entity DebtorTransDetail))
+debtorTransAndDetailsTable = 
+    table
+    `innerJoin` table `on`(\(trans :& detail) ->  just trans.transNo ==. detail.debtorTransNo
+                                             &&. just (trans ^. #type) ==. detail.debtorTransType
+                          )
+
+salesOrderAndDetailsTable :: From (SqlExpr (Entity SalesOrder) :& SqlExpr (Entity SalesOrderDetail))
+salesOrderAndDetailsTable =
+   from table
+   `innerJoin` table  `on` (\(order :& detail) -> order.orderNo ==. detail.orderNo
+                                             &&. order.transType ==. detail.transType
+                           )
+                           
+                    
+    
+

@@ -27,7 +27,6 @@ SourceGraph/
 private/
 scripts/
 prof
-Fames.*
 *.prof
 sql/bug*
 .hspec-failures
@@ -41,3 +40,5 @@ stack.yaml.lock
 nogit
 .crew
 cabal.project.local
+Fames.*
+!Fames.cabal

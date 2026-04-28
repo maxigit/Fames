@@ -11,6 +11,7 @@ import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
 import Handler.Items.Common
 import Handler.Items.Reports.Forecast
+import Handler.Items.Reports.Sources
 import Handler.Items.Category.Cache
 import FA
 import Data.Time(addDays, pattern YearMonthDay)
@@ -24,7 +25,7 @@ import Text.Printf(printf)
 import Formatting hiding(base)
 import Data.Monoid(Sum(..), First(..))
 import Debug.Trace
-
+-- import qualified Database.Esqueleto.Experimental as E
 -- * Param 
 data ReportParam = ReportParam
   { rpToday :: Day -- today
@@ -626,6 +627,9 @@ loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
                      -> Handler (NMap TranQP) 
 loadItemTransactions param grouper = do
+  let s = itemSalesSource
+  runDB $ s 
+  error "BOOM"
   let loadIf f loader = if f param then loader else return []
   -- misc to transform keys
   categories <- categoriesH

@@ -49,6 +49,7 @@ common deps
     , diagrams-lib >=1.4.1.2
     , diagrams-svg >=1.4.0
     , directory >=1.1
+    , esqueleto >= 3.6
     , fames-persist
     , fast-logger >=2.2
     , file-embed
