@@ -19,6 +19,7 @@ module Handler.Items.Report
 import Import
 import Items.Types
 import Handler.Items.Reports.Common
+import Handler.Items.Reports.Types
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import GL.Utils

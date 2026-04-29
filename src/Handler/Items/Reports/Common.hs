@@ -1,17 +1,18 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-} -- TODO remove
 {-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
+{-# LANGUAGE OverloadedLabels, OverloadedRecordDot, TypeOperators #-}
 module Handler.Items.Reports.Common
 where
 
 import Import hiding(computeCategory, formatAmount, formatQuantity, panel, trace, all)
 import Items.Types
-import Data.Kind(Type)
 import Data.Aeson.Key (fromText)
 import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
 import Handler.Items.Common
 import Handler.Items.Reports.Forecast
 import Handler.Items.Reports.Sources
+import Handler.Items.Reports.Types
 import Handler.Items.Category.Cache
 import FA
 import Data.Time(addDays, pattern YearMonthDay)
@@ -25,40 +26,9 @@ import Text.Printf(printf)
 import Formatting hiding(base)
 import Data.Monoid(Sum(..), First(..))
 import Debug.Trace
--- import qualified Database.Esqueleto.Experimental as E
+import qualified Database.Esqueleto.Experimental as E
+import Database.Esqueleto.Experimental((^.))
 -- * Param 
-data ReportParam = ReportParam
-  { rpToday :: Day -- today
-  , rpDeduceTax :: Bool 
-  , rpFrom :: Maybe Day
-  , rpTo :: Maybe Day
-  , rpPeriod' :: Maybe PeriodFolding'
-  , rpNumberOfPeriods :: Maybe Int
-  -- , rpCatFilter :: Map Text (Maybe Text)
-  , rpCategoryToFilter :: Maybe Text
-  , rpCategoryFilter :: Maybe FilterExpression
-  , rpStockFilter :: Maybe FilterExpression
-  , rpShowInactive :: Bool
-  , rpPanelRupture :: ColumnRupture
-  , rpBand :: ColumnRupture
-  , rpSerie :: ColumnRupture
-  , rpColumnRupture :: ColumnRupture
-  , rpDataParam :: DataParams
-  , rpDataParam2 :: DataParams
-  , rpDataParam3 :: DataParams
-  , rpLoadSalesAndInfo :: Maybe SalesInfoMode -- ^ load or not, with or without extra info
-  -- , rpLoadOrderInfo :: Bool
-  , rpLoadSalesOrders :: Maybe (InOutward, OrderDateColumn, OrderQuantityMode)
-  , rpLoadPurchases :: Bool
-  , rpPurchasesDateOffset :: Maybe Int -- ^ Days to add to purchase date
-  , rpLoadPurchaseOrders  :: Maybe (OrderDateColumn, OrderQuantityMode)
-  , rpLoadAdjustment :: Bool
-  -- , rpLoadForecast :: Bool
-  , rpForecast :: (Maybe FilePath, Maybe InOutward, Maybe Day)
-  , rpColourMode :: ColourMode
-  , rpTraceGroupMode :: Maybe TraceGroupMode
-  , rpDateAlignment :: Maybe DateAlignmentMode
-  }  deriving Show
 
 defaultReportParam :: Day -> Maybe DateCalculator -> ReportParam
 defaultReportParam today fromToday = ReportParam {..} where
@@ -89,64 +59,9 @@ defaultReportParam today fromToday = ReportParam {..} where
   rpColourMode = minBound
   rpTraceGroupMode = Nothing
   rpDateAlignment = Just AlignToEnd
-
-data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
-data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
-data OrderQuantityMode = OOrderedQuantity | OQuantityLeft deriving (Eq, Show)
-data ColourMode = Panel'Band'Serie | Band'Colour'Serie | Panel'Colour'Serie | TraceColour deriving (Eq, Show, Bounded, Enum, Ord)
-data TraceGroupMode = GroupSeries | GroupTraces | GroupParams deriving (Eq, Show, Bounded, Enum, Ord)
-data DateAlignmentMode = AlignToStart | AlignToEnd deriving (Eq, Show, Bounded, Enum, Ord)
-
-rpJustFrom ReportParam{..} = fromMaybe rpToday rpFrom
-rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
-rpLoadForecast = isJust . rpForecastDir
-rpLoadSales = isJust . rpLoadSalesAndInfo
-rpLoadOrderInfo = (== Just SSalesAndOrderInfo) . rpLoadSalesAndInfo
-rpForecastDir param = dir where (dir, _, _) = rpForecast param
-rpForecastInOut param = io where (_, io, _) = rpForecast param
-rpForecastStart param = start where (_, _, start) = rpForecast param
-
 t :: Text -> Text
 t x = x
--- TODO could it be merged with Column ?
-data ColumnRupture = ColumnRupture
-   { cpColumn :: Maybe Column
-   , cpSortBy :: DataParams
-   , cpRankMode :: Maybe RankMode
-   , cpLimitTo :: Maybe Int
-   , cpReverse :: Bool
-   } deriving Show
--- | Trace parameter for plotting 
-data DataParams' f g = DataParams
-  { dpDataType :: QPType
-  , dpDataTraceParams :: f (g TraceParam)
-  , dpDataNorm :: Maybe NormalizeMode
-  }  -- deriving Show
 
-type DataParams = DataParams' Identifiable []
-
-pattern DataParamsU :: forall (g :: Type -> Type).
-                       QPType
-                    -> g TraceParam
-                    -> Maybe NormalizeMode
-                    -> DataParams' Identifiable g
-pattern DataParamsU qtype tps normMode <- DataParams qtype (Identifiable (_, tps)) normMode
-
-type DataParam = DataParams' Identity Identity
-
-pattern DataParam :: QPType
-                  -> TraceParam
-                  -> Maybe NormalizeMode
-                  -> DataParams' Identity Identity
-pattern DataParam qtype tp normMode = DataParams qtype (Identity (Identity tp)) normMode
-
-deriving instance Show DataParams
-deriving instance Show DataParam
-
-dpDataTraceParam :: DataParam -> TraceParam
-dpDataTraceParam = runIdentity . runIdentity . dpDataTraceParams
-
- 
 type Weight = (Sum Double, First PersistValue)
 -- We don't want to add the reverse facility in here
 -- as reverse is only use for display and not for for getting the residual
@@ -160,64 +75,12 @@ type Weight = (Sum Double, First PersistValue)
 --   compare (Weight True a b) (Weight True a' b') = compare (a',b') (a,b)
 --   compare (Weight True _ _ ) (Weight False _ _) =  GT
 --   compare (Weight False _ _ ) (Weight True _ _) =  LT
-
 cpSorter :: ColumnRupture -> NMapKey -> TranQP -> Weight
 cpSorter ColumnRupture{..} = case getIdentified $ dpDataTraceParams cpSortBy of
     (tp :_)->  \__k tqp -> (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (dpDataType cpSortBy) $ tqp), mempty)
     _ -> \k __tqp -> (mempty ,First (Just $ nkKey k))
           
   
---
-data NormalizeMargin
-  = NMRow
-  | NMColumn
-  | NMTotal -- margin of the target. Represent the total before the residual can be removed
-  | NMFirst -- first row
-  | NMLast -- last row. To comparte sales with last year for example
-  | NMBestTail -- best of everything but first
-  | NMBestInit -- best of everything but last
-  | NMTruncated -- 
-  | NMRank -- 
-  deriving (Show, Eq, Enum, Bounded)
-data NormalizeTarget
-  = NMAll
-  | NMPanel
-  | NMBand
-  | NMSerie
-  deriving (Show, Eq, Enum, Bounded)
-
-data NormalizeMode = NormalizeMode
-  { nmMargin :: NormalizeMargin
-  , nmTarget :: NormalizeTarget
-  }
-  deriving (Show, Eq)
-  
--- Type of value, used to format_ it accordingly
-data ValueType
-  = VAmount --
-  | VQuantity
-  | VPrice
-  | VPercentage
-  deriving (Show, Eq, Ord) -- , Enum, Bounded)
-
--- | Parameter to define a plotly trace.
-data TraceParam = TraceParam
-  { tpValueGetter :: QPrice -> Double
-  , tpValueType :: ValueType
-  , tpChartOptions :: Text {- Color-} -> [(Text, Value)]
-  , tpRunSum :: RunSum  
-  }
-instance Show TraceParam where
-  show _ = "<trace param>"
--- | should we do a a running sum (cumulative total) before displaying the trace ?
--- [1,2,0,5] -> 1,3,3,8 (runsum)
--- backward -> 8,7,5,5,0 (start from the end cumul and decrease to 0)
-data RunSum = RunSum | RunSumBack | RSNormal deriving Show
-
-
-data TraceType = Line | LineMarker | Smooth | SmoothMarker | Bar | Hv
-  deriving (Show, Eq, Ord, Enum, Bounded )
-
 
 -- ** Default  style 
 amountStyle 3 = smoothStyle AmountAxis
@@ -358,14 +221,6 @@ pricesStyle = [(qpMinPrice , VPrice,  const [ ("style", String "scatter")
                              -- , ("line", [aesonQQ|{width:0}|])
                              ], RSNormal)
                  ]
-data PeriodFolding'
-  = PFWholeYear
-  | PFSlidingYearFrom
-  | PFSlidingYearTomorrow
-  | PFQuaterly
-  | PFMonthly
-  | PFWeekly
-  deriving (Show, Eq)
 
 periodOptions :: [(Text, PeriodFolding')]
 periodOptions = let
@@ -392,23 +247,6 @@ rpPeriod rp = let
         Just PFQuaterly ->  Just $ FoldQuaterly currentYear
         Just PFWeekly -> Just $ FoldWeekly
         Nothing -> Nothing
--- * Columns 
-data Column = Column
-  { colName :: Text
-  , colFn :: ReportParam -> TranKey -> NMapKey
-  } 
-
-instance Eq Column where
-  a == b = colName a == colName b
-
-instance Show Column where
-  show c = "Column " ++ show (colName c)
--- Heterogenous type
-data ColumnValue = ColumnValue
-  { cvHtml :: Html
-  , cvText :: Text
-    
-  }
 
 tkType' tk = case tkType tk of
   ST_SALESINVOICE -> Just "Invoice"
@@ -627,7 +465,7 @@ loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
                      -> Handler (NMap TranQP) 
 loadItemTransactions param grouper = do
-  let s = itemSalesSource
+  let s = itemSalesSource param
   runDB $ s 
   error "BOOM"
   let loadIf f loader = if f param then loader else return []
@@ -747,6 +585,28 @@ paramToDateIntervals param =
 toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
 toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
   
+-- newLoadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
+newLoadItemSales param = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
+  let query = do 
+                 (trans E.:& detail E.:& move) <- itemSalesQuery stockLike defaultLocation param
+                 pure (detail.stockId
+                        , detail.qtyDone
+                        , trans ^. #type
+                        , trans.tranDate
+                        , (detail.unitPrice, detail.unitTax, detail.discountPercent)
+                        , (trans.debtorNo, trans.branchCode)
+                        -- , E.nothing
+                        , move.locCode 
+                        )
+  sales <- runDB $ E.select query
+  -- orderCategoryMap <- if rpLoadOrderInfo param
+  --                     then loadOrderCategoriesFor "0_debtor_trans.order_ " sql p
+  --                     else return mempty
+  return $ concatMap (newDetailToTransInfo (rpDeduceTax param) defaultLocation mempty) sales
+
+
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -1085,6 +945,52 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   costPrice = iiStandardCost =<< lookup (Sku stockMoveStockId) infoMap  
   
 -- ** Sales Details 
+newDetailToTransInfo :: Bool -> Text -> Map Int (Map Text Text) ->
+                     (E.Value Text
+                    , E.Value Double
+                    , E.Value Int
+                    , E.Value Day
+                    , (E.Value Double, E.Value Double, E.Value Double)
+                    , (E.Value (Maybe Int), E.Value Int)
+                    , E.Value Text
+                    ) -> _
+newDetailToTransInfo deduceTax defaultLocation orderCategoryMap
+        (  E.Value debtorTransDetailStockId
+        , E.Value debtorTransDetailQtyDone
+        , E.Value debtorTransDetailDebtorTransType
+          , E.Value debtorTranTranDate
+          ,(E.Value debtorTransDetailUnitPrice, E.Value debtorTransDetailUnitTax, E.Value debtorTransDetailDiscountPercent)
+          , (E.Value debtorNoM, E.Value branchCode) -- , orderM
+          , E.Value loc
+        )  = [(key, tqp) | tqp <- tqps] where
+  orderM = Nothing
+  key' = TranKey debtorTranTranDate
+                (case debtorNoM of 
+                     Just debtorNo -> Just $ Left (fromIntegral debtorNo,  fromIntegral branchCode)
+                     Nothing -> Nothing
+                )
+                (Sku debtorTransDetailStockId) Nothing Nothing  mempty mempty
+                transType
+  key = case flip lookup orderCategoryMap =<<  orderM of
+    Nothing -> key' Nothing Nothing mempty
+    Just cat -> key' (readMay =<< "date" `lookup` cat) (readMay =<< "delivery-date" `lookup` cat) cat
+  (transType, tqps) = case toEnum <$> Just debtorTransDetailDebtorTransType of
+    Just ST_CUSTDELIVERY -> (ST_SALESINVOICE, [tranQP QPSalesInvoice  (qp Outward)])
+    Just ST_CUSTCREDIT -> ( ST_CUSTCREDIT
+                          , [tranQP QPSalesCredit (qp Inward)] 
+                            ++ if loc /= defaultLocation
+                               -- Not returned in stock (damaged?)
+                               -- generate a opposit stock adjustoment
+                               then [tranQP QPAdjustment (qp Outward)]
+                               else []
+                          )
+    else_ -> error $ "Shouldn't process transaction of type " <> show else_
+  qp io = mkQPrice io debtorTransDetailQtyDone price
+  price = (if deduceTax
+          then debtorTransDetailUnitPrice - debtorTransDetailUnitTax
+          else debtorTransDetailUnitPrice
+          ) *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
+
 detailToTransInfo :: Bool -> Text -> Map Int (Map Text Text)
                   -> (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64, Single (Maybe Int), Single (Maybe Text))
                   -> [(TranKey, TranQP)]
@@ -1251,7 +1157,6 @@ nkeyWithRank (i, NMapKey key) = tshow i <> "-" <> pvToText key
 -- nkeyWithRank :: NMapKey -> Text
 -- nkeyWithRank (NMapKey key)  = pvToText key
 
-data QPColumnFilter = QPOnly | QPMinMax | QPAvg | QPAll deriving (Eq, Show, Ord, Enum, Bounded)
 commonCss = [cassius|
 .text90
     writing-mode: sideways-lr
@@ -1790,7 +1695,7 @@ traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
                 , "y" .=  ysFor normMode fn g''
                 , "connectgaps" .=  False 
                 , "type" .=  String "scatter"  
-                ] <> maybe [] (return .("legendgroup" .=))  groupId
+                ] <> maybe [] (return . ("legendgroup" .=))  groupId
                 -- <> maybe [] (\color -> [("color", String color)]) colorM
                 <> map (first fromText) (tpChartOptions tp color)
                 <> (if name == PersistNull then [] else ["name" .= nkeyWithRank name'])

@@ -3,40 +3,50 @@
 module Handler.Items.Reports.Sources
 where 
 
-import Import hiding(on, (==.), selectSource)
+import Import hiding(on, (==.), (!=.), selectSource, Value)
 -- import qualified Database.Persist as P
 import Database.Esqueleto.Experimental
+import Database.Esqueleto.Experimental.From(ToFrom)
 -- import Handler.Util
 import FA
+import Handler.Items.Reports.Types
 
 type EntityX a = SqlExpr (Entity a)
 
+instance SqlString StockMasterId -- needed to convert stock_master.stock_id  into a string (not a key)
 
-itemSalesSource = select $ itemSalesQuery  "M%" "" ""
-itemSalesQuery :: Text -> Text -> _StockFilter -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail)
-itemSalesQuery stockLike _defaultLocation  _stockFilter = 
+itemSalesSource param = select $ itemSalesQuery  "M%" "" param
+-- TODO add stockFilter
+-- TODO add dates
+--
+itemSalesQuery :: Text -> Text -> ReportParam -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail :& EntityX StockMove)
+itemSalesQuery stockLike _defaultLocation  param =  do
   -- let (stockJoin, stockWhere, stockParams) = stockFilterToSql  stockFilter
-  let query = do 
-            (trans :& detail) <- from $ debtorTransAndDetailsTable
-                                             `innerJoinIf` ( Just $ 
-                                                           (table @StockMove) `on` (\( trans :& detail :& move)  -> detail.stockId ==. move.stockId
-                                                                                                          &&. detail.debtorTransNo ==. just move.transNo
-                                                                                                          &&. detail.debtorTransType ==. just (move ^. #type)
-                                                                                                          &&. trans.tranDate ==. move.tranDate
-                                                                                 )
-                                                           )
-            where_ (detail.stockId `like` val (stockLike :: Text) )
-            pure (trans :& detail)
-
-  in query
+  (trans :& detail :&move ) <- from $ ( debtorTransAndDetailsTable
+                              `innerJoin` (table @StockMove `on` (\(trans :& detail :& move)
+                                                 -> detail.stockId ==. move.stockId
+                                                 &&. detail.debtorTransNo ==. just move.transNo
+                                                 &&. detail.debtorTransType ==. just (move ^. #type)
+                                                 &&. trans.tranDate ==. move.tranDate
+                                                 )
+                             )
+                             )
+                             `innerJoinIf` ( if rpShowInactive  param
+                                             then Just $ table @StockMaster `on` \((getTable @DebtorTransDetail-> detail) :& stock ) -> castString (stock ^. StockMasterId) ==. detail.stockId &&. not_ stock.inactive
+                                             else Nothing
+                                           ) 
+  where_ (trans ^. #type `in_` valList (map fromEnum [ ST_CUSTDELIVERY, ST_CUSTCREDIT]  ) )
+  where_ ((detail.qtyDone !=. val 0) &&. (detail.stockId `like` val stockLike ))
+  pure (trans :& detail :&move)
 
   
-t `innerJoinIf` (Just b) = From do
-     (a :& _, fn) <- unFrom $ t `innerJoin` b
+innerJoinIf :: ToFrom b b' => From a -> Maybe (b, (a :& b') -> SqlExpr (Value Bool)) -> From a
+t `innerJoinIf` (Just tableOnJoin) = From do
+     (a :& _, fn) <- unFrom $ t `innerJoin` tableOnJoin
      return $ (a, fn)
 t `innerJoinIf` Nothing = t
                 
--- debtorTransAndDetailsTable :: From (SqlExpr (Entity DebtorTran) :& SqlExpr (Entity DebtorTransDetail))
+debtorTransAndDetailsTable :: From (SqlExpr (Entity DebtorTran) :& SqlExpr (Entity DebtorTransDetail))
 debtorTransAndDetailsTable = 
     table
     `innerJoin` table `on`(\(trans :& detail) ->  just trans.transNo ==. detail.debtorTransNo
