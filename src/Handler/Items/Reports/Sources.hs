@@ -3,13 +3,14 @@
 module Handler.Items.Reports.Sources
 where 
 
-import Import hiding(on, (==.), (!=.), selectSource, Value)
+import Import hiding(on, (==.), (!=.),(<=.),(>=.),(||.), selectSource, Value)
 -- import qualified Database.Persist as P
 import Database.Esqueleto.Experimental
 import Database.Esqueleto.Experimental.From(ToFrom)
 -- import Handler.Util
 import FA
 import Handler.Items.Reports.Types
+import GL.Utils(generateDateIntervals)
 
 type EntityX a = SqlExpr (Entity a)
 
@@ -37,6 +38,16 @@ itemSalesQuery stockLike _defaultLocation  param =  do
                                            ) 
   where_ (trans ^. #type `in_` valList (map fromEnum [ ST_CUSTDELIVERY, ST_CUSTCREDIT]  ) )
   where_ ((detail.qtyDone !=. val 0) &&. (detail.stockId `like` val stockLike ))
+  where_ $ foldr (||.) (val False)
+                 do -- List 
+                    let tdate = trans.tranDate
+                    interval <- paramToDateIntervals param 
+                    pure $ case interval of
+                       (Just start, Just end) -> tdate `between` (val start, val end)
+                       (Nothing, Just end) -> tdate <=. val end
+                       (Just start, Nothing) -> tdate >=. val start
+                       (Nothing, Nothing) -> val True -- should not happen though
+  
   pure (trans :& detail :&move)
 
   
@@ -62,4 +73,11 @@ salesOrderAndDetailsTable =
                            
                     
     
+
+paramToDateIntervals :: ReportParam -> [(Maybe Day, Maybe Day)]
+paramToDateIntervals param =
+  let pM = (,) <$> rpPeriod param <*> rpNumberOfPeriods param
+  in generateDateIntervals (rpFrom param)
+                           (rpTo param)
+                           pM
 

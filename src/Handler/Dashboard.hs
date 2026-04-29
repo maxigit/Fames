@@ -16,6 +16,7 @@ import Import hiding(all)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.Items.Reports.Common
 import Handler.Items.Reports.Types
+import Handler.Items.Reports.Sources
 import Handler.Items.Reports.NewForecast
 import Handler.Items.Reports.Forecast(ForecastGrouper(..))
 import Items.Types

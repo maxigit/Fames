@@ -20,7 +20,7 @@ import qualified Data.Map as Map
 import Data.List(cycle,scanl,scanl1,scanr1)
 import Database.Persist.MySQL(rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
-import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, toYear, generateDateIntervals, ) -- previousMonthStartingAt, previousWeekDay, nextWeekDay, nextMonthStartingAt)
+import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek)
 import GL.Payroll.Settings
 import Text.Printf(printf)
 import Formatting hiding(base)
@@ -232,21 +232,6 @@ periodOptions = let
      ,("Monthly", PFMonthly )
      ,("Weekly", PFWeekly)
      ]
-rpPeriod :: ReportParam -> Maybe PeriodFolding
-rpPeriod rp | fromMaybe 0 (rpNumberOfPeriods rp) == 0 = Nothing
-rpPeriod rp = let
-  today = rpToday rp
-  beginYear = fromGregorian (currentYear) 1 1
-  currentYear = toYear today
-  tomorrowLastYear = calculateDate (AddYears (-1)) . calculateDate (AddDays 1) $ today
-  in case rpPeriod' rp of
-        Just PFWholeYear -> Just $ FoldYearly beginYear
-        Just PFSlidingYearFrom -> Just $ FoldYearly (fromMaybe beginYear (rpFrom rp))
-        Just PFSlidingYearTomorrow -> Just $ FoldYearly tomorrowLastYear
-        Just PFMonthly ->  Just $ FoldMonthly currentYear
-        Just PFQuaterly ->  Just $ FoldQuaterly currentYear
-        Just PFWeekly -> Just $ FoldWeekly
-        Nothing -> Nothing
 
 tkType' tk = case tkType tk of
   ST_SALESINVOICE -> Just "Invoice"
@@ -465,9 +450,6 @@ loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
                      -> Handler (NMap TranQP) 
 loadItemTransactions param grouper = do
-  let s = itemSalesSource param
-  runDB $ s 
-  error "BOOM"
   let loadIf f loader = if f param then loader else return []
   -- misc to transform keys
   categories <- categoriesH
@@ -495,7 +477,7 @@ loadItemTransactions param grouper = do
   forecastGroups <- grouper' "forecasts" forecasts
   -- for efficiency reason
   -- it is better to group_ sales and purchase separately and then merge them
-  sales <- loadIf rpLoadSales $ loadItemSales param
+  sales <- loadIf rpLoadSales $ newLoadItemSales param
   salesGroups <- grouper' "sales" sales
   --------------
   salesOrdersM <- forM (rpLoadSalesOrders param) $ \(io, dateColumn, qtyMode) -> loadItemOrders param io dateColumn qtyMode
@@ -574,12 +556,6 @@ generateDateCondition date_column param = let
              ]
              <> [[("?) ", PersistBool False)]] -- close the or clause
       
-paramToDateIntervals :: ReportParam -> [(Maybe Day, Maybe Day)]
-paramToDateIntervals param =
-  let pM = (,) <$> rpPeriod param <*> rpNumberOfPeriods param
-  in generateDateIntervals (rpFrom param)
-                           (rpTo param)
-                           pM
 
 -- | Adapt the return type of generateTranDateIntervals for 
 toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
@@ -600,6 +576,9 @@ newLoadItemSales param = do
                         -- , E.nothing
                         , move.locCode 
                         )
+  -- runDB $ do 
+  --           s <- E.renderQuerySelect query
+  --           error $ show s
   sales <- runDB $ E.select query
   -- orderCategoryMap <- if rpLoadOrderInfo param
   --                     then loadOrderCategoriesFor "0_debtor_trans.order_ " sql p

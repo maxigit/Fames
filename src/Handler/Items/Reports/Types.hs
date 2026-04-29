@@ -4,6 +4,8 @@ where
 import Import hiding(computeCategory, formatAmount, formatQuantity, panel, trace, all)
 import Items.Types
 import Data.Kind(Type)
+import GL.Utils(calculateDate, PeriodFolding(..), toYear) -- previousMonthStartingAt, previousWeekDay, nextWeekDay, nextMonthStartingAt)
+import GL.Payroll.Settings
 
 data ReportParam = ReportParam
   { rpToday :: Day -- today
@@ -59,6 +61,22 @@ rpForecastInOut :: ReportParam -> Maybe InOutward
 rpForecastInOut param = io where (_, io, _) = rpForecast param
 rpForecastStart :: ReportParam -> Maybe Day
 rpForecastStart param = start where (_, _, start) = rpForecast param
+
+rpPeriod :: ReportParam -> Maybe PeriodFolding
+rpPeriod rp | fromMaybe 0 (rpNumberOfPeriods rp) == 0 = Nothing
+rpPeriod rp = let
+  today = rpToday rp
+  beginYear = fromGregorian (currentYear) 1 1
+  currentYear = toYear today
+  tomorrowLastYear = calculateDate (AddYears (-1)) . calculateDate (AddDays 1) $ today
+  in case rpPeriod' rp of
+        Just PFWholeYear -> Just $ FoldYearly beginYear
+        Just PFSlidingYearFrom -> Just $ FoldYearly (fromMaybe beginYear (rpFrom rp))
+        Just PFSlidingYearTomorrow -> Just $ FoldYearly tomorrowLastYear
+        Just PFMonthly ->  Just $ FoldMonthly currentYear
+        Just PFQuaterly ->  Just $ FoldQuaterly currentYear
+        Just PFWeekly -> Just $ FoldWeekly
+        Nothing -> Nothing
 
 --
 data NormalizeMargin
