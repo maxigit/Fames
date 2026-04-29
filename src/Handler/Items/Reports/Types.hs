@@ -3,6 +3,7 @@ where
 
 import Import hiding(computeCategory, formatAmount, formatQuantity, panel, trace, all)
 import Items.Types
+import Handler.Items.Common(StockFilter, mkStockFilter)
 import Data.Kind(Type)
 import GL.Utils(calculateDate, PeriodFolding(..), toYear) -- previousMonthStartingAt, previousWeekDay, nextWeekDay, nextMonthStartingAt)
 import GL.Payroll.Settings
@@ -17,7 +18,7 @@ data ReportParam = ReportParam
   -- , rpCatFilter :: Map Text (Maybe Text)
   , rpCategoryToFilter :: Maybe Text
   , rpCategoryFilter :: Maybe FilterExpression
-  , rpStockFilter :: Maybe FilterExpression
+  , rpSkuFilter :: Maybe FilterExpression
   , rpShowInactive :: Bool
   , rpPanelRupture :: ColumnRupture
   , rpBand :: ColumnRupture
@@ -78,6 +79,10 @@ rpPeriod rp = let
         Just PFWeekly -> Just $ FoldWeekly
         Nothing -> Nothing
 
+rpStockFilter :: ReportParam -> StockFilter
+rpStockFilter param = mkStockFilter ( rpSkuFilter param)
+                                    ( rpCategoryToFilter param )
+                                    ( rpCategoryFilter param )
 --
 data NormalizeMargin
   = NMRow

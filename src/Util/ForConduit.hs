@@ -25,6 +25,9 @@ forMapKey (ForMap a _) =  a
 forMapValue :: ForMap a b -> b
 forMapValue (ForMap _ b) = b
 
+forToMap :: Ord a => ForMap a b -> Map a b
+forToMap (ForMap a b) = singletonMap a b
+
 
 
 -- | Interleave the source to connect with a parallel source controled by the first one.

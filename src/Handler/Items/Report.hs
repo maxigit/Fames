@@ -56,7 +56,7 @@ reportForm cols paramM extra = do
   (fDateAlign, vDateAlign) <- mopt (selectField optionsEnum) "date alignment" (Just $ rpDateAlignment =<< paramM)
   (fCategoryToFilter, vCategoryToFilter) <- mopt (selectFieldList categoryOptions ) "category" (Just $ rpCategoryToFilter =<< paramM)
   (fCategoryFilter, vCategoryFilter) <- mopt filterEField  "filter" (Just $ rpCategoryFilter =<< paramM)
-  (fStockFilter, vStockFilter) <- mopt filterEField  "sku" (Just $ rpStockFilter =<< paramM)
+  (fStockFilter, vStockFilter) <- mopt filterEField  "sku" (Just $ rpSkuFilter =<< paramM)
   (fShowInactive, vShowInactive) <- mreq boolField  "inactive" (rpShowInactive <$> paramM)
   (fPanel, wPanel) <- ruptureForm colOptions "Panel" (rpPanelRupture <$> paramM)
   (fBand, wBand) <- ruptureForm colOptions "Band" (rpBand <$> paramM)
@@ -233,7 +233,7 @@ getItemsReportR' mode = do
                            Nothing --  rpNumberOfPeriods
                            Nothing -- rpToCategoryToFilter
                            Nothing -- rpToCategoryFilter
-                           Nothing --  rpStockFilter :: Maybe FilterExpression
+                           Nothing --  rpSkuFilter :: Maybe FilterExpression
                            True   -- rpShowInactive 
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
                            (ColumnRupture (Just band)  bestSales (Just RMResidual) (Just 20) False)--  rpBand :: ColumnRupture
@@ -255,7 +255,7 @@ getItemsReportR' mode = do
                            Nothing --  rpNumberOfPeriods
                            Nothing -- rpToCategoryToFilter
                            Nothing -- rpToCategoryFilter
-                           Nothing --  rpStockFilter :: Maybe FilterExpression
+                           Nothing --  rpSkuFilter :: Maybe FilterExpression
                            True    -- rpShowInactive
                            (ColumnRupture (Just band) bestSales (Just RMResidual) (Just 20) False)--  rpBand :: ColumnRupture
                            (ColumnRupture (Just serie) bestSales (Just RMResidual)  (Just 20) False)--  rpSerie :: ColumnRupture

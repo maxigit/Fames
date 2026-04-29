@@ -44,6 +44,8 @@ module Handler.Util
 , filterE
 , filterEField
 , filterEKeyword
+, filterESqlExpr
+, (=%/.)
 , filterEAddWildcardRight
 , (<-?.)
 , readUploadOrCacheUTF8
@@ -112,6 +114,8 @@ import Data.Char(isUpper)
 import qualified Data.List.Split as Split 
 import Data.Aeson(encode)
 import Data.List.NonEmpty (NonEmpty(..))
+import qualified Database.Esqueleto.Experimental as E
+import qualified Database.Esqueleto.Internal.Internal as E
 
 -- * Display entities 
 -- | Display Persist entities as paginated table
@@ -573,6 +577,23 @@ filterEKeyword field e = first (\sql -> "( " <> sql <> " )") go where
                              , concat $ orParams <> notParams
                              )
                         
+
+-- | Esqueleto filter expression
+filterESqlExpr :: E.SqlExpr (E.Value Text) -> FilterExpression -> E.SqlExpr (E.Value Bool)
+filterESqlExpr field e = case e of 
+    LikeFilter f -> field `E.like` E.val f
+    NotLikeFilter f -> E.not_ (field `E.like` E.val f)
+    RegexFilter f -> E.unsafeSqlBinOp " RLIKE " field (E.val f)
+    NotRegexFilter f -> E.unsafeSqlBinOp " NOT RLIKE " field (E.val f)
+    InFilter _ xs -> field `E.in_` E.valList xs
+    Filters fs -> let (nots , ors) = partition filterExpressionIsNot $ toList fs :: ([FilterExpression], [FilterExpression])
+                      -- want all ORS but no NOTS
+                      -- so (o1 OR o2 OR 3) AND not1 AND  not2 AND not3
+                      orExpr = foldl' (E.||.) (E.val False) (map (filterESqlExpr field) ors)
+                  in foldl' (E.&&.) orExpr (map (filterESqlExpr field) nots)
+
+(=%/.) :: E.SqlExpr (E.Value Text) -> FilterExpression -> E.SqlExpr (E.Value Bool)
+field =%/. f = field `filterESqlExpr` f
 
 filterEAddWildcardRight :: FilterExpression -> FilterExpression
 filterEAddWildcardRight lf@(LikeFilter f) = if "%" `isSuffixOf` f 

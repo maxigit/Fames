@@ -28,6 +28,7 @@ import Data.Monoid(Sum(..), First(..))
 import Debug.Trace
 import qualified Database.Esqueleto.Experimental as E
 import Database.Esqueleto.Experimental((^.))
+import Util.ForConduit
 -- * Param 
 
 defaultReportParam :: Day -> Maybe DateCalculator -> ReportParam
@@ -40,7 +41,7 @@ defaultReportParam today fromToday = ReportParam {..} where
   rpNumberOfPeriods = Nothing
   rpCategoryToFilter = Nothing
   rpCategoryFilter = Nothing
-  rpStockFilter = Nothing
+  rpSkuFilter = Nothing
   rpShowInactive = True
   rpPanelRupture = emptyRupture
   rpBand = emptyRupture
@@ -561,7 +562,7 @@ generateDateCondition date_column param = let
 toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
 toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
   
--- newLoadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
+newLoadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 newLoadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
@@ -573,27 +574,30 @@ newLoadItemSales param = do
                         , trans.tranDate
                         , (detail.unitPrice, detail.unitTax, detail.discountPercent)
                         , (trans.debtorNo, trans.branchCode)
-                        -- , E.nothing
+                        , if rpLoadOrderInfo param
+                          then E.just trans.order
+                          else E.nothing
                         , move.locCode 
                         )
-  -- runDB $ do 
-  --           s <- E.renderQuerySelect query
-  --           error $ show s
-  sales <- runDB $ E.select query
-  -- orderCategoryMap <- if rpLoadOrderInfo param
-  --                     then loadOrderCategoriesFor "0_debtor_trans.order_ " sql p
-  --                     else return mempty
-  return $ concatMap (newDetailToTransInfo (rpDeduceTax param) defaultLocation mempty) sales
+  orderCategoryMap <- if rpLoadOrderInfo param
+                         then runDB $ runConduit
+                                    $ orderCategorySourceFor query
+                                                       (\orderNo (_1,_2,_3,_4,_5_,_6, transOrderNo, _8
+                                                                 )  -> transOrderNo E.==. E.just orderNo )
+                                      .|  mapC forToMap
+                                      .| foldC
+                         else return mempty
+  sales <- runDB $ runConduit $ E.selectSource query
+                              .| concatMapC (newDetailToTransInfo (rpDeduceTax param) defaultLocation orderCategoryMap)
+                              .| sinkList
+  return sales
 
 
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
-  let (stockJoin, stockWhere, stockParams) = stockFilterToSql 
-                                           $ mkStockFilter ( rpStockFilter param)
-                                                           ( rpCategoryToFilter param )
-                                                           ( rpCategoryFilter param )
+  let (stockJoin, stockWhere, stockParams) = stockFilterToSql $ rpStockFilter param
 
   let sqlSelect = "SELECT ??, 0_debtor_trans.tran_date, 0_debtor_trans.debtor_no, 0_debtor_trans.branch_code, 0_debtor_trans.order_, loc_code"
   let sql0 = intercalate " " $
@@ -654,7 +658,7 @@ loadItemOrders param io orderDateColumn qtyMode = do
           "AND quantity != 0" :
           ("AND stk_code LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           []
-      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stk_code" e
+      (w,concat -> p) = unzip $ (rpSkuFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stk_code" e
                                                       in (" AND " <> keyw, v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
@@ -703,7 +707,7 @@ loadItemPurchases param0 = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
+      (w,concat -> p) = unzip $ (rpSkuFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
                                                       in (" AND  " <> keyw, v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
@@ -735,7 +739,7 @@ loadPurchaseOrders param orderDateColumn qtyMode = do
             OQuantityLeft -> "AND quantity_received != quantity_ordered"
         ) :
         []
-      (w,concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "item_code" e
+      (w,concat -> p) = unzip $ (rpSkuFilter param <&> (\e -> let (keyw, v) = filterEKeyword "item_code" e
                                                   in (" AND  " <> keyw, v)
                                                  )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
@@ -772,7 +776,7 @@ loadStockAdjustments infoMap param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : 
           []
 
-      (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
+      (w, concat -> p) = unzip $ (rpSkuFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
                                                       in (" AND " <> keyw, v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
@@ -808,7 +812,7 @@ loadUpComingContainer infoMap param = do
              ("AND stock_id LIKE '" <> stockLike <> "'") : 
              []
 
-         (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
+         (w, concat -> p) = unzip $ (rpSkuFilter param <&> (\e -> let (keyw, v) = filterEKeyword "stock_id" e
                                                           in (" AND " <> keyw, v)
                                                    )) ?:
                                     (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
@@ -878,7 +882,7 @@ loadStockInfo param = do
           (" WHERE sm.stock_id LIKE '" <> stockLike <> "' and inactive = 0") : 
           []
       order = " ORDER BY sm.stock_id " 
-      (w, concat -> p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword "sm.stock_id" e
+      (w, concat -> p) = unzip $ (rpSkuFilter param <&> (\e -> let (keyw, v) = filterEKeyword "sm.stock_id" e
                                                       in (" AND  " <> keyw, v)
                                                )) ?:
                                 (if rpShowInactive param then Nothing else Just (" AND inactive = False ", [])) ?:
@@ -931,6 +935,7 @@ newDetailToTransInfo :: Bool -> Text -> Map Int (Map Text Text) ->
                     , E.Value Day
                     , (E.Value Double, E.Value Double, E.Value Double)
                     , (E.Value (Maybe Int), E.Value Int)
+                    , (E.Value (Maybe Int)   )
                     , E.Value Text
                     ) -> _
 newDetailToTransInfo deduceTax defaultLocation orderCategoryMap
@@ -939,10 +944,9 @@ newDetailToTransInfo deduceTax defaultLocation orderCategoryMap
         , E.Value debtorTransDetailDebtorTransType
           , E.Value debtorTranTranDate
           ,(E.Value debtorTransDetailUnitPrice, E.Value debtorTransDetailUnitTax, E.Value debtorTransDetailDiscountPercent)
-          , (E.Value debtorNoM, E.Value branchCode) -- , orderM
+          , (E.Value debtorNoM, E.Value branchCode) , (E.Value orderM)
           , E.Value loc
         )  = [(key, tqp) | tqp <- tqps] where
-  orderM = Nothing
   key' = TranKey debtorTranTranDate
                 (case debtorNoM of 
                      Just debtorNo -> Just $ Left (fromIntegral debtorNo,  fromIntegral branchCode)
