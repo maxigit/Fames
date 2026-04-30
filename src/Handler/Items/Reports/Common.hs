@@ -343,7 +343,7 @@ mkTransactionType _ tkey = let ktype = tkType tkey
 -- *** Columns 
 styleColumn = Column "Style" (constMkKey $ fmap unStyle . tkStyle) CSStyle
 variationColumn = Column "Variation" (constMkKey $ fmap unVar . tkVar) CSVar
-skuColumn = Column "Sku" (constMkKey $ unSku . tkSku) CSSku
+skuColumn = Column "Sku" (constMkKey $ fmap unSku . tkSku) CSSku
 periodColumn = Column "Period" getPeriod CSTranDay where
       getPeriod p tkey = let
         (_, Start d) = foldDay p tkey
@@ -508,7 +508,7 @@ createInitialStock infoMap = mapToList infoMap >>= go where
     guard (qoh /= 0)
     let key = TranKey day
                 Nothing
-                sku
+                (Just sku)
                 Nothing
                 Nothing
                 mempty
@@ -527,21 +527,24 @@ computeCategory :: (Sku -> (Style, Var))
                 -> (Text -> FA.DebtorsMasterId -> Maybe Text)
                 -> (TranKey, t)
                 -> (TranKey, t)
-computeCategory skuToStyleVar categories catFinder custCategories custCatFinder (key, tpq) = let
-  sku = tkSku key
-  debtorNo = tkCustomer key
-  cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat (FA.StockMasterKey $ unSku sku) ]
-  custCats = mapFromList [(cat, found)
-                         | cat <-  custCategories
-                         , Just found <- return $ custCatFinder cat =<< (FA.DebtorsMasterKey . fromIntegral . fst) <$> debtorNo
-                         ]
+computeCategory skuToStyleVar categories catFinder custCategories custCatFinder k't@(key, tpq) = 
+  case tkSku key of
+    Nothing -> k't -- no sku available, so we can't (and probably) don't need the category
+                   -- if required they should have been set by the loader
+    Just sku  -> let
+         debtorNo = tkCustomer key
+         cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat (FA.StockMasterKey $ unSku sku) ]
+         custCats = mapFromList [(cat, found)
+                                | cat <-  custCategories
+                                , Just found <- return $ custCatFinder cat =<< (FA.DebtorsMasterKey . fromIntegral . fst) <$> debtorNo
+                                ]
 
-  (style, var) = skuToStyleVar sku
-  in (key { tkCategory = mapFromList cats
-          , tkCustomerCategory = mapFromList custCats
-          , tkStyle = Just style
-          , tkVar = Just var
-          }, tpq)
+         (style, var) = skuToStyleVar sku
+         in (key { tkCategory = mapFromList cats
+                 , tkCustomerCategory = mapFromList custCats
+                 , tkStyle = Just style
+                 , tkVar = Just var
+                 }, tpq)
 
 -- | Allows to load similar slices of time depending on the param
 -- example the first 3 months of each year
@@ -582,42 +585,94 @@ newLoadItemSales param = do
                                               _ -> not . null $ filter eq sources
                                 )
                                 (E.groupBy field)
-  let query = do 
-                 (trans E.:& detail E.:& move) <- itemSalesQuery stockLike defaultLocation param
-                 groupByIf (\s -> isCSCategory s || s `elem` [CSSku, CSStyle, CSVar]) detail.stockId -- TODO optimize
-                 groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type)
-                 groupByIf (== CSTranDay) trans.tranDate
-                 groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
-                 groupByIf (== CSCustomer) trans.branchCode
-                 groupByIf (\s -> isCSOrderCategory s || elem s [CSOrderDay, CSOrderDeliveryDay] ) trans.order -- same as transo
-                 E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
-                 pure (detail.stockId
-                        , E.sum_ detail.qtyDone
-                        , trans ^. #type
-                        , trans.tranDate
-                        -- , (detail.unitPrice, detail.unitTax, detail.discountPercent)
-                        , E.sum_ (( if rpDeduceTax param
-                            then detail.unitPrice E.-. detail.unitTax
-                            else detail.unitPrice
-                          ) E.*. (E.val 1 E.-. detail.discountPercent) E.*. detail.qtyDone) -- don't divide per 100, is not a percent but the real factor :-(
-                        , (trans.debtorNo, trans.branchCode)
-                        , if rpLoadOrderInfo param
-                          then E.just trans.order
-                          else E.nothing
-                        , move.locCode 
-                        )
-  orderCategoryMap <- if rpLoadOrderInfo param
-                         then runDB $ runConduit
-                                    $ orderCategorySourceFor query
-                                                       (\orderNo (_1,_2,_3,_4,_5_,_6, transOrderNo, _8
-                                                                 )  -> transOrderNo E.==. E.just orderNo )
-                                      .|  mapC forToMap
-                                      .| foldC
-                         else return mempty
-  sales <- runDB $ runConduit $ E.selectSource query
+  -- | If sku is not needed and one category is required
+  -- load it instead of the stock id
+  let theCategoryM = if CSSku `elem` sources 
+                        then Nothing 
+                        else case filter isCSCategory sources of 
+                                  [CSCategory category]  -> Just ( category
+                                                                 , \tk -> tk { tkSku = Nothing, tkCategory = maybe mempty (Map.singleton category . unSku) $ tkSku tk }
+                                                                 )
+                                  [] | CSStyle `elem` sources -> Just ("style", \tk -> tk {tkSku = Nothing, tkStyle = Style . unSku <$> tkSku tk})
+                                  [] | CSVar `elem` sources -> Just ("colour", \tk -> tk { tkSku = Nothing, tkVar = Var . unSku <$> tkSku tk })
+                                  _ -> Nothing
+  case theCategoryM of 
+      Nothing -> do
+           let query = do 
+                                (trans E.:& detail E.:& move) <- itemSalesQuery stockLike defaultLocation param
+                                groupByIf (\s -> isCSCategory s || s `elem` [CSSku, CSStyle, CSVar]) detail.stockId -- TODO optimize
+                                groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type)
+                                groupByIf (== CSTranDay) trans.tranDate
+                                groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
+                                groupByIf (== CSCustomer) trans.branchCode
+                                groupByIf (\s -> isCSOrderCategory s || elem s [CSOrderDay, CSOrderDeliveryDay] ) trans.order -- same as transo
+                                E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
+                                pure (detail.stockId
+                                       , E.sum_ detail.qtyDone
+                                       , trans ^. #type
+                                       , trans.tranDate
+                                       -- , (detail.unitPrice, detail.unitTax, detail.discountPercent)
+                                       , E.sum_ (( if rpDeduceTax param
+                                           then detail.unitPrice E.-. detail.unitTax
+                                           else detail.unitPrice
+                                         ) E.*. (E.val 1 E.-. detail.discountPercent) E.*. detail.qtyDone) -- don't divide per 100, is not a percent but the real factor :-(
+                                       , (trans.debtorNo, trans.branchCode)
+                                       , if rpLoadOrderInfo param
+                                         then E.just trans.order
+                                         else E.nothing
+                                       , move.locCode 
+                                       )
+           orderCategoryMap <- if rpLoadOrderInfo param
+                                  then runDB $ runConduit
+                                             $ orderCategorySourceFor query
+                                                                      (\orderNo (_1,_2,_3,_4,_5_,_6, transOrderNo, _8
+                                                                                )  -> transOrderNo E.==. E.just orderNo )
+                                               .|  mapC forToMap
+                                               .| foldC
+                                  else return mempty
+           runDB $ runConduit $ E.selectSource query
                               .| concatMapC (newDetailToTransInfo  defaultLocation orderCategoryMap)
                               .| sinkList
-  return sales
+      Just (theCategory, tweakTk) -> do 
+          let query = do 
+                        (trans E.:& detail E.:& move E.:& category) <- E.from $ itemSalesQuery stockLike defaultLocation param
+                                                                       `E.innerJoin` E.table @ItemCategory `E.on`
+                                                                          (\(_ E.:& detail E.:& _ E.:& cat) -> cat.category E.==. E.val theCategory
+                                                                                    E.&&. cat.stockId E.==. detail.stockId
+                                                                          )
+                        E.groupBy category.value
+                        groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type)
+                        groupByIf (== CSTranDay) trans.tranDate
+                        groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
+                        groupByIf (== CSCustomer) trans.branchCode
+                        groupByIf (\s -> isCSOrderCategory s || elem s [CSOrderDay, CSOrderDeliveryDay] ) trans.order -- same as transo
+                        E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
+                        pure (category.value
+                               , E.sum_ detail.qtyDone
+                               , trans ^. #type
+                               , trans.tranDate
+                               -- , (detail.unitPrice, detail.unitTax, detail.discountPercent)
+                               , E.sum_ (( if rpDeduceTax param
+                                   then detail.unitPrice E.-. detail.unitTax
+                                   else detail.unitPrice
+                                 ) E.*. (E.val 1 E.-. detail.discountPercent) E.*. detail.qtyDone) -- don't divide per 100, is not a percent but the real factor :-(
+                               , (trans.debtorNo, trans.branchCode)
+                               , if rpLoadOrderInfo param
+                                 then E.just trans.order
+                                 else E.nothing
+                               , move.locCode 
+                               )
+          orderCategoryMap <- if rpLoadOrderInfo param
+                                  then runDB $ runConduit
+                                             $ orderCategorySourceFor query
+                                                                (\orderNo (_1,_2,_3,_4,_5_,_6, transOrderNo, _8
+                                                                          )  -> transOrderNo E.==. E.just orderNo )
+                                               .|  mapC forToMap
+                                               .| foldC
+                                  else return mempty
+          runDB $ runConduit $ E.selectSource query
+                              .| concatMapC (map (first tweakTk) . newDetailToTransInfo  defaultLocation orderCategoryMap)
+                              .| sinkList
 
 
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
@@ -938,7 +993,7 @@ loadStockInfo param = do
 moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   key = TranKey stockMoveTranDate
                 Nothing
-                (Sku stockMoveStockId)
+                (Just $ Sku stockMoveStockId)
                 Nothing
                 Nothing
                 mempty
@@ -979,7 +1034,7 @@ newDetailToTransInfo defaultLocation orderCategoryMap
                      Just debtorNo -> Just $ Left (fromIntegral debtorNo,  fromIntegral branchCode)
                      Nothing -> Nothing
                 )
-                (Sku debtorTransDetailStockId) Nothing Nothing  mempty mempty
+                (Just $ Sku debtorTransDetailStockId) Nothing Nothing  mempty mempty
                 transType
   key = case flip lookup orderCategoryMap =<<  orderM of
     Nothing -> key' Nothing Nothing mempty
@@ -1014,7 +1069,7 @@ detailToTransInfo deduceTax defaultLocation orderCategoryMap
         )  = [(key, tqp) | tqp <- tqps] where
   key' = TranKey debtorTranTranDate
                 (Just $ Left (debtorNo,  branchCode))
-                (Sku debtorTransDetailStockId) Nothing Nothing  mempty mempty
+                (Just $ Sku debtorTransDetailStockId) Nothing Nothing  mempty mempty
                 transType
   key = case flip lookup orderCategoryMap =<<  orderM of
     Nothing -> key' Nothing Nothing mempty
@@ -1045,7 +1100,7 @@ orderDetailToTransInfo io qtyMode orderCategoryMap (Entity _ FA.SalesOrderDetail
                        , Single effectiveDate ) = (key, tqp) where
   key = TranKey effectiveDate
                (Just $ Left (fromIntegral salesOrderDebtorNo, fromIntegral salesOrderBranchCode))
-               (Sku salesOrderDetailStkCode) Nothing Nothing mempty mempty
+               (Just $ Sku salesOrderDetailStkCode) Nothing Nothing mempty mempty
                ST_SALESORDER
                (Just salesOrderOrdDate)
                (Just salesOrderDeliveryDate)
@@ -1070,7 +1125,7 @@ purchToTransInfo alterDate revert ( Entity _ FA.SuppInvoiceItem{..}
                   , Single supplierId) = [(key, tqp) | tqp <- tqps] where
   suppTranType = fromMaybe (error "supplier transaction should have a ty B") suppInvoiceItemSuppTransType
   key = TranKey (alterDate suppTranTranDate) (Just $ Right supplierId)
-                (Sku suppInvoiceItemStockId) Nothing Nothing  mempty mempty
+                (Just $ Sku suppInvoiceItemStockId) Nothing Nothing  mempty mempty
                 (toEnum suppTranType)
                 Nothing Nothing mempty
                    
@@ -1095,7 +1150,7 @@ purchToTransInfo alterDate revert ( Entity _ FA.SuppInvoiceItem{..}
 poToTransInfo :: OrderDateColumn -> OrderQuantityMode -> (Entity PurchOrderDetail, Entity PurchOrder) -> (TranKey, TranQP)
 poToTransInfo orderDateColumn qtyMode (Entity _ FA.PurchOrderDetail{..}, Entity _ FA.PurchOrder{..}) = (key, tqp) where
   key = TranKey date (Just . Right $ fromIntegral purchOrderSupplierId)
-                (Sku purchOrderDetailItemCode) Nothing Nothing mempty mempty
+                (Just $ Sku purchOrderDetailItemCode) Nothing Nothing mempty mempty
                 ST_PURCHORDER
                 Nothing Nothing mempty
   tqp = tranQP QPPurchInvoice (mkQPrice Inward qty price)

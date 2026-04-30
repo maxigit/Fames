@@ -300,7 +300,7 @@ collapseQPs tqs = Just . mconcat $ map (uncurry tranQP) tqs
 data TranKey = TranKey
   { tkDay :: Day
   , tkCustomerSupplier :: Maybe (Either (Int64, Int64) Int64)
-  , tkSku :: Sku
+  , tkSku :: Maybe Sku
   , tkStyle :: Maybe Style
   , tkVar :: Maybe Var
   , tkCategory :: Map Text Text

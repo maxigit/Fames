@@ -136,7 +136,7 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _
       guard (weight > 1e-6)
       let key = TranKey day0
                     Nothing
-                    sku
+                    (Just sku)
                     Nothing -- style
                     Nothing -- var
                     mempty
