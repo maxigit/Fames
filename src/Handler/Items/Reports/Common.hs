@@ -27,6 +27,7 @@ import Formatting hiding(base)
 import Data.Monoid(Sum(..), First(..))
 import Debug.Trace
 import qualified Database.Esqueleto.Experimental as E
+-- import qualified Database.Esqueleto.Internal.Internal as E
 import Database.Esqueleto.Experimental((^.))
 import Util.ForConduit
 -- * Param 
@@ -568,11 +569,22 @@ newLoadItemSales param = do
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
   let query = do 
                  (trans E.:& detail E.:& move) <- itemSalesQuery stockLike defaultLocation param
+                 E.groupBy detail.stockId
+                 E.groupBy (trans ^. #type)
+                 E.groupBy trans.tranDate
+                 E.groupBy trans.debtorNo
+                 E.groupBy trans.branchCode
+                 E.groupBy trans.order -- same as transo
+                 E.groupBy move.locCode 
                  pure (detail.stockId
-                        , detail.qtyDone
+                        , E.sum_ detail.qtyDone
                         , trans ^. #type
                         , trans.tranDate
-                        , (detail.unitPrice, detail.unitTax, detail.discountPercent)
+                        -- , (detail.unitPrice, detail.unitTax, detail.discountPercent)
+                        , E.sum_ (( if rpDeduceTax param
+                            then detail.unitPrice E.-. detail.unitTax
+                            else detail.unitPrice
+                          ) E.*. (E.val 1 E.-. detail.discountPercent) E.*. detail.qtyDone) -- don't divide per 100, is not a percent but the real factor :-(
                         , (trans.debtorNo, trans.branchCode)
                         , if rpLoadOrderInfo param
                           then E.just trans.order
@@ -588,7 +600,7 @@ newLoadItemSales param = do
                                       .| foldC
                          else return mempty
   sales <- runDB $ runConduit $ E.selectSource query
-                              .| concatMapC (newDetailToTransInfo (rpDeduceTax param) defaultLocation orderCategoryMap)
+                              .| concatMapC (newDetailToTransInfo  defaultLocation orderCategoryMap)
                               .| sinkList
   return sales
 
@@ -928,22 +940,22 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   costPrice = iiStandardCost =<< lookup (Sku stockMoveStockId) infoMap  
   
 -- ** Sales Details 
-newDetailToTransInfo :: Bool -> Text -> Map Int (Map Text Text) ->
+newDetailToTransInfo :: Text -> Map Int (Map Text Text) ->
                      (E.Value Text
-                    , E.Value Double
+                    , E.Value (Maybe Double)
                     , E.Value Int
                     , E.Value Day
-                    , (E.Value Double, E.Value Double, E.Value Double)
+                    , (E.Value (Maybe Double)) -- (E.Value Double, E.Value Double, E.Value Double)
                     , (E.Value (Maybe Int), E.Value Int)
                     , (E.Value (Maybe Int)   )
                     , E.Value Text
                     ) -> _
-newDetailToTransInfo deduceTax defaultLocation orderCategoryMap
+newDetailToTransInfo defaultLocation orderCategoryMap
         (  E.Value debtorTransDetailStockId
-        , E.Value debtorTransDetailQtyDone
+        , E.Value debtorTransDetailQtyDoneM
         , E.Value debtorTransDetailDebtorTransType
           , E.Value debtorTranTranDate
-          ,(E.Value debtorTransDetailUnitPrice, E.Value debtorTransDetailUnitTax, E.Value debtorTransDetailDiscountPercent)
+          , (E.Value amountM) -- (E.Value debtorTransDetailUnitPrice, E.Value debtorTransDetailUnitTax, E.Value debtorTransDetailDiscountPercent)
           , (E.Value debtorNoM, E.Value branchCode) , (E.Value orderM)
           , E.Value loc
         )  = [(key, tqp) | tqp <- tqps] where
@@ -969,10 +981,12 @@ newDetailToTransInfo deduceTax defaultLocation orderCategoryMap
                           )
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp io = mkQPrice io debtorTransDetailQtyDone price
-  price = (if deduceTax
-          then debtorTransDetailUnitPrice - debtorTransDetailUnitTax
-          else debtorTransDetailUnitPrice
-          ) *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
+  debtorTransDetailQtyDone = fromMaybe 0 debtorTransDetailQtyDoneM
+  price = fromMaybe 0 amountM / debtorTransDetailQtyDone 
+  -- price = (if deduceTax
+  --         then debtorTransDetailUnitPrice - debtorTransDetailUnitTax
+  --         else debtorTransDetailUnitPrice
+  --         ) *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
 
 detailToTransInfo :: Bool -> Text -> Map Int (Map Text Text)
                   -> (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64, Single (Maybe Int), Single (Maybe Text))
