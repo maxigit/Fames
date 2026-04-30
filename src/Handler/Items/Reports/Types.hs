@@ -7,6 +7,7 @@ import Handler.Items.Common(StockFilter, mkStockFilter)
 import Data.Kind(Type)
 import GL.Utils(calculateDate, PeriodFolding(..), toYear) -- previousMonthStartingAt, previousWeekDay, nextWeekDay, nextMonthStartingAt)
 import GL.Payroll.Settings
+import Data.List(nub)
 
 data ReportParam = ReportParam
   { rpToday :: Day -- today
@@ -83,6 +84,8 @@ rpStockFilter :: ReportParam -> StockFilter
 rpStockFilter param = mkStockFilter ( rpSkuFilter param)
                                     ( rpCategoryToFilter param )
                                     ( rpCategoryFilter param )
+rpColumnSources :: ReportParam -> [ColumnSource]
+rpColumnSources ReportParam{..} = nub . sort $ map colSource $ mapMaybe cpColumn [rpPanelRupture, rpBand, rpSerie, rpColumnRupture]
 --
 data NormalizeMargin
   = NMRow
@@ -187,6 +190,7 @@ data PeriodFolding'
 data Column = Column
   { colName :: Text
   , colFn :: ReportParam -> TranKey -> NMapKey
+  , colSource :: ColumnSource
   } 
 
 instance Eq Column where
@@ -194,6 +198,40 @@ instance Eq Column where
 
 instance Show Column where
   show c = "Column " ++ show (colName c)
+  
+-- |  Which part of the TranKey is used.
+-- Needed to make some DB optimisation so we can group SQL
+-- query so that key not used can be grouped together
+data ColumnSource = CSTranDay  
+                  | CSCustomerSupplier
+                  | CSSku
+                  | CSStyle
+                  | CSVar
+                  | CSCategory Text -- Category
+                  | CSCustomer
+                  | CSCustomerCategory Text
+                  | CSType
+                  | CSOrderDay
+                  | CSOrderDeliveryDay
+                  | CSOrderCategory Text
+     deriving (Show, Eq, Ord)
+   
+isCSCategory :: ColumnSource -> Bool
+isCSCategory source = 
+   case source of 
+      CSCategory _ -> True
+      _ -> False
+isCSCustomerCategory :: ColumnSource -> Bool
+isCSCustomerCategory source = 
+   case source of 
+      CSCustomerCategory _ -> True
+      _ -> False
+isCSOrderCategory :: ColumnSource -> Bool
+isCSOrderCategory source =
+   case source of
+      CSOrderCategory _ -> True
+      _ -> False
+    
 -- Heterogenous type
 data ColumnValue = ColumnValue
   { cvHtml :: Html

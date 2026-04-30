@@ -300,7 +300,7 @@ foldDay p tkey = let
         Just period -> foldTime period (tkDay tkey)
 
 mkDateColumn :: (Text, ReportParam -> Day -> Day) -> Column
-mkDateColumn (name, fn) = Column name fn' where
+mkDateColumn (name, fn) = Column name fn' CSTranDay where
   fn' p tk = let (d0, _) = foldDay p tk
                  d = fn p d0
               in case (rpPeriod p) of
@@ -341,10 +341,10 @@ mkTransactionType _ tkey = let ktype = tkType tkey
             (PersistText $ showTransType ktype)
 
 -- *** Columns 
-styleColumn = Column "Style" (constMkKey $ fmap unStyle . tkStyle)
-variationColumn = Column "Variation" (constMkKey $ fmap unVar . tkVar)
-skuColumn = Column "Sku" (constMkKey $ unSku . tkSku)
-periodColumn = Column "Period" getPeriod where
+styleColumn = Column "Style" (constMkKey $ fmap unStyle . tkStyle) CSStyle
+variationColumn = Column "Variation" (constMkKey $ fmap unVar . tkVar) CSVar
+skuColumn = Column "Sku" (constMkKey $ unSku . tkSku) CSSku
+periodColumn = Column "Period" getPeriod CSTranDay where
       getPeriod p tkey = let
         (_, Start d) = foldDay p tkey
         in case rpPeriod p of
@@ -364,13 +364,15 @@ periodColumn = Column "Period" getPeriod where
 supplierCustomerColumnH = do
   customerMap <- allCustomers False
   supplierMap <- allSuppliers False
-  return $ Column "Supplier/Customer" (mkCustomerSupplierKey customerMap supplierMap)
-transactionTypeColumn = Column "TransactionType" mkTransactionType
-salesPurchaseColumn = Column "Sales/Purchase" (constMkKey $ maybe PersistNull PersistText . tkType'')
-invoiceCreditColumn = Column "Invoice/Credit" (constMkKey $ maybe PersistNull PersistText . tkType')
+  return $ Column "Supplier/Customer" (mkCustomerSupplierKey customerMap supplierMap) CSCustomerSupplier
+transactionTypeColumn = Column "TransactionType" mkTransactionType CSType
+salesPurchaseColumn = Column "Sales/Purchase" (constMkKey $ maybe PersistNull PersistText . tkType'') CSType
+invoiceCreditColumn = Column "Invoice/Credit" (constMkKey $ maybe PersistNull PersistText . tkType') CSType
 categoryColumnsH = do
   categories <- categoriesH
-  return [ Column ("item:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
+  return [ Column ("item:" <> cat)
+                  (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
+                  (CSCategory cat)
          | cat <- categories
          ]
 
@@ -384,18 +386,23 @@ customerCategoryColumnsH = do
                          (decodeHtmlEntities . FA.debtorsMasterName )
                          (Map.lookup (FA.DebtorsMasterKey $ fromIntegral custId) customerMap)
         return $ name <> "#" <> tshow branchNo
-  return $ Column "customer:branch" (constMkKey $ maybe PersistNull PersistText . getBranch) : [ Column ("customer:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCustomerCategory tk))
-                                       | cat <- categories
-         ]
-orderCategoryColumnsH = do
-  categories <- orderCategoriesH
-  let mkDateCol getDay (name, fn) = Column name fn' where
-        fn' p tk = NMapKey $ maybe PersistNull (PersistDay . fn p)  (getDay tk)
-  return $ [ Column ("order:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkOrderCategory tk))
+  return $ Column "customer:branch" (constMkKey $ maybe PersistNull PersistText . getBranch) CSCustomer
+         : [ Column ("customer:" <> cat)
+                    (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCustomerCategory tk))
+                    (CSCustomerCategory cat)
            | cat <- categories
            ]
-          <> dateColumnsFor "order:date-" (mkDateCol tkOrderDay)
-          <> dateColumnsFor "order:delivery-date-" (mkDateCol  tkOrderDeliveryDay)
+orderCategoryColumnsH = do
+  categories <- orderCategoriesH
+  let mkDateCol getDay source (name, fn) = Column name fn' source where
+        fn' p tk = NMapKey $ maybe PersistNull (PersistDay . fn p)  (getDay tk)
+  return $ [ Column ("order:" <> cat)
+                    (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkOrderCategory tk))
+                    (CSOrderCategory cat)
+           | cat <- categories
+           ]
+          <> dateColumnsFor "order:date-" (mkDateCol tkOrderDay CSOrderDay)
+          <> dateColumnsFor "order:delivery-date-" (mkDateCol  tkOrderDeliveryDay CSOrderDeliveryDay)
   
 dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyColumn]
   = dateColumnsFor "" mkDateColumn
@@ -567,15 +574,23 @@ newLoadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 newLoadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
+  let sources = rpColumnSources param
+      -- check if a source is needed. If no source are specified, then EVERYTHING is needed
+      groupByIf :: forall a . (ColumnSource -> Bool) -> E.SqlExpr (E.Value a) -> E.SqlQuery ()
+      groupByIf eq field = when (case sources of
+                                              [] -> True
+                                              _ -> not . null $ filter eq sources
+                                )
+                                (E.groupBy field)
   let query = do 
                  (trans E.:& detail E.:& move) <- itemSalesQuery stockLike defaultLocation param
-                 E.groupBy detail.stockId
-                 E.groupBy (trans ^. #type)
-                 E.groupBy trans.tranDate
-                 E.groupBy trans.debtorNo
-                 E.groupBy trans.branchCode
-                 E.groupBy trans.order -- same as transo
-                 E.groupBy move.locCode 
+                 groupByIf (`elem` [CSSku, CSStyle, CSVar]) detail.stockId -- TODO optimize
+                 groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type)
+                 groupByIf (== CSTranDay) trans.tranDate
+                 groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
+                 groupByIf (== CSCustomer) trans.branchCode
+                 groupByIf (\s -> isCSOrderCategory s || elem s [CSOrderDay, CSOrderDeliveryDay] ) trans.order -- same as transo
+                 E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
                  pure (detail.stockId
                         , E.sum_ detail.qtyDone
                         , trans ^. #type
