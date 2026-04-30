@@ -584,7 +584,7 @@ newLoadItemSales param = do
                                 (E.groupBy field)
   let query = do 
                  (trans E.:& detail E.:& move) <- itemSalesQuery stockLike defaultLocation param
-                 groupByIf (`elem` [CSSku, CSStyle, CSVar]) detail.stockId -- TODO optimize
+                 groupByIf (\s -> isCSCategory s || s `elem` [CSSku, CSStyle, CSVar]) detail.stockId -- TODO optimize
                  groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type)
                  groupByIf (== CSTranDay) trans.tranDate
                  groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
