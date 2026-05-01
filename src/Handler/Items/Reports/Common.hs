@@ -594,13 +594,12 @@ newLoadItemSales param = do
                                      move = E.getTable @StockMove tables
 
                                  let stockKey = getStockKey tables
-                                 groupByIf (\s -> isCSCategory s || s `elem` [CSSku, CSStyle, CSVar]) stockKey -- TODO optimize
-                                 -- groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type) NO type needs to be separated at the moment to file properly the detail
+                                 E.groupBy (trans ^. #type) -- needed by newDetailToTransInfo to apportion )
                                  groupByIf (== CSTranDay) trans.tranDate
                                  groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
                                  groupByIf (== CSCustomer) trans.branchCode
                                  groupByIf (\s -> isCSOrderCategory s || elem s [CSOrderDay, CSOrderDeliveryDay] ) trans.order -- same as transo
-                                 E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
+                                 -- E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
                                  let price = ( if rpDeduceTax param
                                                then detail.unitPrice E.-. detail.unitTax
                                                else detail.unitPrice
@@ -637,6 +636,7 @@ newLoadItemSales param = do
                                              .| foldC
                                 else return mempty
          runDB $ runConduit $ E.selectSource query
+                            -- .| mapMC (\r -> Import.traceShowM r >> return r)
                             .| concatMapC (map (first tweakTk) . newDetailToTransInfo  orderCategoryMap)
                             .| sinkList
   -- | If sku is not needed and one category is required

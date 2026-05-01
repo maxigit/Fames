@@ -3,7 +3,7 @@
 module Handler.Items.Reports.Sources
 where 
 
-import Import hiding(on, (==.), (!=.),(<=.),(>=.),(||.), selectSource, Value, exists)
+import Import hiding(on, (==.), (!=.),(<=.),(>=.),(>.),(||.), selectSource, Value, exists)
 -- import qualified Database.Persist as P
 import Database.Esqueleto.Experimental
 import Database.Esqueleto.Experimental.From(ToFrom)
@@ -29,6 +29,11 @@ itemSalesQuery stockLike param =  do
                                                  &&. detail.debtorTransNo ==. just move.transNo
                                                  &&. detail.debtorTransType ==. just (move ^. #type)
                                                  &&. trans.tranDate ==. move.tranDate
+                                                 -- discard negative qty credit not which correspond to item WRITTEN OFF
+                                                 &&. ( move ^. #type  !=. (val $ fromEnum ST_CUSTCREDIT) -- not credit
+                                                     ||.                                                 -- credit but qty > 0
+                                                        move.qty >. val 0
+                                                      )
                                                  )
                              )
                              )
