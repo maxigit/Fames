@@ -20,8 +20,8 @@ type EntityX a = SqlExpr (Entity a)
 
 instance SqlString StockMasterId -- needed to convert stock_master.stock_id  into a string (not a key)
 
-itemSalesQuery :: Text -> Text -> ReportParam -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail :& EntityX StockMove)
-itemSalesQuery stockLike _defaultLocation  param =  do
+itemSalesQuery :: Text -> ReportParam -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail :& EntityX StockMove)
+itemSalesQuery stockLike param =  do
   let stockFilter = rpStockFilter param
   (trans :& detail :&move ) <- from $ ( debtorTransAndDetailsTable
                               `innerJoin` (table @StockMove `on` (\(trans :& detail :& move)
@@ -47,7 +47,10 @@ itemSalesQuery stockLike _defaultLocation  param =  do
                                                               &&. category.value =%/. fexpr
                                            )
   where_ (trans ^. #type `in_` valList (map fromEnum [ ST_CUSTDELIVERY, ST_CUSTCREDIT]  ) )
-  where_ ((detail.qtyDone !=. val 0) &&. (detail.stockId `like` val stockLike ))
+  where_ ( detail.qtyDone !=. val 0
+          ||. ( trans ^. #type ==. val (fromEnum ST_CUSTCREDIT) &&. detail.quantity >=. val 0)
+          )
+  where_ (detail.stockId `like` val stockLike )
   forM (sfSku stockFilter) \sku -> where_ (detail.stockId =%/. sku)
   where_ $ foldr (||.) (val False)
                  do -- List 

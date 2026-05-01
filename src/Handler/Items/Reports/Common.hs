@@ -588,14 +588,14 @@ newLoadItemSales param = do
   let go :: forall ts . _ => (ts -> E.SqlExpr(E.Value Text)) -> (E.SqlQuery _ -> E.SqlQuery ts)  -> (TranKey -> TranKey) -> Handler [(TranKey, TranQP)]
       go getStockKey tweakTable tweakTk = do
          let query =  do 
-                                 tables <- tweakTable $ itemSalesQuery stockLike defaultLocation param
+                                 tables <- tweakTable $ itemSalesQuery stockLike param
                                  let trans = E.getTable @DebtorTran tables
                                      detail = E.getTable @DebtorTransDetail tables
                                      move = E.getTable @StockMove tables
 
                                  let stockKey = getStockKey tables
                                  groupByIf (\s -> isCSCategory s || s `elem` [CSSku, CSStyle, CSVar]) stockKey -- TODO optimize
-                                 groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type)
+                                 -- groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type) NO type needs to be separated at the moment to file properly the detail
                                  groupByIf (== CSTranDay) trans.tranDate
                                  groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
                                  groupByIf (== CSCustomer) trans.branchCode
@@ -606,17 +606,27 @@ newLoadItemSales param = do
                                                else detail.unitPrice
                                              )
                                              E.*. (E.val 1 E.-. detail.discountPercent) -- don't divide discountPercent per 100, is not a percent but the real factor :-(
+                                     qty = E.case_ [ (trans ^. #type E.==. E.val (fromEnum ST_CUSTCREDIT), detail.quantity )
+                                                   ]
+                                                   detail.qtyDone
+                                 -- Credit Note which don't go to default location are effectively being written off
+                                 -- we should compensate for it in the stock adjusment
+                                 let quantityBroken = E.case_ [ ( trans ^. #type  E.==. E.val (fromEnum ST_CUSTCREDIT) E.&&. move.locCode E.!=. E.val defaultLocation
+                                                                , qty
+                                                                )
+                                                              ]
+                                                              (E.val 0)
                                  pure (stockKey
-                                        , E.sum_ detail.qtyDone
+                                        , E.sum_ qty
                                         , trans ^. #type
                                         , trans.tranDate
                                         -- , (detail.unitPrice, detail.unitTax, detail.discountPercent)
-                                        , (E.sum_ (price E.*. detail.qtyDone), E.min_ price, E.max_ price)
+                                        , (E.sum_ (price E.*. qty), E.min_ price, E.max_ price)
                                         , (trans.debtorNo, trans.branchCode)
                                         , if rpLoadOrderInfo param
                                           then E.just trans.order
                                           else E.nothing
-                                        , move.locCode 
+                                        , (E.sum_ quantityBroken, E.sum_ (quantityBroken E.*. price))
                                         )
          orderCategoryMap <- if rpLoadOrderInfo param
                                 then runDB $ runConduit
@@ -627,7 +637,7 @@ newLoadItemSales param = do
                                              .| foldC
                                 else return mempty
          runDB $ runConduit $ E.selectSource query
-                            .| concatMapC (map (first tweakTk) . newDetailToTransInfo  defaultLocation orderCategoryMap)
+                            .| concatMapC (map (first tweakTk) . newDetailToTransInfo  orderCategoryMap)
                             .| sinkList
   -- | If sku is not needed and one category is required
   -- load it instead of the stock id
@@ -987,7 +997,7 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   costPrice = iiStandardCost =<< lookup (Sku stockMoveStockId) infoMap  
   
 -- ** Sales Details 
-newDetailToTransInfo :: Text -> Map Int (Map Text Text) ->
+newDetailToTransInfo :: Map Int (Map Text Text) ->
                      (E.Value Text
                     , E.Value (Maybe Double)
                     , E.Value Int
@@ -995,16 +1005,16 @@ newDetailToTransInfo :: Text -> Map Int (Map Text Text) ->
                     , (E.Value (Maybe Double), E.Value (Maybe Double), E.Value (Maybe Double)) -- (E.Value Double, E.Value Double, E.Value Double)
                     , (E.Value (Maybe Int), E.Value Int)
                     , (E.Value (Maybe Int)   )
-                    , E.Value Text
+                    , (E.Value (Maybe Double) , E.Value (Maybe Double))
                     ) -> _
-newDetailToTransInfo defaultLocation orderCategoryMap
+newDetailToTransInfo orderCategoryMap
         (  E.Value debtorTransDetailStockId
         , E.Value debtorTransDetailQtyDoneM
         , E.Value debtorTransDetailDebtorTransType
           , E.Value debtorTranTranDate
           , (E.Value amountM, E.Value priceMinM, E.Value priceMaxM) -- (E.Value debtorTransDetailUnitPrice, E.Value debtorTransDetailUnitTax, E.Value debtorTransDetailDiscountPercent)
           , (E.Value debtorNoM, E.Value branchCode) , (E.Value orderM)
-          , E.Value loc
+          , (E.Value quantityBrokenM, E.Value amountBrokenM)
         )  = [(key, tqp) | tqp <- tqps] where
   key' = TranKey debtorTranTranDate
                 (case debtorNoM of 
@@ -1020,11 +1030,11 @@ newDetailToTransInfo defaultLocation orderCategoryMap
     Just ST_CUSTDELIVERY -> (ST_SALESINVOICE, [tranQP QPSalesInvoice  (qp Outward)])
     Just ST_CUSTCREDIT -> ( ST_CUSTCREDIT
                           , [tranQP QPSalesCredit (qp Inward)] 
-                            ++ if loc /= defaultLocation
+                            ++ case (quantityBrokenM, amountBrokenM) of 
                                -- Not returned in stock (damaged?)
                                -- generate a opposit stock adjustoment
-                               then [tranQP QPAdjustment (qp Outward)]
-                               else []
+                                 (Just qty, Just amount) | qty /= 0 ->  [tranQP QPAdjustment (QPrice Outward qty amount (MinMax (fromMaybe 0 priceMinM)  (fromMaybe 0 priceMaxM))) ]
+                                 _ ->  []
                           )
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp io = (mkQPrice io debtorTransDetailQtyDone price) { qpPrice =  MinMax (fromMaybe price priceMinM)
