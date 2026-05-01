@@ -601,15 +601,17 @@ newLoadItemSales param = do
                                  groupByIf (== CSCustomer) trans.branchCode
                                  groupByIf (\s -> isCSOrderCategory s || elem s [CSOrderDay, CSOrderDeliveryDay] ) trans.order -- same as transo
                                  E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
+                                 let price = ( if rpDeduceTax param
+                                               then detail.unitPrice E.-. detail.unitTax
+                                               else detail.unitPrice
+                                             )
+                                             E.*. (E.val 1 E.-. detail.discountPercent) -- don't divide discountPercent per 100, is not a percent but the real factor :-(
                                  pure (stockKey
                                         , E.sum_ detail.qtyDone
                                         , trans ^. #type
                                         , trans.tranDate
                                         -- , (detail.unitPrice, detail.unitTax, detail.discountPercent)
-                                        , E.sum_ (( if rpDeduceTax param
-                                            then detail.unitPrice E.-. detail.unitTax
-                                            else detail.unitPrice
-                                          ) E.*. (E.val 1 E.-. detail.discountPercent) E.*. detail.qtyDone) -- don't divide per 100, is not a percent but the real factor :-(
+                                        , (E.sum_ (price E.*. detail.qtyDone), E.min_ price, E.max_ price)
                                         , (trans.debtorNo, trans.branchCode)
                                         , if rpLoadOrderInfo param
                                           then E.just trans.order
@@ -990,7 +992,7 @@ newDetailToTransInfo :: Text -> Map Int (Map Text Text) ->
                     , E.Value (Maybe Double)
                     , E.Value Int
                     , E.Value Day
-                    , (E.Value (Maybe Double)) -- (E.Value Double, E.Value Double, E.Value Double)
+                    , (E.Value (Maybe Double), E.Value (Maybe Double), E.Value (Maybe Double)) -- (E.Value Double, E.Value Double, E.Value Double)
                     , (E.Value (Maybe Int), E.Value Int)
                     , (E.Value (Maybe Int)   )
                     , E.Value Text
@@ -1000,7 +1002,7 @@ newDetailToTransInfo defaultLocation orderCategoryMap
         , E.Value debtorTransDetailQtyDoneM
         , E.Value debtorTransDetailDebtorTransType
           , E.Value debtorTranTranDate
-          , (E.Value amountM) -- (E.Value debtorTransDetailUnitPrice, E.Value debtorTransDetailUnitTax, E.Value debtorTransDetailDiscountPercent)
+          , (E.Value amountM, E.Value priceMinM, E.Value priceMaxM) -- (E.Value debtorTransDetailUnitPrice, E.Value debtorTransDetailUnitTax, E.Value debtorTransDetailDiscountPercent)
           , (E.Value debtorNoM, E.Value branchCode) , (E.Value orderM)
           , E.Value loc
         )  = [(key, tqp) | tqp <- tqps] where
@@ -1025,7 +1027,9 @@ newDetailToTransInfo defaultLocation orderCategoryMap
                                else []
                           )
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
-  qp io = mkQPrice io debtorTransDetailQtyDone price
+  qp io = (mkQPrice io debtorTransDetailQtyDone price) { qpPrice =  MinMax (fromMaybe price priceMinM)
+                                                                         (fromMaybe price priceMaxM)
+                                                       }
   debtorTransDetailQtyDone = fromMaybe 0 debtorTransDetailQtyDoneM
   price = fromMaybe 0 amountM / debtorTransDetailQtyDone 
   -- price = (if deduceTax
