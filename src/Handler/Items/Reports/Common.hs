@@ -573,65 +573,60 @@ generateDateCondition date_column param = let
 toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
 toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
   
-xxx param sources stockLike defaultLocation getStockKey tweakTable tweakTk= do 
-      let groupByIf :: forall a . (ColumnSource -> Bool) -> E.SqlExpr (E.Value a) -> E.SqlQuery ()
-          groupByIf eq field = when (case sources of
-                                                  [] -> True
-                                                  _ -> not . null $ filter eq sources
-                                    )
-                                    (E.groupBy field)
-      let query = do 
-                           tables <- tweakTable $ itemSalesQuery stockLike defaultLocation param
-                           let trans = E.getTable @DebtorTran tables
-                               detail = E.getTable @DebtorTransDetail tables
-                               move = E.getTable @StockMove tables
-
-                           let stockKey = getStockKey tables
-                           groupByIf (\s -> isCSCategory s || s `elem` [CSSku, CSStyle, CSVar]) stockKey -- TODO optimize
-                           groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type)
-                           groupByIf (== CSTranDay) trans.tranDate
-                           groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
-                           groupByIf (== CSCustomer) trans.branchCode
-                           groupByIf (\s -> isCSOrderCategory s || elem s [CSOrderDay, CSOrderDeliveryDay] ) trans.order -- same as transo
-                           E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
-                           pure (stockKey
-                                  , E.sum_ detail.qtyDone
-                                  , trans ^. #type
-                                  , trans.tranDate
-                                  -- , (detail.unitPrice, detail.unitTax, detail.discountPercent)
-                                  , E.sum_ (( if rpDeduceTax param
-                                      then detail.unitPrice E.-. detail.unitTax
-                                      else detail.unitPrice
-                                    ) E.*. (E.val 1 E.-. detail.discountPercent) E.*. detail.qtyDone) -- don't divide per 100, is not a percent but the real factor :-(
-                                  , (trans.debtorNo, trans.branchCode)
-                                  , if rpLoadOrderInfo param
-                                    then E.just trans.order
-                                    else E.nothing
-                                  , move.locCode 
-                                  )
-      orderCategoryMap <- if rpLoadOrderInfo param
-                             then runDB $ runConduit
-                                        $ orderCategorySourceFor query
-                                                                 (\orderNo (_1,_2,_3,_4,_5_,_6, transOrderNo, _8
-                                                                           )  -> transOrderNo E.==. E.just orderNo )
-                                          .|  mapC forToMap
-                                          .| foldC
-                             else return mempty
-      runDB $ runConduit $ E.selectSource query
-                         .| concatMapC (map (first tweakTk) . newDetailToTransInfo  defaultLocation orderCategoryMap)
-                         .| sinkList
 newLoadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 newLoadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
   let sources = rpColumnSources param
       -- check if a source is needed. If no source are specified, then EVERYTHING is needed
-      -- groupByIf :: forall a . (ColumnSource -> Bool) -> E.SqlExpr (E.Value a) -> E.SqlQuery ()
-      -- groupByIf eq field = when (case sources of
-      --                                         [] -> True
-      --                                         _ -> not . null $ filter eq sources
-      --                           )
-      --                           (E.groupBy field)
+      groupByIf :: forall a . (ColumnSource -> Bool) -> E.SqlExpr (E.Value a) -> E.SqlQuery ()
+      groupByIf eq field = when (case sources of
+                                              [] -> True
+                                              _ -> not . null $ filter eq sources
+                                )
+                                (E.groupBy field)
+  let go :: forall ts . _ => (ts -> E.SqlExpr(E.Value Text)) -> (E.SqlQuery _ -> E.SqlQuery ts)  -> (TranKey -> TranKey) -> Handler [(TranKey, TranQP)]
+      go getStockKey tweakTable tweakTk = do
+         let query =  do 
+                                 tables <- tweakTable $ itemSalesQuery stockLike defaultLocation param
+                                 let trans = E.getTable @DebtorTran tables
+                                     detail = E.getTable @DebtorTransDetail tables
+                                     move = E.getTable @StockMove tables
+
+                                 let stockKey = getStockKey tables
+                                 groupByIf (\s -> isCSCategory s || s `elem` [CSSku, CSStyle, CSVar]) stockKey -- TODO optimize
+                                 groupByIf (`elem` [CSType, CSCustomerSupplier]) (trans ^. #type)
+                                 groupByIf (== CSTranDay) trans.tranDate
+                                 groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
+                                 groupByIf (== CSCustomer) trans.branchCode
+                                 groupByIf (\s -> isCSOrderCategory s || elem s [CSOrderDay, CSOrderDeliveryDay] ) trans.order -- same as transo
+                                 E.groupBy move.locCode  -- need to filter credit note. TODO move logic ino SqlQuery
+                                 pure (stockKey
+                                        , E.sum_ detail.qtyDone
+                                        , trans ^. #type
+                                        , trans.tranDate
+                                        -- , (detail.unitPrice, detail.unitTax, detail.discountPercent)
+                                        , E.sum_ (( if rpDeduceTax param
+                                            then detail.unitPrice E.-. detail.unitTax
+                                            else detail.unitPrice
+                                          ) E.*. (E.val 1 E.-. detail.discountPercent) E.*. detail.qtyDone) -- don't divide per 100, is not a percent but the real factor :-(
+                                        , (trans.debtorNo, trans.branchCode)
+                                        , if rpLoadOrderInfo param
+                                          then E.just trans.order
+                                          else E.nothing
+                                        , move.locCode 
+                                        )
+         orderCategoryMap <- if rpLoadOrderInfo param
+                                then runDB $ runConduit
+                                           $ orderCategorySourceFor query
+                                                                    (\orderNo (_1,_2,_3,_4,_5_,_6, transOrderNo, _8
+                                                                              )  -> transOrderNo E.==. E.just orderNo )
+                                             .|  mapC forToMap
+                                             .| foldC
+                                else return mempty
+         runDB $ runConduit $ E.selectSource query
+                            .| concatMapC (map (first tweakTk) . newDetailToTransInfo  defaultLocation orderCategoryMap)
+                            .| sinkList
   -- | If sku is not needed and one category is required
   -- load it instead of the stock id
   let theCategoryM = if CSSku `elem` sources 
@@ -645,14 +640,14 @@ newLoadItemSales param = do
                                   _ -> Nothing
   case theCategoryM of 
       Nothing -> do
-           xxx param sources stockLike defaultLocation  ((^. DebtorTransDetailStockId) . E.getTable ) id id
+           go ((^. DebtorTransDetailStockId) . E.getTable ) id id
       Just (theCategory, tweakTk) -> do 
           let joinCategory query = E.from $ query
                                    `E.innerJoin` E.table @ItemCategory
                                    `E.on` (\(_ E.:& detail E.:& _ E.:& cat) -> cat.category E.==. E.val theCategory
                                                                                E.&&. cat.stockId E.==. detail.stockId
                                           )
-          xxx param sources stockLike defaultLocation ((^. ItemCategoryValue) . E.getTable) joinCategory tweakTk
+          go ((^. ItemCategoryValue) . E.getTable) joinCategory tweakTk
 
 
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
