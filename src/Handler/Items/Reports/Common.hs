@@ -464,7 +464,9 @@ loadItemTransactions param grouper = do
   categories <- categoriesH
   custCategories <- customerCategoriesH
   catFinder <- categoryFinderCachedFor categories
-  stockInfo <- loadStockInfo param
+  stockInfo <- case rpForecast param of
+                    (Nothing,_,_) | not (rpLoadAdjustment param) -> return mempty
+                    _ -> loadStockInfo param
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
   -- load each type of transaction
