@@ -594,6 +594,7 @@ newLoadItemSales param = do
                                      move = E.getTable @StockMove tables
 
                                  let stockKey = getStockKey tables
+                                 groupByIf (\s -> elem s [CSSku, CSStyle, CSVar] || isCSCategory s) stockKey
                                  E.groupBy (trans ^. #type) -- needed by newDetailToTransInfo to apportion )
                                  groupByIf (== CSTranDay) trans.tranDate
                                  groupByIf (\s -> elem s [CSCustomerSupplier, CSCustomer] || isCSCustomerCategory s ) trans.debtorNo
