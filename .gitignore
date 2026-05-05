@@ -42,3 +42,4 @@ nogit
 cabal.project.local
 Fames.*
 !Fames.cabal
+.viminfo
