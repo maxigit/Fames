@@ -238,13 +238,22 @@ generateDateIntervals fromM toM (Just (folding, n))  = let
                                                 in (from, to)
                         (Just from, Just to) -> (from, to)
       in [ ( Just (period i from)
-           , Just ( min (period i to)
-                        (calculateDate (AddDays $ -1) $ period (i-1) from)
-                        --- ^^^^^^^^^ end of next period
-                  )
+           , Just (period i to) -- ( min (period i to)
+                  --       (calculateDate (AddDays $ -1) $ period (i-1) from)
+                  --       --- ^^^^^^^^^ end of next period
+                  -- )
            )
          | i <- [0..n]
          ]
+
+foldPeriod :: PeriodFolding -> Int -> Day -> Day
+foldPeriod folding periodN day = 
+      case folding of
+        (FoldYearly _) -> calculateDate (AddYears periodN)
+        (FoldMonthly _) -> calculateDate (AddMonths periodN)
+        (FoldQuaterly _) -> calculateDate (AddMonths (periodN*3))
+        (FoldWeekly) -> calculateDate (AddWeeks periodN)
+      day
 
 -- ** Usefull 
 previousVATQuarter :: Day -> (Day, Day)          

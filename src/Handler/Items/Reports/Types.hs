@@ -214,6 +214,7 @@ data ColumnSource = CSTranDay
                   | CSOrderDay
                   | CSOrderDeliveryDay
                   | CSOrderCategory Text
+                  | CSPeriod 
      deriving (Show, Eq, Ord)
    
 isCSCategory :: ColumnSource -> Bool

@@ -20,7 +20,7 @@ import qualified Data.Map as Map
 import Data.List(cycle,scanl,scanl1,scanr1)
 import Database.Persist.MySQL(rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
-import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek)
+import GL.Utils(calculateDate, Start(..), PeriodFolding(..), dayOfWeek, foldPeriod)
 import GL.Payroll.Settings
 import Text.Printf(printf)
 import Formatting hiding(base)
@@ -30,6 +30,7 @@ import qualified Database.Esqueleto.Experimental as E
 -- import qualified Database.Esqueleto.Internal.Internal as E
 import Database.Esqueleto.Experimental((^.))
 import Util.ForConduit
+import Control.Monad(zipWithM)
 -- * Param 
 
 defaultReportParam :: Day -> Maybe DateCalculator -> ReportParam
@@ -295,9 +296,10 @@ dataParamGetter _ = const Nothing
 foldDay :: ReportParam -> TranKey -> (Day, Start)
 foldDay p tkey = let
   day = tkDay tkey
-  in  case rpPeriod p of
-        Nothing -> (day, Start day)
-        Just period -> foldTime period (tkDay tkey)
+  in  case rpPeriod p of 
+        -- Just period -> foldTime period (tkDay tkey)
+        Just folder {- | Just _ <- rpDateAlignment p -} -> (foldPeriod folder (tkPeriod tkey) day, Start day)
+        _ -> (day, Start day)
 
 mkDateColumn :: (Text, ReportParam -> Day -> Day) -> Column
 mkDateColumn (name, fn) = Column name fn' CSTranDay where
@@ -344,23 +346,18 @@ mkTransactionType _ tkey = let ktype = tkType tkey
 styleColumn = Column "Style" (constMkKey $ fmap unStyle . tkStyle) CSStyle
 variationColumn = Column "Variation" (constMkKey $ fmap unVar . tkVar) CSVar
 skuColumn = Column "Sku" (constMkKey $ fmap unSku . tkSku) CSSku
-periodColumn = Column "Period" getPeriod CSTranDay where
-      getPeriod p tkey = let
-        (_, Start d) = foldDay p tkey
-        in case rpPeriod p of
-             Just (FoldMonthly _) -> -- format_
-               let (_,_m,_) = toGregorian d
-               in NMapKey (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
-             Just (FoldYearly _) -> -- format_
-               let (_y,_,_) = toGregorian d
-               -- in NMapKey (Just $ fromIntegral y) (PersistText $ pack $ printf "%d-%d" y (y+1))
-               -- at the mooment we display the rank-the value, so printing y-y+1
-                   -- result in printing y-y-y+1
-               -- in NMapKey (Just $ fromIntegral y) (PersistInt64 $ fromIntegral (y+1))
-               in NMapKey  (PersistText $ pack $ formatTime defaultTimeLocale "%Y (%d %b)" d)
+periodColumn = Column "Period" mkPeriod CSPeriod where
+   mkPeriod p tk = let format = case rpPeriod p of 
+                                         Just (FoldYearly _) -> "%Y"
+                                         Just (FoldMonthly _) -> "%b %Y"
+                                         Just (FoldQuaterly _ ) -> "%b %Y"
+                                         _ -> "%a %b %Y"
+                       formatMaybe = maybe ""  $ formatTime defaultTimeLocale format
+                   in case drop (tkPeriod tk) (paramToDateIntervals p)  of
+                           [] -> mkNMapKey (tkPeriod tk) 
+                           (from, to) : _  -> mkNMapKey ( formatMaybe from <> " - " <> formatMaybe to)
 
-
-             _ -> NMapKey (PersistDay d) where
+                   
 supplierCustomerColumnH = do
   customerMap <- allCustomers False
   supplierMap <- allSuppliers False
@@ -408,7 +405,7 @@ dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyCo
   = dateColumnsFor "" mkDateColumn
 dateColumnsFor :: Text -> ((Text , ReportParam -> Day -> Day) -> Column) -> [ Column ]
 dateColumnsFor prefix mkDateCol 
-  = map (mkDateCol . first (prefix <>) . second clampDay )
+  = map (mkDateCol . first (prefix <>) . second id )
                      [ ("Yearly", \p -> case rpDateAlignment p of 
                                          Just AlignToStart | Just (YearMonthDay _ m dom) <- rpFrom p ->
                                               calculateDate (Align StartOf (Yearly m dom))
@@ -438,7 +435,7 @@ dateColumnsFor prefix mkDateCol
                                          )
                      , ("Day", const $ id)
                      ]
-        where clampDay f p  d = maybe id max (rpFrom p) 
+        where  clampDay f p  d = maybe id max (rpFrom p) 
                               . maybe id min (rpTo p)
                               $ f p d
 w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo p)
@@ -455,10 +452,27 @@ amountInOption n = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle 
 -- ** Default trace 
 bestSalesTrace = DataParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
 -- * DB 
+-- | Override param to remove date folding and load everything separately
 loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
                      -> Handler (NMap TranQP) 
 loadItemTransactions param grouper = do
+   let monoParams = [ param { rpPeriod' = Nothing, rpNumberOfPeriods = Nothing 
+                            , rpFrom = startM, rpTo = endM
+                            }
+                    | (startM, endM) <- paramToDateIntervals param
+                    ]
+       grouperWithPeriod period = grouper . fmap (first \tk -> tk { tkPeriod = period })
+   nmaps <- zipWithM (\param i ->  loadItemTransactions' param (grouperWithPeriod i))
+                     monoParams
+                     [0..]
+   return $ mconcat nmaps
+    
+-- | Load item transaction but expect only one date interval
+loadItemTransactions' :: ReportParam
+                     -> ([(TranKey, TranQP)] -> NMap TranQP)
+                     -> Handler (NMap TranQP) 
+loadItemTransactions' param grouper = do
   let loadIf f loader = if f param then loader else return []
   -- misc to transform keys
   let categories = rpCategoryToFilter param
@@ -521,6 +535,7 @@ createInitialStock infoMap = mapToList infoMap >>= go where
                 mempty
                 ST_INVADJUST
                 Nothing Nothing mempty
+                0
         tqp = tranQP QPAdjustment (mkQPrice Inward qoh 0)
 
 
@@ -993,7 +1008,7 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
                 mempty
                 mempty
                 (toEnum stockMoveType)
-                Nothing Nothing mempty
+                Nothing Nothing mempty 0
   tqp = case toEnum stockMoveType of
     -- Adjustement should be counted with a negative price
     -- indeed a positiv adjustment, means that we found some (therefore should go toward the stock  : Inward)
@@ -1014,7 +1029,7 @@ newDetailToTransInfo :: Map Int (Map Text Text) ->
                     , (E.Value (Maybe Int)   )
                     , (E.Value (Maybe Double) , E.Value (Maybe Double))
                     ) -> _
-newDetailToTransInfo orderCategoryMap
+newDetailToTransInfo orderCategoryMap 
         (  E.Value debtorTransDetailStockId
         , E.Value debtorTransDetailQtyDoneM
         , E.Value debtorTransDetailDebtorTransType
@@ -1023,13 +1038,13 @@ newDetailToTransInfo orderCategoryMap
           , (E.Value debtorNoM, E.Value branchCode) , (E.Value orderM)
           , (E.Value quantityBrokenM, E.Value amountBrokenM)
         )  = [(key, tqp) | tqp <- tqps] where
-  key' = TranKey debtorTranTranDate
+  key' orderDay oDeliveryDay orderCategory = TranKey debtorTranTranDate
                 (case debtorNoM of 
                      Just debtorNo -> Just $ Left (fromIntegral debtorNo,  fromIntegral branchCode)
                      Nothing -> Nothing
                 )
                 (Just $ Sku debtorTransDetailStockId) Nothing Nothing  mempty mempty
-                transType
+                transType orderDay oDeliveryDay orderCategory 0
   key = case flip lookup orderCategoryMap =<<  orderM of
     Nothing -> key' Nothing Nothing mempty
     Just cat -> key' (readMay =<< "date" `lookup` cat) (readMay =<< "delivery-date" `lookup` cat) cat
@@ -1063,10 +1078,12 @@ detailToTransInfo deduceTax defaultLocation orderCategoryMap
                   , Single debtorNo, Single branchCode, Single orderM
                   , Single locm
         )  = [(key, tqp) | tqp <- tqps] where
-  key' = TranKey debtorTranTranDate
+  key' orderDay oDeliveryDay orderCategory= TranKey debtorTranTranDate
                 (Just $ Left (debtorNo,  branchCode))
                 (Just $ Sku debtorTransDetailStockId) Nothing Nothing  mempty mempty
                 transType
+                orderDay oDeliveryDay orderCategory
+                0
   key = case flip lookup orderCategoryMap =<<  orderM of
     Nothing -> key' Nothing Nothing mempty
     Just cat -> key' (readMay =<< "date" `lookup` cat) (readMay =<< "delivery-date" `lookup` cat) cat
@@ -1101,6 +1118,7 @@ orderDetailToTransInfo io qtyMode orderCategoryMap (Entity _ FA.SalesOrderDetail
                (Just salesOrderOrdDate)
                (Just salesOrderDeliveryDate)
                (fromMaybe mempty (lookup salesOrderOrderNo orderCategoryMap))
+               0
 
 
   qty = case qtyMode of
@@ -1124,6 +1142,7 @@ purchToTransInfo alterDate revert ( Entity _ FA.SuppInvoiceItem{..}
                 (Just $ Sku suppInvoiceItemStockId) Nothing Nothing  mempty mempty
                 (toEnum suppTranType)
                 Nothing Nothing mempty
+                0
                    
   -- if we load adjustments
   -- generate a reverse stock adjustment so that 
@@ -1149,6 +1168,7 @@ poToTransInfo orderDateColumn qtyMode (Entity _ FA.PurchOrderDetail{..}, Entity 
                 (Just $ Sku purchOrderDetailItemCode) Nothing Nothing mempty mempty
                 ST_PURCHORDER
                 Nothing Nothing mempty
+                0
   tqp = tranQP QPPurchInvoice (mkQPrice Inward qty price)
   price = purchOrderDetailUnitPrice 
   qty = case qtyMode of
@@ -1723,6 +1743,7 @@ seriesChartProcessor all panel rupture mono groupTrace paramss name plotId group
                     , #{toJSON jsData}
                     , { margin: { t: 30 }
                       , title: {text: #{toJSON name}}
+                      , hovermode: "x unified"
                       , yaxis2 : {overlaying: #{overlay "y2"}, title: "Quantities", side: "right"}
                       , yaxis3 : {overlaying: #{overlay "y3"}, title: "Amount(T)", side: "right"}
                       , yaxis4 : {overlaying: #{overlay "y4"}, title: "Quantities(T)", side: "left"}

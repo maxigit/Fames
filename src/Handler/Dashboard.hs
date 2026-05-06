@@ -336,7 +336,7 @@ dispatchReport today reportName __width __height = do
         "top20StyleJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary styleColumn
         "top20ColourJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary variationColumn
         _ -> fail $ "undefined report "  <> unpack reportName
-      rep20 param = param { rpNumberOfPeriods = Just 20 }
+      rep20 param = param { rpNumberOfPeriods = Just 20, rpDataParam2 = emptyTrace }
   report <- reportMaker
   return (Right report)
 
