@@ -23,7 +23,6 @@ import Settings(appRoleFor)
 -- import Role(Role(Administrator), RoleFor(..))
 import System.IO.Temp (openTempFile)
 import Handler.Util               as X
-import Control.Monad.Fail
 
 -- Log as administrator, In theory gives access to every page
 logAsAdmin = do
@@ -109,6 +108,3 @@ saveToTempFile content = liftIO $ do
   hPut handle (encodeUtf8 content)
   hClose handle
   return path
-
-instance MonadFail (YesodExample App) where
-  fail = error

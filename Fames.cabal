@@ -355,6 +355,29 @@ test-suite test
   import: deps, build
   type: exitcode-stdio-1.0
   main-is: Spec.hs
+  build-depends: 
+    Fames
+    , yesod-test ^>=1.7
+    -- , yesod-core
+    -- , yesod
+    -- , yesod-auth
+    -- , persistent
+    -- , persistent-mysql
+    -- , resourcet
+    -- , monad-logger
+    -- , shakespeare
+    -- , transformers
+    , hspec >=2.0.0
+    , QuickCheck
+    -- , classy-prelude
+    -- , classy-prelude-yesod
+    -- , aeson
+    -- , cassava
+    -- , yaml
+    -- , temporary
+    -- , http-types >=0.12.3 && <0.13
+  hs-source-dirs:
+     test
   other-modules:
       GL.Payroll.ParserSpec
       GL.Payroll.TimesheetSpec
