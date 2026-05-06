@@ -461,7 +461,11 @@ loadItemTransactions :: ReportParam
 loadItemTransactions param grouper = do
   let loadIf f loader = if f param then loader else return []
   -- misc to transform keys
-  categories <- categoriesH
+  let categories = rpCategoryToFilter param
+                   ?:
+                    [ category
+                    | CSCategory category <- rpColumnSources param
+                    ]
   custCategories <- customerCategoriesH
   catFinder <- categoryFinderCachedFor categories
   stockInfo <- case rpForecast param of
