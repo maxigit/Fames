@@ -243,7 +243,7 @@ generateDateIntervals fromM toM (Just (folding, n))  = let
                   --       --- ^^^^^^^^^ end of next period
                   -- )
            )
-         | i <- [0..n]
+         | i <- [0..max 0 (n-1)]
          ]
 
 foldPeriod :: PeriodFolding -> Int -> Day -> Day
