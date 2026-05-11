@@ -323,7 +323,7 @@ dispatchReport today reportName __width __height = do
         "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember (Just AlignToEnd)) reportName 
         "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd (Just AlignToEnd)) reportName
         "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd (Just AlignToEnd) ) reportName
-        "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5, rpDataParam2 = emptyTrace}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd (Just AlignToEnd)) reportName
+        "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd (Just AlignToEnd)) reportName
         "salesCurrentMonthFull20" -> salesCurrentMonth (rep20 . salesCurrentUp) reportName 
         "salesCurrentYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum beginJanuary endDecember Nothing) reportName 
         "salesSlidingYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum slidingYear slidingYearEnd Nothing) reportName
@@ -342,7 +342,7 @@ dispatchReport today reportName __width __height = do
 
 cumulSales = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSum)] )
 _quantitySales = ("CumulAmount (Out)" ,   [(qpQty Outward, VAmount, cumulStyle, RunSum)] )
-amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, smoothStyle AmountAxis, RSNormal)] )
+amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountBarStyle AmountAxis, RSNormal)] )
 quantitySales = ("Amount (Out)" ,   [(qpQty Outward, VQuantity, smoothStyle QuantityAxis, RSNormal)] )
 cumulStyle color = [("type", String "scatter")
                       ,("mode", String "lines")
@@ -355,6 +355,18 @@ cumulStyle color = [("type", String "scatter")
                 , ("yaxis", "y2")
                 , ("showlegend", toJSON True)
               ]
+amountBarStyle axis color = [("type", String "bar")
+                      ,("name", String "Sales")
+                      , axisFor axis
+                      ,("marker", [aesonQQ|{
+                               color: #{color},
+                               pattern: { shape: "\\",
+                                          fgopacity: 0.5,
+                                          size: 2
+                                          },
+                               line: { width: 1, color: #{color}}
+                                }|])
+              ]
 salesCurrentUp :: ReportParam -> ReportParam
 salesCurrentUp param = param {rpDataParam, rpDataParam2} where
       rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales) Nothing
@@ -366,7 +378,7 @@ salesCurrentYearUp runsum from to alignm param =
         , rpTo = Just to
         , rpToday = to
         , rpPeriod' = Just PFSlidingYearFrom
-        , rpColumnRupture = ColumnRupture (Just weeklyColumn) (DataParams QPSummary
+        , rpColumnRupture = ColumnRupture (Just monthlyColumn) (DataParams QPSummary
                                           (Identifiable ("Column", [])) Nothing) Nothing Nothing False
         , rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales0) Nothing
         , rpDateAlignment = alignm
