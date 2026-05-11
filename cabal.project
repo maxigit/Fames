@@ -2,8 +2,6 @@ allow-newer:
   regex-compat-tdfa:base
   ,Metamorphosis:containers
   ,fames-persist:all
-  ,diagrams-lib:all
-  ,diagrams-lib
   ,base
   ,warehouse-planner:all
 
