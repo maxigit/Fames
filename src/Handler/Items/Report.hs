@@ -54,6 +54,7 @@ reportForm cols paramM extra = do
   (fPeriod, vPeriod) <- mopt (selectFieldList periodOptions) "period" (Just $ rpPeriod' =<< paramM)
   (fPeriodN, vPeriodN) <- mopt intField "number" (Just $ rpNumberOfPeriods =<< paramM)
   (fDateAlign, vDateAlign) <- mopt (selectField optionsEnum) "date alignment" (Just $ rpDateAlignment =<< paramM)
+  (fFoldPeriod, vFoldPeriod) <- mreq boolField "fold period " (rpFoldPeriod <$> paramM)
   (fCategoryToFilter, vCategoryToFilter) <- mopt (selectFieldList categoryOptions ) "category" (Just $ rpCategoryToFilter =<< paramM)
   (fCategoryFilter, vCategoryFilter) <- mopt filterEField  "filter" (Just $ rpCategoryFilter =<< paramM)
   (fStockFilter, vStockFilter) <- mopt filterEField  "sku" (Just $ rpSkuFilter =<< paramM)
@@ -77,7 +78,7 @@ reportForm cols paramM extra = do
   (fForecastStart, vForecastStart) <- mopt dayField "start" (Just $ rpForecastStart =<< paramM )
   (fColourMode, vColourMode) <- mreq (selectField optionsEnum) "Chart Colour Mode" (rpColourMode <$> paramM)
   (fGroupTrace, vGroupTrace) <- mopt (selectField optionsEnum) "Trace Group Mode" (rpTraceGroupMode <$> paramM)
-  let fields = [ Left $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN, vDateAlign]
+  let fields = [ Left $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN, vDateAlign, vFoldPeriod]
                , Left $ mapM_ renderField [vStockFilter, vShowInactive, vCategoryToFilter, vCategoryFilter]
                , Right ("panel-rupture" :: Text, [wPanel, wBand, wSerie , vColRupture ])
                , Right ("panel-trace", [ wTrace1, wTrace2, wTrace3 ])
@@ -114,7 +115,7 @@ reportForm cols paramM extra = do
           fStockFilter  fShowInactive fPanel  fBand  fSerie 
           fColRupture  fTrace1  fTrace2  fTrace3
           fSales  fOrder fPurchases fPurchasesDateOffset fPOrders  fAdjustment (liftA3 (,,) fForecast fForecastInOut fForecastStart) fColourMode fGroupTrace
-          fDateAlign
+          fDateAlign fFoldPeriod
   return (report , form)
  
   
@@ -146,7 +147,7 @@ allTraces traceN =
 {-# NOINLINE mkReport #-}
 mkReport today deduceTax fFrom  fTo
    fPeriod  fPeriodN
-   fDateAlign
+   fDateAlign fFoldPeriod
    fCategoryToFilter  fCategoryFilter
    fStockFilter  fShowInactive fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
@@ -154,7 +155,7 @@ mkReport today deduceTax fFrom  fTo
    fColourMode fGroupTrace =
   ReportParam <$> pure today <*> pure deduceTax <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
-  <*> fDateAlign
+  <*> fDateAlign <*> fFoldPeriod
   <*> fCategoryToFilter <*> fCategoryFilter
   <*> fStockFilter <*> fShowInactive <*> fPanel <*> fBand <*> fSerie
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
@@ -246,7 +247,7 @@ getItemsReportR' mode = do
                            True Nothing Nothing -- purchases
                            True (Nothing, Nothing, Nothing)
                            minBound Nothing
-                           (Just AlignToEnd)
+                           (Just AlignToEnd) True
         _ -> ReportParam   today
                            deduceTax
                            (Just past) --  rpFrom :: Maybe Day
@@ -268,7 +269,7 @@ getItemsReportR' mode = do
                            True Nothing Nothing -- Purchases
                            True (Nothing, Nothing, Nothing)
                            minBound Nothing
-                           (Just AlignToEnd)
+                           (Just AlignToEnd) True
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 

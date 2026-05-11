@@ -62,6 +62,7 @@ defaultReportParam today fromToday = ReportParam {..} where
   rpColourMode = minBound
   rpTraceGroupMode = Nothing
   rpDateAlignment = Just AlignToEnd
+  rpFoldPeriod = True
 t :: Text -> Text
 t x = x
 
@@ -298,7 +299,7 @@ foldDay p tkey = let
   day = tkDay tkey
   in  case rpPeriod p of 
         -- Just period -> foldTime period (tkDay tkey)
-        Just folder {- | Just _ <- rpDateAlignment p -} -> (foldPeriod folder (tkPeriod tkey) day, Start day)
+        Just folder | rpFoldPeriod p -> (foldPeriod folder (tkPeriod tkey) day, Start day)
         _ -> (day, Start day)
 
 mkDateColumn :: (Text, ReportParam -> Day -> Day) -> Column
@@ -435,9 +436,6 @@ dateColumnsFor prefix mkDateCol
                                          )
                      , ("Day", const $ id)
                      ]
-        where  clampDay f p  d = maybe id max (rpFrom p) 
-                              . maybe id min (rpTo p)
-                              $ f p d
 w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo p)
                                  year_ = slidingYear day0 (tkDay tk)
                              in mkNMapKey . PersistDay $ fromGregorian year_ 1 1

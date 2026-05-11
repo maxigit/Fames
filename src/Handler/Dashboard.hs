@@ -393,6 +393,7 @@ salesCurrentMonth f plotName = do
       rpTo = Just endMonth
       rpPeriod' = Just PFWholeYear
       rpDateAlignment = Nothing
+      rpFoldPeriod = False
       rpNumberOfPeriods = Just 2
       rpCategoryToFilter = Nothing
       rpCategoryFilter = Nothing
@@ -460,6 +461,7 @@ top20ItemMonth f begin rupture = do
       rpPeriod' = Nothing
       rpNumberOfPeriods = Nothing
       rpDateAlignment = Nothing
+      rpFoldPeriod = False
       rpCategoryToFilter = Nothing
       rpCategoryFilter = Nothing
       rpSkuFilter = Nothing -- Just (LikeFilter "ML1_-A_2-BLK")
@@ -521,6 +523,7 @@ top100ItemYear which rupture = do
       rpColourMode = minBound
       rpTraceGroupMode = Nothing
       rpDateAlignment = Nothing
+      rpFoldPeriod = False
       -- TODO factorize
       grouper = [ rpBand, rpSerie
                 , rpColumnRupture
@@ -567,6 +570,7 @@ top100ItemYearChart plotName = do
       rpColourMode = minBound
       rpTraceGroupMode = Nothing
       rpDateAlignment = Nothing
+      rpFoldPeriod = False
       -- TODO factorize
       grouper = [ -- rpPanelRupture,
                   rpBand, rpSerie

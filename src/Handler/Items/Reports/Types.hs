@@ -40,6 +40,7 @@ data ReportParam = ReportParam
   , rpColourMode :: ColourMode
   , rpTraceGroupMode :: Maybe TraceGroupMode
   , rpDateAlignment :: Maybe DateAlignmentMode
+  , rpFoldPeriod :: Bool
   }  deriving Show
 
 
