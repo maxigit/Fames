@@ -457,6 +457,12 @@ salesCurrentMonth f plotName = do
                 , rpColumnRupture param
                 ]
   report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
+  -- report <- do 
+  --             let processor dataParams ruptures nmap =
+  --                           let nmapWithDummyRank = fmap (0,) nmap
+  --                           -- in plotChartDiv param (const 350) nmapWithDummyRank plotName nmapWithDummyRank
+  --                           in chartProcessor param nmapWithDummyRank
+  --             itemReport param processor
   return $ (report, param)
 
 
