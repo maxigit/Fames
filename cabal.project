@@ -4,6 +4,7 @@ allow-newer:
   ,fames-persist:all
   ,base
   ,warehouse-planner:all
+  ,nodf:all
 
 ignore-project: False
 
@@ -19,6 +20,20 @@ source-repository-package
   type: git
   location: https://github.com/maxigit/regex-compat-tdfa.git
   tag: 576bac0b0b4ad99b415a92c5bd2ef05e944f2dae
+
+source-repository-package
+  type: git
+  location: https://github.com/maxigit/nodf.git
+  tag: dc9f05d25267ef1828ba4f7fde00aa3b4f44c2c0
+package nodf
+  ghc-options:
+    -Wwarn=missing-export-lists
+    -Wwarn=unused-imports
+    -Wwarn=unused-do-bind
+    -Wwarn
+
 packages:
   .
   fames-persist
+  
+

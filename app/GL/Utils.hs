@@ -208,7 +208,7 @@ foldTime (FoldYearly yearStart) day = let
      )
 foldTime (FoldQuaterly periodYear) day = let
   (_dayYear, dayMonth, dayDay) = toGregorian day
-  (q0,m0) = (dayMonth -1) `divMod` 3
+  (q0,m0) = (dayMonth - 1) `divMod` 3
   in ( fromGregorian periodYear (1+m0) dayDay
      , Start (fromGregorian periodYear (1+ (q0*3)) 1)
      )

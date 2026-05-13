@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns, ImplicitParams #-}
+{-# LANGUAGE NamedFieldPuns, ImplicitParams, NegativeLiterals, LambdaCase #-}
 module Handler.Dashboard
 ( getDMainR 
 , getDMainFullR
@@ -13,9 +13,10 @@ module Handler.Dashboard
 where
 
 import Import hiding(all)
+import Data.List(transpose, cycle, (!!))
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.Items.Reports.Common
-import Handler.Items.Reports.Types
+import Handler.Items.Reports.Types as RT
 import Handler.Items.Reports.Sources
 import Handler.Items.Reports.NewForecast
 import Handler.Items.Reports.Forecast(ForecastGrouper(..))
@@ -25,10 +26,19 @@ import qualified Data.Map as Map
 import Formatting hiding(now)
 import Data.Aeson.QQ(aesonQQ)
 import Control.Monad.Fail (MonadFail(..))
+import Control.Monad(zipWithM)
 import System.FilePath.Glob (glob, match)
 import System.FilePath (takeBaseName)
 import System.Directory  
 import Network.Wai(rawQueryString)
+import qualified Data.Conduit.List as C
+import Data.Time.Calendar(weekLastDay, DayOfWeek(..), periodFromDay, Year)
+import qualified Data.NoDF as N
+import Data.NoDF ((@>),(@>$),(@=>))
+import Data.NoDF.Fold1
+import qualified Data.Foldable as F
+import Data.Aeson.QQ(aesonQQ)
+import qualified Data.Vector.Sized as N
 
 pivotCss = [cassius|
   div.pivot-inline
@@ -441,7 +451,7 @@ salesCurrentMonth f plotName = do
               ]
       cumulSales_ = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle_, RunSum)] )
       cumulStyle_ color = [("type", String "scatter")
-                      ,("mode", String "lines")
+                      ,("mode", String "bars")
                       ,("name", String "Sales")
                       ,("line", [aesonQQ|{
                                shape:"linear", 
@@ -452,19 +462,210 @@ salesCurrentMonth f plotName = do
                 , ("showlegend", toJSON True)
               ]
       -- TODO factorize
-      grouper = [ -- rpPanelRupture,
-                  rpBand , rpSerie
-                , rpColumnRupture param
-                ]
-  report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
-  -- report <- do 
-  --             let processor dataParams ruptures nmap =
-  --                           let nmapWithDummyRank = fmap (0,) nmap
-  --                           -- in plotChartDiv param (const 350) nmapWithDummyRank plotName nmapWithDummyRank
-  --                           in chartProcessor param nmapWithDummyRank
-  --             itemReport param processor
+      -- grouper = [ -- rpPanelRupture,
+      --             rpBand , rpSerie
+      --           , rpColumnRupture param
+      --           ]
+  -- report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
+  report <- do 
+               let from = (fromMaybe beginMonth $ RT.rpFrom param) 
+                   previousYear = calculateDate (AddYears -1) from
+                   to = (fromMaybe endMonth $ RT.rpTo param) 
+               tracess <- forM (zip [0..] (explodeParamPeriods param {RT.rpFrom = Just previousYear })) \(period, periodParam)  -> do
+                  salesConduits <- itemSalesConduitH periodParam
+                  sales <- runDB $ runConduit $ salesConduits
+                                                .| C.mapMaybe (\(tkey, tqp) ->fmap (let foldedDay = fst $ foldDay param tkey {tkPeriod = period}
+                                                                                        group = case cpColumn (rpColumnRupture param)  of
+                                                                                                   Just col | NMapKey (PersistDay day) <-  colFn col param tkey   -> day
+                                                                                                   _ -> foldedDay
+                                                                                                 
+                                                                                        
+                                                                                    in (foldedDay, group, ) . qpAmount Outward
+                                                                                   )
+                                                                                   (salesQPrice tqp)
+                                                              )
+                                                .| conduitVector 1000
+                                                .| sinkList
+                  return $ salesTraces (cycle defaultColors !! period ) previousYear from to (mconcat sales)
+                  --                   ^^^^^^   dates have been folded so they are all in the initial period range
+               return $ plotSalesTraces plotName tracess
+
   return $ (report, param)
 
+
+salesTraces :: Text -> Day -> Day -> Day -> (Vector (Day, Day, Amount)) -> [Value]
+salesTraces colour previousYear from to (N.SomeSized day'amounts) = 
+   let N.Z3 n_day _n_group n_amount = day'amounts
+   -- regroup everything by "day"
+   in N.grouping n_day \case {
+      nDdNN ->  let d_day = N.witems nDdNN @=> n_day -- first day of group
+                    d_amount = F.sum <$> N.witems nDdNN @>$ n_amount
+                    mean v = F.sum v / fromIntegral (F.length v)
+                    current = N.filtering (>= from) d_day \case {
+                            sDdS -> [aesonQQ| { x: #{N.windex sDdS @> d_day}
+                                               , y: #{N.postscanl (+) 0 $ N.windex sDdS @> d_amount}
+                                               , mode: "lines"
+                                               , marker: { color: #{colour} }
+                                    }
+                                    |]
+                    }
+                    -- MOVING AVERAGE
+                    averageds = case fromList [previousYear..to] of  {
+                    N.SomeSized alldays_day -> let
+                         alldays_amounts = N.joining alldays_day d_day \cases {
+                                         _ allDaysJjDD -> F.sum <$> N.wbroadcast allDaysJjDD @>$ d_amount
+                                         }
+
+                         alldays_smooth = F.sum <$> N.witems (N.moving 365) @>$ alldays_amounts
+                         alldays_smooth2 = mean <$> N.witems (N.moving 7) @>$ alldays_smooth
+                         in N.filtering (>=from) alldays_day \case 
+                         -- in N.filtering (const True) alldays_day \case 
+                                 a' -> let N.Z3 x smooth smooth2  = N.windex a' @> (N.Z3 alldays_day alldays_smooth alldays_smooth2)
+                                       in -- drop 1
+                                          [[aesonQQ| { x: #{x}
+                                                    , y: #{smooth}
+                                                    , mode: "markers"
+                                                    , opacity: 0.2
+                                                    , marker: { color: #{colour} }
+                                                    , line: { color: #{colour}
+                                                            , dash: "dot"
+                                                            , width: 1
+                                                            }
+                                                    }
+                                                  |]
+                                          , [aesonQQ| { x: #{x}
+                                                    , y: #{smooth2}
+                                                    , marker: { color: #{colour} }
+                                                    , line: {color: #{colour}
+                                                            , width: 1
+                                                            }
+                                                    }
+                                                  |]
+                                  ]
+                    }
+                in current
+                   : averageds
+      }
+
+
+plotSalesTraces :: Text -> [[Value]] -> Widget
+plotSalesTraces plotName tracess =  do
+   let plotId = plotName
+   [whamlet|
+     <div id="#{plotId}" style="height:400px">
+   |]
+   toWidgetBody [julius|
+        Plotly.newPlot( #{toJSON plotId}
+                  , #{toJSON (mconcat $ transpose tracess)}
+                  , { margin: { t: 30 }
+                    , hovermode: "x unified"
+                    , yaxis2: {anchor: "x", overlaying: "y", side: "right"}
+                    , height: 400
+                    }
+                  );
+              |]
+directPlotSales :: _ => Text -> (Vector _) -> Widget
+directPlotSales plotName (N.SomeSized n_day'amounts) = do
+  let N.Z4 n_day n_period n_group n_amount = n_day'amounts
+      plotId = plotName
+  N.ordering (N.Z2 n_period n_day) do { \oNnO -> do
+  N.segmenting (N.windex oNnO @> n_day) do { \oDdOO -> do
+  let nDdNN = N.composeItems oNnO oDdOO
+      _x = N.witems nDdNN @>$ n_day
+      -- aggregate days
+      d_day = N.witems nDdNN @=> n_day -- first day
+      d_amount = F.sum <$> N.witems nDdNN @>$ n_amount -- sum things
+  --           vvvvvvvvvvvvdN    d 
+  N.segmenting (N.witems nDdNN @=> n_period) do { \dPpDD -> do
+  let nPpDD = N.composeW nDdNN dPpDD
+      d_period = N.witems nDdNN @=> n_period
+  [whamlet|
+     <table *{datatable}>
+        <fthead>
+          <th> Day
+          <th> Period
+          <th> Amount
+        $forall period_pDD <- N.witems dPpDD
+           <tr>
+             <td> #{tshow $ period_pDD @>  d_day}
+             <td> #{tshow $ head1 $ period_pDD @> d_period}
+             <td> #{tshow $ period_pDD @>  d_amount}
+             $# <td> #{tshow $ N.index (N.witems dNnD @=> n_period) d}
+             $# <td> #{tshow $ N.index d_amount d}
+  |]
+  }}}
+
+   
+-- directPlotSales :: NMap (Sum Double, TranQP) -> Widget
+directPlotSalesXXX plotName (N.SomeSized day'amounts_d) = do
+  let N.Z4 day_d period_d group_d amount_d = day'amounts_d
+      plotId = plotName
+  -- group by period then week
+  N.ordering (N.Z2 period_d day_d) \ordered -> do
+             [whamlet|
+                <table *{datatable}>
+                   <fthead>
+                     <th> Day
+                     <th> Period
+                   $# $forall d <- N.windex ordered
+                   $#    <tr>
+                   $#      <td> #{tshow $ N.index day_d d}
+                   $#      <td> #{N.index period_d d}
+             |]
+             N.segmenting (N.windex ordered @> period_d) \by_period_ -> do
+                let by_period = N.composeItems ordered by_period_
+                traces <- zipWithM
+                               do \(Fold1 (N.SomeSized period)) i -> do 
+                                   N.segmenting (period @> group_d)  \by_week ->  do
+                                      -- let week_w = N.witems by_week @=> group_d
+                                      let trace = [aesonQQ|
+                                                    { x: #{day__week}
+                                                      , y: #{amount__week}
+                                                      , mode: "lines"
+                                                      , type: "bar"
+                                                      , marker: { color: #{i},
+                                                                  pattern: { shape: "\\",
+                                                                             fgopacity: 0.5,
+                                                                             size: 2
+                                                                             },
+                                                                  line: { width: 1, color: #{i}}
+                                                                }
+                                                      }
+                                                 |]
+                                          widths = replicate 12 20 :: [Int]
+                                          day__week = N.witems by_week @=> period @> group_d
+                                          amount__week = F.sum <$> N.witems by_week @>$ (period @> amount_d)
+                                          traceDay = [aesonQQ|
+                                                    { x: #{day__period}
+                                                      , y: #{amount__period}
+                                                      , mode: "lines"
+                                                      , type: "line"
+                                                      , "yaxis": "y2"
+                                                      , "showlegend": true
+                                                      , color: #{i}
+                                                      , line: { color: #{i}}
+                                                      }
+                                                     |]
+                                          day__period = period @> day_d
+                                          amount__period = N.postscanl (+) 0 $ period @> amount_d
+                                      return $ [trace, traceDay]
+                               do (F.toList $ N.witems by_period)
+                               do cycle defaultColors
+                [whamlet|
+                  <div id="#{plotId}" style="height:400px">
+                |]
+                toWidgetBody [julius|
+                     Plotly.newPlot( #{toJSON plotId}
+                               , #{toJSON (mconcat $ transpose traces)}
+                               , { margin: { t: 30 }
+                                 , hovermode: "x unified"
+                                 , yaxis2: {anchor: "x", overlaying: "y", side: "right"}
+                                 , height: 400
+                                 }
+                               );
+                           |]
+   
+   
 
 -- | Top style
 top20ItemMonth :: (?today :: Day) => (ReportParam -> ReportParam) -> Day -> Column -> Handler (Widget, ReportParam)

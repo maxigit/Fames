@@ -78,6 +78,7 @@ instance SameCons (Route App)
 -- or code already within a runDB.
 type SqlHandler = ReaderT SqlBackend Handler 
 type SqlConduit i o r = ConduitT i o SqlHandler r
+type ConduitH i o r = ConduitT i o Handler r
 
 instance EnumTreeable Text where enumTree = EnumTree []
 instance EnumTreeable Int64 where enumTree = EnumTree []

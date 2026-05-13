@@ -480,18 +480,32 @@ bestSalesTrace = DataParams QPSales (mkIdentifialParam $ amountInOption 1) Nothi
 loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
                      -> Handler (NMap TranQP) 
-loadItemTransactions param grouper = do
-   let monoParams = [ param { rpPeriod' = Nothing, rpNumberOfPeriods = Nothing 
-                            , rpFrom = startM, rpTo = endM
-                            }
-                    | (startM, endM) <- paramToDateIntervals param
-                    ]
+loadItemTransactions param grouper = mconcat <$> applyPeriodSeparately param grouper loadItemTransactions'
+    
+-- | Instead of leaving the loader with periods
+-- call the loader for each period and aggregate the result afterward
+
+
+applyPeriodSeparately :: (Monad handler, Functor f) =>
+                        ReportParam
+                        -> (f (TranKey, TranQP) -> nmap)
+                        -> (ReportParam -> (f (TranKey, TranQP) -> nmap) -> handler nmap)
+                        -> handler [nmap]
+applyPeriodSeparately param grouper action = do
+   let monoParams = explodeParamPeriods param
        grouperWithPeriod period = grouper . fmap (first \tk -> tk { tkPeriod = period })
-   nmaps <- zipWithM (\param i ->  loadItemTransactions' param (grouperWithPeriod i))
+   zipWithM (\param i ->  action param (grouperWithPeriod i))
                      monoParams
                      [0..]
-   return $ mconcat nmaps
-    
+   
+explodeParamPeriods :: ReportParam -> [ReportParam]
+explodeParamPeriods param =
+    [ param { rpPeriod' = Nothing, rpNumberOfPeriods = Nothing 
+          , rpFrom = startM, rpTo = endM
+          }
+    | (startM, endM) <- paramToDateIntervals param
+    ]
+
 -- | Load item transaction but expect only one date interval
 loadItemTransactions' :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
@@ -620,7 +634,11 @@ toT'Ps :: [(Text, PersistValue)] -> [(Text, [PersistValue])]
 toT'Ps tps = [(t, [p]) | (t, p) <- tps ]
   
 newLoadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
-newLoadItemSales param = do
+newLoadItemSales param =  do
+    conduit <- itemSalesConduitH  param
+    runDB $ runConduit $ conduit .| sinkList
+itemSalesConduitH :: ReportParam -> Handler (SqlConduit () (TranKey, TranQP) ())
+itemSalesConduitH param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
   let sources = rpColumnSources param
@@ -631,7 +649,7 @@ newLoadItemSales param = do
                                               _ -> not . null $ filter eq sources
                                 )
                                 (E.groupBy field)
-  let go :: forall ts . _ => (ts -> E.SqlExpr(E.Value Text)) -> (E.SqlQuery _ -> E.SqlQuery ts)  -> (TranKey -> TranKey) -> Handler [(TranKey, TranQP)]
+  let go :: forall ts . _ => (ts -> E.SqlExpr(E.Value Text)) -> (E.SqlQuery _ -> E.SqlQuery ts)  -> (TranKey -> TranKey) -> Handler (ConduitT () (TranKey, TranQP) _ ())
       go getStockKey tweakTable tweakTk = do
          let query =  do 
                                  tables <- tweakTable $ itemSalesQuery stockLike param
@@ -682,10 +700,9 @@ newLoadItemSales param = do
                                              .|  mapC forToMap
                                              .| foldC
                                 else return mempty
-         runDB $ runConduit $ E.selectSource query
+         return $ E.selectSource query
                             -- .| mapMC (\r -> Import.traceShowM r >> return r)
                             .| concatMapC (map (first tweakTk) . newDetailToTransInfo  orderCategoryMap)
-                            .| sinkList
   -- | If sku is not needed and one category is required
   -- load it instead of the stock id
   let theCategoryM = if CSSku `elem` sources 
@@ -1728,10 +1745,10 @@ formatSerieValuesNMap formatAmount_ formatPercent mode all panel band f nmap =
 -- allocate the colour accordingly to arguments
 traceParamForChart  :: Bool
                     -> Maybe TraceGroupMode
-                    -> [((Int, NMapKey), NMap (Sum Double, TranQP))]
+                    -> [(Text, NMap (Sum Double, TranQP))]
                     -> [[DataParam]]
                     -> [(Text, Int)]
-                    -> [(DataParam, ((Int, NMapKey), NMap (Sum Double, TranQP)), Text, Maybe Int)]
+                    -> [(DataParam, (Text, NMap (Sum Double, TranQP)), Text, Maybe Int)]
 traceParamForChart mono traceGroupMode asList_ paramss colorIds =  let
     colorIds0 = zip (map fst colorIds) [1..]
     in [ (param, name'group, color :: Text, groupId :: Maybe Int)
@@ -1760,11 +1777,17 @@ seriesChartProcessor all panel rupture mono groupTrace paramss name plotId group
          jsData = do -- List
            ((grouped, tracePrefix), colours) <- grouped'colour
            let ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
-               asList_ = (if cpReverse rupture then reverse else id ) $ [ ((r, prefixedKey ), nmap)
-                                                                       | ((r, key), nmap) <- nmapToNMapListWithRank grouped
-                                                                       , let prefixedKey = case tracePrefix of
-                                                                               Nothing -> key
-                                                                               Just pre -> mkNMapKey $ intercalate " - " . filter (not . null) $ [ pre, pvToText (nkKey key)]
+               asList_ = (if cpReverse rupture then reverse else id ) $ [ ((name ), nmap)
+                                                                       | ((rank, key), nmap) <- nmapToNMapListWithRank grouped
+                                                                       , let keyParts = case tracePrefix of
+                                                                               Nothing -> [ pvToText $ nkKey key ]
+                                                                               Just pre -> [ pre, pvToText (nkKey key)]
+                                                                       , let name = intercalate "-"
+                                                                                       case cpSortBy rupture of 
+                                                                                            DataParamsU _ [] _ -> keyParts
+                                                                                            _ -> tshow rank  : keyParts
+                                                                         -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                                                         -- we only show the rank number if the rank is relevant
                                                                        ]
            map (traceFor textValuesFor ysFor) (traceParamForChart mono groupTrace asList_  paramss colours)
          yaxises = mapMaybe extractAxis jsData
@@ -1796,18 +1819,17 @@ traceFor :: ([(PersistValue, (Sum Double, TranQP))] -> [Value]) --  ^ generate x
             -> NMap (Sum Double, TranQP)
             -> [Maybe Value])
          -> (DataParam
-            , ((Int, NMapKey) --  ^ rank and trace/serie name
+            , (Text --  ^ Serie name 
               , NMap (Sum Double, TranQP)) --  ^ values to graph
               , Text --  ^ colour
               , Maybe Int --  ^ group_ id
               )
          -> Value
-traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
+traceFor xsFor ysFor (param, (name, g'), color,groupId) = let
     g = [ (nkKey (snd n), mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
     g'' = nmapRunSum (tpRunSum tp) g'
     DataParam qtype tp  normMode = param
     fn = fmap (tpValueGetter tp) . lookupGrouped qtype
-    name = nkKey (snd name')
     in object $ [ "x" .=  xsFor g 
                 , "y" .=  ysFor normMode fn g''
                 , "connectgaps" .=  False 
@@ -1815,7 +1837,7 @@ traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
                 ] <> maybe [] (return . ("legendgroup" .=))  groupId
                 -- <> maybe [] (\color -> [("color", String color)]) colorM
                 <> map (first fromText) (tpChartOptions tp color)
-                <> (if name == PersistNull then [] else ["name" .= nkeyWithRank name'])
+                <> (if null name then [] else ["name" .= name])
 
 nmapToListWithRunSum :: (Ord w, Monoid a, Monoid w) =>
          RunSum -> NMap (w, a) -> [(PersistValue, (w, a))]
@@ -1898,10 +1920,10 @@ bubbleTrace all panel band asList_ params =
         rgb :: (Double, Double, Double) -> Text
         rgb (r, g, b) = pack $ printf "rgb(%d,%d,%d)" (round r :: Int) (round g :: Int) (round b :: Int)
         palette rgbs = toJSON $ zip ix (map toJSON rgbs) where len = length rgbs 
-                                                               ix = [ toJSON (fromIntegral i / fromIntegral (len-1) :: Double) | i <- [0..len-1] ]
+                                                               ix = [ toJSON (fromIntegral i / fromIntegral (len - 1) :: Double) | i <- [0..len-1] ]
         gradient3 (r0,g0,b0) (r1,g1,b1) n = zip3 (gradient r0 r1 n) (gradient g0 g1 n) (gradient b0 b1 n)
         gradient :: Double -> Double  -> Int -> [Double]
-        gradient a b n = [ a + slope*fromIntegral i | i <- [0..n-1]] where slope = (b - a) / fromIntegral (n -1)
+        gradient a b n = [ a + slope*fromIntegral i | i <- [0..n-1]] where slope = (b - a) / fromIntegral (n - 1)
         
         jsData = object [ "x"  .=  xs
                         , "y" .= ys
