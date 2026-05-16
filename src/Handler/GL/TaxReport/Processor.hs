@@ -14,7 +14,7 @@ import Import
 import GL.TaxReport.Types
 import GL.TaxReport.Settings
 import GL.TaxReport
-import GL.Utils
+import GL.Utils hiding(Period(..))
 
 import Handler.GL.TaxReport.HMRC
 import Handler.GL.TaxReport.Common

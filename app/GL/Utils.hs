@@ -1,6 +1,7 @@
 module GL.Utils
 ( module GL.Utils
 , DateCalculator(..)
+, Period(..), PeriodAlignment(..), DayOfWeek(..)
 )where 
 import ClassyPrelude
 import GL.Payroll.Settings

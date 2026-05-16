@@ -38,7 +38,7 @@ import Data.Map(Map)
 import Locker
 import Data.Text (Text)
 
-import GL.Utils
+import GL.Utils hiding(Period(..))
 
 -- * Type alias 
 type Amount = Locker Text Double

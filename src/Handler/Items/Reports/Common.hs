@@ -494,16 +494,18 @@ applyPeriodSeparately :: (Monad handler, Functor f) =>
 applyPeriodSeparately param grouper action = do
    let monoParams = explodeParamPeriods param
        grouperWithPeriod period = grouper . fmap (first \tk -> tk { tkPeriod = period })
-   zipWithM (\param i ->  action param (grouperWithPeriod i))
+   zipWithM (\(param,_) i ->  action param (grouperWithPeriod i))
                      monoParams
                      [0..]
    
-explodeParamPeriods :: ReportParam -> [ReportParam]
+explodeParamPeriods :: ReportParam -> [(ReportParam, Day -> Day)]
 explodeParamPeriods param =
-    [ param { rpPeriod' = Nothing, rpNumberOfPeriods = Nothing 
+    [ ( param { rpPeriod' = Nothing, rpNumberOfPeriods = Nothing 
           , rpFrom = startM, rpTo = endM
           }
-    | (startM, endM) <- paramToDateIntervals param
+      , maybe id (flip foldPeriod p) (rpPeriod param)
+      )
+    | (p, (startM, endM)) <- zip [0..] (paramToDateIntervals param)
     ]
 
 -- | Load item transaction but expect only one date interval

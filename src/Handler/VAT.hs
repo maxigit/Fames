@@ -8,7 +8,7 @@ module Handler.VAT
 import Import
 import Database.Persist.MySQL     (Single(..), rawSql)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
-import GL.Utils
+import GL.Utils hiding(Period(..))
 import Formatting
 import Formatting.Time(year, month)
 import qualified FA as FA

@@ -32,7 +32,7 @@ import System.FilePath (takeBaseName)
 import System.Directory  
 import Network.Wai(rawQueryString)
 import qualified Data.Conduit.List as C
-import Data.Time.Calendar(weekLastDay, DayOfWeek(..), periodFromDay, Year)
+import Data.Time.Calendar(weekLastDay, periodFromDay, Year, pattern YearMonthDay, diffDays)
 import qualified Data.NoDF as N
 import Data.NoDF ((@>),(@>$),(@=>))
 import Data.NoDF.Fold1
@@ -315,7 +315,7 @@ dispatchReport today reportName __width __height = do
       fiscalYearEnd = calculateDate (AddDays (-1)) $ calculateDate (AddMonths 12) fiscalYear
       
       reportMaker = case reportName of
-        "salesCurrentMonthP" -> salesCurrentMonth id reportName
+        "salesCurrentMonthP" -> salesCurrentMonth True id reportName
         "top20ItemMonth" -> top20ItemMonth id slidingMonth skuColumn
         "top20StyleMonth" -> top20ItemMonth id slidingMonth styleColumn
         "top20ColourMonth" -> top20ItemMonth id slidingMonth variationColumn
@@ -329,16 +329,16 @@ dispatchReport today reportName __width __height = do
         "top100StyleYear" -> top100ItemYear False styleColumn
         "top100ColourYear" -> top100ItemYear False variationColumn
 
-        "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentUp reportName 
-        "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember (Just AlignToEnd)) reportName 
-        "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd (Just AlignToEnd)) reportName
-        "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd (Just AlignToEnd) ) reportName
-        "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd (Just AlignToEnd)) reportName
-        "salesCurrentMonthFull20" -> salesCurrentMonth (rep20 . salesCurrentUp) reportName 
-        "salesCurrentYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum beginJanuary endDecember Nothing) reportName 
-        "salesSlidingYearFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum slidingYear slidingYearEnd Nothing) reportName
-        "salesSlidingYearFullBackward20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSumBack slidingYear slidingYearEnd Nothing) reportName
-        "salesCurrentFiscalFull20" -> salesCurrentMonth (rep20 . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd Nothing) reportName
+        "salesCurrentMonthFull" -> salesCurrentMonth True salesCurrentUp reportName 
+        "salesCurrentYearFull" -> salesCurrentMonth False (salesCurrentYearUp RunSum beginJanuary endDecember (Just AlignToEnd)) reportName 
+        "salesSlidingYearFull" -> salesCurrentMonth False (salesCurrentYearUp RunSum slidingYear slidingYearEnd (Just AlignToEnd)) reportName
+        "salesSlidingYearFullBackward" -> salesCurrentMonth False (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd (Just AlignToEnd) ) reportName
+        "salesCurrentFiscalFull" -> salesCurrentMonth False ((\param -> param  {rpNumberOfPeriods = Just 5}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd (Just AlignToEnd)) reportName
+        "salesCurrentMonthFull20" -> salesCurrentMonth False (rep20 . salesCurrentUp) reportName 
+        "salesCurrentYearFull20" -> salesCurrentMonth False (rep20 . salesCurrentYearUp RunSum beginJanuary endDecember Nothing) reportName 
+        "salesSlidingYearFull20" -> salesCurrentMonth False (rep20 . salesCurrentYearUp RunSum slidingYear slidingYearEnd Nothing) reportName
+        "salesSlidingYearFullBackward20" -> salesCurrentMonth False (rep20 . salesCurrentYearUp RunSumBack slidingYear slidingYearEnd Nothing) reportName
+        "salesCurrentFiscalFull20" -> salesCurrentMonth False (rep20 . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd Nothing) reportName
         "top20ItemMonthFull" -> top20ItemMonth top20FullUp slidingMonth skuColumn
         "top20StyleMonthFull" -> top20ItemMonth top20FullUp slidingMonth styleColumn
         "top20ColourMonthFull" -> top20ItemMonth top20FullUp slidingMonth variationColumn
@@ -401,8 +401,8 @@ top20FullUp param = param {rpDataParam2,rpDataParam3} where
       -- rpDataParam3 = DataParams QPSales (mkIdentifialParam quantityOutOption) Nothing
 -- | Sales current months
 
-salesCurrentMonth:: (?today :: Day) => (ReportParam -> ReportParam) -> Text -> Handler (Widget, ReportParam)
-salesCurrentMonth f plotName = do
+salesCurrentMonth:: (?today :: Day) => Bool -> (ReportParam -> ReportParam) -> Text -> Handler (Widget, ReportParam)
+salesCurrentMonth monthly f plotName = do
   let today = ?today
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   -- The display period is the current month. However, during the first days of a new month
@@ -461,53 +461,88 @@ salesCurrentMonth f plotName = do
                 , ("yaxis", "y2")
                 , ("showlegend", toJSON True)
               ]
-      -- TODO factorize
-      -- grouper = [ -- rpPanelRupture,
-      --             rpBand , rpSerie
-      --           , rpColumnRupture param
-      --           ]
-  -- report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
+      adjToday@(YearMonthDay yr mth day) = min today $ RT.rpToday param
+      foldWeekly = Align EndOf $ Weekly $ dayOfWeek (adjToday)
+      foldDaily = Chain []
+      foldMonthly = Align StartOf $ Monthly day
   report <- do 
-               let from = (fromMaybe beginMonth $ RT.rpFrom param) 
-                   previousYear = calculateDate (AddYears -1) from
-                   to = (fromMaybe endMonth $ RT.rpTo param) 
-               tracess <- forM (zip [0..] (explodeParamPeriods param {RT.rpFrom = Just previousYear })) \(period, periodParam)  -> do
-                  salesConduits <- itemSalesConduitH periodParam
+               let from0 = (fromMaybe beginMonth $ RT.rpFrom param) 
+                   to0 = (fromMaybe endMonth $ RT.rpTo param) 
+               tracess <- forM (zip [0..] (explodeParamPeriods param )) \(period, (periodParam, folder))  -> do
+                  let fromM = RT.rpFrom periodParam 
+                      window = traceShowId if monthly 
+                                              then fromInteger $ diffDays to0 from0 + 1 
+                                              else 364 -- 52 weeks
+                      Just previousYear = fmap (calculateDate $ AddDays $ -window) fromM
+                  salesConduits <- itemSalesConduitH periodParam {rpFrom = Just previousYear}
                   sales <- runDB $ runConduit $ salesConduits
-                                                .| C.mapMaybe (\(tkey, tqp) ->fmap (let foldedDay = fst $ foldDay param tkey {tkPeriod = period}
-                                                                                        group = case cpColumn (rpColumnRupture param)  of
-                                                                                                   Just col | NMapKey (PersistDay day) <-  colFn col param tkey   -> day
-                                                                                                   _ -> foldedDay
-                                                                                                 
-                                                                                        
-                                                                                    in (foldedDay, group, ) . qpAmount Outward
-                                                                                   )
-                                                                                   (salesQPrice tqp)
+                                                .| C.mapMaybe (\(tkey, tqp) ->
+                                                        fmap ( let foldedDay = folder (tkDay tkey)
+                                                               in (foldedDay,) . qpAmount Outward
+                                                             )
+                                                             (salesQPrice tqp)
                                                               )
                                                 .| conduitVector 1000
                                                 .| sinkList
-                  return $ salesTraces (cycle defaultColors !! period ) previousYear from to (mconcat sales)
+                  let formatPeriod = maybe "" $ formatTime defaultTimeLocale "%Y"
+                      periodName =  pack $ formatPeriod fromM <> " - " <> formatPeriod (RT.rpTo periodParam)
+                  return $ salesTraces (cycle defaultColors !! period )
+                                       periodName
+                                       (if monthly then foldDaily else foldWeekly)
+                                       window
+                                       (if monthly then foldWeekly else foldMonthly)
+                                       previousYear from0 (if period == 0 then adjToday else to0)
+                                       (mconcat sales)
                   --                   ^^^^^^   dates have been folded so they are all in the initial period range
                return $ plotSalesTraces plotName tracess
 
   return $ (report, param)
 
 
-salesTraces :: Text -> Day -> Day -> Day -> (Vector (Day, Day, Amount)) -> [Value]
-salesTraces colour previousYear from to (N.SomeSized day'amounts) = 
-   let N.Z3 n_day _n_group n_amount = day'amounts
+-- we need                                                     Month      Year
+--   "resolution" for cumul                                    Day        Week
+--                    bar                                      Day        Month
+--                    average dot (same as cumul               Week?      week
+--                    avegare spline same as cumul ???         Day        Week
+--        
+salesTraces :: Text -> Text -> DateCalculator -> Int -> DateCalculator ->  Day -> Day -> Day -> (Vector (Day, Amount)) -> [Value]
+salesTraces colour periodName cumulPeriod windowSize barPeriod previousYear from to (N.SomeSized day'amounts) = 
+   let N.Z2 n_day n_amount = day'amounts
    -- regroup everything by "day"
    in N.grouping n_day \case {
       nDdNN ->  let d_day = N.witems nDdNN @=> n_day -- first day of group
                     d_amount = F.sum <$> N.witems nDdNN @>$ n_amount
                     mean v = F.sum v / fromIntegral (F.length v)
-                    current = N.filtering (>= from) d_day \case {
-                            sDdS -> [aesonQQ| { x: #{N.windex sDdS @> d_day}
-                                               , y: #{N.postscanl (+) 0 $ N.windex sDdS @> d_amount}
-                                               , mode: "lines"
-                                               , marker: { color: #{colour} }
-                                    }
-                                    |]
+                    currents = N.filtering (>= from) d_day  \case {
+                            sDdS -> [N.segmenting (N.windex sDdS @> fmap (calculateDate cumulPeriod) d_day) \case {
+                                 pSsPP | pDD <- N.witems pSsPP N.@>$ N.windex sDdS
+                                       -> [aesonQQ| { x: #{pDD @=> d_day}
+                                                     , y: #{N.postscanl (+) 0 $ fmap F.sum $ pDD @>$ d_amount}
+                                                     , mode: "lines"
+                                                     , name: #{periodName}
+                                                     , marker: { color: #{colour} }
+                                          }
+                                          |]
+                                       }
+                                    , let d_barDay = fmap (calculateDate barPeriod) d_day
+                                      in N.segmenting (N.windex sDdS @> d_barDay) \case {
+                                    pSsPP | pDD <- N.witems pSsPP N.@>$ N.windex sDdS
+                                          -> [aesonQQ| { x: #{pDD @=> d_barDay}
+                                                        , y: #{fmap F.sum $ pDD @>$ d_amount}
+                                                        , type: "bar"
+                                                        , name: #{periodName}
+                                                        , yaxis: "y2"
+                                                        , marker: { color: #{colour},
+                                                                    pattern: { shape: "\\",
+                                                                               fgopacity: 0.5,
+                                                                               size: 2
+                                                                               },
+                                                                    line: { width: 1, color: #{colour}}
+                                                                  }
+                                             }
+                                             |]
+                            }
+                                 ]
                     }
                     -- MOVING AVERAGE
                     averageds = case fromList [previousYear..to] of  {
@@ -516,7 +551,7 @@ salesTraces colour previousYear from to (N.SomeSized day'amounts) =
                                          _ allDaysJjDD -> F.sum <$> N.wbroadcast allDaysJjDD @>$ d_amount
                                          }
 
-                         alldays_smooth = F.sum <$> N.witems (N.moving 365) @>$ alldays_amounts
+                         alldays_smooth = F.sum <$> N.witems (N.moving windowSize) @>$ alldays_amounts
                          alldays_smooth2 = mean <$> N.witems (N.moving 7) @>$ alldays_smooth
                          in N.filtering (>=from) alldays_day \case 
                          -- in N.filtering (const True) alldays_day \case 
@@ -524,27 +559,30 @@ salesTraces colour previousYear from to (N.SomeSized day'amounts) =
                                        in -- drop 1
                                           [[aesonQQ| { x: #{x}
                                                     , y: #{smooth}
-                                                    , mode: "markers"
+                                                    , mode: "markers" 
+                                                    , name: #{periodName}
                                                     , opacity: 0.2
                                                     , marker: { color: #{colour} }
                                                     , line: { color: #{colour}
-                                                            , dash: "dot"
-                                                            , width: 1
+                                                            , width: 5
                                                             }
                                                     }
                                                   |]
                                           , [aesonQQ| { x: #{x}
                                                     , y: #{smooth2}
                                                     , marker: { color: #{colour} }
+                                                    , mode: "lines"
+                                                    , name: #{periodName}
                                                     , line: {color: #{colour}
+                                                            , dash: "10px 2px"
                                                             , width: 1
                                                             }
                                                     }
                                                   |]
                                   ]
                     }
-                in current
-                   : averageds
+                in currents
+                   <> averageds
       }
 
 
@@ -560,6 +598,7 @@ plotSalesTraces plotName tracess =  do
                   , { margin: { t: 30 }
                     , hovermode: "x unified"
                     , yaxis2: {anchor: "x", overlaying: "y", side: "right"}
+                    , yaxis3: {anchor: "x", overlaying: "y", side: "right"}
                     , height: 400
                     }
                   );
