@@ -67,6 +67,7 @@ data Adjustment = Adjustment
   { aAdj :: [StockAdjustmentDetail]
   , aTakes :: [(Entity Stocktake, Text)]
   }
+  deriving Show
 
 data Move = Move
   { tMove :: FA.StockMove
@@ -76,10 +77,11 @@ data Move = Move
   , tPickers :: Maybe Text
   , tPackers :: Maybe Text
   }
+  deriving Show
  
 loadHistory :: Text -> Handler [ItemEvent]
 loadHistory sku = do
-  (moves, takes) <- runDB $ liftA2 (,) (loadMoves sku) (loadTakes sku)
+  (moves, takes) <- runDB $ liftA2 (,) (loadMovesAscDay sku) (loadTakesAscDay sku)
   return . take 200 . reverse $ makeEvents moves takes
 
 
@@ -91,7 +93,7 @@ historyToTable (faUrl, renderUrl) events = let
   rows = [ (valueFor (urlForFA faUrl, renderUrl) event, [])
          | event <- events
          ]
-  in displayTable columns colDisplay rows
+  in displayTable200 columns colDisplay rows
   
   
 -- inlineAll' ::  [Text] -> Markup
@@ -294,29 +296,66 @@ makeEvents moves takes = let
 -- however, within the same day, adjustment needs to be move after the corresponding stocktakes.
 -- But, delivery needs to be done prior to stocktake. We normally dont do stock take on delivery day
 -- therefore, the stocktake is probably the result of the delivery itself.
+-- We therefore group things by day and 
 interleaveEvents :: [(Key FA.StockMove, Move)] -> [Adjustment] -> [Either Move Adjustment]
 interleaveEvents moves takes =  let
-  moves' = [ (( FA.stockMoveTranDate (tMove move)
-              , case(isJust (tAdjId move), toEnum $ FA.stockMoveType (tMove move)) of
-                (True, _ ) ->  3
-                -- But, delivery needs to be done prior to stocktake. We normally dont do stock take on delivery day
-                -- therefore, the stocktake is probably the result of the delivery itself.
-                (_, ST_SUPPRECEIVE) -> -1
-                _ -> 2
-              , fromIntegral $ FA.unStockMoveKey key), Left move)
-           | (key, move) <- moves
-           ]
-  takes' = [ ((date, 1, (maybe 0 (fromIntegral . unStockAdjustmentKey) $ stocktakeAdjustment  . entityVal . fst $ headEx ts)), Right a)
-           | a@(Adjustment __adj ts) <- takes
-           , let date = maximumEx $ map (stocktakeDate . entityVal . fst) ts
-           ]
-  in map snd $ sortBy (comparing fst) (moves' ++ takes')
+   moveDate :: (Key FA.StockMove, Move) -> Day
+   moveDate = FA.stockMoveTranDate . tMove . snd
+   adjDate :: Adjustment -> Day
+   adjDate (Adjustment _ []) = error "The unexpected has happend, please contact your administrator!"
+   adjDate (Adjustment _ takes) = maximumEx $ map (stocktakeDate . entityVal . fst) takes
+   merge :: [(Key FA.StockMove, Move)] -> [Adjustment] -> [(Day, Either (Key FA.StockMove, Move) Adjustment)]
+   merge ms [] = [(moveDate m,  Left m) | m <- ms ]
+   merge [] as = [(adjDate a,  Right a) | a <- as ]
+   merge mz@(m:ms) az@(a:as) = let mDate = moveDate m
+                                   aDate = adjDate a
+                               in if mDate <= aDate
+                                  then (mDate, Left m) : merge ms az
+                                  else (aDate, Right a) : merge mz as
+   byDay = groupBy ((==) `on` fst) $ merge moves takes
+   in concatMap (orderTransInDay . map snd) byDay
+
+-- | Sort transaction so that stocktake are just after their corresponding move
+orderTransInDay :: [ Either (Key FA.StockMove, Move) Adjustment] -> [Either Move Adjustment]
+orderTransInDay trans = let
+   (key'moves, takes) = partitionEithers trans
+   -- add priority
+   -- Stock
+   typePriority move = case tAdjId move of 
+                                 Just _  ->  3 -- this is an adjusment at the end of the day
+                                 Nothing | toEnum ( FA.stockMoveType (tMove move) ) == ST_SUPPRECEIVE -> -1  -- delivery morning or day before
+                                 _ -> 2 -- normal move
+   movesWithP = [ ( (typePriority move , fromIntegral $ FA.unStockMoveKey key)
+                  , move
+                  )
+                | (key, move) <- key'moves
+                ]
+   -- assign an order
+   ix'moves :: [(Int, Move)]
+   ix'moves = zip [0,10..] (map snd $ sortOn fst $ movesWithP)
+   -- create a dictionory customer ref with it's position
+   customerDict :: Map Text Int
+   customerDict = mapFromList [ (info, i+1)
+                              | (i, move)  <- ix'moves
+                              , toEnum ( FA.stockMoveType (tMove move)) == ST_CUSTDELIVERY
+                              , let info = "MOP: " <> tInfo move <> " (partial)"
+                              ]
+   maxIx = fromMaybe 0 ( maximumMay (map fst ix'moves)) + 10
+   --      ^^^^^^^^^^   If there is no moves , there is no way (nor need) to reorder stocktakes
+   -- get the i of a customer
+   ix'takes = [ (ix, t)
+              | t <- takes
+              , let info =  fromMaybe "OHO" $ headMay $ mapMaybe (stocktakeComment . entityVal . fst) $ aTakes t
+              , let ix = findWithDefault maxIx info customerDict
+              ]
+   in map snd 
+    $ sortOn fst 
+    $ map (fmap Left) ix'moves <> map (fmap Right) ix'takes 
 
 
-
-loadMoves :: Text -> SqlHandler [(Key FA.StockMove, Move)]
-loadMoves sku = do
-  let sql = "SELECT ??, COALESCE(br_name, supp_name), event_no, pickers, packers FROM 0_stock_moves"
+loadMovesAscDay :: Text -> SqlHandler [(Key FA.StockMove, Move)]
+loadMovesAscDay sku = do
+  let sql = "SELECT ??, COALESCE(branch_ref, br_name, supp_name), event_no, pickers, packers FROM 0_stock_moves"
             <> supp <> customer <> adj
             <> "LEFT JOIN (" <> operators <> ") operators ON debtor_trans_no = 0_stock_moves.trans_no "
             <>" WHERE stock_id = ? AND loc_code = 'DEF' AND qty != 0 "
@@ -345,20 +384,23 @@ loadMoves sku = do
   return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)) adj0 picker packer)
          | (Entity key move, Single info, Single adj0, Single picker, Single packer) <- moves ]
 
-loadTakes :: Text -> SqlHandler [Adjustment]
-loadTakes sku = do
+loadTakesAscDay :: Text -> SqlHandler [Adjustment]
+loadTakesAscDay sku = do
   let sql = "SELECT ??, nickname FROM fames_stocktake "
             <> " JOIN fames_operator USING (operator_id) "
             <> " WHERE stock_id = ? ORDER BY date"
   takes <- rawSql sql [PersistText sku]
   -- join manual with the adjustment if any
   details <- selectList [StockAdjustmentDetailStockId ==. sku] [Asc StockAdjustmentDetailId]
-  let takesByKey = Map.fromListWith (++) [(stocktakeAdjustment (entityVal take0), [(take0, operator)])
+  -- vvvvvv  the date is only there to not aggregate in one all the stock takes without adjustments
+  let takesByKey = Map.fromListWith (++) [ ( (stocktakeDate $ entityVal take0, stocktakeAdjustment (entityVal take0))
+                                           , [(take0, operator)]
+                                           )
                                          | (take0, Single operator) <- takes
                                          ]
       detailsByKey = Map.fromListWith (++) [(stockAdjustmentDetailAdjustment d, [d]) | (Entity _ d) <- details]
 
-  return [Adjustment ( concat $ k >>= flip Map.lookup detailsByKey) ts | (k, ts) <- Map.toList takesByKey]
+  return [Adjustment ( concat $ k >>= flip Map.lookup detailsByKey) ts | ((_,k), ts) <- Map.toList takesByKey]
 
 
 
