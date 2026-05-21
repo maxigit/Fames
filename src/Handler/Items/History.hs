@@ -346,13 +346,20 @@ orderTransInDay trans = let
                               , toEnum ( FA.stockMoveType (tMove move)) == ST_CUSTDELIVERY
                               , let info = "MOP: " <> tInfo move <> " (partial)"
                               ]
+   -- Check 
+   isDelivery :: Adjustment -> Bool
+   isDelivery a = let barcodes = map (stocktakeBarcode . entityVal . fst) (aTakes a)
+                  in any ("DL" `isPrefixOf`) barcodes
+                     
    maxIx = fromMaybe 0 ( maximumMay (map fst ix'moves)) + 10
    --      ^^^^^^^^^^   If there is no moves , there is no way (nor need) to reorder stocktakes
    -- get the i of a customer
    ix'takes = [ (ix, t)
               | t <- takes
               , let info =  fromMaybe "OHO" $ headMay $ mapMaybe (stocktakeComment . entityVal . fst) $ aTakes t
-              , let ix = findWithDefault maxIx info customerDict
+              , let ix = if isDelivery t 
+                         then -1000
+                         else findWithDefault maxIx info customerDict
               ]
    in map snd 
     $ sortOn fst 
