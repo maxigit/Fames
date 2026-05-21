@@ -14,6 +14,7 @@ import Handler.Items.Category.Cache
 import Data.List(nub)
 import Data.Maybe(fromJust)
 import Handler.Customers.DPD
+import Handler.Customers.RoyalMail
 import Handler.Customers.ShippingDetails
 import Data.ISO3166_CountryCodes
 import qualified Data.Map as Map
@@ -44,6 +45,7 @@ data CustomerInfo = CustomerInfo
   , custBranchArea :: FA.Area
   } 
 
+data Provider = DPD | RoyalMail deriving (Show, Read)
 --   __                  _   _                 
 --  / _|_   _ _ __   ___| |_(_) ___  _ __  ___ 
 -- | |_| | | | '_ \ / __| __| |/ _ \| '_ \/ __|
@@ -227,9 +229,12 @@ postCustInvoiceDPDR key =  do
   today <- todayH
   userm <- currentFAUser
   settingsm <- getsYesod (appDPDSettings . appSettings)
+  providerM <- lookupPostParam "provider"
   let settings = fromMaybe (error "Shipping settings missing. Please contact your administrator.")
                            settingsm
-
+      provider = case providerM of 
+                      Just "Royal Mail" -> RoyalMail
+                      _ -> DPD
 
   ((resp, __formW), __encType) <- runFormPost (shippingForm Nothing Nothing Nothing)
   case resp of
@@ -248,7 +253,7 @@ postCustInvoiceDPDR key =  do
           productDetails = concatMap (applyBoxNumber boxNumberMap (shNoOfPackages params)
                                      . mkProductDetail categoryFinder UsePPD ) (iiDetails info)
       
-          filename = shShortName params <> "-Invoice-" <> tshow  key <> ".csv"
+          filename = shShortName params <> "-Invoice-" <> tshow  key <> "-" <> tshow provider <> ".csv"
           -- save shipping details
           -- we need as well as the shipping details key
           -- to save the details with the exact key as the one
@@ -267,7 +272,10 @@ postCustInvoiceDPDR key =  do
           
       ---
       setAttachment $ fromString $ unpack filename
-      respondSource ("text/csv") (makeDPDSource delivery productDetails .| mapC toFlushBuilder)
+      let makeProviderSource = case provider of 
+                      DPD -> makeDPDSource 
+                      RoyalMail -> makeRoyalMailSource
+      respondSource ("text/csv") (makeProviderSource delivery productDetails .| mapC toFlushBuilder)
 
 -- | Extract box number (in which box an item is)
 -- from post data.
@@ -689,7 +697,8 @@ dpdExportFrom info detailKeyM  = do
       ^{invoiceSummary info}
       ^{contactSummary $ cuContact customerInfo}
       ^{form}
-      <button.btn.btn-warning> Download
+      <button.btn.btn-warning name="provider" value="DPD"> DPD
+      <button.btn.btn-danger name="provider" value="Royal Mail"> RoyalMail
   |], encType)
    
 -- | Displays all information

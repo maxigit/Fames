@@ -12,6 +12,7 @@ module Handler.Customers.DPD
 , ServiceCode(..)
 , PRD(..)
 , makeDPDSource
+, deliveryToFields
 ) where
 import Import    hiding((.=))
 import Data.Csv
@@ -123,6 +124,7 @@ instance ToField ReasonForExport where
 -- ** NamedRecord 
 instance ToNamedRecord Delivery where
   toNamedRecord = namedRecord . deliveryToFields
+deliveryToFields :: Delivery -> [(ByteString, ByteString)]
 deliveryToFields Delivery{..} =
     [ "Delivery customer ref. 1" .= reference
     , "Delivery organisation/name" .= organisation'name

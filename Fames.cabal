@@ -175,6 +175,7 @@ library
       Handler.Customers.Lookup
       Handler.Customers.Map
       Handler.Customers.ShippingDetails
+      Handler.Customers.RoyalMail
       Handler.Dashboard
       Handler.FA
       Handler.FA.Def
