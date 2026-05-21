@@ -1,5 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, DeriveFunctor, DeriveTraversable  #-}
 module Handler.Customers.Invoices
 ( getCustInvoicesR
 , getCustInvoiceCCodesR
@@ -13,8 +13,9 @@ import Yesod.Form.Bootstrap3
 import Handler.Items.Category.Cache
 import Data.List(nub)
 import Data.Maybe(fromJust)
-import Handler.Customers.DPD
-import Handler.Customers.RoyalMail
+import Handler.Customers.DPD as DPD
+import Handler.Customers.RoyalMail hiding (Delivery)
+import qualified Handler.Customers.RoyalMail as RoyalMail
 import Handler.Customers.ShippingDetails
 import Data.ISO3166_CountryCodes
 import qualified Data.Map as Map
@@ -249,8 +250,7 @@ postCustInvoiceDPDR key =  do
                           , "dpd-origin"
                           ]
       boxNumberMap <- getBoxNumberMap
-      let delivery = mkDelivery info params settings
-          productDetails = concatMap (applyBoxNumber boxNumberMap (shNoOfPackages params)
+      let productDetails = concatMap (applyBoxNumber boxNumberMap (shNoOfPackages params)
                                      . mkProductDetail categoryFinder UsePPD ) (iiDetails info)
       
           filename = shShortName params <> "-Invoice-" <> tshow  key <> "-" <> tshow provider <> ".csv"
@@ -273,9 +273,12 @@ postCustInvoiceDPDR key =  do
       ---
       setAttachment $ fromString $ unpack filename
       let makeProviderSource = case provider of 
-                      DPD -> makeDPDSource 
-                      RoyalMail -> makeRoyalMailSource
-      respondSource ("text/csv") (makeProviderSource delivery productDetails .| mapC toFlushBuilder)
+                      DPD | Just p <- traverse readMay params -> makeDPDSource (mkDelivery info p settings)
+                      RoyalMail | ps <- traverse (mapMaybe readMay . words) params  -> let deliveries = map (\p -> mkDelivery info p settings) ps
+                                                                                           delivery d = zipWith (RoyalMail.Delivery . ($ d)) deliveries [1..]
+                                                                                       in makeRoyalMailSource delivery
+                      _ -> error $ "weight is not valid"
+      respondSource ("text/csv") (makeProviderSource productDetails .| mapC toFlushBuilder)
 
 -- | Extract box number (in which box an item is)
 -- from post data.
@@ -324,7 +327,7 @@ applyBoxNumber boxNumberMap noOfPackages detail =
     
 
   
-mkDelivery :: InvoiceInfo -> ShippingForm -> DPDSettings -> Double -> Delivery
+mkDelivery :: InvoiceInfo -> ShippingForm Double -> DPDSettings -> Double -> Delivery
 mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
   Delivery{
     shipperContactTelephone = mconcat $ words shipperContactTelephone
@@ -404,7 +407,7 @@ mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} =
       _ -> ProductDetail{..} where
   
   
-data ShippingForm = ShippingForm
+data ShippingForm weight = ShippingForm
   { shShortName :: Text
   , shCountry :: Maybe CountryCode -- mandatory but we need to not have a default value
   , shPostalCode :: Text
@@ -418,7 +421,7 @@ data ShippingForm = ShippingForm
   , shNotificationEmail :: Maybe Text
   , shNotificationText :: Maybe Text
   , shNoOfPackages :: Int
-  , shWeight :: Double
+  , shWeight :: weight
   , shAdditionalInformation :: Maybe Text
   , shGenerateCustomData :: Bool
   , shTaxId :: Maybe Text
@@ -427,7 +430,7 @@ data ShippingForm = ShippingForm
   -- , shCustomValue ::  Double
   , shServiceCode :: ServiceCode
   , shSave :: Bool
-  } deriving Show
+  } deriving (Show, Functor, Foldable, Traversable)
 
   
 -- | prefill a shipping form, allowing the end user to check
@@ -435,7 +438,7 @@ data ShippingForm = ShippingForm
 -- Also returns an extra widget with extra information like
 -- full address, order comments etc ...
 fillShippingForm :: InvoiceInfo -> CustomerInfo -> Maybe (Key ShippingDetails)
-                 -> Handler (ShippingForm, (ShippingDetails
+                 -> Handler (ShippingForm Text, (ShippingDetails
                                            , Maybe (Match, ShippingDetails)))
 fillShippingForm info customerInfo detailKeyM = do
   userm <- currentFAUser
@@ -464,7 +467,7 @@ fillShippingForm info customerInfo detailKeyM = do
         shNotificationEmail =  (personm >>= FA.crmPersonEmail) <|> (Just "<Email>")
         shNotificationText =  ((personm >>= FA.crmPersonPhone2) <|> (personm >>= FA.crmPersonPhone)) <|> (Just "<Text>")
         shNoOfPackages = 1
-        shWeight = 9
+        shWeight = "9"
         shAdditionalInformation = Nothing
         (shTaxId, shImporterVAT, shImporterUKIMS ) =
           case words $ FA.debtorsMasterTaxId customer of
@@ -515,8 +518,8 @@ countryMap = Map.fromList $ map (fanl tshow) [minBound..maxBound]
 
 -- | Displays a form in the shape of a table showing also the values
 -- present in FrontAccounting DPD
-shippingForm :: Maybe ShippingDetails -> Maybe (Match, ShippingDetails) ->  Maybe ShippingForm 
-              -> Html -> MForm Handler (FormResult ShippingForm, Widget)
+shippingForm :: Maybe ShippingDetails -> Maybe (Match, ShippingDetails) ->  Maybe (ShippingForm  Text)
+              -> Html -> MForm Handler (FormResult (ShippingForm Text), Widget)
 shippingForm fam m'dpdm (shipm)  extra =  do
     shortName <- mreq textField (f 35 "Short Name") (ship <&> take 35 . shShortName)
     country <- mopt (selectField countryOptions) "Country" (ship <&> shCountry)
@@ -531,7 +534,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     notificationEmail <- mopt textField (size 35 $ f 100 "Notification Email") (ship <&> fmap (take 100) . shNotificationEmail)
     notificationText <- mopt textField (f 35 "Notification Text") (ship <&>  fmap (take 35) .shNotificationText)
     noOfPackages <- mreq intField "No of Packages" Nothing
-    weight <- mreq doubleField "Weight" (ship <&> shWeight)
+    weight <- mreq textField "Weight" (ship <&> shWeight)
     additionalInformation <- mopt textField (size 35 $ f 50 "Additional Information") (ship <&> fmap (take 50) . shAdditionalInformation)
     generateCustomData <- mreq boolField "Custom Data" (ship <&> shGenerateCustomData)
     taxId <- mopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
@@ -658,7 +661,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
   tlabel l = td [shamlet|<label>#{l}|]
     
 -- | Truncate each fields of a form to its max length
-truncateForm :: ShippingForm -> ShippingForm
+truncateForm :: ShippingForm weight -> ShippingForm weight
 truncateForm ShippingForm{..} =
   ShippingForm (take 35 shShortName)
                (shCountry)
@@ -838,7 +841,7 @@ loadCustomerInfo debtorNo branchNo = do
 
 
 
-toDetails :: Maybe FA.User  -> Text ->  ShippingForm -> ShippingDetails
+toDetails :: Maybe FA.User  -> Text ->  ShippingForm weight -> ShippingDetails
 toDetails userm shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey = key } where
   shippingDetailsShortName = shShortName
   shippingDetailsPostCode =  shPostalCode
@@ -866,7 +869,7 @@ toDetails userm shippingDetailsCourrier ShippingForm{..} = details {shippingDeta
   
 
 
-fromDetails :: ShippingForm -> ShippingDetails -> ShippingForm
+fromDetails :: ShippingForm weight -> ShippingDetails -> ShippingForm weight
 fromDetails template ShippingDetails{..} = ShippingForm{..} where
   shShortName = shippingDetailsShortName
   shCountry = shippingDetailsCountry

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Handler.Customers.RoyalMail
-(
-makeRoyalMailSource
+( Delivery(..)
+, makeRoyalMailSource
 )
 where 
 
@@ -63,16 +63,13 @@ deliveryToFields Delivery{..} = let
    
    
   
-makeRoyalMailSource :: (Double -> DPD.Delivery) -> [ProductDetail] -> ConduitT () (L.ByteString) Handler ()
+makeRoyalMailSource :: (Double -> [ Delivery ]) -> [ProductDetail] -> ConduitT () (L.ByteString) Handler ()
 --  makeRoyalMailSource _ [] = error "Invoice without product details"
 makeRoyalMailSource mkDelivery _details = do
- let deliveries = fromDPDDeliveries $ mkDelivery (error "total cost not set ???")
+ let deliveries = mkDelivery 0 -- (error "total cost not set ???")
      devHeader = header $ map fst $ deliveryToFields $ headEx deliveries
  yield $ encodeByName devHeader deliveries
 
-
-fromDPDDeliveries :: DPD.Delivery -> [ Delivery ]
-fromDPDDeliveries dpd = [ Delivery dpd 1 ]
 
     
 
