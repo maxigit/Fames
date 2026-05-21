@@ -48,7 +48,9 @@ span.badge.Packers
   color: black
                 |]
         historyToTable (faUrl, renderUrl) history
-  html <- defaultLayout tableW
+  html <- defaultLayout do
+       [whamlet|<h1>#{sku}|]
+       tableW
   pushLinks sku (ItemsR (ItemsHistoryR sku)) []
   return html
 
