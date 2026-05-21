@@ -178,11 +178,15 @@ valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info a
                                           , [])
   "Location" -> Just (toHtml (stockMoveLocCode), [])
   "Date" -> Just (toHtml (tshow stockMoveTranDate), [])
-  "In" -> let bg = if toEnum stockMoveType == ST_LOCTRANSFER -- found
-                   then okBadge
-                   else inBadge
+  "In" -> let bg = case toEnum stockMoveType of
+                       ST_LOCTRANSFER -> okBadge -- Found
+                       ST_CUSTCREDIT -> Just "#c9e2a5"
+                       _  -> inBadge  
           in Just (badgeSpan' bg stockMoveQty "", [])
-  "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
+  "Out" -> let bg = case toEnum stockMoveType of 
+                         ST_CUSTDELIVERY -> Just "pink"
+                         _ -> outBadge
+           in Just (badgeSpan' bg (-stockMoveQty) "", [])
   "Operator" -> Just (displayPkers "Pickers" pickers >> displayPkers "Packers" packers, [])
   "Info" -> Just (toHtml info, [])
   _ -> Nothing
