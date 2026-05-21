@@ -363,7 +363,7 @@ loadMovesAscDay :: Text -> SqlHandler [(Key FA.StockMove, Move)]
 loadMovesAscDay sku = do
   let sql = "SELECT ??, COALESCE(branch_ref, br_name, supp_name), event_no, pickers, packers FROM 0_stock_moves"
             <> supp <> customer <> adj
-            <> "LEFT JOIN (" <> operators <> ") operators ON debtor_trans_no = 0_stock_moves.trans_no "
+            <> "LEFT JOIN (" <> operators <> ") operators ON (debtor_trans_no = 0_stock_moves.trans_no AND 0_stock_moves.type = 13 )"
             <>" WHERE stock_id = ? AND loc_code = 'DEF' AND qty != 0 "
             <> " ORDER BY tran_date, trans_id "
       supp = " LEFT JOIN 0_suppliers ON (type in (" <> (inTypes [ST_SUPPRECEIVE, ST_SUPPCREDIT]) 
