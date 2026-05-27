@@ -24,7 +24,6 @@ import Data.Time (diffDays,addDays, utcToLocalTime, getCurrentTimeZone)
 import Lens.Micro.Extras (preview)
 import FA as FA
 import GL.Utils
-import GL.Payroll.Settings
 import Text.Shakespeare.Text (st)
 import Data.List(mapAccumL, nub)
 import qualified Data.Map as Map

@@ -26,18 +26,15 @@ import qualified Data.Map as Map
 import Formatting hiding(now)
 import Data.Aeson.QQ(aesonQQ)
 import Control.Monad.Fail (MonadFail(..))
-import Control.Monad(zipWithM)
 import System.FilePath.Glob (glob, match)
 import System.FilePath (takeBaseName)
 import System.Directory  
 import Network.Wai(rawQueryString)
 import qualified Data.Conduit.List as C
-import Data.Time.Calendar(weekLastDay, periodFromDay, Year, pattern YearMonthDay, diffDays)
+import Data.Time.Calendar(pattern YearMonthDay, diffDays)
 import qualified Data.NoDF as N
 import Data.NoDF.Operators
-import Data.NoDF.Fold1
 import qualified Data.Foldable as F
-import Data.Aeson.QQ(aesonQQ)
 import qualified Data.Vector.Sized as N
 
 pivotCss = [cassius|
@@ -460,7 +457,7 @@ salesCurrentMonth monthly f plotName = do
                 , ("yaxis", "y2")
                 , ("showlegend", toJSON True)
               ]
-      adjToday@(YearMonthDay yr mth day) = min today $ RT.rpToday param
+      adjToday@(YearMonthDay _yr _mth day) = min today $ RT.rpToday param
       foldWeekly = Align EndOf $ Weekly $ dayOfWeek (adjToday)
       foldDaily = Chain []
       foldMonthly = Align StartOf $ Monthly day
@@ -476,9 +473,9 @@ salesCurrentMonth monthly f plotName = do
                    to0 = (fromMaybe endMonth $ RT.rpTo param) 
                tracess <- forM (zip [0..] (explodeParamPeriods param )) \(period, (periodParam, folder))  -> do
                   let fromM = RT.rpFrom periodParam 
-                      window = traceShowId if monthly 
-                                              then fromInteger $ diffDays to0 from0 + 1 
-                                              else 364 -- 52 weeks
+                      window = if monthly 
+                               then fromInteger $ diffDays to0 from0 + 1 
+                               else 364 -- 52 weeks
                       Just previousYear = fmap (calculateDate $ AddDays $ -window) fromM
                   salesConduits <- itemSalesConduitH periodParam {rpFrom = Just previousYear}
                   sales <- runDB $ runConduit $ salesConduits
@@ -581,8 +578,10 @@ salesTraces colour periodName cumulPeriod windowSize barPeriod previousYear from
                                        }
                                      |]
                            ]
+                        | otherwise -> error "shouldn't happend, exhaustive pattern"
      in currents
         <> averageds
+   | otherwise = error "shouldn't happend, exhaustive pattern"
 
 
 plotSalesTraces :: Text -> [[Value]] -> Widget
