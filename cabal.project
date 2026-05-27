@@ -24,7 +24,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/maxigit/nodf.git
-  tag: dc9f05d25267ef1828ba4f7fde00aa3b4f44c2c0
+  tag: 38b15d2047464899270f931c1ce7ca73133e3e20
 package nodf
   ghc-options:
     -Wwarn=missing-export-lists

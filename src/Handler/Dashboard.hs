@@ -34,7 +34,7 @@ import Network.Wai(rawQueryString)
 import qualified Data.Conduit.List as C
 import Data.Time.Calendar(weekLastDay, periodFromDay, Year, pattern YearMonthDay, diffDays)
 import qualified Data.NoDF as N
-import Data.NoDF ((@>),(@>$),(@=>))
+import Data.NoDF.Operators
 import Data.NoDF.Fold1
 import qualified Data.Foldable as F
 import Data.Aeson.QQ(aesonQQ)
@@ -273,7 +273,6 @@ getDYearR' suffix = do
   now <- liftIO $ getCurrentTime
   -- refactor
   slidingFull <- reportDiv today $ "salesSlidingYearFull" ++ suffix
-  slidingBack <- reportDiv today $ "salesSlidingYearFullBackward" ++ suffix
   currentFull <- reportDiv today $ "salesCurrentYearFull" ++ suffix
   fiscalFull <- reportDiv today $ "salesCurrentFiscalFull"++ suffix
 
@@ -285,18 +284,18 @@ getDYearR' suffix = do
     <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-1">
       <h2> Full Year
     <div.panel_-body.pivot-inline id=dashboard-panel_-1>
+      <h3> Sliding 
       <div.row>
         <div.col-md-12>
           ^{slidingFull}
+      <h3> From January
       <div.row>
         <div.col-md-12>
           ^{currentFull}
+      <h3> Fiscal
       <div.row>
         <div.col-md-12>
           ^{fiscalFull}
-      <div.row>
-        <div.col-md-12>
-          ^{slidingBack}
   <div.footer>
   <span.text-right.font-italic>
     Last update #{tshow now}
@@ -465,7 +464,14 @@ salesCurrentMonth monthly f plotName = do
       foldWeekly = Align EndOf $ Weekly $ dayOfWeek (adjToday)
       foldDaily = Chain []
       foldMonthly = Align StartOf $ Monthly day
-  report <- do 
+  report <- if plotName == "salesCurrentMonthP"  -- use old report for now to hide prices
+            then  do
+                  let grouper = [ rpBand 
+                                , rpSerie
+                                , rpColumnRupture param
+                                ]
+                  itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
+            else do 
                let from0 = (fromMaybe beginMonth $ RT.rpFrom param) 
                    to0 = (fromMaybe endMonth $ RT.rpTo param) 
                tracess <- forM (zip [0..] (explodeParamPeriods param )) \(period, (periodParam, folder))  -> do
@@ -494,7 +500,7 @@ salesCurrentMonth monthly f plotName = do
                                        previousYear from0 (if period == 0 then adjToday else to0)
                                        (mconcat sales)
                   --                   ^^^^^^   dates have been folded so they are all in the initial period range
-               return $ plotSalesTraces plotName tracess
+               return $ plotSalesTraces (plotName<>"-01") tracess
 
   return $ (report, param)
 
@@ -506,205 +512,96 @@ salesCurrentMonth monthly f plotName = do
 --                    avegare spline same as cumul ???         Day        Week
 --        
 salesTraces :: Text -> Text -> DateCalculator -> Int -> DateCalculator ->  Day -> Day -> Day -> (Vector (Day, Amount)) -> [Value]
-salesTraces colour periodName cumulPeriod windowSize barPeriod previousYear from to (N.SomeSized day'amounts) = 
-   let N.Z2 n_day n_amount = day'amounts
+salesTraces colour periodName cumulPeriod windowSize barPeriod previousYear from to (N.SomeSized day'amounts) 
+   | N.Z2 n_day n_amount <- day'amounts
    -- regroup everything by "day"
-   in N.grouping n_day \case {
-      nDdNN ->  let d_day = N.witems nDdNN @=> n_day -- first day of group
-                    d_amount = F.sum <$> N.witems nDdNN @>$ n_amount
-                    mean v = F.sum v / fromIntegral (F.length v)
-                    currents = N.filtering (>= from) d_day  \case {
-                            sDdS -> [N.segmenting (N.windex sDdS @> fmap (calculateDate cumulPeriod) d_day) \case {
-                                 pSsPP | pDD <- N.witems pSsPP N.@>$ N.windex sDdS
-                                       -> [aesonQQ| { x: #{pDD @=> d_day}
-                                                     , y: #{N.postscanl (+) 0 $ fmap F.sum $ pDD @>$ d_amount}
-                                                     , mode: "lines"
-                                                     , name: #{periodName}
-                                                     , marker: { color: #{colour} }
-                                          }
-                                          |]
-                                       }
-                                    , let d_barDay = fmap (calculateDate barPeriod) d_day
-                                      in N.segmenting (N.windex sDdS @> d_barDay) \case {
-                                    pSsPP | pDD <- N.witems pSsPP N.@>$ N.windex sDdS
-                                          -> [aesonQQ| { x: #{pDD @=> d_barDay}
-                                                        , y: #{fmap F.sum $ pDD @>$ d_amount}
-                                                        , type: "bar"
-                                                        , name: #{periodName}
-                                                        , yaxis: "y2"
-                                                        , marker: { color: #{colour},
-                                                                    pattern: { shape: "\\",
-                                                                               fgopacity: 0.5,
-                                                                               size: 2
-                                                                               },
-                                                                    line: { width: 1, color: #{colour}}
-                                                                  }
-                                             }
-                                             |]
-                            }
-                                 ]
-                    }
-                    -- MOVING AVERAGE
-                    averageds = case fromList [previousYear..to] of  {
-                    N.SomeSized alldays_day -> let
-                         alldays_amounts = N.joining alldays_day d_day \cases {
-                                         _ allDaysJjDD -> F.sum <$> N.wbroadcast allDaysJjDD @>$ d_amount
-                                         }
+   , N.Wal nDdNN <- N.groupV n_day
+   , d_day <- N.walues nDdNN @=> n_day -- first day of group
+   , N.Wix sDdS <- N.filterX (>= from) d_day
+   = let d_amount = F.sum <$> N.walues nDdNN @>$ n_amount
+         mean v = F.sum v / fromIntegral (F.length v)
+         currents = [ case N.segmentV (N.windex sDdS @> fmap (calculateDate cumulPeriod) d_day) of
+                           N.Wal pSsPP | pDD <- N.walues pSsPP N.@>$ N.windex sDdS
+                                 -> [aesonQQ| { x: #{pDD @=> d_day}
+                                               , y: #{N.postscanl (+) 0 $ fmap F.sum $ pDD @>$ d_amount}
+                                               , mode: "lines"
+                                               , name: #{periodName}
+                                               , marker: { color: #{colour} }
+                                              }
+                                    |]
 
-                         alldays_smooth = F.sum <$> N.witems (N.moving windowSize) @>$ alldays_amounts
-                         alldays_smooth2 = mean <$> N.witems (N.moving 7) @>$ alldays_smooth
-                         in N.filtering (>=from) alldays_day \case 
-                         -- in N.filtering (const True) alldays_day \case 
-                                 a' -> let N.Z3 x smooth smooth2  = N.windex a' @> (N.Z3 alldays_day alldays_smooth alldays_smooth2)
-                                       in -- drop 1
-                                          [[aesonQQ| { x: #{x}
-                                                    , y: #{smooth}
-                                                    , mode: "markers" 
-                                                    , name: #{periodName}
-                                                    , opacity: 0.2
-                                                    , marker: { color: #{colour} }
-                                                    , line: { color: #{colour}
-                                                            , width: 5
+                    , let d_barDay = fmap (calculateDate barPeriod) d_day
+                      in case N.segmentV (N.windex sDdS @> d_barDay) of
+                              N.Wal pSsPP | pDD <- N.walues pSsPP N.@>$ N.windex sDdS
+                                    -> [aesonQQ| { x: #{pDD @=> d_barDay}
+                                                  , y: #{fmap F.sum $ pDD @>$ d_amount}
+                                                  , type: "bar"
+                                                  , name: #{periodName}
+                                                  , yaxis: "y2"
+                                                  , marker: { color: #{colour},
+                                                              pattern: { shape: "\\",
+                                                                         fgopacity: 0.5,
+                                                                         size: 2
+                                                                         },
+                                                              line: { width: 1, color: #{colour}}
                                                             }
-                                                    }
-                                                  |]
-                                          , [aesonQQ| { x: #{x}
-                                                    , y: #{smooth2}
-                                                    , marker: { color: #{colour} }
-                                                    , mode: "lines"
-                                                    , name: #{periodName}
-                                                    , line: {color: #{colour}
-                                                            , dash: "10px 2px"
-                                                            , width: 1
-                                                            }
-                                                    }
-                                                  |]
-                                  ]
-                    }
-                in currents
-                   <> averageds
-      }
+                                                  }
+                                       |]
+                   ]
+
+         -- MOVING AVERAGE
+         averageds = if | N.SomeSized alldays_day <- fromList [previousYear..to]
+                        , N.JoinV _ allDaysJjDD <- N.joinV alldays_day d_day
+                        , alldays_amounts <- F.sum <$> N.wbroadcast allDaysJjDD @>$ d_amount
+                        , alldays_smooth <- F.sum <$> N.walues (N.window windowSize) @>$ alldays_amounts
+                        , alldays_smooth2 <- mean <$> N.walues (N.window 7) @>$ alldays_smooth
+                        , N.Wix a' <- N.filterX (>=from) alldays_day
+                           -- in N.filtering (const True) alldays_day \case 
+                        , N.Z3 x smooth smooth2  <- N.windex a' @> (N.Z3 alldays_day alldays_smooth alldays_smooth2)
+                        -> [ [aesonQQ| { x: #{x}
+                                       , y: #{smooth}
+                                       , mode: "markers" 
+                                       , name: #{periodName}
+                                       , opacity: 0.2
+                                       , marker: { color: #{colour} }
+                                       , line: { color: #{colour}
+                                               , width: 5
+                                               }
+                                       }
+                                     |]
+                           , [aesonQQ| { x: #{x}
+                                       , y: #{smooth2}
+                                       , marker: { color: #{colour} }
+                                       , mode: "lines"
+                                       , name: #{periodName}
+                                       , line: {color: #{colour}
+                                               , dash: "10px 2px"
+                                               , width: 1
+                                               }
+                                       }
+                                     |]
+                           ]
+     in currents
+        <> averageds
 
 
 plotSalesTraces :: Text -> [[Value]] -> Widget
 plotSalesTraces plotName tracess =  do
    let plotId = plotName
-   [whamlet|
-     <div id="#{plotId}" style="height:400px">
-   |]
-   toWidgetBody [julius|
+       plot = toWidgetBody [julius|
         Plotly.newPlot( #{toJSON plotId}
                   , #{toJSON (mconcat $ transpose tracess)}
                   , { margin: { t: 30 }
                     , hovermode: "x unified"
                     , yaxis2: {anchor: "x", overlaying: "y", side: "right"}
                     , yaxis3: {anchor: "x", overlaying: "y", side: "right"}
-                    , height: 400
                     }
                   );
-              |]
-directPlotSales :: _ => Text -> (Vector _) -> Widget
-directPlotSales plotName (N.SomeSized n_day'amounts) = do
-  let N.Z4 n_day n_period n_group n_amount = n_day'amounts
-      plotId = plotName
-  N.ordering (N.Z2 n_period n_day) do { \oNnO -> do
-  N.segmenting (N.windex oNnO @> n_day) do { \oDdOO -> do
-  let nDdNN = N.composeItems oNnO oDdOO
-      _x = N.witems nDdNN @>$ n_day
-      -- aggregate days
-      d_day = N.witems nDdNN @=> n_day -- first day
-      d_amount = F.sum <$> N.witems nDdNN @>$ n_amount -- sum things
-  --           vvvvvvvvvvvvdN    d 
-  N.segmenting (N.witems nDdNN @=> n_period) do { \dPpDD -> do
-  let nPpDD = N.composeW nDdNN dPpDD
-      d_period = N.witems nDdNN @=> n_period
-  [whamlet|
-     <table *{datatable}>
-        <fthead>
-          <th> Day
-          <th> Period
-          <th> Amount
-        $forall period_pDD <- N.witems dPpDD
-           <tr>
-             <td> #{tshow $ period_pDD @>  d_day}
-             <td> #{tshow $ head1 $ period_pDD @> d_period}
-             <td> #{tshow $ period_pDD @>  d_amount}
-             $# <td> #{tshow $ N.index (N.witems dNnD @=> n_period) d}
-             $# <td> #{tshow $ N.index d_amount d}
-  |]
-  }}}
-
-   
--- directPlotSales :: NMap (Sum Double, TranQP) -> Widget
-directPlotSalesXXX plotName (N.SomeSized day'amounts_d) = do
-  let N.Z4 day_d period_d group_d amount_d = day'amounts_d
-      plotId = plotName
-  -- group by period then week
-  N.ordering (N.Z2 period_d day_d) \ordered -> do
-             [whamlet|
-                <table *{datatable}>
-                   <fthead>
-                     <th> Day
-                     <th> Period
-                   $# $forall d <- N.windex ordered
-                   $#    <tr>
-                   $#      <td> #{tshow $ N.index day_d d}
-                   $#      <td> #{N.index period_d d}
-             |]
-             N.segmenting (N.windex ordered @> period_d) \by_period_ -> do
-                let by_period = N.composeItems ordered by_period_
-                traces <- zipWithM
-                               do \(Fold1 (N.SomeSized period)) i -> do 
-                                   N.segmenting (period @> group_d)  \by_week ->  do
-                                      -- let week_w = N.witems by_week @=> group_d
-                                      let trace = [aesonQQ|
-                                                    { x: #{day__week}
-                                                      , y: #{amount__week}
-                                                      , mode: "lines"
-                                                      , type: "bar"
-                                                      , marker: { color: #{i},
-                                                                  pattern: { shape: "\\",
-                                                                             fgopacity: 0.5,
-                                                                             size: 2
-                                                                             },
-                                                                  line: { width: 1, color: #{i}}
-                                                                }
-                                                      }
-                                                 |]
-                                          widths = replicate 12 20 :: [Int]
-                                          day__week = N.witems by_week @=> period @> group_d
-                                          amount__week = F.sum <$> N.witems by_week @>$ (period @> amount_d)
-                                          traceDay = [aesonQQ|
-                                                    { x: #{day__period}
-                                                      , y: #{amount__period}
-                                                      , mode: "lines"
-                                                      , type: "line"
-                                                      , "yaxis": "y2"
-                                                      , "showlegend": true
-                                                      , color: #{i}
-                                                      , line: { color: #{i}}
-                                                      }
-                                                     |]
-                                          day__period = period @> day_d
-                                          amount__period = N.postscanl (+) 0 $ period @> amount_d
-                                      return $ [trace, traceDay]
-                               do (F.toList $ N.witems by_period)
-                               do cycle defaultColors
-                [whamlet|
-                  <div id="#{plotId}" style="height:400px">
-                |]
-                toWidgetBody [julius|
-                     Plotly.newPlot( #{toJSON plotId}
-                               , #{toJSON (mconcat $ transpose traces)}
-                               , { margin: { t: 30 }
-                                 , hovermode: "x unified"
-                                 , yaxis2: {anchor: "x", overlaying: "y", side: "right"}
-                                 , height: 400
-                                 }
-                               );
-                           |]
-   
-   
+              |] :: Widget
+   [whamlet|
+     <div id=#{plotId} style="height:400px">
+       ^{plot}
+   |]
 
 -- | Top style
 top20ItemMonth :: (?today :: Day) => (ReportParam -> ReportParam) -> Day -> Column -> Handler (Widget, ReportParam)
