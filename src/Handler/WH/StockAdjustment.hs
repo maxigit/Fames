@@ -181,17 +181,22 @@ postWHStockAdjustmentR = do
       let param = param0 {activeRows = activeRows, quantityBefore = qBefore}
 
       let (w,p) = unzip $ catMaybes
-                  [ style param <&>  (\like -> (" AND stock_id like ?", PersistText like))
+                  [ style param <&>  (\like -> (" AND st.stock_id like ?", PersistText like))
                   , stocktakeDoc param <&> (\key -> (" AND document_key_id = ?", PersistInt64 key))
                   ]
-      let sql = "SELECT stock_id, COALESCE(SUM(quantity),0), MAX(date), GROUP_CONCAT(comment) "
-                <> " FROM fames_stocktake  "
+          (jointable, joinp) = case modulo param of 
+                                    Nothing -> ("", [])
+                                    Just m -> (" JOIN fames_item_category_cache c ON (st.stock_id = c.stock_id AND category = 'stocktake-modulo' AND 'value' = ?) "
+                                              , [ toPersistValue m ])
+      let sql = "SELECT st.stock_id, COALESCE(SUM(quantity),0), MAX(date), GROUP_CONCAT(comment) "
+                <> " FROM fames_stocktake st  "
+                <> jointable
                 <> " WHERE stock_adj_id IS NULL "
                 <> " AND active = 1 "
                 <> (concat w)
-                <> " GROUP BY stock_id "
+                <> " GROUP BY st.stock_id "
 
-      stocktakes <- runDB $ rawSql sql p
+      stocktakes <- runDB $ rawSql sql (joinp <> p)
       results <- catMaybes <$> mapM (qohFor appFADefaultLocation appFALostLocation (UnsureRangeArg (forcePreviousDate param) (forceNextDate param)) (minDate param, maxDate param)) stocktakes
       let withDiff = [(abs (quantityTake0 (mainLocation pre) - quantityAt (mainLocation pre)), pre) |  pre <- results]
           f  (q, pre) = (maybe True (q >=) (minQty param))
