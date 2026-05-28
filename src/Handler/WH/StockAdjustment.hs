@@ -186,7 +186,7 @@ postWHStockAdjustmentR = do
                   ]
           (jointable, joinp) = case modulo param of 
                                     Nothing -> ("", [])
-                                    Just m -> (" JOIN fames_item_category_cache c ON (st.stock_id = c.stock_id AND category = 'stocktake-modulo' AND 'value' = ?) "
+                                    Just m -> (" JOIN fames_item_category_cache c ON (st.stock_id = c.stock_id AND category = 'stocktake-modulo' AND value = ?) "
                                               , [ toPersistValue m ])
       let sql = "SELECT st.stock_id, COALESCE(SUM(quantity),0), MAX(date), GROUP_CONCAT(comment) "
                 <> " FROM fames_stocktake st  "
