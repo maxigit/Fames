@@ -20,6 +20,7 @@ import Handler.Items.Reports.Types as RT
 import Handler.Items.Reports.Sources
 import Handler.Items.Reports.NewForecast
 import Handler.Items.Reports.Forecast(ForecastGrouper(..))
+import Handler.Items.Reports.Yearly
 import Items.Types
 import GL.Utils
 import qualified Data.Map as Map
@@ -264,7 +265,7 @@ getDCustomR reportName width height = do
 {-# NOINLINE getDYearR #-}
 getDYearR, getDAllYearR :: Handler Html
 getDYearR = getDYearR' ""
-getDAllYearR = getDYearR' "20"
+getDAllYearR = getItemsReportYearlyR
 getDYearR' suffix = do
   today <- todayH
   now <- liftIO $ getCurrentTime

@@ -70,6 +70,7 @@ import Data.Monoid(First(..))
 import Data.Maybe (fromJust)
 import Data.Decimal
 import Data.Time.Format(FormatTime)
+import qualified Data.Aeson.KeyMap as KM
 
 import Text.Printf(printf)
 
@@ -424,3 +425,20 @@ pattern LRight x = Left (Right x)
 
 pattern LLeft :: e' -> Either (Either e' a) b
 pattern LLeft x = Left (Left x)
+
+
+-- * Monoid instance for Json
+mergeJson :: Value -> Value -> Value
+mergeJson (Object a) (Object b) = Object (KM.unionWith mergeJson a b)
+mergeJson (Array a) (Array b) = Array (a <> b)
+mergeJson Null b = b
+mergeJson a Null = a
+mergeJson _ b = b
+
+
+instance Semigroup Value where
+  (<>) = mergeJson
+  
+instance Monoid Value where
+  mempty = Null
+

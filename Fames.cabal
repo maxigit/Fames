@@ -221,6 +221,8 @@ library
       Handler.Items.Reports.NewForecast
       Handler.Items.Reports.Sources
       Handler.Items.Reports.Types
+      Handler.Items.Reports.Yearly
+      Handler.Items.Reports.Plot
       Handler.Planner
       Handler.Planner.Exec
       Handler.Planner.FamesImport

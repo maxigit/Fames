@@ -3,7 +3,7 @@
 module Handler.Items.Reports.Sources
 where 
 
-import Import hiding(on, (==.), (!=.),(<=.),(>=.),(>.),(||.), selectSource, Value, exists)
+import Import hiding(on, (==.), (!=.),(<=.),(>=.),(>.),(||.), (-.), selectSource, Value, exists)
 -- import qualified Database.Persist as P
 import Database.Esqueleto.Experimental
 import Database.Esqueleto.Experimental.From(ToFrom)
@@ -69,7 +69,24 @@ itemSalesQuery stockLike param =  do
   
   pure (trans :& detail :&move)
 
+salesDetailPrice param tables = 
+    let detail = getTable @DebtorTransDetail tables
+    in ( if rpDeduceTax param
+       then detail.unitPrice -. detail.unitTax
+       else detail.unitPrice
+       )
+       *. (val 1 -. detail.discountPercent) -- don't divide discountPercent per 100, is not a percent but the real factor :-(
   
+
+salesDetailQuantity tables =
+    let trans = getTable @DebtorTran tables
+        detail = getTable @DebtorTransDetail tables
+    in case_ [ (trans ^. #type ==. val (fromEnum ST_CUSTCREDIT)
+               , detail.quantity )
+             ]
+             detail.qtyDone
+salesDetailAmount param tables = salesDetailPrice param tables *. salesDetailQuantity tables
+
 orderCategorySourceFor :: ToFrom a a' => a -> (SqlExpr (Value Int) -> a' -> SqlExpr (Value Bool)) ->  SqlConduit () (ForMap Int (Map Text Text)) ()
 orderCategorySourceFor query cond =  do
    let catQuery  =  do
