@@ -3,7 +3,9 @@ module Handler.Items.Reports.Plot
 , toXY
 , opacity
 , traceName
+, colour
 , bar 
+, xaxis, yaxis
 )
 where
 import Import hiding(unzip)
@@ -48,3 +50,12 @@ bar :: Value
 bar = [aesonQQ| { type: "bar"
                 }
       |]
+      
+xaxis :: Text -> Value
+xaxis axe = [aesonQQ| { xaxis: #{axe} } |]
+yaxis :: Text -> Value
+yaxis axe = [aesonQQ| { yaxis: #{axe} } |]
+
+colour :: Text -> Value
+colour col = [aesonQQ| { color: #{col} } |]
+

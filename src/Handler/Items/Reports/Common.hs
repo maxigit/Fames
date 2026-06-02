@@ -5,6 +5,7 @@ where
 
 import Import hiding(computeCategory, formatAmount, formatQuantity, panel, trace, all)
 import Items.Types
+import Data.List((!!))
 import Data.Aeson.Key (fromText)
 import qualified Data.Aeson as JSON
 import qualified Data.Aeson.Types as JSON
@@ -1620,6 +1621,9 @@ defaultColors = defaultPlottly where
               "#bcbd22",  -- curry yellow-green
               "#17becf"   -- blue-teal
              ]
+
+defaultColor :: Int -> Text
+defaultColor ix = cycle defaultColors !! ix
 
 -- | Format the values of a serie to text. Include rounding, formatting as well
 -- as computing %  (normalizing) if needed. To normalize we need the original set

@@ -7,6 +7,7 @@ where
 import Import hiding(all)
 import Handler.Items.Reports.Sources
 import Handler.Items.Reports.Common
+import Handler.Items.Reports.Types
 import Handler.Items.Reports.Plot
 import qualified Database.Esqueleto.Experimental as E
 -- import Database.Esqueleto.Experimental((^.))
@@ -19,16 +20,43 @@ import qualified Data.Vector.Sized as N
 import GL.Utils
 import Data.Time (diffDays, pattern YearMonthDay)
 import Data.Aeson.QQ(aesonQQ)
+import Yesod.Form.Bootstrap3 (renderBootstrap3, BootstrapFormLayout(..))
+
+data YearlyParam = YearlyParam
+    { ypStockFilter :: Maybe FilterExpression
+    , ypFacetCategory :: Maybe Text
+    , ypCategoryToFilter :: Maybe Text
+    , ypCategoryFilter :: Maybe FilterExpression
+    }
+    deriving (Show)
+
+defaultYearlyParam = YearlyParam Nothing Nothing Nothing Nothing
+
+yearlyForm categories paramM = renderBootstrap3 BootstrapBasicForm form where
+  form = let categoryOptions = [(cat, cat) | cat <-categories ]
+         in YearlyParam 
+                    <$> aopt filterEField "sku" (Just $ ypStockFilter =<< paramM)
+                    <*> aopt (selectFieldList categoryOptions) "facet" (Just $ ypFacetCategory =<< paramM)
+                    <*> aopt (selectFieldList categoryOptions) "to filter" (Just $ ypFacetCategory =<< paramM)
+                    <*> aopt filterEField "category" (Just  $ ypCategoryFilter =<< paramM )
 
 getItemsReportYearlyR :: Handler Html
 getItemsReportYearlyR = do
   today <- todayH
+  categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   -- settings <- getsYesod appSettings
-  -- ((resp, form), encType) <- runFormGet $ yearlyForm 
-  let param = -- case resp of
-              --    FormSuccess p -> p
-              defaultReportParam today Nothing
+  ((resp, form), encType) <- runFormGet $ yearlyForm categories Nothing
+  let yparam = case resp of
+                 FormSuccess yparam -> yparam
+                 _  -> defaultYearlyParam
+  let param = (defaultReportParam today Nothing) { rpSkuFilter = ypStockFilter yparam
+                                                 , rpCategoryFilter = ypCategoryFilter yparam
+                                                 , rpCategoryToFilter = ypCategoryToFilter yparam <|> ypFacetCategory yparam
+                                                 } 
+           
+
+
 
   -- select everything from the beginning of time grouped by day
   let query = do
@@ -43,7 +71,18 @@ getItemsReportYearlyR = do
                               .| sinkList
   let sales = mconcat salesvs :: Vector (Day, Double)
       plots = yearlyTrendPlots today sales
-  defaultLayout plots
+  plot2 <- plot2H param (fromMaybe "forecast-profile" $ ypFacetCategory yparam)
+  defaultLayout do
+     [whamlet|
+     <div.well>
+       <form.form.form-inline role=form method=GET enctype=#{encType}>
+         ^{form}
+         <button.btn.btn-default type=submit>Submit
+     <div.well>
+       ^{plots}
+     <div.well>
+       ^{plot2}
+     |]
 
 
 yearlyTrendPlots :: Day -> Vector (Day, Double) -> Widget
@@ -91,3 +130,73 @@ sampleYearly (YearMonthDay _ month day) days__n y__n
 
    
 
+
+-- | facet by category
+plot2H param catName = do
+  today <- todayH
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  -- settings <- getsYesod appSettings
+  -- ((resp, form), encType) <- runFormGet $ yearlyForm 
+
+  -- select everything from the beginning of time grouped by day
+  let query = do
+               tables <- E.from ( itemSalesQuery stockLike param
+                         `E.innerJoin` E.table @ItemCategory
+                         `E.on` \((E.getTable @DebtorTransDetail -> detail) E.:& category)
+                                 -> category.category E.==. E.val catName
+                                    E.&&. category.stockId E.==. detail.stockId 
+                                    )
+                                 
+               let trans = E.getTable @DebtorTran tables
+                   category = E.getTable @ItemCategory tables
+               E.groupBy trans.tranDate
+               E.groupBy category.value
+               E.orderBy [ E.asc trans.tranDate ]
+               return (trans.tranDate, category.value, E.sum_ (salesDetailAmount param tables))
+  salesvs <- runDB $ runConduit $ E.selectSource query
+                              .| C.mapMaybe (\(E.Value day, E.Value cat, E.Value amountm) -> fmap (day, cat,) amountm)
+                              .| conduitVector 1000
+                              .| sinkList
+  let sales = mconcat salesvs :: Vector (Day, Text, Double)
+  return $ yearlyFacetsPlot today catName sales
+
+_endOfWeek :: Day -> Day
+_endOfWeek = calculateDate (EndOfWeek Sunday) 
+    
+yearlyFacetsPlot :: Day -> Text -> Vector (Day, Text, Double) -> Widget
+yearlyFacetsPlot _today catname sales
+    | N.SomeSized sales__n <- sales
+    , N.Z3 days__n cat__n y__n <- sales__n
+    -- group per week to make plotly
+    -- , N.PivV nDdNN colTodN <- N.pivotV (min today . endOfWeek <$> days__n) cat__n
+    , N.PivV nDdNN colTodN <- N.pivotV days__n cat__n
+    , l <- N.length days__n 
+    , l > 0
+    , N.SomeSized days__all <- fromList [days__n `N.unsafeIndex` 0 .. days__n `N.unsafeIndex` (l-1) ]
+    , N.JoinV aJjAA aJjNN   <- N.joinV days__all days__n
+    , allY__j <- F.sum <$> N.walues aJjNN @>$ y__n
+    , runningAll__j <- N.postscanl' (+) 0 allY__j
+    , days__j <- N.walues aJjAA @=> days__all
+    , maAll__j <- runningAll__j - ago (AddYears $ -1) 0 days__j runningAll__j
+    = do
+       let traces =  zipWith go (mapToList colTodN) [0..]
+           common i = [aesonQQ| { line: { color: #{defaultColor i} }
+                                , legendgroup: #{i}
+                                } |]
+           go (cat, dN) col | y__d <- F.sum <$> dN @>$ y__n
+                        , y__j <- F.sum . take 1 <$> N.walues aJjNN @>$ N.windex nDdNN @>$ y__d  
+                        , runningY__j <- N.postscanl' (+) 0 y__j
+                        , maYear__j <- runningY__j - ago (AddYears $ -1) 0 days__j runningY__j
+                        = [ [ toXY (N.fromSized $ N.Z2 days__j maYear__j), traceName cat, yaxis "y", common col ] 
+                          , [ toXY (N.fromSized $ N.Z2 days__j (100 * maYear__j / maAll__j)), traceName cat, yaxis "y2", common col
+                            , [aesonQQ| { showlegend: false} |]
+                            ]
+                          ]
+       [whamlet|<h2> #{catname} |]
+       plotWidget [ [aesonQQ| { grid: {rows: 2, columns: 1, roworder: "top to bottom" }
+                              , clickmode: "select"
+                              } |]
+                  ]
+                  Nothing $ concat traces
+yearlyFacetsPlot _ _ _ = error "exhaustive pattern"
+   
