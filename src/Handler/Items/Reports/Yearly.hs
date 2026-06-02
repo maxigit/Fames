@@ -180,7 +180,10 @@ yearlyFacetsPlot _today catname sales
     , maAll__j <- runningAll__j - ago (AddYears $ -1) 0 days__j runningAll__j
     = do
        let traces =  zipWith go (mapToList colTodN) [0..]
+           fillcolor i = defaultColor i <> "1A"
            common i = [aesonQQ| { line: { color: #{defaultColor i} }
+                                , fill: "tozeroy"                     
+                                , fillcolor: #{fillcolor i}
                                 , legendgroup: #{i}
                                 } |]
            go (cat, dN) col | y__d <- F.sum <$> dN @>$ y__n
@@ -197,6 +200,6 @@ yearlyFacetsPlot _today catname sales
                               , clickmode: "select"
                               } |]
                   ]
-                  Nothing $ concat traces
+                  (Just 800) $ concat traces
 yearlyFacetsPlot _ _ _ = error "exhaustive pattern"
    
