@@ -105,7 +105,7 @@ yearlyTrendPlots today sales
    , let marker = [aesonQQ| { mode: "markers" } |] -- , marker: { symbol: "square", size: 12 } } |]
    = do
         [whamlet|<h2> Trend over the years |]
-        plotWidget [ [aesonQQ| { hovermode: "y unified" } |] ]
+        plotWidget [ [aesonQQ| { hovermode: "closest" } |] ]
                    Nothing [ [ toY maYear__j , traceName "Yearly" ]
                            , [ toY maQuaterly__j , traceName "Quaterly" ]
                            , [ toXY sales__fiscalYear , marker , traceName "Fiscal Year" ]
