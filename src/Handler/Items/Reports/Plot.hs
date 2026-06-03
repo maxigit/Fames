@@ -25,7 +25,7 @@ plotWidget layouts heightm tracess = do
                       );
             |] :: Widget
    [whamlet|
-     <div id=#{plotId} style="height:#{height}">
+     <div id=#{plotId} style="height:#{height}px">
        ^{plot}
    |]
 

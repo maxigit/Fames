@@ -257,6 +257,6 @@ yearlyFacetsPlot today catname sales
                               , clickmode: "select"
                               } |]
                   ]
-                  (Just 1600) $ concat traces
+                  (Just 1200) $ concat traces
 yearlyFacetsPlot _ _ _ = error "exhaustive pattern"
    
