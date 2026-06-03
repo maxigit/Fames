@@ -17,7 +17,6 @@ import qualified Data.NoDF as N
 import Data.NoDF.Operators
 import qualified Data.Foldable as F
 import Data.List(scanl1)
-import qualified Data.Map as Map
 import qualified Data.Vector.Sized as N
 import GL.Utils
 import Data.Time (diffDays, pattern YearMonthDay)
@@ -190,9 +189,7 @@ yearlyFacetsPlot _today catname sales
     , maAll__j <- runningAll__j - ago (AddYears $ -1) 0 days__j runningAll__j
     = do
        -- let traces =  zipWith go (mapToList colToMaYear__j) [0..]
-       let tracess =  [ zipWith (go normal) (mapToList colToMaYear__j) [0..]
-                      , zipWith (go stacked) (mapToList colToStacked__j) [0..]
-                      ]
+       let traces =  zipWith3 go (mapToList colToMaYear__j) stackeds__j [0..]
            fillcolor i = defaultColor i <> "1A"
            normal i = [aesonQQ| { line: { color: #{defaultColor i}, width: 1 }
                                 , fill: "tozeroy"                     
@@ -202,6 +199,7 @@ yearlyFacetsPlot _today catname sales
            stacked i = [aesonQQ| { line: { color: #{defaultColor i}, width: 1 }
                                 , fill: "tonexty"                     
                                 , legendgroup: #{i}
+                                , showlegend: false
                                 } |]
            colToMaYear__j = fmap (\dN -> if | y__d <- F.sum <$> dN @>$ y__n
                                             , y__j <- F.sum . take 1 <$> N.walues aJjNN @>$ N.windex nDdNN @>$ y__d  
@@ -209,21 +207,21 @@ yearlyFacetsPlot _today catname sales
                                             -> runningY__j - ago (AddYears $ -1) 0 days__j runningY__j
                                  )
                                  colTodN
-           (cols, maYears__j) = unzip $ mapToList colToMaYear__j
-           stacked__j = scanl1 (+) maYears__j
-           colToStacked__j = Map.fromList $ zip cols stacked__j
-           go common (cat, maYear__j) col
-                        = [ [ toXY (N.fromSized $ N.Z2 days__j maYear__j), traceName cat, yaxis "y", common col ] 
-                          , [ toXY (N.fromSized $ N.Z2 days__j (100 * maYear__j / maAll__j)), traceName cat, yaxis "y2", common col
+           maYears__j = toList colToMaYear__j
+           stackeds__j = scanl1 (+) maYears__j
+           go (cat, maYear__j) stacked__j col
+                        = [ [ toXY (N.fromSized $ N.Z2 days__j maYear__j), traceName cat, yaxis "y", normal col ] 
+                          , [ toXY (N.fromSized $ N.Z2 days__j (100 * maYear__j / maAll__j)), traceName cat, yaxis "y2", normal col
                             , [aesonQQ| { showlegend: false} |]
                             ]
+                          , [ toXY (N.fromSized $ N.Z2 days__j stacked__j), traceName cat, yaxis "y3", stacked col ] 
+                          , [ toXY (N.fromSized $ N.Z2 days__j (100 * stacked__j /maAll__j)), traceName cat, yaxis "y4", stacked col ] 
                           ]
        [whamlet|<h2> #{catname} |]
-       mapM_ ( plotWidget [ [aesonQQ| { grid: {rows: 2, columns: 1, roworder: "top to bottom" }
+       plotWidget [ [aesonQQ| { grid: {rows: 4, columns: 1, roworder: "top to bottom" }
                               , clickmode: "select"
                               } |]
                   ]
-                  (Just 800) . concat
-                  ) tracess
+                  (Just 1600) $ concat traces
 yearlyFacetsPlot _ _ _ = error "exhaustive pattern"
    
