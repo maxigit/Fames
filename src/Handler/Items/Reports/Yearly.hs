@@ -169,11 +169,8 @@ plot2H param useQty catName = do
   let sales = mconcat salesvs :: Vector (Day, Text, Double)
   return $ yearlyFacetsPlot today catName sales
 
-_endOfWeek :: Day -> Day
-_endOfWeek = calculateDate (EndOfWeek Sunday) 
-    
 yearlyFacetsPlot :: Day -> Text -> Vector (Day, Text, Double) -> Widget
-yearlyFacetsPlot _today catname sales
+yearlyFacetsPlot today catname sales
     | N.SomeSized sales__n <- sales
     , N.Z3 days__n cat__n y__n <- sales__n
     -- group per week to make plotly
@@ -187,6 +184,7 @@ yearlyFacetsPlot _today catname sales
     , runningAll__j <- N.postscanl' (+) 0 allY__j
     , days__j <- N.walues aJjAA @=> days__all
     , maAll__j <- runningAll__j - ago (AddYears $ -1) 0 days__j runningAll__j
+    , N.WectorX sJ _ <- N.filterX (\day@(YearMonthDay _ _ d) -> day == today || d == 1) days__j
     = do
        -- let traces =  zipWith go (mapToList colToMaYear__j) [0..]
        let traces =  zipWith3 go (mapToList colToMaYear__j) stackeds__j [0..]
@@ -209,13 +207,15 @@ yearlyFacetsPlot _today catname sales
                                  colTodN
            maYears__j = toList colToMaYear__j
            stackeds__j = scanl1 (+) maYears__j
+           days__s = sJ @> days__j
+           toY v__j = toXY . N.fromSized $ N.Z2 days__s (sJ @> v__j)
            go (cat, maYear__j) stacked__j col
-                        = [ [ toXY (N.fromSized $ N.Z2 days__j maYear__j), traceName cat, yaxis "y", normal col ] 
-                          , [ toXY (N.fromSized $ N.Z2 days__j (100 * maYear__j / maAll__j)), traceName cat, yaxis "y2", normal col
+                        = [ [ toY maYear__j, traceName cat, yaxis "y", normal col ] 
+                          , [ toY (100 * maYear__j / maAll__j), traceName cat, yaxis "y2", normal col
                             , [aesonQQ| { showlegend: false} |]
                             ]
-                          , [ toXY (N.fromSized $ N.Z2 days__j stacked__j), traceName cat, yaxis "y3", stacked col ] 
-                          , [ toXY (N.fromSized $ N.Z2 days__j (100 * stacked__j /maAll__j)), traceName cat, yaxis "y4", stacked col ] 
+                          , [ toY stacked__j, traceName cat, yaxis "y3", stacked col ] 
+                          , [ toY (100 * stacked__j /maAll__j), traceName cat, yaxis "y4", stacked col ] 
                           ]
        [whamlet|<h2> #{catname} |]
        plotWidget [ [aesonQQ| { grid: {rows: 4, columns: 1, roworder: "top to bottom" }
