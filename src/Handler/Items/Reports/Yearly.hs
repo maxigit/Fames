@@ -23,9 +23,14 @@ import Data.Time (diffDays, pattern YearMonthDay)
 import Data.Aeson.QQ(aesonQQ)
 import Yesod.Form.Bootstrap3 (renderBootstrap3, BootstrapFormLayout(..))
 
+data Cat = OrderCat Text
+         | ItemCat Text
+         | CustomerCat Text
+         deriving (Show, Eq, Ord)
+
 data YearlyParam = YearlyParam
     { ypStockFilter :: Maybe FilterExpression
-    , ypFacetCategory :: Maybe Text
+    , ypFacetCategory :: Maybe Cat
     , ypCategoryToFilter :: Maybe Text
     , ypCategoryFilter :: Maybe FilterExpression
     , ypUseQuantity :: Bool
@@ -34,12 +39,19 @@ data YearlyParam = YearlyParam
 
 defaultYearlyParam = YearlyParam Nothing Nothing Nothing Nothing False
 
-yearlyForm categories paramM = renderBootstrap3 BootstrapBasicForm form where
-  form = let categoryOptions = [(cat, cat) | cat <-categories ]
+yearlyForm categories custCategories orderCategories paramM = renderBootstrap3 BootstrapBasicForm form where
+  form = let categoryOptions = [("item:" <> cat, ItemCat cat) | cat <- categories ]
+                             <> [ ("order:" <> cat, OrderCat cat) | cat <- orderCategories ]
+                             <> [ ("customer:" <> cat, CustomerCat cat) | cat <- custCategories ]
+             itemOptions = [(cat, cat) | cat <- categories ] 
          in YearlyParam 
                     <$> aopt filterEField "sku" (Just $ ypStockFilter =<< paramM)
-                    <*> aopt (selectFieldList categoryOptions) "facet" (Just $ ypFacetCategory =<< paramM)
-                    <*> aopt (selectFieldList categoryOptions) "to filter" (Just $ ypFacetCategory =<< paramM)
+                    <*> aopt (selectFieldList categoryOptions) "facet" Nothing -- (Just $ ypFacetCategory =<< paramM)
+                    <*> aopt (selectFieldList itemOptions) "to filter" (case ypFacetCategory =<< paramM of
+                                                                                  Just (ItemCat cat) -> Just $ Just cat
+                                                                                  _ -> Nothing
+                                                                       
+                                                                       )
                     <*> aopt filterEField "category" (Just  $ ypCategoryFilter =<< paramM )
                     <*> areq boolField "use quantity" (Just $ fmap ypUseQuantity paramM == Just True)
 
@@ -48,15 +60,19 @@ getItemsReportYearlyR = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   categories <- categoriesH
+  custCategories <- customerCategoriesH
+  orderCategories <- orderCategoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   -- settings <- getsYesod appSettings
-  ((resp, form), encType) <- runFormGet $ yearlyForm categories Nothing
+  ((resp, form), encType) <- runFormGet $ yearlyForm categories custCategories orderCategories Nothing
   let yparam = case resp of
                  FormSuccess yparam -> yparam
                  _  -> defaultYearlyParam
   let param = (defaultReportParam today Nothing rpDeduceTax) { rpSkuFilter = ypStockFilter yparam
                                                  , rpCategoryFilter = ypCategoryFilter yparam
-                                                 , rpCategoryToFilter = ypCategoryToFilter yparam <|> ypFacetCategory yparam
+                                                 , rpCategoryToFilter = case (ItemCat <$> ypCategoryToFilter yparam) <|> ypFacetCategory yparam of
+                                                                           Just (ItemCat cat) -> Just cat
+                                                                           _ -> Nothing
                                                  } 
            
 
@@ -76,7 +92,7 @@ getItemsReportYearlyR = do
                               .| sinkList
   let sales = mconcat salesvs :: Vector (Day, Double)
       plots = yearlyTrendPlots today sales
-  plot2 <- plot2H param (ypUseQuantity yparam) (fromMaybe "forecast-profile" $ ypFacetCategory yparam)
+  plot2 <- plot2H param (ypUseQuantity yparam) (fromMaybe (ItemCat "forecast-profile") $ ypFacetCategory yparam)
   defaultLayout do
      [whamlet|
      <div.well>
@@ -141,7 +157,7 @@ sampleYearly (YearMonthDay _ month day) days__n y__n
 
 
 -- | facet by category
-plot2H param useQty catName = do
+plot2H param useQty cat = do
   today <- todayH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   -- settings <- getsYesod appSettings
@@ -149,25 +165,44 @@ plot2H param useQty catName = do
 
   -- select everything from the beginning of time grouped by day
   let query = do
-               tables <- E.from ( itemSalesQuery stockLike param
-                         `E.innerJoin` E.table @ItemCategory
-                         `E.on` \((E.getTable @DebtorTransDetail -> detail) E.:& category)
-                                 -> category.category E.==. E.val catName
-                                    E.&&. category.stockId E.==. detail.stockId 
-                                    )
+               (tables, cvalue) <- case cat of 
+                          ItemCat catName -> do 
+                           (trans E.:& detail E.:& move E.:& category) <- E.from ( itemSalesQuery stockLike param
+                              `E.innerJoin` E.table @ItemCategory
+                              `E.on` \((E.getTable @DebtorTransDetail -> detail) E.:& category)
+                                      -> category.category E.==. E.val catName
+                                         E.&&. category.stockId E.==. detail.stockId 
+                                         )
+                           return (trans E.:& detail E.:& move , category.value)
+
+                          OrderCat catName -> do 
+                           (trans E.:& detail E.:& move E.:& category) <- E.from ( itemSalesQuery stockLike param
+                              `E.innerJoin` E.table @OrderCategory
+                              `E.on` \((E.getTable @DebtorTran -> trans) E.:& category)
+                                      -> category.category E.==. E.val catName
+                                         E.&&. category.orderId E.==. trans.order
+                                         )
+                           return (trans E.:& detail E.:& move , category.value)
+                          CustomerCat catName -> do 
+                           (trans E.:& detail E.:& move E.:& category) <- E.from ( itemSalesQuery stockLike param
+                              `E.innerJoin` E.table @CustomerCategory
+                              `E.on` \((E.getTable @DebtorTran -> trans) E.:& category)
+                                      -> category.category E.==. E.val catName
+                                         E.&&. E.just category.customerId E.==. trans.debtorNo
+                                         )
+                           return (trans E.:& detail E.:& move , category.value)
                                  
                let trans = E.getTable @DebtorTran tables
-                   category = E.getTable @ItemCategory tables
                E.groupBy trans.tranDate
-               E.groupBy category.value
+               E.groupBy cvalue
                E.orderBy [ E.asc trans.tranDate ]
-               return (trans.tranDate, category.value, E.sum_ (yFromTables useQty param tables))
+               return (trans.tranDate, cvalue, E.sum_ (yFromTables useQty param tables))
   salesvs <- runDB $ runConduit $ E.selectSource query
                               .| C.mapMaybe (\(E.Value day, E.Value cat, E.Value amountm) -> fmap (day, cat,) amountm)
                               .| conduitVector 1000
                               .| sinkList
   let sales = mconcat salesvs :: Vector (Day, Text, Double)
-  return $ yearlyFacetsPlot today catName sales
+  return $ yearlyFacetsPlot today (tshow cat) sales
 
 yearlyFacetsPlot :: Day -> Text -> Vector (Day, Text, Double) -> Widget
 yearlyFacetsPlot today catname sales
