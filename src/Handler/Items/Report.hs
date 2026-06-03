@@ -287,8 +287,9 @@ salesForecastParamH :: Day -> FilePath -> Maybe Int -> Handler ReportParam
 salesForecastParamH today forecastPath periodm = do
   catProfile <- appForecastCollectionCategory <$> getsYesod appSettings
   forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
+  rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   return 
-    (defaultReportParam today Nothing)
+    (defaultReportParam today Nothing rpDeduceTax)
       { rpToday = today
       , rpFrom = Just from
       , rpTo = Just $ calculateDate (Chain [AddDays $ -1, AddYears 1]) from

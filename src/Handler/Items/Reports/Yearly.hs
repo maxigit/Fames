@@ -43,6 +43,7 @@ yearlyForm categories paramM = renderBootstrap3 BootstrapBasicForm form where
 getItemsReportYearlyR :: Handler Html
 getItemsReportYearlyR = do
   today <- todayH
+  rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   -- settings <- getsYesod appSettings
@@ -50,7 +51,7 @@ getItemsReportYearlyR = do
   let yparam = case resp of
                  FormSuccess yparam -> yparam
                  _  -> defaultYearlyParam
-  let param = (defaultReportParam today Nothing) { rpSkuFilter = ypStockFilter yparam
+  let param = (defaultReportParam today Nothing rpDeduceTax) { rpSkuFilter = ypStockFilter yparam
                                                  , rpCategoryFilter = ypCategoryFilter yparam
                                                  , rpCategoryToFilter = ypCategoryToFilter yparam <|> ypFacetCategory yparam
                                                  } 

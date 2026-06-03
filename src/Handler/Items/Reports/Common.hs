@@ -33,10 +33,10 @@ import Util.ForConduit
 import Control.Monad(zipWithM)
 -- * Param 
 
-defaultReportParam :: Day -> Maybe DateCalculator -> ReportParam
-defaultReportParam today fromToday = ReportParam {..} where
+defaultReportParam :: Day -> Maybe DateCalculator -> Bool -> ReportParam
+defaultReportParam today fromToday deduceTax = ReportParam {..} where
   rpToday = today -- today
-  rpDeduceTax = True
+  rpDeduceTax = deduceTax
   rpFrom = fmap (flip calculateDate today) fromToday
   rpTo = Just today
   rpPeriod' = Nothing
