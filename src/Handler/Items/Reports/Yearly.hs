@@ -27,10 +27,11 @@ data YearlyParam = YearlyParam
     , ypFacetCategory :: Maybe Text
     , ypCategoryToFilter :: Maybe Text
     , ypCategoryFilter :: Maybe FilterExpression
+    , ypUseQuantity :: Bool
     }
     deriving (Show)
 
-defaultYearlyParam = YearlyParam Nothing Nothing Nothing Nothing
+defaultYearlyParam = YearlyParam Nothing Nothing Nothing Nothing False
 
 yearlyForm categories paramM = renderBootstrap3 BootstrapBasicForm form where
   form = let categoryOptions = [(cat, cat) | cat <-categories ]
@@ -39,6 +40,7 @@ yearlyForm categories paramM = renderBootstrap3 BootstrapBasicForm form where
                     <*> aopt (selectFieldList categoryOptions) "facet" (Just $ ypFacetCategory =<< paramM)
                     <*> aopt (selectFieldList categoryOptions) "to filter" (Just $ ypFacetCategory =<< paramM)
                     <*> aopt filterEField "category" (Just  $ ypCategoryFilter =<< paramM )
+                    <*> areq boolField "use quantity" (Just $ fmap ypUseQuantity paramM == Just True)
 
 getItemsReportYearlyR :: Handler Html
 getItemsReportYearlyR = do
@@ -65,14 +67,15 @@ getItemsReportYearlyR = do
                let trans = E.getTable @DebtorTran tables
                E.groupBy trans.tranDate
                E.orderBy [ E.asc trans.tranDate ]
-               return (trans.tranDate, E.sum_ (salesDetailAmount param tables))
+               let y = yFromTables  (ypUseQuantity yparam) param tables
+               return (trans.tranDate, E.sum_ y)
   salesvs <- runDB $ runConduit $ E.selectSource query
                               .| C.mapMaybe (\(E.Value day, E.Value amountm) -> fmap (day,) amountm)
                               .| conduitVector 1000
                               .| sinkList
   let sales = mconcat salesvs :: Vector (Day, Double)
       plots = yearlyTrendPlots today sales
-  plot2 <- plot2H param (fromMaybe "forecast-profile" $ ypFacetCategory yparam)
+  plot2 <- plot2H param (ypUseQuantity yparam) (fromMaybe "forecast-profile" $ ypFacetCategory yparam)
   defaultLayout do
      [whamlet|
      <div.well>
@@ -85,6 +88,10 @@ getItemsReportYearlyR = do
        ^{plot2}
      |]
 
+
+yFromTables useQty param tables = if useQty
+                            then salesDetailQuantity tables
+                            else salesDetailAmount param tables
 
 yearlyTrendPlots :: Day -> Vector (Day, Double) -> Widget
 yearlyTrendPlots today sales
@@ -133,7 +140,7 @@ sampleYearly (YearMonthDay _ month day) days__n y__n
 
 
 -- | facet by category
-plot2H param catName = do
+plot2H param useQty catName = do
   today <- todayH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   -- settings <- getsYesod appSettings
@@ -153,7 +160,7 @@ plot2H param catName = do
                E.groupBy trans.tranDate
                E.groupBy category.value
                E.orderBy [ E.asc trans.tranDate ]
-               return (trans.tranDate, category.value, E.sum_ (salesDetailAmount param tables))
+               return (trans.tranDate, category.value, E.sum_ (yFromTables useQty param tables))
   salesvs <- runDB $ runConduit $ E.selectSource query
                               .| C.mapMaybe (\(E.Value day, E.Value cat, E.Value amountm) -> fmap (day, cat,) amountm)
                               .| conduitVector 1000
