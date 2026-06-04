@@ -3,7 +3,7 @@ module CategoryRule where
 
 import ClassyPrelude.Yesod hiding(replace)
 
-import Data.List(nub)
+import Data.List(nub, scanl1)
 import qualified Data.Map as Map
 import Data.Aeson
 import Data.Aeson.KeyMap (toMapText)
@@ -11,6 +11,8 @@ import Data.Aeson.KeyMap (toMapText)
 import qualified Text.Regex as Rg
 import qualified Text.Regex.Base as Rg
 import qualified Text.Regex.TDFA.Common as Rg
+import Control.Monad.Fail(fail)
+import Text.Printf (printf)
 
 data PriceRanger = PriceRanger (Maybe Double) (Maybe Double) String deriving Show
 data RegexSub = RegexSub { rsRegex :: Rg.Regex, rsOriginal, rsReplace :: String }
@@ -25,6 +27,7 @@ data CategoryRule a
   | SalesPriceRanger PriceRanger
   | SourceTransformer String (CategoryRule a)
   | CategoryCondition (CategoryRule a) (CategoryRule a) -- uses second category  only if the first one matches
+  | RandomNumber (Maybe Int) Int [(String, Int)]  -- salt upper limit
   deriving Show
 
 data CustomerCat
@@ -104,6 +107,18 @@ parseJSON' key0 v = let
         -- Just other -> typeMismatch ("source " ++ other ++ " invalid" ) (Object o)
         -- Just s -> SourceTransformer s . SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key))
         --
+        Just "random" -> do
+               saltM <- o .:? "salt"
+               maxM <-  o .:? "max"
+               valuesM <- o .:? "values"
+               case (maxM, valuesM) of 
+                   (Just max_, Nothing) -> pure $ RandomNumber saltM max_ []
+                   (_, Just val'weights) -> let  (vals, weights) = unzip $ Map.toList val'weights
+                                                 thresholds = scanl1 (+) weights
+                                                 lastThresholds  = lastEx thresholds
+                                                 max_ = max lastThresholds (fromMaybe 1 maxM)
+                                            in pure $ RandomNumber saltM max_ (zip vals thresholds)
+                   _ -> fail "Random should have a 'max' or a values'"
         Just s -> SourceTransformer s <$> parseRegex  
         Nothing -> parseObject o
                                              
@@ -153,6 +168,19 @@ instance ToJSON (CategoryRule a) where
     fromCondition (SourceTransformer source0 (SkuTransformer(RegexSub _ origin _))) = object ["source" .= source0, "match" .= origin  ]
     fromCondition (CategoryDisjunction [rule]) = fromCondition rule
     fromCondition rule = toJSON rule
+  toJSON (RandomNumber seedM upperLimit values) = object $ ["source" .= ("random" :: Text)
+                                                  , "max" .= upperLimit
+                                                  ]
+                                                  <> case seedM of
+                                                          Nothing -> []
+                                                          Just salt -> [ "salt" .= salt ]
+                                                  <> case values of 
+                                                          [] -> []
+                                                          _ -> let (vals, thresholds) = unzip values
+                                                                   weights = zipWith (-) (drop 1 thresholds ) (thresholds)
+                                                                   m = mapFromList $ zip (map pack vals) weights :: Map Text Int
+                                                               in [ "values" .= toJSON m ]
+
   
 
 
@@ -182,6 +210,15 @@ computeCategory catRegexCache source0 input rule = case rule of
       CategoryCondition condition rule0 ->  case computeCategory catRegexCache source0 input condition of
                                                 Nothing -> Nothing
                                                 Just _ -> computeCategory catRegexCache source0 input rule0
+      RandomNumber saltM upperLimit values ->  -- compute a random number using the source has a hash and add salt if necessary
+                                          let word = hash $ source0  <> maybe "" show  saltM
+                                              random =  1+ (word `mod` upperLimit)
+                                              padLength = length $ show upperLimit
+                                          in case values of 
+                                              [] -> Just (printf "%0*d" padLength random)
+                                              _ -> case break (\(_,threshold)  -> threshold >= random) values of 
+                                                    (_, (val,_):_) -> Just $ val -- <> " (debug):" <> show random 
+                                                    _ -> error $ "The unexpected happened: random=" <> show random <> " " <> show values
         
 
 subRegex :: RegexSub -> String -> Maybe String
