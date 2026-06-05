@@ -923,7 +923,7 @@ getDForecastDetailedR pathm = do
   let path = case pathm of
                 Just p -> unpack p
                 Nothing -> appForecastDefaultProfile settings
-      report :: Ord k => ForecastGrouper k -> Handler ((Day, ForecastSummary) , Widget)
+      report :: Show k => Ord k => ForecastGrouper k -> Handler ((Day, ForecastSummary) , Widget)
       report grouper =
        case forecastPathToDay  path of
                Nothing -> error $ "Unknown start date for Forecast profile " <> show path
@@ -941,18 +941,18 @@ getDForecastDetailedR pathm = do
                                $maybe (tops, bestFits, bottoms) <- offendersM
                                  <div>
                                    <h3> Best Fit #{cat}
-                                   ^{makeOffenderTable cat bestFits}
+                                   ^{makeOffenderTable abs cat bestFits}
                                  <div>
                                    <h3> Most overestimated #{cat}
-                                   ^{makeOffenderTable cat tops}
+                                   ^{makeOffenderTable negate cat tops}
                                  <div>
                                    <h3> Most underestimade #{cat}
-                                   ^{makeOffenderTable cat bottoms}
+                                   ^{makeOffenderTable id cat bottoms}
                                         |]
                               )
   skuReport <- report SkuGroup
   customerReport <- report CustomerGroup
-  let names  = ["style", "colour", "shape"] :: [Text]
+  let names  = ["style", "base", "random-base", "shape", "random-shape", "random-10", "random-100", "random-p4", "dpd-origin"] :: [Text]
   otherReport <- mapM report (map CategoryGroup names)
   let reports = ("SKU", skuReport) : zip names otherReport  ++ [ ("Customer", customerReport) ]
       summaries = [ (day, name, summary) | (name, ((day, summary), _)) <- reports ]

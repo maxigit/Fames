@@ -11,7 +11,7 @@ plotForecastError
 , ForecastParam(..), defaultForecastParam
 ) where
 
-import Import
+import Import hiding(formatAmount)
 import Handler.Items.Reports.Common hiding(formatQuantity)
 import Handler.Items.Reports.Forecast
 import Handler.Items.Common(mkStockFilter, year)
@@ -60,7 +60,7 @@ instance Monoid WithError where
    mempty = WithError 0 0 0
       
 
-data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPercent, naivePercent, aes, trendPercent :: Double }
+data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPercent, naivePercent, aes, forecastBias, trendPercent :: Double }
    deriving (Show)
    
 data WeeklySalesWithForecastErrors = 
@@ -320,12 +320,13 @@ getPlotForecastError param grouper day0 path = do
                         aes = overallPercent / naivePercent
                         percentFor v = lastGood v / lastGood salesByWeek
                         trendPercent = lastGood salesByWeek / lastGood (forecastCumul naive) -1
+                        forecastBias = lastGood (forecastCumul forecast) / lastGood salesByWeek - 1
                         weeksToToday =  weeksTo start today
                         lastGood v = v `V.unsafeIndex` weeksToToday
                                             
                     in ForecastSummary{..} 
                   )
-        Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0 0)
+        Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0 0 0)
 
 forecastPathToDay :: FilePath -> Maybe Day
 forecastPathToDay = readMay . take 10
@@ -342,7 +343,7 @@ over a b = max 0 ( a -b )
 under a b = max 0 ( b - a)
 
 averageForecastSummary :: [ForecastSummary] -> ForecastSummary
-averageForecastSummary [] = ForecastSummary 0 0 0 0 0 0
+averageForecastSummary [] = ForecastSummary 0 0 0 0 0 0 0
 averageForecastSummary sums = let 
     avg f = sum (map f sums ) / n 
     n = fromIntegral (length sums)
@@ -352,6 +353,7 @@ averageForecastSummary sums = let
                        (avg naivePercent)
                        (avg aes)
                        (avg trendPercent)
+                       (avg forecastBias)
 
 -- | Computes the number of weeks from start to today if needed
 -- This is the week when the actual sales stops if Today is in a given year
@@ -400,12 +402,13 @@ getMostOffenders grouper param topN day0 path = do
                      .| mapC mkTopOffenders
                      .| C.foldl1 keepOffenders
                      
-makeOffenderTable :: Text -> [(Text, OffenderSummary)] -> Widget
-makeOffenderTable categoryName summaries =  do
-   let errorP os = case osActual os of 
+makeOffenderTable :: (Double -> Double) -> Text -> [(Text, OffenderSummary)] -> Widget
+makeOffenderTable adjustSign categoryName summaries =  do
+   let errorP get os = case osActual os of 
                       0 | osError os == 0 -> 0  
                       0 -> 100
-                      actual -> abs(100 * (osError os  / actual))
+                      actual -> adjustSign  $ 100 * (get os  / actual)
+       naiveError os = osActual os - osNaive os
    [whamlet|
      <table *{datatable}>
        <thead>
@@ -416,15 +419,17 @@ makeOffenderTable categoryName summaries =  do
            <th.just-right> Error
            <th.just-right> %
            <th.just-right> Naive (previous year)
+           <th.just-right> %Naive
        <tbody>
          $forall (category, os) <-  summaries
           <tr>
             <td> #{category}
             <td.just-right> #{formatQuantity $ osForecast os}
             <td.just-right> #{formatQuantity $ osActual os}
-            <td.just-right> #{formatQuantity $ abs (osError os)}
-            <td.just-right> #{formatPercentage $ errorP os}
+            <td.just-right> #{formatQuantity $ osError os}
+            <td.just-right> #{formatPercentage $ errorP osError os}
             <td.just-right> #{formatQuantity $ osNaive os}
+            <td.just-right> #{formatQuantity $ errorP naiveError os }
    |]
 
 -- | If no queryString is given, treat method as anchor
@@ -433,7 +438,7 @@ makeSummaryTable  queryStrM day'path'summarys  = do
   let toPercent x = formatPercentage (x*100)
       ssum = averageForecastSummary $ map (\(_,_,s) -> s) day'path'summarys
   [whamlet|
-              <table data-searching=false data-paging=false *{datatable}>
+              <table data-searching=true data-paging=false *{datatable}>
                 <thead>
                   <tr>
                     <th> Date
@@ -442,8 +447,10 @@ makeSummaryTable  queryStrM day'path'summarys  = do
                     <th.just-right> % Under estimation
                     <th.just-right> % Over estimation
                     <th.just-right> % Error estimation
-                    <th.just-right> % Error Naive
-                    <th.just-right> % Trend
+                    <th.just-right data-togle=tooltip title="Previous Year as forecast"> % Error Naive
+                    <th.just-right data-togle=tooltip title="1 - Total Forecast / Total Actual"> % Forecast Bias
+                    <th.just-right data-toggle=tooltip title="Actual/Previous Year (Naive) - 1"> % Trend
+                    <th.just-right data-toggle=tooltip title="Forecast Bias / Trend"> Bias/Trend Ratio
                 <tbody>
                   $forall (day, path, summary) <- day'path'summarys
                     <tr>
@@ -458,7 +465,9 @@ makeSummaryTable  queryStrM day'path'summarys  = do
                       <td.just-right>#{toPercent $ overPercent summary}
                       <th.just-right>#{toPercent $ overallPercent summary}
                       <td.just-right>#{toPercent $ naivePercent summary}
+                      <td.just-right.negative-bad.positive-good>#{toPercent $ forecastBias summary}
                       <td.just-right.negative-bad.positive-good>#{toPercent $ trendPercent summary}
+                      <td.just-right>#{formatDouble $ forecastBias summary / trendPercent summary }
                 <tfooter>
                   <tr>
                     <th> Average
@@ -468,5 +477,7 @@ makeSummaryTable  queryStrM day'path'summarys  = do
                     <th.just-right>#{toPercent $ overPercent ssum}
                     <th.just-right>#{toPercent $ overallPercent ssum}
                     <th.just-right>#{toPercent $ naivePercent ssum}
+                    <th.just-right.negative-bad.positive-good>#{toPercent $ forecastBias ssum}
                     <th.just-right.negative-bad.positive-good>#{toPercent $ trendPercent ssum}
+                    <th.just-right>#{formatDouble $ forecastBias ssum / trendPercent ssum }
     |]
