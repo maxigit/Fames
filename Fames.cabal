@@ -286,6 +286,7 @@ library
       WH.FA.Curl
       WH.FA.Types
       WH.PackingList.Internal
+      Measure
 
 common tools
   hs-source-dirs:
