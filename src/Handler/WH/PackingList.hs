@@ -708,10 +708,14 @@ renderStickers today pl entities =
 -- Transforms a serie of colour quantites, to box marks ie
 -- colour name and circles for every 6.
 -- see specs for explanation
-detailToStickerMarks :: PackingListDetail -> [Text] -- 12 fields
+detailToStickerMarks :: PackingListDetail -> [Text] -- 13 fields
 detailToStickerMarks detail = let
-  marks = contentToMarks . Map.toList $ packingListDetailContent detail
-  in take 12 $ marks ++ (repeat "")
+  col'qtys = Map.toList $ packingListDetailContent detail
+  marks = contentToMarks $ col'qtys
+  extra4 = case col'qtys of 
+             [(_, 4)] ->  "‖"
+             _ -> ""
+  in extra4 : take 12 ( marks ++ (repeat ""))
 
 contentToMarks :: [(Text, Int)] -> [Text]
 contentToMarks unsorted =  let
@@ -739,7 +743,7 @@ stickerSource today pl entities = do
   let sorted = sortBy (comparing cmp) entities
       cmp (Entity _ detail, _ ) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
       usedKeys = filter (/= "location") $ keys $ foldMap (extras . snd) entities 
-  yield (intercalate "," $ "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,batch,a1Morse,a1Space,location" : usedKeys)
+  yield (intercalate "," $ "style,delivery_date,reference,number,barcode,a2extra,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,batch,a1Morse,a1Space,location" : usedKeys)
   yield "\n"
   yieldMany [ packingListDetailStyle detail
             <> "," <> (tshow $ fromMaybe today (packingListArriving pl) )
