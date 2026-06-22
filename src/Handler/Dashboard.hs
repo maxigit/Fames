@@ -509,7 +509,7 @@ salesCurrentMonth monthly f plotName = do
 --                    average dot (same as cumul               Week?      week
 --                    avegare spline same as cumul ???         Day        Week
 --        
-salesTraces :: Text -> Text -> DateCalculator -> Int -> DateCalculator ->  Day -> Day -> Day -> (Vector (Day, Amount)) -> [Value]
+salesTraces :: Text -> Text -> DateCalculator -> Int -> DateCalculator ->  Day -> Day -> Day -> (Vector (Day, AmountD)) -> [Value]
 salesTraces colour periodName cumulPeriod windowSize barPeriod previousYear from to (N.SomeSized day'amounts) 
    | N.Z2 n_day n_amount <- day'amounts
    -- regroup everything by "day"

@@ -169,15 +169,15 @@ data GLStatus = GLOk --  ^ Everything is the same within  a group
 
 
 -- * Reporting 
-type Quantity = Double
-type Amount = Double
+type QuantityD = Double
+type AmountD = Double
 -- | Quantity and Price
 -- to make it a semigroup we need to also store the amount
 data QPrice = QPrice
   { qpIO :: InOutward
-  , _qpQty :: Quantity
-  , _qpAmount :: Amount
-  , qpPrice :: MinMax Amount
+  , _qpQty :: QuantityD
+  , _qpAmount :: AmountD
+  , qpPrice :: MinMax AmountD
   } deriving (Eq, Ord, Show, Generic, NFData)
 
 mkQPrice io qty price = QPrice io qty (qty*price) (pure $ abs price)
@@ -536,10 +536,10 @@ seasonProfileFromMap m = seasonProfile [ findWithDefault 0 i m   | i <- [1..12]]
 -- * Vector
 
 -- | A 52 weeks year
-type UWeeklyQuantity = UVector Quantity
-type UWeeklyAmount = UVector Amount
+type UWeeklyQuantity = UVector QuantityD
+type UWeeklyAmount = UVector AmountD
 -- | A 12 months year
-type UMonthlyAmount = UVector Amount
+type UMonthlyAmount = UVector AmountD
 
 
 type U53Weeks a = Vs.Vector UVector 53 a

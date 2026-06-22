@@ -156,7 +156,7 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _
 -- * Forecast error
 
 -- | Load actual sales for a whole year 
-loadYearOfActualCumulSalesByWeek :: ForecastGrouper key -> StockFilter -> Day -> (Day, Day, SqlConduit () (ForMap key (U53Weeks Quantity)) ())
+loadYearOfActualCumulSalesByWeek :: ForecastGrouper key -> StockFilter -> Day -> (Day, Day, SqlConduit () (ForMap key (U53Weeks QuantityD)) ())
 loadYearOfActualCumulSalesByWeek grouper stockFilter start = 
    let -- find first monday >= start
        end = calculateDate (Chain [ AddYears 1, AddDays $ -1 ]) start
@@ -172,7 +172,7 @@ loadYearOfActualCumulSalesByWeek grouper stockFilter start =
 
 -- | load sales from stock moves between the given date (end excluded)
 -- sorted by sku 
-actualSalesSource :: forall key . ForecastGrouper key -> StockFilter -> Day -> Day -> SqlConduit () (ForMap key [(Int, Quantity)]) ()
+actualSalesSource :: forall key . ForecastGrouper key -> StockFilter -> Day -> Day -> SqlConduit () (ForMap key [(Int, QuantityD)]) ()
 actualSalesSource grouper stockFilter start end = do
    let (stockJoinM, stockWhereM, stockParams) = stockFilterToSqlWithColumn "moves.stock_id" stockFilter
    let sql = "SELECT " <> groupKey <> " AS groupKey, DATEDIFF(tran_date,?) DIV 7 AS days, -sum(qty)" :
@@ -209,11 +209,11 @@ actualSalesSource grouper stockFilter start end = do
        --                                     ^^^^^^^^^^^^^^^^^^^
        --                                        |
        --                                        +---- selecting week number
-       myCoerce :: [PersistValue] -> (Text, (Int, Quantity))
+       myCoerce :: [PersistValue] -> (Text, (Int, QuantityD))
        myCoerce vs = case rawSqlProcessRow vs  of
                           Left e -> error $ unpack e
-                          Right v -> coerce (v :: (Single Text, (Single Int, Single Quantity)))
-       run :: NonEmpty (Text, (Int, Quantity)) -> ForMap key [(Int, Quantity)]
+                          Right v -> coerce (v :: (Single Text, (Single Int, Single QuantityD)))
+       run :: NonEmpty (Text, (Int, QuantityD)) -> ForMap key [(Int, QuantityD)]
        run nonEmpty = let (sku :|  _, week'quantitys) = unzip nonEmpty
                       in ForMap (mkForecastKey grouper sku) (toList week'quantitys)
                  
@@ -223,7 +223,7 @@ actualSalesSource grouper stockFilter start end = do
 
 
 
-loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> StockFilter -> Day -> FilePath -> Handler (Map key (U53Weeks Quantity))
+loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> StockFilter -> Day -> FilePath -> Handler (Map key (U53Weeks QuantityD))
 loadYearOfForecastCumulByWeek grouper stockFilter start forecastDir = do
   -- load forecast from files
   rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
@@ -249,10 +249,10 @@ loadYearOfForecastCumulByWeek grouper stockFilter start forecastDir = do
                    return $ \(Sku sku) -> sku `member` stockSet
                         
   let weekProfiles = fmap expandProfileWeekly rawProfiles
-      weekProfiles ::  Map Collection (U53Weeks Quantity)
-      monthWeekly :: [U53Weeks Quantity] 
+      weekProfiles ::  Map Collection (U53Weeks QuantityD)
+      monthWeekly :: [U53Weeks QuantityD] 
       monthWeekly = monthFractionPerWeek  (calculateDate (Chain [ AddYears 1,  AddDays (-1)]) start)
-      expandProfileWeekly :: SeasonProfile -> U53Weeks Quantity
+      expandProfileWeekly :: SeasonProfile -> U53Weeks QuantityD
       expandProfileWeekly (SeasonProfile profile) =  let v = V.postscanl' (+) 0 $
                                                                         foldl1Ex' (+)  $ zipWith (\monthWeight weeks -> V.map (*monthWeight) weeks)
                                                                                                    profile
@@ -271,7 +271,7 @@ loadYearOfForecastCumulByWeek grouper stockFilter start forecastDir = do
   
 
 -- | Compute for each month its year fraction for each weeks
-monthFractionPerWeek :: Day -> [U53Weeks Quantity]
+monthFractionPerWeek :: Day -> [U53Weeks QuantityD]
 monthFractionPerWeek start = let
    monthForWeek = [ (fromIntegral (d `div` 7),  month)
                   | (d, day) <- zip [0.. ] [start .. calculateDate (Chain [AddYears 1 , AddDays (-1)]) start ]

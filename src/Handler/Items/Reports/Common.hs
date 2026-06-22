@@ -192,7 +192,7 @@ axisFor axis = ("yaxis", ax) where
 
     
 
-quantityAmountStyle :: Int -> InOutward -> [(QPrice -> Amount, ValueType, Text -> [(Text, Value)], RunSum)]
+quantityAmountStyle :: Int -> InOutward -> [(QPrice -> AmountD, ValueType, Text -> [(Text, Value)], RunSum)]
 quantityAmountStyle traceN io = [ (qpQty io, VQuantity,  quantityStyle (traceN+1), RSNormal)
                                 , (qpAmount io, VAmount, amountStyle traceN, RSNormal)
                                    -- \color -> [("type", String "scatter")
@@ -211,7 +211,7 @@ priceStyle color = [("type", String "scatter")
                 , ("name", "price")
                 , ("line", [aesonQQ|{dash:"dot", width:1, color:#{color}}|])
               ]
-pricesStyle :: [(QPrice -> Amount, ValueType,  Text -> [(Text, Value)], RunSum)]
+pricesStyle :: [(QPrice -> AmountD, ValueType,  Text -> [(Text, Value)], RunSum)]
 pricesStyle = [(qpMinPrice , VPrice,  const [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("fillcolor", String "transparent")
@@ -469,7 +469,7 @@ emptyTrace :: DataParams
 emptyTrace = DataParams QPSales (mkIdentifialParam noneOption) Nothing
 noneOption :: (Text, [a])
 noneOption = ("None", [])
-amountInOption, amountOutOption :: Int -> (Text, [(QPrice -> Amount, ValueType, Text -> [(Text, Value)], RunSum)])
+amountInOption, amountOutOption :: Int -> (Text, [(QPrice -> AmountD, ValueType, Text -> [(Text, Value)], RunSum)])
 amountOutOption n = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle n, RSNormal)] )
 amountInOption n = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle n, RSNormal)])
 
@@ -1418,7 +1418,7 @@ qpPurchasesColumns qpFilter ReportParam{..} =
   then qpColumns qpFilter "Purch" Inward purchQPrice
   else []
 
-qpColumns :: Functor f => QPColumnFilter -> Text -> InOutward -> (TranQP -> f QPrice) -> [(Text, (ValueType -> InOutward -> f Amount -> r) -> TranQP -> r)]
+qpColumns :: Functor f => QPColumnFilter -> Text -> InOutward -> (TranQP -> f QPrice) -> [(Text, (ValueType -> InOutward -> f AmountD -> r) -> TranQP -> r)]
 qpColumns qpFilter name io getQP = case qpFilter of
   QPOnly -> qps
   QPMinMax -> qps <> minmax
@@ -1438,7 +1438,7 @@ qpColumns qpFilter name io getQP = case qpFilter of
 --   if rpLoadAdjustment
 --   then 
 
-qpAdjustmentColumns :: ReportParam -> [(Text, (ValueType -> Maybe Quantity -> r) -> TranQP -> r) ]
+qpAdjustmentColumns :: ReportParam -> [(Text, (ValueType -> Maybe QuantityD -> r) -> TranQP -> r) ]
 qpAdjustmentColumns ReportParam{..} | rpLoadAdjustment == False = []
 qpAdjustmentColumns ReportParam{..} = 
   [ go "Qty" VQuantity (qpQty Inward)

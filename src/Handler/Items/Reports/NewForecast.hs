@@ -27,7 +27,7 @@ import Data.Time.Calendar (diffDays, pattern YearMonthDay)
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
 
-data WithError = WithError { forecastCumul, overError, underError :: U53Weeks Quantity }
+data WithError = WithError { forecastCumul, overError, underError :: U53Weeks QuantityD }
    deriving (Show)
 
 data NoveltyMode = ExcludeNovelty | IncludeNovelty | NoveltyOnly
@@ -49,7 +49,7 @@ defaultForecastParam = ForecastParam{..} where
     fpStartDate = Nothing
     fpDurationLimit = Nothing
 
-totalError :: WithError -> U53Weeks Quantity
+totalError :: WithError -> U53Weeks QuantityD
 totalError w = overError w + underError w
 
 instance Semigroup WithError where 
@@ -64,7 +64,7 @@ data ForecastSummary = ForecastSummary { overPercent, underPercent, overallPerce
    deriving (Show)
    
 data WeeklySalesWithForecastErrors = 
-     WeeklySalesWithForecastErrors { wsSales :: U53Weeks Quantity
+     WeeklySalesWithForecastErrors { wsSales :: U53Weeks QuantityD
                                    , wsNaiveError :: WithError
                                    , wsForecast :: WithError
                                    }
@@ -80,7 +80,7 @@ instance Monoid WeeklySalesWithForecastErrors where
     mempty = WeeklySalesWithForecastErrors 0  mempty mempty
 
 
-plotForecastError ::  Text -> Day -> Day -> U53Weeks Quantity -> WithError -> WithError -> Widget
+plotForecastError ::  Text -> Day -> Day -> U53Weeks QuantityD -> WithError -> WithError -> Widget
 plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals naiveForecast previousForecast currentForecast = do
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
        WithError forecasts0 forecastOvers0 forecastUnders0 = forecastF
@@ -332,7 +332,7 @@ forecastPathToDay :: FilePath -> Maybe Day
 forecastPathToDay = readMay . take 10
         
 newtype Actual a = Actual a
-computeAbsoluteError :: Actual (U53Weeks Quantity)  -> U53Weeks Quantity -> WithError
+computeAbsoluteError :: Actual (U53Weeks QuantityD)  -> U53Weeks QuantityD -> WithError
 computeAbsoluteError (Actual actuals) forecast = WithError forecast overError underError where
    overError = V.zipWith over forecast actuals
    underError = V.zipWith under forecast actuals
