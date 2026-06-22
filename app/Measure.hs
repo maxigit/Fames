@@ -1,6 +1,9 @@
-{-# LANGUAGE StandaloneDeriving, DefaultSignatures, DeriveTraversable, FunctionalDependencies, TypeFamilyDependencies #-}
+{-# LANGUAGE StandaloneDeriving, DefaultSignatures, DerivingVia, DeriveTraversable, FunctionalDependencies, TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators, UndecidableInstances #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Measure
+(module Measure
+)
 -- ( Amount
 -- , Quantity
 -- , Price
@@ -13,12 +16,16 @@ where
 
 import ClassyPrelude
 import qualified Data.Vector.Sized as VS
+import qualified Data.Vector.Generic as VG
+import qualified Data.Vector.Generic.Sized as VGS
 import GHC.TypeLits (KnownNat)
+import Data.Vector.Unboxed.Deriving
 -- import Data.Coerce
 -- imp
 
 newtype MeasureF u a  = Measure { measured :: a }
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+  deriving (Applicative, Monad) via Identity
   
 instance Num a => Num (MeasureF u a ) where
    Measure x + Measure y = Measure (x + y)
@@ -41,6 +48,10 @@ type Measure u = MeasureF u Double
 type Measures u f  = MeasureF u (f Double)
   
     
+derivingUnbox "MeasureF"
+   [t| forall u a. (Unbox a) => MeasureF u a -> a |]
+   [| \(Measure x) -> x|]
+   [| Measure |]
    
    
 data AmountU
@@ -108,9 +119,15 @@ instance (KnownNat n, Mul a b ab) => Mul (VS.Vector n a ) (VS.Vector n b) (VS.Ve
   (^*) = liftA2 (^*)
   (/^) = liftA2 (/^)
 
+instance (KnownNat n, Mul a b ab, VG.Vector v a, VG.Vector v b, VG.Vector v ab) => Mul (VGS.Vector v n a ) (VGS.Vector v n b) (VGS.Vector v n ab) where
+  (^*) = VGS.zipWith (^*)
+  (/^) = VGS.zipWith (/^)
+
 data a :* b 
 data a :/ b
 
+-- (^^*)  :: Mul a b ab => a -> VS.Vector n b -> VS.Vector n ab 
+-- x ^^* v = VS.map (*^x) v
 
 {- Can't be made generice because it overlaps with previous definition
    We could define Amount as Quantity :* Price

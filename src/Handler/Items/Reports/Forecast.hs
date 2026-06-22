@@ -3,6 +3,7 @@ module Handler.Items.Reports.Forecast where
 
 import Import
 import Items.Types
+import Measure
 import qualified Data.Csv as Csv
 import Handler.CsvUtils
 import Handler.Items.Category.Cache
@@ -28,7 +29,7 @@ import qualified Data.Map as Map
 data CollectionProfileRow = CollectionProfileRow
  { cpCollection :: Collection
  , cpMonth :: Int
- , cpWeight :: Double
+ , cpWeight :: Years
  } deriving Show
 instance Csv.FromNamedRecord CollectionProfileRow where
   parseNamedRecord m = do
@@ -36,7 +37,7 @@ instance Csv.FromNamedRecord CollectionProfileRow where
     weight <- m Csv..: "weight"
     month' <- m Csv..: "month"
     month <- parseMonth month'
-    return $ CollectionProfileRow collection month weight
+    return $ CollectionProfileRow collection month (Measure weight)
     
 data ForecastGrouper k where 
          SkuGroup :: ForecastGrouper Sku
@@ -86,12 +87,12 @@ newtype Collection = Collection Text
 
 data SkuSpeedRow = SkuSpeedRow
   { ssSku :: Sku
-  , ssWeight :: Double
+  , ssWeight :: YearlyQuantity
   , ssCollection :: Collection
   }deriving (Show)
 instance Csv.FromNamedRecord SkuSpeedRow where
   parseNamedRecord m = SkuSpeedRow  <$> fmap Sku (m Csv..: "stock_id")
-                                    <*> m Csv..: "eQty"
+                                    <*> (Measure <$> m Csv..: "eQty")
                                     <*> fmap Collection (m Csv..: "collection")
 
                   
@@ -147,7 +148,7 @@ skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _
                     Nothing Nothing mempty
                     0
 
-          qp = mkQPrice io (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
+          qp = mkQPrice io (measured $ weight ^* speed) (fromMaybe 0 $ iiSalesPrice info)
           tqp = tranQP' extra QPSalesForecast qp
       return (key, tqp)
     _ -> []
@@ -223,7 +224,7 @@ actualSalesSource grouper stockFilter start end = do
 
 
 
-loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> StockFilter -> Day -> FilePath -> Handler (Map key (U53Weeks QuantityD))
+loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> StockFilter -> Day -> FilePath -> Handler (Map key (U53Weeks Quantity))
 loadYearOfForecastCumulByWeek grouper stockFilter start forecastDir = do
   -- load forecast from files
   rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
@@ -249,17 +250,20 @@ loadYearOfForecastCumulByWeek grouper stockFilter start forecastDir = do
                    return $ \(Sku sku) -> sku `member` stockSet
                         
   let weekProfiles = fmap expandProfileWeekly rawProfiles
-      weekProfiles ::  Map Collection (U53Weeks QuantityD)
-      monthWeekly :: [U53Weeks QuantityD] 
+      weekProfiles ::  Map Collection (U53Weeks Years)
+      monthWeekly :: [U53Weeks Scalar] 
       monthWeekly = monthFractionPerWeek  (calculateDate (Chain [ AddYears 1,  AddDays (-1)]) start)
-      expandProfileWeekly :: SeasonProfile -> U53Weeks QuantityD
-      expandProfileWeekly (SeasonProfile profile) =  let v = V.postscanl' (+) 0 $
-                                                                        foldl1Ex' (+)  $ zipWith (\monthWeight weeks -> V.map (*monthWeight) weeks)
-                                                                                                   profile
-                                                                                                   monthWeekly
-                                                     in v
+      expandProfileWeekly :: SeasonProfile -> U53Weeks Years
+      expandProfileWeekly (SeasonProfile profile) = 
+            let v = V.postscanl' (+)
+                                 0
+                                 $ foldl1Ex' (+)
+                                 $ zipWith (\monthWeight weeks -> V.map (^* monthWeight) weeks)
+                                           profile
+                                           monthWeekly
+            in v
       linear = V.map (min 1) $ V.postscanl' (+) 0 $ V.replicate (1/52)  
-      weeklyForRow (SkuSpeedRow _ weight collection) = V.map ((*1).(*weight)) weekly where
+      weeklyForRow (SkuSpeedRow _ weight collection) = V.map (^* weight) weekly where
           weekly = findWithDefault linear collection weekProfiles
                           
       skuMap = Map.fromListWith (+) [(mkKey . unSku $ ssSku row, weeklyForRow row )
@@ -271,7 +275,7 @@ loadYearOfForecastCumulByWeek grouper stockFilter start forecastDir = do
   
 
 -- | Compute for each month its year fraction for each weeks
-monthFractionPerWeek :: Day -> [U53Weeks QuantityD]
+monthFractionPerWeek :: Day -> [U53Weeks Scalar]
 monthFractionPerWeek start = let
    monthForWeek = [ (fromIntegral (d `div` 7),  month)
                   | (d, day) <- zip [0.. ] [start .. calculateDate (Chain [AddYears 1 , AddDays (-1)]) start ]

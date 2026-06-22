@@ -15,6 +15,7 @@ import Database.Persist.Types
 import qualified Data.Map.Lazy as LMap
 import Import.NoFoundation
 import qualified Data.Vector.Generic.Sized as Vs
+import Measure
 
 -- * General 
 -- | Holder for miscellaneous information relative to an item.
@@ -179,6 +180,15 @@ data QPrice = QPrice
   , _qpAmount :: AmountD
   , qpPrice :: MinMax AmountD
   } deriving (Eq, Ord, Show, Generic, NFData)
+
+type Quantity = Measure QuantityU
+type Amount = Measure AmountU
+type YearlyQuantity = Measure (QuantityU :/ YearU)
+type WeeklyQuantity = Measure (QuantityU :/ WeekU)
+type Years = Measure YearU
+type Weeks = Measure WeekU
+type Months = Measure MonthU
+type Scalar = Measure ScalarU
 
 mkQPrice io qty price = QPrice io qty (qty*price) (pure $ abs price)
 qpQty io qp = _qpQty (qpTo io qp)
@@ -522,7 +532,7 @@ nmapToList (NMap _ _ m) = [ (key : subkeys, es)
 
 -- * Forecast 
 -- | Proportion of sales for each month of sales for each month. The sum should be 1 or 0 (and we should have 12 )
-data SeasonProfile = SeasonProfile [Double] deriving (Show, Eq)
+data SeasonProfile = SeasonProfile [Years] deriving (Show, Eq)
 seasonProfile [] = seasonProfile (repeat 1)
 seasonProfile weights0 = SeasonProfile (normalize weights) where
   weights = take 12 $ weights0 ++ repeat 0

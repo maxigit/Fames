@@ -23,6 +23,8 @@ import Util.ForConduit
 import GL.Utils
 import Data.List(iterate)
 import Data.Time.Calendar (diffDays, pattern YearMonthDay)
+import Data.Coerce(coerce)
+import Measure
 
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
@@ -265,7 +267,7 @@ getForecastErrors ForecastParam{..} grouper day path = do
                    ForMap sku $ WeeklySalesWithForecastErrors salesV
                                                               (computeAbsoluteError (Actual salesV) naiveV)
                                                               (computeAbsoluteError (Actual salesV) forecastV)
-      addForecast (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, forecast) where
+      addForecast (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, V.withVectorUnsafe coerce forecast) where
          forecast =  findWithDefault 0 sku skuMap
       conduit = alignConduit salesSource naiveSource
                          .|Data.Conduit.List.mapMaybe  joinWithZeror

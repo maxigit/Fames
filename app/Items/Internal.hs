@@ -11,6 +11,7 @@ module Items.Internal where
 
 import ClassyPrelude
 import Items.Types
+import Measure
 import Data.These
 import Data.Align(align)
 import qualified Data.Map as Map
@@ -245,25 +246,25 @@ masterPrice baseId master = do -- Maybe
 -- * Forecast 
 -- | Compute the weight of a date range given a profile.
 -- For example if we now, that the 4 first months have a weight of 25% and the other 0.
--- The weight from the mid April to end of April should be 12.5%
+-- The weight from the mid April to end of April should be 12.5% (0.125)
 -- Of course, the weight of a full month should correspond to the weight of the corresponding months
-weightForRange :: SeasonProfile -> Day -> Day -> Double
+weightForRange :: SeasonProfile -> Day -> Day -> Years
 weightForRange p start end | end < start = weightForRange p end start
 weightForRange profile start end = let
   in sum $ map snd (weightsForRange profile start end)
 
-weightsForRange :: SeasonProfile  -> Day -> Day -> [(Day, Double)]
+weightsForRange :: SeasonProfile  -> Day -> Day -> [(Day, Years)]
 weightsForRange (SeasonProfile weights) start end = let
   beginningOfYear = calculateDate BeginningOfYear start
   monthStarts = takeWhile (<= end) $ iterate (calculateDate (AddMonths 1)) beginningOfYear
   month'weights = zip monthStarts (cycle weights )
-  weightForMonth :: (Day, Double) -> Double
-  weightForMonth (m, w) = let 
+  weightForMonth :: (Day, Years) -> Years
+  weightForMonth (m, Measure w) = let 
     s = max start m 
     e = min (calculateDate EndOfMonth m) end 
     d = diffDays e s
     (year, month, _) = toGregorian m
-    in  if d >= 0 then w * (fromIntegral $ d + 1) / fromIntegral (gregorianMonthLength year month) else 0
+    in  Measure $ if d >= 0 then w * (fromIntegral $ d + 1) / fromIntegral (gregorianMonthLength year month) else 0
   in map ((,) <$> fst <*> weightForMonth) month'weights
 
 

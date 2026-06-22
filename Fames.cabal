@@ -107,6 +107,7 @@ common deps
     , vector-algorithms >=0.9.1 && <1
     , vector-sized
     , vector-sized >=1.6.1 && <2
+    , vector-th-unbox >= 0.2.2
     , wai
     , wai-extra >=3.0.0
     , wai-logger >=2.2
@@ -341,6 +342,7 @@ executable Fames
       WH.FA.Types
       WH.PackingList.Internal
       Paths_Fames
+      Measure
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
