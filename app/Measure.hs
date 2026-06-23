@@ -20,10 +20,11 @@ import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Generic.Sized as VGS
 import GHC.TypeLits (KnownNat)
 import Data.Vector.Unboxed.Deriving
+import Data.Kind (Type)
 -- import Data.Coerce
 -- imp
 
-newtype MeasureF u a  = Measure { measured :: a }
+newtype MeasureF (u :: Type) a  = Measure { measured :: a }
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
   deriving (Applicative, Monad) via Identity
   
@@ -75,85 +76,93 @@ type Priced = MeasureF PriceU
 -- type Days = Measures DayU
 -- type Weeks = Measures WeekU
 
-infix 7 ^*, /^, *^
-class Mul a b ab | a b -> ab, a ab -> b, b ab -> a where
-    (^*) :: a -> b -> ab
-    (/^) :: ab -> a -> b
+infix 7 ^* -- , ^/, *^
+class Mul a b where
+    (^*) :: a -> b -> (a :*: b)
+class Div ab b where
+     (^/) :: ab -> b  -> (ab :/: b)
     
     
-
-(*^) :: Mul a b ab => b -> a -> ab
+(*^) :: Mul a b => b -> a -> a :*: b
 (*^) = flip (^*)
 
-instance Mul Integer Double Double where
+type family (a :: Type) :*: (b :: Type)  where
+   -- (MeasureF u a) :*: (MeasureF v a) = MeasureF (u :*: v) a
+   (u, u') :*: (v, v') = (u :*: v , u' :*: v')
+   -- VGS.Vector v n a :*: VGS.Vector v n b = VGS.Vector v n (a :*: b)
+   f3 v n a :*: f3 v n b = f3 v n (a :*: b)
+   f3 v n a :*: b = f3 v n (a :*: b)
+   f3 v a x :*: f3 v b x = f3 v (a :*: b) x
+
+   f2 a x :*: f2 b x = f2 (a :*: b) x
+   f2 n a :*: f2 n b = f2 n (a :*: b)
+
+   PriceU :*: QuantityU = AmountU
+   ScalarU :*: b = b
+   a :*: ScalarU = a
+
+   (a :/ b)  :*: b = a
+   b :*: (a :/ b)  = a
+   a :*: (b :* c) = a :*: b :*: c
+
+   f a :*: b = f (a :*: b)
+   a :*: f b = f (a :*: b)
+
+   Double :*: b = Double
+   a :*: Double = Double
+
+   a :*: b = a :* b
+
+type family (ab :: Type) :/: (b :: Type) where
+   (u, u') :/: (v, v') = (u :/: v , u' :/: v')
+   f2 ab x :/: f2 b x = f2 (ab :/: b) x
+   (a :* b) :/: b = a
+   ScalarU :/: b = b
+   a :/: ScalarU = a
+   f a :/: f b = f (a :/: b)
+   a :/: f b = f (a :/: b)
+   Double :/: b = Double
+   a :/: Double = Double
+   AmountU :/: PriceU = QuantityU
+   AmountU :/: QuantityU = PriceU
+   ab :/: b = ab :/ b
+
+
+instance Mul Integer Double where
   i ^* x = fromIntegral i * x
-  y /^ i = y / fromIntegral i 
+  -- y ^/ i = y / fromIntegral i 
 
+instance Mul Double Double where
+  x ^* y = x * y
   
-instance (Fractional a) =>  Mul (MeasureF ScalarU a) (MeasureF u a) (MeasureF u a) where
+instance (Num a) =>  Mul (MeasureF u a) (MeasureF v a)  where
   (^*) = mulmeasure
-  (/^) = divmeasure
+instance (Fractional a) =>  Div (MeasureF u a) (MeasureF v a)  where
+  (^/) = divmeasure
+
 --
--- We remove the following instance because in would implied that
--- ab -> a -> b ie. a -> Scalar -> a
--- instance (Num (f Double), Fractional (f Double)) =>  Mul (Measures a f) (Measures ScalarU f) (Measures a f) where
---   (^*) = mulmeasure
---   (/^) = divmeasure
 
-instance (Fractional a) =>  Mul (MeasureF QuantityU a) (MeasureF PriceU a) (MeasureF AmountU a) where
-  (^*) = mulmeasure
-  (/^) = divmeasure
-
-instance (Fractional a) =>  Mul (MeasureF PriceU a) (MeasureF QuantityU a) (MeasureF AmountU a) where
-  (^*) = mulmeasure
-  (/^) = divmeasure
-
-mulmeasure :: Num a => MeasureF u a -> MeasureF v a -> MeasureF uv a
+mulmeasure :: (Num a) => MeasureF u a -> MeasureF v a -> MeasureF (u :*: v) a --  a :*: MeasureF v a
 mulmeasure (Measure x) (Measure y) = Measure (x * y)
 
-divmeasure :: Fractional a => MeasureF u a -> MeasureF v a -> MeasureF uv a
+instance (Mul u v, Mul u' v') => Mul (u, u') (v, v') where
+   (u, u') ^* (v, v') = (u ^* v, u' ^* v')
+
+divmeasure :: Fractional a => MeasureF uv a -> MeasureF v a -> MeasureF (uv :/: v) a
 divmeasure (Measure x) (Measure y) = Measure (x / y)
 
 
-instance (KnownNat n, Mul a b ab) => Mul (VS.Vector n a ) (VS.Vector n b) (VS.Vector n ab) where
-  (^*) = liftA2 (^*)
-  (/^) = liftA2 (/^)
+instance (KnownNat n, Mul a b ) => Mul (VS.Vector n a ) (VS.Vector n b)  where
+    (^*) = liftA2 (^*)
+instance (KnownNat n, Div a b ) => Div (VS.Vector n a ) (VS.Vector n b)  where
+    (^/) = liftA2 (^/)
 
-instance (KnownNat n, Mul a b ab, VG.Vector v a, VG.Vector v b, VG.Vector v ab) => Mul (VGS.Vector v n a ) (VGS.Vector v n b) (VGS.Vector v n ab) where
+instance (KnownNat n, Mul a b, VG.Vector v a, VG.Vector v b, VG.Vector v (a :*: b) ) => Mul (VGS.Vector v n a ) (VGS.Vector v n b)  where
   (^*) = VGS.zipWith (^*)
-  (/^) = VGS.zipWith (/^)
+instance (KnownNat n, Div ab b, VG.Vector v ab, VG.Vector v b, VG.Vector v (ab :/: b) ) => Div (VGS.Vector v n ab ) (VGS.Vector v n b)  where
+ (^/) = VGS.zipWith (^/)
 
+-- instance (KnownNat n, Mul a b, VG.Vector v a, VG.Vector v b, VG.Vector v (a :*: b) ) => Mul (VGS.Vector v n a ) b   where
+  -- v ^* x = VGS.map (^* x) v
 data a :* b 
-data a :/ b
-
--- (^^*)  :: Mul a b ab => a -> VS.Vector n b -> VS.Vector n ab 
--- x ^^* v = VS.map (*^x) v
-
-{- Can't be made generice because it overlaps with previous definition
-   We could define Amount as Quantity :* Price
-   but we couldn't instantiate :/ 
-   maybe we can use close type family ?
- 
- HOWEMER this could be done for every combination we need
-
-instance (Fractional a) =>  Mul (MeasureF u a) (MeasureF v a) (MeasureF (u :* v) a) where
-  (^*) = mulmeasure
-  (/^) = divmeasure
-
- -}
-instance (Fractional a) =>  Mul (MeasureF DayU a) (MeasureF (v :/ DayU) a) (MeasureF v a) where
-  (^*) = mulmeasure
-  (/^) = divmeasure
-
-instance (Fractional a) =>  Mul (MeasureF YearU a) (MeasureF (v :/ YearU) a) (MeasureF v a) where
-  (^*) = mulmeasure
-  (/^) = divmeasure
-{- 
-instance (Num (f Double), Fractional (f Double)) =>  Mul (Measures DayU f) (Measures (a :/ DayU)  f) (Measures a f) where
-  (^*) = mulmeasure
-  (/^) = divmeasure
-
-instance (Num (f Double), Fractional (f Double)) =>  Mul (Measures YearU f) (Measures (a :/ YearU)  f) (Measures a f) where
-  (^*) = mulmeasure
-  (/^) = divmeasure
--}
+data a :/ b   
