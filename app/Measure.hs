@@ -76,7 +76,7 @@ type Priced = MeasureF PriceU
 -- type Days = Measures DayU
 -- type Weeks = Measures WeekU
 
-infix 7 ^* -- , ^/, *^
+infixl 7 ^* , ^/, *^
 class Mul a b where
     (^*) :: a -> b -> (a :*: b)
 class Div ab b where
@@ -98,6 +98,7 @@ type family (a :: Type) :*: (b :: Type)  where
    f2 n a :*: f2 n b = f2 n (a :*: b)
 
    PriceU :*: QuantityU = AmountU
+   QuantityU :*: PriceU = AmountU
    ScalarU :*: b = b
    a :*: ScalarU = a
 

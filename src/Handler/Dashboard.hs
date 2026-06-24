@@ -37,6 +37,7 @@ import qualified Data.NoDF as N
 import Data.NoDF.Operators
 import qualified Data.Foldable as F
 import qualified Data.Vector.Sized as N
+import qualified FA as FA
 
 pivotCss = [cassius|
   div.pivot-inline
@@ -861,12 +862,16 @@ forecastForm showSubdir ForecastParam{..} html = do
                                 n <- readMay subdirN
                                 headMay $ drop (n-1 :: Int) subdirs
                            in (go , hiddenField)
+    let priceListOption = optionsPersistKey [FA.SalesTypeInactive ==. False]
+                                           [Desc FA.SalesTypeId]
+                                           (FA.salesTypeSalesType)
     let form = ForecastParam
                <$> (fmap toSubdir $ aopt subdirField "Subdirectory"  (Just (fmap pack fpSubdirectory)))
                <*> (areq  (selectField optionsEnum) "Novelty mode" (Just fpNoveltyMode))
                <*> (aopt filterEField "SKU" (Just fpStockFilter))
                <*> (aopt dayField  "Start date" (Just fpStartDate))
                <*> (aopt intField "duration limit" (Just fpDurationLimit))
+               <*> (aopt (selectField priceListOption) "price list" (Just fpPriceList))
     renderBootstrap3 BootstrapBasicForm form html
 
 

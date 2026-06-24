@@ -183,6 +183,7 @@ data QPrice = QPrice
 
 type Quantity = Measure QuantityU
 type Amount = Measure AmountU
+type Price = Measure PriceU
 type YearlyQuantity = Measure (QuantityU :/ YearU)
 type WeeklyQuantity = Measure (QuantityU :/ WeekU)
 type Years = Measure YearU

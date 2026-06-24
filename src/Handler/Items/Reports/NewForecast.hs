@@ -25,6 +25,7 @@ import Data.List(iterate)
 import Data.Time.Calendar (diffDays, pattern YearMonthDay)
 import Data.Coerce(coerce)
 import Measure
+import qualified FA as FA 
 
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
@@ -41,6 +42,7 @@ data ForecastParam = ForecastParam
        , fpStartDate :: Maybe Day -- ^ Make all forecast start on given day of the year
        , fpDurationLimit :: Maybe Int -- ^ Limit forecast to the same duration so they can be compared
                                       -- this is from the forecast or global start date
+       , fpPriceList :: Maybe FA.SalesTypeId
        } deriving Show
 
 defaultForecastParam :: ForecastParam
@@ -50,6 +52,7 @@ defaultForecastParam = ForecastParam{..} where
     fpStockFilter = Nothing
     fpStartDate = Nothing
     fpDurationLimit = Nothing
+    fpPriceList = Nothing
 
 totalError :: WithError -> U53Weeks QuantityD
 totalError w = overError w + underError w
@@ -250,10 +253,13 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
 getForecastErrors :: Ord key => ForecastParam -> ForecastGrouper key -> Day -> FilePath -> Handler ((Day, Day), ConduitT () (ForMap key WeeklySalesWithForecastErrors) SqlHandler ())
 getForecastErrors ForecastParam{..} grouper day path = do 
   settings <- getsYesod appSettings
-  let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek grouper stockFilter day
+  let (start, end, salesSource) = loadYearOfActualCumulSalesByWeek grouper stockFilter day fpPriceList
       stockFilter = mkStockFilter fpStockFilter Nothing Nothing
-  skuMap <- loadYearOfForecastCumulByWeek grouper stockFilter day $ appForecastProfilesDir settings </> (maybe id (</>) fpSubdirectory) path
-  let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek grouper stockFilter (calculateDate (AddYears $ -1) start)
+  skuMap' <- loadYearOfForecastCumulByWeek grouper stockFilter fpPriceList day $ appForecastProfilesDir settings </> (maybe id (</>) fpSubdirectory) path
+  let skuMap = case fpPriceList of 
+                    Nothing -> fmap (V.map fst) skuMap'
+                    Just _ -> fmap (V.map ( coerce . snd)) skuMap'
+  let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek grouper stockFilter (calculateDate (AddYears $ -1) start) fpPriceList
       joinWithZeror (ForMap sku theseab) = ForMap sku <$> ab where
           ab = case theseab of
                   -- no naive forecast, ie no previous sales => NOVELTY
