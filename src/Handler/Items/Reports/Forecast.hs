@@ -8,9 +8,11 @@ import qualified Data.Csv as Csv
 import Handler.CsvUtils
 import Handler.Items.Category.Cache
 import Handler.Items.Common(StockFilter, stockFilterToSqlWithColumn, stockFilterToSql)
+import Handler.Items.Forecast.Model
 import Items.Internal
 import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
+import System.FilePath (takeBaseName)
 import FA as FA hiding (unUserKey)
 import Control.Monad.Fail (MonadFail(..))
 import GL.Utils
@@ -104,6 +106,24 @@ loadSkuSpeed filepath = do
     Left err -> error $ show err
     Right rows -> return rows
 
+-- | load csv forecast or evaluate model if needed
+loadSkuSpeedFromDir :: FilePath -> Handler ([SkuSpeedRow], Map Collection SeasonProfile)
+loadSkuSpeedFromDir forecastDir = do
+  skuFiles <- liftIO $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
+  case skuFiles of
+     (_:_) ->  do -- load csv by default in case we cached the hs result
+               rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
+               skuSpeeds <- liftIO $ mapM (loadSkuSpeed . (forecastDir </> )) skuFiles
+               return (concat skuSpeeds, rawProfiles)
+     [] -> do -- try loading model
+               let flat = seasonProfile []
+               speed <- estimateSkuSpeedFromDir forecastDir 
+               let collection = Collection "model"
+               return (toList $ fmap (\(sku, qty) -> SkuSpeedRow sku qty collection )speed, singletonMap collection flat)
+           
+
+  
+   
 -- | Generate fake transactions corresponding to forecast sales
 loadItemForecast ::  Maybe InOutward -> FilePath -> (Map Sku ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
 loadItemForecast io forecastDir infoMap start end = do
