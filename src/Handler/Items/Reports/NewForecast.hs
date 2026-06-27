@@ -44,6 +44,7 @@ data ForecastParam = ForecastParam
        , fpDurationLimit :: Maybe Int -- ^ Limit forecast to the same duration so they can be compared
                                       -- this is from the forecast or global start date
        , fpPriceList :: Maybe FA.SalesTypeId
+       , fpMovingAverage :: Bool
        } deriving Show
 
 defaultForecastParam :: ForecastParam
@@ -55,6 +56,7 @@ defaultForecastParam = ForecastParam{..} where
     fpStartDate = Nothing
     fpDurationLimit = Nothing
     fpPriceList = Nothing
+    fpMovingAverage = True
 
 totalError :: WithError -> U53Weeks QuantityD
 totalError w = overError w + underError w
@@ -87,8 +89,8 @@ instance Monoid WeeklySalesWithForecastErrors where
     mempty = WeeklySalesWithForecastErrors 0  mempty mempty
 
 
-plotForecastError ::  Text -> Day -> Day -> U53Weeks QuantityD -> WithError -> WithError -> Widget
-plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals naiveForecast previousForecast currentForecast = do
+plotForecastError ::  Text -> Day -> Day -> U53Weeks QuantityD -> WithError -> WithError -> Maybe (U53Weeks QuantityD) -> Widget
+plotForecastError plotId start today actuals0 naiveF forecastF previousNaiveM = do -- actuals naiveForecast previousForecast currentForecast = do
    let WithError naives0 naiveOvers0 naiveUnders0 = naiveF
        WithError forecasts0 forecastOvers0 forecastUnders0 = forecastF
    let x = take 52 $ iterate (calculateDate (AddWeeks 1)) start-- [1..  length actuals] :: [Int]
@@ -138,6 +140,53 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
                     , layer: "below"
                     }
                        |]
+       previousTraces = case previousNaiveM of
+                             Nothing -> [julius| [] |]
+                             Just naive_1 -> 
+                               let pX = take 52 $ iterate (calculateDate (AddWeeks 1)) (calculateDate (AddYears (-1)) start)
+                                   ma_1 = naive - naive_1 + V.replicate (V.index naive_1 52)
+                                   ma = actuals - naive + V.replicate (V.index naive 52)
+                                   lastNaive = V.index naive 52
+                                   lastForecast = V.index forecast 52
+                                   backForecalt = 2 * lastNaive - lastForecast
+
+                                   -- intersection forecast line at the begining of the graph
+                               in [julius|
+                                       [ { x: #{toJSON pX }
+                                         , y: #{toJSON ma_1 }
+                                         , mode: "lines"
+                                         , line: {color: "black"}
+                                         , name: "Actual MA"
+                                         , legendgroup: "ma"
+                                         }
+                                       , { x: #{toJSON xbefore}
+                                         , y: #{toJSON ma}
+                                         , mode: "lines"
+                                         , line: {color: "green"}
+                                         , name: "Actual MA"
+                                         , legendgroup: "ma"
+                                         }
+                                       , { x: #{toJSON [headEx x, lastEx x]}
+                                         , y: #{toJSON [lastNaive, lastNaive ] }
+                                         , mode: "lines"
+                                         , line: {dash: "dash", color: "black", width:1}
+                                         , name: "Naive MA"
+                                         }
+                                       , { x: #{toJSON [headEx x, lastEx x]}
+                                         , y: #{toJSON [lastNaive, lastForecast] }
+                                         , mode: "lines"
+                                         , line: {dash: "", color: "red", width:1}
+                                         , name: "Forecast MA"
+                                         , legendgroup: "forecast ma"
+                                         }
+                                       , { x: #{toJSON [headEx pX, headEx x] }
+                                         , y: #{toJSON [ backForecalt,  lastNaive ] }
+                                         , mode: "lines"
+                                         , line: {dash: "dot", color: "red", width:1}
+                                         , legendgroup: "forecast ma"
+                                         }
+                                       ]
+                                  |]
    [whamlet|
      The plot
      <div. id="#{plotId}">
@@ -149,7 +198,9 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
          , y:#{toJSON naiveUndersY}
          , line: {shape: "spline", color: "transparent"}
            , yaxis: 'y'
-           , showlegend: false
+           , name: 'naive under'
+           , legendgroup: 'around'
+           // , showlegend: false
          }
          , {  // naive over
            x: #{toJSON xbefore}
@@ -157,7 +208,9 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , fill: "tonexty"
            , line: {shape: "spline", color: "transparent"}
            , yaxis: 'y'
-           , showlegend: false
+           , name: 'naive over'
+           , legendgroup: 'around'
+           // , showlegend: false
          }
          , {  // naive line
            x: #{toJSON x}
@@ -172,7 +225,9 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , y:#{toJSON forecastUndersY}
            , line: {shape: "spline", color: "transparent"}
            , yaxis: 'y'
-           , showlegend: false
+           , name: 'forecast under'
+           , legendgroup: 'around'
+            //, showlegend: false
            }
          ,
          {  // forecast over
@@ -182,7 +237,9 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
             , line: {shape: "spline", color: "transparent"}
             , fillcolor: "rgba(200,0,0,0.3)"
            , yaxis: 'y'
-           , showlegend: false
+           , name: 'forecast over'
+           , legendgroup: 'around'
+            //, showlegend: false
             }
          , {  // forecast line
            x: #{toJSON x}
@@ -216,7 +273,7 @@ plotForecastError plotId start today actuals0 naiveF forecastF = do -- actuals n
            , yaxis : 'y2'
            , name: "Forceast %Error"
            }
-         ];
+         ].concat(^{previousTraces});
       Plotly.newPlot(#{plotId}
                     , traces
                     , {shapes: [^{todayBar},
@@ -313,7 +370,22 @@ getPlotForecastError param grouper day0 path = do
    let ftime = formatTime0 @Text "%a %d %b %Y"
    case salesM of
         Just (WeeklySalesWithForecastErrors salesByWeek naive forecast) ->  do
+           previousPreviousM <- if fpMovingAverage param
+                                then do
+                                     let stockFilter = mkStockFilter (fpStockFilter param) Nothing Nothing
+                                     let (_, _, sales_2) = loadYearOfActualCumulSalesByWeek grouper
+                                                                                           stockFilter
+                                                                                           (calculateDate (AddYears $ -2) day)
+                                                                                           (fpPriceList param)
+                                     previous <- runDB $ runConduit 
+                                                       $ sales_2
+                                                       .| mapC forMapValue
+                                                       .| C.foldl1 (+)
+                                     return $ previous
+
+                                else return Nothing
            let plot = plotForecastError ("forecast-" <> pack path <> grouperName ) start today salesByWeek  naive forecast
+                                        previousPreviousM
                grouperName = case grouper of
                               SkuGroup -> "sku"
                               CategoryGroup category -> category

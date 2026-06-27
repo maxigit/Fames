@@ -867,12 +867,13 @@ forecastForm showSubdir ForecastParam{..} html = do
                                            (FA.salesTypeSalesType)
     let form = ForecastParam
                <$> (fmap toSubdir $ aopt subdirField "Subdirectory"  (Just (fmap pack fpSubdirectory)))
-               <*> (aopt intField "dir limit" (Just fpDirLimit))
+               <*> (aopt intField "Dir limit" (Just fpDirLimit))
                <*> (areq  (selectField optionsEnum) "Novelty mode" (Just fpNoveltyMode))
                <*> (aopt filterEField "SKU" (Just fpStockFilter))
                <*> (aopt dayField  "Start date" (Just fpStartDate))
-               <*> (aopt intField "duration limit" (Just fpDurationLimit))
+               <*> (aopt intField "Duration limit" (Just fpDurationLimit))
                <*> (aopt (selectField priceListOption) "price list" (Just fpPriceList))
+               <*> (areq boolField "Moving average" (Just fpMovingAverage))
     renderBootstrap3 BootstrapBasicForm form html
 
 
