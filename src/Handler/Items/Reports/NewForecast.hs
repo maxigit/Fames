@@ -37,6 +37,7 @@ data NoveltyMode = ExcludeNovelty | IncludeNovelty | NoveltyOnly
   deriving (Eq, Ord, Enum, Bounded, Show)
 data ForecastParam = ForecastParam 
        { fpSubdirectory :: Maybe FilePath
+       , fpDirLimit :: Maybe Int -- to speed up 
        , fpNoveltyMode :: NoveltyMode
        , fpStockFilter :: Maybe FilterExpression
        , fpStartDate :: Maybe Day -- ^ Make all forecast start on given day of the year
@@ -48,6 +49,7 @@ data ForecastParam = ForecastParam
 defaultForecastParam :: ForecastParam
 defaultForecastParam = ForecastParam{..} where
     fpSubdirectory = Nothing
+    fpDirLimit = Just 3
     fpNoveltyMode = IncludeNovelty
     fpStockFilter = Nothing
     fpStartDate = Nothing

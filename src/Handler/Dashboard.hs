@@ -867,6 +867,7 @@ forecastForm showSubdir ForecastParam{..} html = do
                                            (FA.salesTypeSalesType)
     let form = ForecastParam
                <$> (fmap toSubdir $ aopt subdirField "Subdirectory"  (Just (fmap pack fpSubdirectory)))
+               <*> (aopt intField "dir limit" (Just fpDirLimit))
                <*> (areq  (selectField optionsEnum) "Novelty mode" (Just fpNoveltyMode))
                <*> (aopt filterEField "SKU" (Just fpStockFilter))
                <*> (aopt dayField  "Start date" (Just fpStartDate))
@@ -893,7 +894,7 @@ getDForecastR = do
                   | path <- dirs
                   , day <- maybeToList $ forecastPathToDay $ takeBaseName path
                   ]
-  plot'summarys <- forM (sort $ day'paths) \(Down day, path) -> do
+  plot'summarys <- forM (maybe id take (fpDirLimit param) $ sort $ day'paths) \(Down day, path) -> do
                  (plot, summary) <- getPlotForecastError param SkuGroup day path
                  return (day, takeBaseName path, plot, summary)
   let forSummaries = [ (day, pack path, summary) | (day, path, _, summary) <- plot'summarys ]
