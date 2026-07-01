@@ -54,7 +54,7 @@ itemSalesTables stockLike stockFilter showInactive =  do
           ||. ( trans ^. #type ==. val (fromEnum ST_CUSTCREDIT) &&. detail.quantity >=. val 0)
           )
   forM (sfSku stockFilter) \sku -> where_ (detail.stockId =%/. sku)
-  where_ (detail.stockId `like` val stockLike )
+  when ( stockLike /= "") $  where_ (detail.stockId `like` val stockLike )
   return (trans :& detail :&move )
              
                 

@@ -59,7 +59,7 @@ loadSales forecastDay model = do
        Nothing -> return mempty
        Just (start, end) -> do
             let query = do
-                          tables <- itemSalesTables "M%"  emptyStockFilter True
+                          tables <- itemSalesTables ""  emptyStockFilter True
                           let trans = E.getTable @DebtorTran tables
                               details = E.getTable @DebtorTransDetail tables
                           -- E.groupBy trans.tranDate
