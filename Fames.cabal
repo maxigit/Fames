@@ -204,6 +204,7 @@ library
       Handler.Items.History
       Handler.Items.Index
       Handler.Items.Forecast.Model
+      Handler.Items.Forecast.Model.Easy
       Handler.Items.Report
       Handler.Items.Reports.Common
       Handler.Items.Reports.Forecast

@@ -19,21 +19,9 @@ type EntityX a = SqlExpr (Entity a)
 instance SqlString StockMasterId -- needed to convert stock_master.stock_id  into a string (not a key)
 
 
-itemSalesTables :: Text -> StockFilter -> Bool -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail :& EntityX StockMove)
+itemSalesTables :: Text -> StockFilter -> Bool -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail)
 itemSalesTables stockLike stockFilter showInactive =  do
-  (trans :& detail :&move ) <- from $ ( debtorTransAndDetailsTable
-                              `innerJoin` (table @StockMove `on` (\(trans :& detail :& move)
-                                                 -> detail.stockId ==. move.stockId
-                                                 &&. detail.debtorTransNo ==. just move.transNo
-                                                 &&. detail.debtorTransType ==. just (move ^. #type)
-                                                 &&. trans.tranDate ==. move.tranDate
-                                                 -- discard negative qty credit not which correspond to item WRITTEN OFF
-                                                 &&. ( move ^. #type  !=. (val $ fromEnum ST_CUSTCREDIT) -- not credit
-                                                     ||.                                                 -- credit but qty > 0
-                                                        move.qty >. val 0
-                                                      )
-                                                 )
-                             )
+  (trans :& detail) <- from $ ( debtorTransAndDetailsTable
                              )
                              `innerJoinIf` ( if showInactive
                                              then Nothing -- show all
@@ -44,7 +32,7 @@ itemSalesTables stockLike stockFilter showInactive =  do
                                                  $ \(catname, fexpr) ->
                                                       (table @ItemCategory)
                                                       -- `on` \((getTable @DebtorTransDetail -> detail) :& category ) 
-                                                      `on` \(_trans :& detail :& _move :& category ) 
+                                                      `on` \(_trans :& detail :& category ) 
                                                            -> category.category ==. val catname
                                                               &&. category.stockId ==. detail.stockId
                                                               &&. category.value =%/. fexpr
@@ -55,7 +43,7 @@ itemSalesTables stockLike stockFilter showInactive =  do
           )
   forM (sfSku stockFilter) \sku -> where_ (detail.stockId =%/. sku)
   when ( stockLike /= "") $  where_ (detail.stockId `like` val stockLike )
-  return (trans :& detail :&move )
+  return (trans :& detail)
              
                 
 
@@ -96,7 +84,7 @@ salesDetailQuantity tables =
     let trans = getTable @DebtorTran tables
         detail = getTable @DebtorTransDetail tables
     in case_ [ (trans ^. #type ==. val (fromEnum ST_CUSTCREDIT)
-               , detail.quantity )
+               , val 0 -. detail.quantity )
              ]
              detail.qtyDone
 salesDetailAmount deduceTax tables = salesDetailPrice deduceTax tables *. salesDetailQuantity tables

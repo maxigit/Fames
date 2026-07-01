@@ -119,7 +119,7 @@ loadSkuSpeedFromDir forecastDir = do
                skuSpeeds <- liftIO $ mapM (loadSkuSpeed . (forecastDir </> )) skuFiles
                return (concat skuSpeeds, rawProfiles)
      [] | Just forecastDay <- forecastPathToDay forecastDir -> do -- try loading model
-               let flat = seasonProfile []
+               let flat = seasonProfile [10,10,10,10,10,10,10,5,5,2,1] -- $ 1 : repeat 0
                speedE <- estimateSkuSpeedFromDir forecastDay forecastDir 
                case speedE of
                   Left err -> error $ "Can't find sku speed files or hs model in directory " <> show forecastDir <> "\n" <> unpack err

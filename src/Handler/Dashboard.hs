@@ -959,7 +959,7 @@ getDForecastDetailedR pathm = do
                               )
   skuReport <- report SkuGroup
   customerReport <- report CustomerGroup
-  let names  = take 1 ["style", "base", "random-base", "shape", "random-shape", "random-10", "random-100", "random-p4", "dpd-origin"] :: [Text]
+  let names  = take 2 ["style", "shape", "base", "random-base", "shape", "random-shape", "random-10", "random-100", "random-p4", "dpd-origin"] :: [Text]
   otherReport <- mapM report (map CategoryGroup names)
   let reports = ("SKU", skuReport) : zip names otherReport  ++ [ ("Customer", customerReport) ]
       summaries = [ (day, name, summary) | (name, ((day, summary), _)) <- reports ]

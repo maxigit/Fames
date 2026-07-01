@@ -28,7 +28,7 @@ import Data.Monoid(Sum(..), First(..))
 import Debug.Trace
 import qualified Database.Esqueleto.Experimental as E
 -- import qualified Database.Esqueleto.Internal.Internal as E
-import Database.Esqueleto.Experimental((^.))
+import Database.Esqueleto.Experimental((^.), (:&)(..), (&&.))
 import Util.ForConduit
 import Control.Monad(zipWithM)
 -- * Param 
@@ -655,7 +655,20 @@ itemSalesConduitH param = do
   let go :: forall ts . _ => (ts -> E.SqlExpr(E.Value Text)) -> (E.SqlQuery _ -> E.SqlQuery ts)  -> (TranKey -> TranKey) -> Handler (ConduitT () (TranKey, TranQP) _ ())
       go getStockKey tweakTable tweakTk = do
          let query =  do 
-                                 tables <- tweakTable $ itemSalesQuery stockLike param
+                                 tables <- tweakTable
+                                             ( E.from $ (itemSalesQuery stockLike param)
+                                               `E.innerJoin` (E.table @StockMove `E.on` (\(trans :& detail :& move)
+                                                                  -> detail.stockId E.==. move.stockId
+                                                                  &&. detail.debtorTransNo E.==. E.just move.transNo
+                                                                  &&. detail.debtorTransType E.==. E.just (move ^. #type)
+                                                                  &&. trans.tranDate E.==. move.tranDate
+                                                                  -- discard negative qty credit not which correspond to item WRITTEN OFF
+                                                                  &&. ( move ^. #type  E.!=. (E.val $ fromEnum ST_CUSTCREDIT) -- not credit
+                                                                      E.||.                                                 -- credit but qty > 0
+                                                                         move.qty E.>. E.val 0
+                                                                       )
+                                                                  )
+                                             ))
                                  let trans = E.getTable @DebtorTran tables
                                      detail = E.getTable @DebtorTransDetail tables
                                      move = E.getTable @StockMove tables

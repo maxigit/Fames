@@ -17,10 +17,10 @@ import Data.Conduit.List(groupOn)
 import Util.ForConduit
 
 
-itemSalesQuery :: Text -> ReportParam -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail :& EntityX StockMove)
+itemSalesQuery :: Text -> ReportParam -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail)
 itemSalesQuery stockLike param =  do
   let stockFilter = rpStockFilter param
-  (trans :& detail :&move ) <- itemSalesTables stockLike stockFilter (rpShowInactive param)
+  (trans :& detail ) <- itemSalesTables stockLike stockFilter (rpShowInactive param)
   where_ $ foldr (||.) (val False)
                  do -- List 
                     let tdate = trans.tranDate
@@ -31,7 +31,7 @@ itemSalesQuery stockLike param =  do
                        (Just start, Nothing) -> tdate >=. val start
                        (Nothing, Nothing) -> val True -- should not happen though
   
-  pure (trans :& detail :&move)
+  pure (trans :& detail)
 
 -- salesDetailPrice param tables = 
 --     let detail = getTable @DebtorTransDetail tables
