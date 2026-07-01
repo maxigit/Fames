@@ -55,11 +55,12 @@ loadModelData forecastDay model = do
    
 loadSales :: Day -> ForecastModel -> Handler (Map (Day, Day) (Vector (Sku, Quantity)))
 loadSales forecastDay model = do
+    stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
     case modelToSalesRange forecastDay model of
        Nothing -> return mempty
        Just (start, end) -> do
             let query = do
-                          tables <- itemSalesTables ""  emptyStockFilter True
+                          tables <- itemSalesTables stockLike  emptyStockFilter True
                           let trans = E.getTable @DebtorTran tables
                               details = E.getTable @DebtorTransDetail tables
                           -- E.groupBy trans.tranDate
