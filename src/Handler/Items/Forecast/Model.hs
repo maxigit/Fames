@@ -59,13 +59,16 @@ loadSales forecastDay model = do
        Nothing -> return mempty
        Just (start, end) -> do
             let query = do
-                          tables <- itemSalesTables ""  emptyStockFilter True
-                          let _trans = E.getTable @DebtorTran tables
+                          tables <- itemSalesTables "M%"  emptyStockFilter True
+                          let trans = E.getTable @DebtorTran tables
                               details = E.getTable @DebtorTransDetail tables
                           -- E.groupBy trans.tranDate
                           E.groupBy details.stockId -- trans.tranDate
                           -- E.orderBy [ E.asc trans.tranDate ]
                           -- return (trans.tranDate, salesDetailQuantity)
+                          E.where_  $ (trans.tranDate E.>=. E.val start)
+                                    E.&&. (trans.tranDate E.<=. E.val end)
+                                   
                           return (details.stockId, E.sum_ $ salesDetailQuantity tables)
             salesv <- runDB $ runConduit $ E.selectSource query
                                          .| C.mapMaybe (\(E.Value sku, E.Value qtym)  -> fmap ((Sku sku,) . Measure) qtym)
