@@ -7,6 +7,7 @@ where
 import Import hiding(all)
 import Handler.Items.Reports.Sources
 import Handler.Items.Reports.Common
+import Handler.Items.Sources
 import Handler.Items.Reports.Types
 import Handler.Items.Reports.Plot
 import qualified Database.Esqueleto.Experimental as E
@@ -108,7 +109,7 @@ getItemsReportYearlyR = do
 
 yFromTables useQty param tables = if useQty
                             then salesDetailQuantity tables
-                            else salesDetailAmount param tables
+                            else salesDetailAmount (rpDeduceTax param) tables
 
 yearlyTrendPlots :: Day -> Vector (Day, Double) -> Widget
 yearlyTrendPlots today sales

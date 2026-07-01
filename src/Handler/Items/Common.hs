@@ -132,3 +132,6 @@ stockFilterToSqlWithColumn stockColumn StockFilter{..} = ( join
                 _ -> Just $ intercalate " AND " $ map (\t -> " ( " <> t <> " ) " ) wheres
 mkStockFilter :: Maybe FilterExpression -> Maybe Text -> Maybe FilterExpression -> StockFilter
 mkStockFilter skum catm catFilterM = StockFilter skum ((,) <$> catm <*> catFilterM)
+
+emptyStockFilter :: StockFilter
+emptyStockFilter = StockFilter Nothing Nothing

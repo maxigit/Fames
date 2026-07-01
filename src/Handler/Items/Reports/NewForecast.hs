@@ -410,9 +410,6 @@ getPlotForecastError param grouper day0 path = do
                   )
         Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0 0 0)
 
-forecastPathToDay :: FilePath -> Maybe Day
-forecastPathToDay = readMay . take 10
-        
 newtype Actual a = Actual a
 computeAbsoluteError :: Actual (U53Weeks QuantityD)  -> U53Weeks QuantityD -> WithError
 computeAbsoluteError (Actual actuals) forecast = WithError forecast overError underError where

@@ -10,53 +10,17 @@ import Database.Esqueleto.Experimental.From(ToFrom)
 -- import Handler.Util
 import FA
 import Handler.Items.Reports.Types
-import Handler.Items.Common
+import Handler.Items.Sources
 import GL.Utils(generateDateIntervals)
 import Data.List.NonEmpty(NonEmpty(..))
 import Data.Conduit.List(groupOn)
 import Util.ForConduit
 
-type EntityX a = SqlExpr (Entity a)
-
-instance SqlString StockMasterId -- needed to convert stock_master.stock_id  into a string (not a key)
 
 itemSalesQuery :: Text -> ReportParam -> SqlQuery (EntityX DebtorTran :& EntityX DebtorTransDetail :& EntityX StockMove)
 itemSalesQuery stockLike param =  do
   let stockFilter = rpStockFilter param
-  (trans :& detail :&move ) <- from $ ( debtorTransAndDetailsTable
-                              `innerJoin` (table @StockMove `on` (\(trans :& detail :& move)
-                                                 -> detail.stockId ==. move.stockId
-                                                 &&. detail.debtorTransNo ==. just move.transNo
-                                                 &&. detail.debtorTransType ==. just (move ^. #type)
-                                                 &&. trans.tranDate ==. move.tranDate
-                                                 -- discard negative qty credit not which correspond to item WRITTEN OFF
-                                                 &&. ( move ^. #type  !=. (val $ fromEnum ST_CUSTCREDIT) -- not credit
-                                                     ||.                                                 -- credit but qty > 0
-                                                        move.qty >. val 0
-                                                      )
-                                                 )
-                             )
-                             )
-                             `innerJoinIf` ( if rpShowInactive  param
-                                             then Nothing -- show all
-                                             else Just $ table @StockMaster `on` \((getTable @DebtorTransDetail-> detail) :& stock ) -> castString (stock ^. StockMasterId) ==. detail.stockId &&. not_ stock.inactive
-                                             -- ^^^ only active
-                                           ) 
-                             `innerJoinIf` (flip fmap (sfCategory stockFilter)
-                                                 $ \(catname, fexpr) ->
-                                                      (table @ItemCategory)
-                                                      -- `on` \((getTable @DebtorTransDetail -> detail) :& category ) 
-                                                      `on` \(_trans :& detail :& _move :& category ) 
-                                                           -> category.category ==. val catname
-                                                              &&. category.stockId ==. detail.stockId
-                                                              &&. category.value =%/. fexpr
-                                           )
-  where_ (trans ^. #type `in_` valList (map fromEnum [ ST_CUSTDELIVERY, ST_CUSTCREDIT]  ) )
-  where_ ( detail.qtyDone !=. val 0
-          ||. ( trans ^. #type ==. val (fromEnum ST_CUSTCREDIT) &&. detail.quantity >=. val 0)
-          )
-  where_ (detail.stockId `like` val stockLike )
-  forM (sfSku stockFilter) \sku -> where_ (detail.stockId =%/. sku)
+  (trans :& detail :&move ) <- itemSalesTables stockLike stockFilter (rpShowInactive param)
   where_ $ foldr (||.) (val False)
                  do -- List 
                     let tdate = trans.tranDate
@@ -69,23 +33,23 @@ itemSalesQuery stockLike param =  do
   
   pure (trans :& detail :&move)
 
-salesDetailPrice param tables = 
-    let detail = getTable @DebtorTransDetail tables
-    in ( if rpDeduceTax param
-       then detail.unitPrice -. detail.unitTax
-       else detail.unitPrice
-       )
-       *. (val 1 -. detail.discountPercent) -- don't divide discountPercent per 100, is not a percent but the real factor :-(
-  
-
-salesDetailQuantity tables =
-    let trans = getTable @DebtorTran tables
-        detail = getTable @DebtorTransDetail tables
-    in case_ [ (trans ^. #type ==. val (fromEnum ST_CUSTCREDIT)
-               , detail.quantity )
-             ]
-             detail.qtyDone
-salesDetailAmount param tables = salesDetailPrice param tables *. salesDetailQuantity tables
+-- salesDetailPrice param tables = 
+--     let detail = getTable @DebtorTransDetail tables
+--     in ( if rpDeduceTax param
+--        then detail.unitPrice -. detail.unitTax
+--        else detail.unitPrice
+--        )
+--        *. (val 1 -. detail.discountPercent) -- don't divide discountPercent per 100, is not a percent but the real factor :-(
+--   
+-- 
+-- salesDetailQuantity tables =
+--     let trans = getTable @DebtorTran tables
+--         detail = getTable @DebtorTransDetail tables
+--     in case_ [ (trans ^. #type ==. val (fromEnum ST_CUSTCREDIT)
+--                , detail.quantity )
+--              ]
+--              detail.qtyDone
+-- salesDetailAmount param tables = salesDetailPrice param tables *. salesDetailQuantity tables
 
 orderCategorySourceFor :: ToFrom a a' => a -> (SqlExpr (Value Int) -> a' -> SqlExpr (Value Bool)) ->  SqlConduit () (ForMap Int (Map Text Text)) ()
 orderCategorySourceFor query cond =  do
@@ -104,33 +68,6 @@ orderCategorySourceFor query cond =  do
                                                                           ]
                                                             )
                                                                                
-             
-                
-
-----------------------------------------------------------------
-innerJoinIf :: ToFrom b b' => From a -> Maybe (b, (a :& b') -> SqlExpr (Value Bool)) -> From a
-t `innerJoinIf` (Just tableOnJoin) = From do
-     (a :& _, fn) <- unFrom $ t `innerJoin` tableOnJoin
-     return $ (a, fn)
-t `innerJoinIf` Nothing = t
-                
-----------------------------------------------------------------
-debtorTransAndDetailsTable :: From (SqlExpr (Entity DebtorTran) :& SqlExpr (Entity DebtorTransDetail))
-debtorTransAndDetailsTable = 
-    table
-    `innerJoin` table `on`(\(trans :& detail) ->  just trans.transNo ==. detail.debtorTransNo
-                                             &&. just (trans ^. #type) ==. detail.debtorTransType
-                          )
-
-salesOrderAndDetailsTable :: From (SqlExpr (Entity SalesOrder) :& SqlExpr (Entity SalesOrderDetail))
-salesOrderAndDetailsTable =
-   from table
-   `innerJoin` table  `on` (\(order :& detail) -> order.orderNo ==. detail.orderNo
-                                             &&. order.transType ==. detail.transType
-                           )
-                           
-                    
-    
 ----------------------------------------------------------------
 
 paramToDateIntervals :: ReportParam -> [(Maybe Day, Maybe Day)]

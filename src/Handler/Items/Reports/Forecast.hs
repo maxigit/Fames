@@ -73,6 +73,9 @@ parseMonth m = case m of
   _ -> fail "Can't parse month"
     
     
+forecastPathToDay :: FilePath -> Maybe Day
+forecastPathToDay = readMay . take 10 . takeBaseName
+        
 readProfiles :: FilePath -> IO (Map Collection SeasonProfile)
 readProfiles path = do
   content <- readFile path
@@ -115,11 +118,15 @@ loadSkuSpeedFromDir forecastDir = do
                rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
                skuSpeeds <- liftIO $ mapM (loadSkuSpeed . (forecastDir </> )) skuFiles
                return (concat skuSpeeds, rawProfiles)
-     [] -> do -- try loading model
+     [] | Just forecastDay <- forecastPathToDay forecastDir -> do -- try loading model
                let flat = seasonProfile []
-               speed <- estimateSkuSpeedFromDir forecastDir 
-               let collection = Collection "model"
-               return (toList $ fmap (\(sku, qty) -> SkuSpeedRow sku qty collection )speed, singletonMap collection flat)
+               speedE <- estimateSkuSpeedFromDir forecastDay forecastDir 
+               case speedE of
+                  Left err -> error $ "Can't find sku speed files or hs model in directory " <> show forecastDir <> "\n" <> unpack err
+                  Right speed -> do
+                        let collection = Collection "model"
+                        return (toList $ fmap (\(sku, qty) -> SkuSpeedRow sku qty collection )speed, singletonMap collection flat)
+     _ -> error $ "Can't find sku speed files." <> show forecastDir
            
 
   
@@ -129,16 +136,11 @@ loadItemForecast ::  Maybe InOutward -> FilePath -> (Map Sku ItemInitialInfo) ->
 loadItemForecast io forecastDir infoMap start end = do
   settings <- getsYesod appSettings
   catFinder <- categoryFinderCached (appForecastCollectionCategory settings)
-  profiles <- liftIO $ readProfiles (forecastDir </> "collection_profiles.csv")
+  
+  (skuSpeeds, profiles) <- loadSkuSpeedFromDir forecastDir
   let profile (Sku sku) = (catFinder  (FA.StockMasterKey sku) >>= (\col ->  lookup (Collection col) profiles)
                           ) <|> Just flatProfile
       flatProfile = seasonProfile []
-  skuFiles <- liftIO $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
-  when (null skuFiles) $ do
-     setError "Can't find any sku speed files. Please check with your administrator."
-
-  skuSpeedMap <- liftIO $ mapM loadSkuSpeed skuFiles
-  let skuSpeeds = concat skuSpeedMap 
   return $ concatMap (skuSpeedRowToTransInfo infoMap profile start end io) skuSpeeds
 
 skuSpeedRowToTransInfo :: Map Sku ItemInitialInfo
@@ -252,8 +254,7 @@ actualSalesSource grouper stockFilter start end priceListIdM = do
 loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> StockFilter -> Maybe SalesTypeId -> Day -> FilePath -> Handler (Map key (U53Weeks (Quantity, Amount)))
 loadYearOfForecastCumulByWeek grouper stockFilter priceListIdM start forecastDir = do
   -- load forecast from files
-  rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
-  skuSpeed <- liftIO $ loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
+  (skuSpeed, rawProfiles) <- loadSkuSpeedFromDir forecastDir
   -- creates weekly profiles for each month
   mkKey <- case grouper of
                 SkuGroup -> return \sku -> Sku sku
