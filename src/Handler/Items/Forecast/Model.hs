@@ -24,7 +24,7 @@ import Data.Time.Calendar
 
 -- * Type
 data ForecastModel
-     = Naive { fmFrom, fmTo :: Day }
+     = Naive { fmFrom, fmTo :: Day, fmDuration :: Maybe Int }
      -- | IM -- independant margins
      -- | CategorySplitter Category
      deriving (Show, Eq)
@@ -111,7 +111,10 @@ modelFromEasy forecastDay model =
    traceShowId $ case model of
      Easy.Naive -> let to = calculateDate (AddDays $ -1) forecastDay
                        from = calculateDate (AddYears $ -1) forecastDay
-                   in Naive from to
+                   in Naive from to Nothing
+     Easy.PreviousYear n -> let to = calculateDate (AddDays $ -1) forecastDay
+                                from = calculateDate (AddYears $ -n) forecastDay
+                            in Naive from to (Just $ fromIntegral n)
           
           
   
@@ -119,7 +122,7 @@ modelFromEasy forecastDay model =
 modelToSalesRanges :: ForecastModel -> [ (Day, Day) ]
 modelToSalesRanges model = let
   in case model of
-       Naive from to -> [ (from, to) ]
+       Naive from to _ -> [ (from, to) ]
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
 modelToSalesRange model =
     case modelToSalesRanges model of
@@ -145,17 +148,23 @@ prepareData _ _ = error "exhaustive pattern"
     
        
 estimateModel :: ForecastModel -> ForecastData -> Vector (Sku, YearlyQuantity)
-estimateModel Naive{..} fdata = estimateNaive fmFrom fmTo fdata
+estimateModel Naive{..} fdata = estimateNaive fmFrom fmTo duration fdata
+   where duration = maybe (fromIntegral (diffDays fmTo fmFrom) / 365)
+                          fromIntegral
+                          fmDuration
+   
+                              
+    
 
-estimateNaive :: Day -> Day -> ForecastData -> Vector (Sku, YearlyQuantity)
-estimateNaive from to ForecastData{..} = 
+estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity)
+estimateNaive from to years ForecastData{..} = 
    case lookup (from, to) fdDays of
         Just (Wix dNnDD) | skus__d <- windex dNnDD @> fdSku__n
                          , quantities__d <- windex dNnDD @> fdQuantities__n
                          , Wal @_ @_ @s dSsDD <- groupV skus__d
                          -> let skus__sku = walues dSsDD @=> skus__d
                                 qty__sku = F.sum <$> walues dSsDD @>$ quantities__d
-                                yearFraction = S.replicate $ Measure (fromIntegral (diffDays to from) / 365) :: N.Vector s Years
+                                yearFraction = S.replicate $ Measure years :: N.Vector s Years
                             in fromSized $ Z2 skus__sku (qty__sku ^/ yearFraction)
         _ -> mempty
        

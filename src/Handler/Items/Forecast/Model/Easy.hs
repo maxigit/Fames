@@ -5,4 +5,5 @@ import Import
 
 data Model 
      = Naive
+     | PreviousYear Int
      deriving (Show, Read, Eq)
