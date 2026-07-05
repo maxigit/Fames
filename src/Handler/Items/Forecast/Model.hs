@@ -16,19 +16,43 @@ import qualified Data.Conduit.List as C
 import qualified Data.Foldable as F
 import FA
 import Data.Text (strip)
--- import Data.Coerce(coerce)
+import Data.List(nub)
+import Data.Coerce(coerce)
 import qualified Data.NoDF as N
+import Data.NoDF.Fold1(headm, head1) -- , Fold1(..))
 import qualified Data.Vector.Sized as S
 import Data.NoDF hiding(Vector) -- (Wix(..), pattern Z3)
 import Data.Time.Calendar
+-- import Data.Finite
+import Data.Type.Equality ((:~:)(..))
 
 -- * Type
 data ForecastModel
      = Naive { fmFrom, fmTo :: Day, fmDuration :: Maybe Int }
      -- | IM -- independant margins
-     -- | CategorySplitter Category
+     | CategorySplitter { fmCategory:: CategoryName 
+                        , fmCategoryModel :: Map CategoryValue ForecastModel
+                        , fmDefaultModel :: ForecastModel
+                        }
      deriving (Show, Eq)
 
+newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
+newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
+
+modelFromEasy :: Day -> Easy.Model -> ForecastModel
+modelFromEasy forecastDay model = 
+   case model of
+     Easy.Naive -> let to = calculateDate (AddDays $ -1) forecastDay
+                       from = calculateDate (AddYears $ -1) forecastDay
+                   in Naive from to (Just 1)
+     Easy.PreviousYear n -> let to = calculateDate (AddDays $ -1) forecastDay
+                                from = calculateDate (AddYears $ -n) forecastDay
+                            in Naive from to (Just $ fromIntegral n)
+     Easy.ForeachCategory catName defModel ->   CategorySplitter (CategoryName catName) mempty $ go defModel
+   where go = modelFromEasy forecastDay
+          
+          
+  
 -- * Common
 estimateSkuSpeedFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, YearlyQuantity)))
 estimateSkuSpeedFromDir forecastDay forecastDir = do
@@ -44,7 +68,8 @@ estimateSkuSpeedFromDir forecastDay forecastDir = do
 -- * Model implementation
 
 data LoadedData = LoadedData 
-   { mdSales :: Vector (Day, Sku, Quantity)
+   { ldData :: Vector (Day, Sku, Quantity)
+   , ldCategories :: Vector (Sku, CategoryName, CategoryValue)
    }
    deriving Show 
 
@@ -52,13 +77,41 @@ data LoadedData = LoadedData
 -- Serves as sort of cache for filtering and grouping data needed
 -- by different sub-models.
 data ForecastData where
-   ForecastData :: forall ( n :: Nat) . 
+   ForecastData :: forall ( n :: Nat) (sku::Nat) . (KnownNat n, KnownNat sku) => 
                    { fdQuantities__n :: S.Vector n Quantity
                    , fdDays__n :: N.Vector n Day
                    , fdSku__n :: N.Vector n Sku
                    , fdDays :: Map (Day, Day) (Wix Maybe n)
+                   , fdSku__nSsNN :: N.WectorFF Vector1 n sku n
+                   , fdCategoryMap :: Map CategoryName (N.Vector sku (Maybe CategoryValue))
                    }
                    -> ForecastData
+
+-- unGroupForecastData :: WectorFF Maybe x__n v__g x__n -> ForecastData -> Vector v__g ForecastData  
+-- unGroupForecastData nGgNN fdata = fmap (flip narrowForecastData fdata) (invertGroup nGnNN)
+
+
+narrowForecastData :: KnownNat v__n => Wix Maybe v__n -> ForecastData -> ForecastData
+narrowForecastData w@(Wix sNnSS) ForecastData{..}  
+   | Wector _sN nSS <- sNnSS
+   , Just Refl <-  sameNat (S.length' fdSku__n ) (S.length' nSS)
+   , daysMap <- fmap (intersectWix  w) fdDays
+   = ForecastData{fdDays = daysMap,..}
+--    , quantities__s <- sN @> fdQuantities__n
+--    , days__s <- sN @> fdDays__n
+--    , sku__s <- sN @> fdSku__n
+--    , daysMap <- fmap (filterX  w) fdDays
+--    , sku_nSsSS' <- error "todo"
+--    = ForecastData quantities__s
+--                   days__s
+--                   sku__s
+--                   daysMap
+--                   sku_nSsSS'
+--                   mempty
+--      
+
+narrowForecastData _ _ = error "exhaustive pattern"
+
    
 evaluateModel :: ForecastModel -> Handler (Vector (Sku, YearlyQuantity))
 evaluateModel model = do
@@ -67,10 +120,12 @@ evaluateModel model = do
 
    return $ estimateModel model datas
 
+-- * Loading sales
 
 loadModelData :: ForecastModel -> Handler LoadedData
 loadModelData model = do
-   mdSales <- loadSales model
+   ldData <- loadSales model
+   ldCategories <- loadCategories model
    return LoadedData{..}
    
    
@@ -102,27 +157,16 @@ loadSales model = do
                                          .| C.mapMaybe (\(E.Value day, E.Value sku, E.Value qtym)  -> fmap ((day, Sku sku,) . Measure) qtym)
                                          .| conduitVector 1000
                                          .| sinkList
-            mapM traceShowM $ toList salesv
             return $ mconcat salesv
 
          
-modelFromEasy :: Day -> Easy.Model -> ForecastModel
-modelFromEasy forecastDay model = 
-   traceShowId $ case model of
-     Easy.Naive -> let to = calculateDate (AddDays $ -1) forecastDay
-                       from = calculateDate (AddYears $ -1) forecastDay
-                   in Naive from to Nothing
-     Easy.PreviousYear n -> let to = calculateDate (AddDays $ -1) forecastDay
-                                from = calculateDate (AddYears $ -n) forecastDay
-                            in Naive from to (Just $ fromIntegral n)
-          
-          
-  
    
 modelToSalesRanges :: ForecastModel -> [ (Day, Day) ]
 modelToSalesRanges model = let
   in case model of
        Naive from to _ -> [ (from, to) ]
+       CategorySplitter _  modelMap defModel -> concatMap modelToSalesRanges (defModel : toList modelMap)
+
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
 modelToSalesRange model =
     case modelToSalesRanges model of
@@ -132,6 +176,31 @@ modelToSalesRange model =
                       )
        
 
+-- * Loading categories
+loadCategories :: ForecastModel -> Handler (Vector (Sku, CategoryName, CategoryValue))
+loadCategories model = do
+  let categories = modelToCategories model
+      query = do
+               cat <- E.from $ E.table @ItemCategory
+               E.where_ $ cat.category `E.in_` (E.valList $ coerce categories)
+               return (cat.stockId , cat.category, cat.value)
+  catvs <- runDB $ runConduit $ E.selectSource query
+                             .| mapC ( \(E.Value s, E.Value n, E.Value v) -> (Sku s, CategoryName n, CategoryValue v) )
+                             .| conduitVector 1000
+                             .| sinkList
+  return $ mconcat catvs
+
+
+
+
+
+--
+modelToCategories :: ForecastModel -> [CategoryName ]
+modelToCategories model =
+  case model of
+    Naive{..} -> []
+    CategorySplitter cat modelMap defModel -> nub $ sort $ cat : concatMap modelToCategories (defModel : toList modelMap)
+
        
  -- ==================================================
  --     PREPARE
@@ -139,11 +208,18 @@ modelToSalesRange model =
 
 prepareData :: ForecastModel -> LoadedData -> ForecastData
 prepareData model LoadedData{..} 
-  | SomeSized (Z3 fdDays__n fdSku__n fdQuantities__n) <- mdSales
-  = let fdDays = mapFromList [ (range, filterX (\d -> from <= d && d <= to) fdDays__n)
-                             | range@(from, to) <- modelToSalesRanges model
-                             ]
-    in ForecastData{..}
+  | SomeSized (Z3 fdDays__n fdSku__n fdQuantities__n) <- ldData
+  , fdDays <- mapFromList [ (range, filterX (\d -> from <= d && d <= to) fdDays__n)
+                          | range@(from, to) <- modelToSalesRanges model
+                          ]
+  ------------------
+  , JSpineV skuSpine fdSku__nSsNN <- makeJoinSpineV fdSku__n
+  , SomeSized (Z3 sku__c category__c value__c) <- ldCategories
+  , categoryMap <- pivotWithSpine (JoinSpine skuSpine fdSku__nSsNN) sku__c category__c 
+  , fdCategoryMap <- fmap ((@>$ value__c) . fmap headm)
+                          categoryMap
+  -- , fdSku_nSsNN <- N.groupV fdSku__n 
+  = ForecastData{..}
 prepareData _ _ = error "exhaustive pattern"
     
        
@@ -152,6 +228,19 @@ estimateModel Naive{..} fdata = estimateNaive fmFrom fmTo duration fdata
    where duration = maybe (fromIntegral (diffDays fmTo fmFrom) / 365)
                           fromIntegral
                           fmDuration
+estimateModel CategorySplitter{..} fd@ForecastData{..} =
+  case lookup fmCategory fdCategoryMap of
+       Just categorym__sku | categorym__n <- windex fdSku__nSsNN  @> categorym__sku
+                           , Wal nCcNN <- groupV categorym__n
+                           , fdv__c <- fmap (flip narrowForecastData fd) (invertGroup nCcNN)
+                           ->  mconcat [ estimateModel model groupFd 
+                                       | i__c <- S.toList $ S.generate id
+                                       , let groupFd = S.index fdv__c i__c
+                                       , let catn = S.index (walues nCcNN) i__c
+                                       , let catm = head1 $ catn @> categorym__n
+                                       , let model = fromMaybe fmDefaultModel $  catm >>= flip lookup fmCategoryModel
+                                       ]
+       Nothing -> mempty
    
                               
     
