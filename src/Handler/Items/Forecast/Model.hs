@@ -19,9 +19,9 @@ import Data.Text (strip)
 import Data.List(nub)
 import Data.Coerce(coerce)
 import qualified Data.NoDF as N
-import Data.NoDF.Fold1(headm, head1) -- , Fold1(..))
+import Data.NoDF.Fold1(headm, head1, pattern Fold1, Fold1(..))
 import qualified Data.Vector.Sized as S
-import Data.NoDF hiding(Vector) -- (Wix(..), pattern Z3)
+import Data.NoDF hiding(Vector, index) -- (Wix(..), pattern Z3)
 import Data.Time.Calendar
 -- import Data.Finite
 import Data.Type.Equality ((:~:)(..))
@@ -34,9 +34,10 @@ data ForecastModel
                         , fmCategoryModel :: Map CategoryValue ForecastModel
                         , fmDefaultModel :: ForecastModel
                         }
-     | LinearCombination [(ForecastModel, Double)]
+     | Combination (Vector1 YearlyQuantity -> YearlyQuantity) [ForecastModel]
+     | MonoOperation (Double -> Double) ForecastModel
      | NullModel
-     deriving (Show, Eq)
+     -- deriving (Show, Eq)
 
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
@@ -47,9 +48,10 @@ modelFromEasy forecastDay model =
      Easy.Naive -> let to = calculateDate (AddDays $ -1) forecastDay
                        from = calculateDate (AddYears $ -1) forecastDay
                    in Naive from to (Just 1)
-     Easy.PreviousYear n -> let to = calculateDate (AddDays $ -1) forecastDay
-                                from = calculateDate (AddYears $ -n) forecastDay
+     Easy.PreviousYears n -> let to = calculateDate (AddDays $ -1) forecastDay
+                                 from = calculateDate (AddYears $ -n) forecastDay
                             in Naive from to (Just $ fromIntegral n)
+     Easy.Previous (Easy.EasyDay from) (Easy.EasyDay to) durm -> Naive from to durm
      Easy.ForeachCategory catName defModel ->   CategorySplitter (CategoryName catName) mempty $ go defModel
      Easy.CategoryCase catName cat'models defModel -> CategorySplitter (CategoryName catName)
                                                                         (mapFromList [(CategoryValue cat, go model)
@@ -63,12 +65,23 @@ modelFromEasy forecastDay model =
      Easy.ExcludeCategory catName categories model -> CategorySplitter (CategoryName catName)
                                                               (mapFromList $ [(CategoryValue cat, NullModel) | cat <- categories ])
                                                               (go model)
-     Easy.Average models -> let n = length models 
-                                weight = 1 / fromIntegral n
-                            in LinearCombination $ map (\m -> (go m,weight)) models
-     Easy.Scale weight model -> LinearCombination [(go model, weight)]
+     Easy.Sum models -> Combination F.sum (map go models)
+     Easy.Max models -> Combination F.maximum (map go models)
+     Easy.Min models -> Combination F.minimum (map go models)
+     Easy.Median models -> Combination (coerce . median . coerce) (map go models)
+     Easy.Avg models -> let n = length models 
+                            weight = 1 / fromIntegral n
+                        in Combination F.sum $ map (MonoOperation (*weight) . go)  models
+     Easy.Scale weight model -> MonoOperation (*weight) (go model)
+     Easy.Cap cap model -> MonoOperation (min cap) (go model)
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
+         median :: Vector1 Double -> Double
+         median (Fold1 v) = let sorted = sort v
+                    in case length v of 
+                            n | odd n -> indexEx sorted (n `div` 2) -- ex 3 -> 1   : 0 [1] 2
+                            n -> let half = n `div` 2   --- 4 -> 2    0 [1 2] 3 
+                                 in (indexEx sorted half + indexEx sorted (half-1)) / 2
           
           
   
@@ -185,7 +198,8 @@ modelToSalesRanges model = let
   in case model of
        Naive from to _ -> [ (from, to) ]
        CategorySplitter _  modelMap defModel -> concatMap modelToSalesRanges (defModel : toList modelMap)
-       LinearCombination model'weights -> concatMap (modelToSalesRanges . fst) model'weights
+       Combination _ models -> concatMap modelToSalesRanges models
+       MonoOperation _ model -> modelToSalesRanges model
        NullModel -> []
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
@@ -221,7 +235,8 @@ modelToCategories model =
   case model of
     Naive{..} -> []
     CategorySplitter cat modelMap defModel -> nub $ sort $ cat : concatMap modelToCategories (defModel : toList modelMap)
-    LinearCombination model'weights -> nub $ sort $ concatMap (modelToCategories . fst) model'weights
+    Combination _ models -> nub $ sort $ concatMap modelToCategories models
+    MonoOperation _ model -> modelToCategories model
     NullModel -> []
 
        
@@ -266,19 +281,19 @@ estimateModel CategorySplitter{..} fd@ForecastData{..} =
        Nothing -> mempty
    
 estimateModel NullModel _ = mempty
-estimateModel (LinearCombination model'weights) fdata
-    | SomeSized (Z2 sku__n qty__n) <- mconcat 
-                                $ [ fmap (fmap (fmap (* weight))) sku'qtyv
-                                  | (model, weight) <- model'weights
-                                  , let sku'qtyv = estimateModel model fdata
-                                  ]
+estimateModel (Combination agg models) fdata
+    | SomeSized (Z2 sku__n qty__n) <- concatMap (flip estimateModel fdata) models 
     , Wal nSsNN <- groupV sku__n
     , sku__s <- walues nSsNN @=> sku__n
-    , qty__s <- F.sum <$> walues nSsNN @>$ qty__n
+    , qty__s <- agg <$> walues nSsNN @>$ qty__n
     = fromSized $ Z2 sku__s qty__s
    
-estimateModel (LinearCombination _ ) _ = error "exhaustive pattern"
+estimateModel (Combination _ _ ) _ = error "exhaustive pattern"
                               
+estimateModel (MonoOperation f model) fdata =
+   let sku'qty = estimateModel model fdata
+   in fmap (fmap (fmap f)) sku'qty
+
     
 
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity)
