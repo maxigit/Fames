@@ -34,6 +34,7 @@ data ForecastModel
                         , fmCategoryModel :: Map CategoryValue ForecastModel
                         , fmDefaultModel :: ForecastModel
                         }
+     | NullModel
      deriving (Show, Eq)
 
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
@@ -49,6 +50,7 @@ modelFromEasy forecastDay model =
                                 from = calculateDate (AddYears $ -n) forecastDay
                             in Naive from to (Just $ fromIntegral n)
      Easy.ForeachCategory catName defModel ->   CategorySplitter (CategoryName catName) mempty $ go defModel
+     Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
           
           
@@ -166,6 +168,7 @@ modelToSalesRanges model = let
   in case model of
        Naive from to _ -> [ (from, to) ]
        CategorySplitter _  modelMap defModel -> concatMap modelToSalesRanges (defModel : toList modelMap)
+       NullModel -> []
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
 modelToSalesRange model =
@@ -200,6 +203,7 @@ modelToCategories model =
   case model of
     Naive{..} -> []
     CategorySplitter cat modelMap defModel -> nub $ sort $ cat : concatMap modelToCategories (defModel : toList modelMap)
+    NullModel -> []
 
        
  -- ==================================================
@@ -242,6 +246,7 @@ estimateModel CategorySplitter{..} fd@ForecastData{..} =
                                        ]
        Nothing -> mempty
    
+estimateModel NullModel _ = mempty
                               
     
 
