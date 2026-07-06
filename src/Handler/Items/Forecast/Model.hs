@@ -50,6 +50,18 @@ modelFromEasy forecastDay model =
                                 from = calculateDate (AddYears $ -n) forecastDay
                             in Naive from to (Just $ fromIntegral n)
      Easy.ForeachCategory catName defModel ->   CategorySplitter (CategoryName catName) mempty $ go defModel
+     Easy.CategoryCase catName cat'models defModel -> CategorySplitter (CategoryName catName)
+                                                                        (mapFromList [(CategoryValue cat, go model)
+                                                                                     | (cat, model) <- cat'models
+                                                                                     ]
+                                                                        )
+                                                                        (go defModel)
+     Easy.FilterCategory catName categories model -> CategorySplitter (CategoryName catName)
+                                                              (mapFromList $ [(CategoryValue cat, go model) | cat <- categories ])
+                                                              NullModel
+     Easy.ExcludeCategory catName categories model -> CategorySplitter (CategoryName catName)
+                                                              (mapFromList $ [(CategoryValue cat, NullModel) | cat <- categories ])
+                                                              (go model)
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
           

@@ -8,5 +8,7 @@ data Model
      | PreviousYear Int
      | ForeachCategory Text Model -- ^ Apply the given model to each category separately
      | Null
-     -- | FilterCategory Text [Text] Model
+     | FilterCategory Text [Text] Model
+     | ExcludeCategory Text [Text] Model
+     | CategoryCase Text [(Text, Model)] Model
      deriving (Show, Read, Eq)
