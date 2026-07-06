@@ -34,6 +34,7 @@ data ForecastModel
                         , fmCategoryModel :: Map CategoryValue ForecastModel
                         , fmDefaultModel :: ForecastModel
                         }
+     | LinearCombination [(ForecastModel, Double)]
      | NullModel
      deriving (Show, Eq)
 
@@ -62,6 +63,10 @@ modelFromEasy forecastDay model =
      Easy.ExcludeCategory catName categories model -> CategorySplitter (CategoryName catName)
                                                               (mapFromList $ [(CategoryValue cat, NullModel) | cat <- categories ])
                                                               (go model)
+     Easy.Average models -> let n = length models 
+                                weight = 1 / fromIntegral n
+                            in LinearCombination $ map (\m -> (go m,weight)) models
+     Easy.Scale weight model -> LinearCombination [(go model, weight)]
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
           
@@ -180,6 +185,7 @@ modelToSalesRanges model = let
   in case model of
        Naive from to _ -> [ (from, to) ]
        CategorySplitter _  modelMap defModel -> concatMap modelToSalesRanges (defModel : toList modelMap)
+       LinearCombination model'weights -> concatMap (modelToSalesRanges . fst) model'weights
        NullModel -> []
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
@@ -215,6 +221,7 @@ modelToCategories model =
   case model of
     Naive{..} -> []
     CategorySplitter cat modelMap defModel -> nub $ sort $ cat : concatMap modelToCategories (defModel : toList modelMap)
+    LinearCombination model'weights -> nub $ sort $ concatMap (modelToCategories . fst) model'weights
     NullModel -> []
 
        
@@ -259,6 +266,18 @@ estimateModel CategorySplitter{..} fd@ForecastData{..} =
        Nothing -> mempty
    
 estimateModel NullModel _ = mempty
+estimateModel (LinearCombination model'weights) fdata
+    | SomeSized (Z2 sku__n qty__n) <- mconcat 
+                                $ [ fmap (fmap (fmap (* weight))) sku'qtyv
+                                  | (model, weight) <- model'weights
+                                  , let sku'qtyv = estimateModel model fdata
+                                  ]
+    , Wal nSsNN <- groupV sku__n
+    , sku__s <- walues nSsNN @=> sku__n
+    , qty__s <- F.sum <$> walues nSsNN @>$ qty__n
+    = fromSized $ Z2 sku__s qty__s
+   
+estimateModel (LinearCombination _ ) _ = error "exhaustive pattern"
                               
     
 

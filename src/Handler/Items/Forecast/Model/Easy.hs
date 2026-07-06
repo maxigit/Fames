@@ -11,4 +11,6 @@ data Model
      | FilterCategory Text [Text] Model
      | ExcludeCategory Text [Text] Model
      | CategoryCase Text [(Text, Model)] Model
+     | Average [Model]
+     | Scale Double Model
      deriving (Show, Read, Eq)
