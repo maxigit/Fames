@@ -3,7 +3,8 @@ where
 
 import Import
 import Handler.CsvUtils
-import Text.Read(readPrec)
+import Text.Read(readPrec, (+++))
+import GL.Payroll.Settings (DateCalculator)
 
 data Model 
      = Naive
@@ -23,13 +24,18 @@ data Model
      | Cap Double Model
      deriving (Show, Read, Eq)
      
-newtype EasyDay = EasyDay Day deriving (Show, Eq)
+data EasyDay = EasyDay Day
+                | EasyCalc DateCalculator 
+                deriving (Show, Eq)
 
 
 instance Read EasyDay where
-   readPrec = do
-       s <- readPrec
-       AllFormatsDay d <- parseDay s
-       return $ EasyDay d
+   readPrec = readEasy +++ readCalculator
+     where readEasy = do
+                    s <- readPrec
+                    AllFormatsDay d <- parseDay s
+                    return $ EasyDay d
+           readCalculator = EasyCalc <$> readPrec
+
 
 

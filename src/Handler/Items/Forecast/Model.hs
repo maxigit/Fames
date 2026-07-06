@@ -51,7 +51,7 @@ modelFromEasy forecastDay model =
      Easy.PreviousYears n -> let to = calculateDate (AddDays $ -1) forecastDay
                                  from = calculateDate (AddYears $ -n) forecastDay
                             in Naive from to (Just $ fromIntegral n)
-     Easy.Previous (Easy.EasyDay from) (Easy.EasyDay to) durm -> Naive from to durm
+     Easy.Previous from to durm -> Naive (day from) (day to) durm
      Easy.ForeachCategory catName defModel ->   CategorySplitter (CategoryName catName) mempty $ go defModel
      Easy.CategoryCase catName cat'models defModel -> CategorySplitter (CategoryName catName)
                                                                         (mapFromList [(CategoryValue cat, go model)
@@ -82,6 +82,9 @@ modelFromEasy forecastDay model =
                             n | odd n -> indexEx sorted (n `div` 2) -- ex 3 -> 1   : 0 [1] 2
                             n -> let half = n `div` 2   --- 4 -> 2    0 [1 2] 3 
                                  in (indexEx sorted half + indexEx sorted (half-1)) / 2
+         day d = case d of 
+                 Easy.EasyDay d -> d
+                 Easy.EasyCalc calc -> calculateDate calc forecastDay
           
           
   

@@ -103,6 +103,7 @@ data DateCalculator
   | Oldest [DateCalculator]
   | WeekDayCase (Map (Maybe DayOfWeek) DateCalculator)
   | Align PeriodAlignment Period
+  | SetDay Day
   deriving (Show, Read, Eq, Ord)
 
 data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
