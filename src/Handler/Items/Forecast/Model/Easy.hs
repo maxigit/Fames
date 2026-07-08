@@ -22,6 +22,7 @@ data Model
      | Sum [Model]
      | Scale Double Model
      | Cap Double Model
+     | IM Model
      deriving (Show, Read, Eq)
      
 data EasyDay = EasyDay Day

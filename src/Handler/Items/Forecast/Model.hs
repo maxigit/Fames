@@ -36,6 +36,7 @@ data ForecastModel
                         }
      | Combination (Vector1 YearlyQuantity -> YearlyQuantity) [ForecastModel]
      | MonoOperation (Double -> Double) ForecastModel
+     | IndependantMargins ForecastModel
      | NullModel
      -- deriving (Show, Eq)
 
@@ -74,6 +75,7 @@ modelFromEasy forecastDay model =
                         in Combination F.sum $ map (MonoOperation (*weight) . go)  models
      Easy.Scale weight model -> MonoOperation (*weight) (go model)
      Easy.Cap cap model -> MonoOperation (min cap) (go model)
+     Easy.IM model -> IndependantMargins (go model)
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -204,6 +206,7 @@ modelToSalesRanges model = let
        Combination _ models -> concatMap modelToSalesRanges models
        MonoOperation _ model -> modelToSalesRanges model
        NullModel -> []
+       IndependantMargins model -> modelToSalesRanges model
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
 modelToSalesRange model =
@@ -241,6 +244,7 @@ modelToCategories model =
     Combination _ models -> nub $ sort $ concatMap modelToCategories models
     MonoOperation _ model -> modelToCategories model
     NullModel -> []
+    IndependantMargins model -> map CategoryName ["style", "base"] ++ modelToCategories model
 
        
  -- ==================================================
@@ -298,6 +302,33 @@ estimateModel (MonoOperation f model) fdata =
    in fmap (fmap (fmap f)) sku'qty
 
     
+estimateModel (IndependantMargins model) fdata@ForecastData{..} 
+    | SomeSized (Z2 sku__e qty__e) <- estimateModel model fdata
+    , JoinSpineV skuSpine__e_k <- makeJoinSpineV sku__e -- k are unique skus found from estimateModel. TODO estimateModel should only return uninque sku
+    , let sku__sku = walues fdSku__nSsNN @=> fdSku__n
+    , eKkSS <- rejoin skuSpine__e_k sku__sku
+    -- join with style, qty
+    , Just style__sku <- lookup (CategoryName "style") fdCategoryMap --
+    , stylevm_e <- wbroadcast eKkSS @>$ style__sku -- might be null
+    , style__e <- join . headm <$> stylevm_e
+    , Wal eTtEE <- groupV style__e
+    , qty__t <- F.sum <$> walues eTtEE @>$ qty__e
+    -- k -> e -> t  :: k -> 
+    -- , styleQty__k <- F.sum <$> walues (jsGrouping skuSpine__e_k) @>$ (windex eTtEE @> qty__t)
+    -- join with var, qty
+    , Just var__sku <- lookup (CategoryName "base") fdCategoryMap --
+    , varvm_e <- wbroadcast eKkSS @>$ var__sku -- might be null
+    , var__e <- join . headm <$> varvm_e
+    , Wal eVvEE <- groupV var__e
+    , qty__v <- F.sum <$> walues eVvEE @>$ qty__e
+    -- k -> e -> t  :: k -> 
+    -- , varQty__k <- F.sum <$> walues (jsGrouping skuSpine__e_k) @>$ (windex eVvEE @> qty__v)
+    , let total = F.sum qty__e
+    , im__e <- S.generate \e -> S.index qty__t (S.index (windex eTtEE) e)
+                             *^ S.index qty__v (S.index (windex eVvEE) e)
+                             ^/ total
+    = fromSized (Z2 sku__e im__e)
+estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
 
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity)
 estimateNaive from to years ForecastData{..} = 
