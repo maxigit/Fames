@@ -16,6 +16,9 @@ import qualified Data.Conduit.List as C
 import qualified Data.Foldable as F
 import FA
 import Data.Text (strip)
+import qualified Data.Text.Lazy.Builder as LTB
+import qualified Data.Text.Lazy.Builder (fromText, fromString)
+import qualified Data.Text.Lazy as LT
 import Data.List(nub)
 import Data.Coerce(coerce)
 import qualified Data.NoDF as N
@@ -25,6 +28,7 @@ import Data.NoDF hiding(Vector, index) -- (Wix(..), pattern Z3)
 import Data.Time.Calendar
 -- import Data.Finite
 import Data.Type.Equality ((:~:)(..))
+import Data.Foldable1(intercalate1)
 
 -- * Type
 data ForecastModel
@@ -34,7 +38,7 @@ data ForecastModel
                         , fmCategoryModel :: Map CategoryValue ForecastModel
                         , fmDefaultModel :: ForecastModel
                         }
-     | Combination (Vector1 YearlyQuantity -> YearlyQuantity) [ForecastModel]
+     | Combination (Vector1 YearlyQuantity -> YearlyQuantity) Text [ForecastModel]
      | MonoOperation (Double -> Double) ForecastModel
      | IndependantMargins ForecastModel
      | NullModel
@@ -66,13 +70,13 @@ modelFromEasy forecastDay model =
      Easy.ExcludeCategory catName categories model -> CategorySplitter (CategoryName catName)
                                                               (mapFromList $ [(CategoryValue cat, NullModel) | cat <- categories ])
                                                               (go model)
-     Easy.Sum models -> Combination F.sum (map go models)
-     Easy.Max models -> Combination F.maximum (map go models)
-     Easy.Min models -> Combination F.minimum (map go models)
-     Easy.Median models -> Combination (coerce . median . coerce) (map go models)
+     Easy.Sum models -> Combination F.sum "SUM" (map go models)
+     Easy.Max models -> Combination F.maximum "MAX" (map go models)
+     Easy.Min models -> Combination F.minimum "MIN" (map go models)
+     Easy.Median models -> Combination (coerce . median . coerce) "MEDIAN" (map go models)
      Easy.Avg models -> let n = length models 
                             weight = 1 / fromIntegral n
-                        in Combination F.sum $ map (MonoOperation (*weight) . go)  models
+                        in Combination F.sum "AVG" $ map (MonoOperation (*weight) . go)  models
      Easy.Scale weight model -> MonoOperation (*weight) (go model)
      Easy.Cap cap model -> MonoOperation (min cap) (go model)
      Easy.IM model -> IndependantMargins (go model)
@@ -99,7 +103,7 @@ estimateSkuSpeedFromDir forecastDay forecastDir = do
        Nothing -> return $ Left $ "can't parse :\n" <> tshow content --  "No model.hs file present in " <> tshow forecastDir
        Just easy -> do
              estimation <- evaluateModel (modelFromEasy forecastDay easy)
-             return $ Right estimation
+             return $ Right $ fmap (\(sku, qty, comment) -> (sku, qty)) estimation
 
 
 -- * Model implementation
@@ -150,12 +154,12 @@ narrowForecastData w@(Wix sNnSS) ForecastData{..}
 narrowForecastData _ _ = error "exhaustive pattern"
 
    
-evaluateModel :: ForecastModel -> Handler (Vector (Sku, YearlyQuantity))
+evaluateModel :: ForecastModel -> Handler (Vector (Sku, YearlyQuantity, Text))
 evaluateModel model = do
    loaded <- loadModelData model
    let datas = prepareData model loaded
 
-   return $ estimateModel model datas
+   return $ fmap (\(sku, qty, comment) -> (sku, qty, LT.toStrict $ LTB.toLazyText comment)) $ estimateModel model datas
 
 -- * Loading sales
 
@@ -203,7 +207,7 @@ modelToSalesRanges model = let
   in case model of
        Naive from to _ -> [ (from, to) ]
        CategorySplitter _  modelMap defModel -> concatMap modelToSalesRanges (defModel : toList modelMap)
-       Combination _ models -> concatMap modelToSalesRanges models
+       Combination _ _ models -> concatMap modelToSalesRanges models
        MonoOperation _ model -> modelToSalesRanges model
        NullModel -> []
        IndependantMargins model -> modelToSalesRanges model
@@ -241,7 +245,7 @@ modelToCategories model =
   case model of
     Naive{..} -> []
     CategorySplitter cat modelMap defModel -> nub $ sort $ cat : concatMap modelToCategories (defModel : toList modelMap)
-    Combination _ models -> nub $ sort $ concatMap modelToCategories models
+    Combination _ _ models -> nub $ sort $ concatMap modelToCategories models
     MonoOperation _ model -> modelToCategories model
     NullModel -> []
     IndependantMargins model -> map CategoryName ["style", "base"] ++ modelToCategories model
@@ -268,7 +272,7 @@ prepareData model LoadedData{..}
 prepareData _ _ = error "exhaustive pattern"
     
        
-estimateModel :: ForecastModel -> ForecastData -> Vector (Sku, YearlyQuantity)
+estimateModel :: ForecastModel -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
 estimateModel Naive{..} fdata = estimateNaive fmFrom fmTo duration fdata
    where duration = maybe (fromIntegral (diffDays fmTo fmFrom) / 365)
                           fromIntegral
@@ -288,22 +292,36 @@ estimateModel CategorySplitter{..} fd@ForecastData{..} =
        Nothing -> mempty
    
 estimateModel NullModel _ = mempty
-estimateModel (Combination agg models) fdata
-    | SomeSized (Z2 sku__n qty__n) <- concatMap (flip estimateModel fdata) models 
+estimateModel (Combination agg aggName models) fdata
+    | SomeSized (Z3 sku__n qty__n comment__n) <- concatMap (flip estimateModel fdata) models 
     , Wal nSsNN <- groupV sku__n
     , sku__s <- walues nSsNN @=> sku__n
     , qty__s <- agg <$> walues nSsNN @>$ qty__n
-    = fromSized $ Z2 sku__s qty__s
-   
-estimateModel (Combination _ _ ) _ = error "exhaustive pattern"
+    , comment__s <- fmap (\nn -> mconcat $ LTB.fromText aggName : ":"
+                                         : [ intercalate1 (LTB.singleton ' ' )
+                                           (fmap (\n -> LTB.fromString "("
+                                                       <> LTB.fromString (show (S.index qty__n n))
+                                                       <> ":" <> S.index comment__n n
+                                                ) nn
+                                           )
+                                           ]
                               
-estimateModel (MonoOperation f model) fdata =
-   let sku'qty = estimateModel model fdata
-   in fmap (fmap (fmap f)) sku'qty
+        
+                         ) 
+                         (walues nSsNN)
+
+    = fromSized $ Z3 sku__s qty__s comment__s
+   
+estimateModel (Combination _ _ _ ) _ = error "exhaustive pattern"
+                              
+estimateModel (MonoOperation f model) fdata 
+   | SomeSized (Z3 sku qty comment) <- estimateModel model fdata
+   = fromSized (Z3 sku (fmap f <$> qty) (S.zipWith annotate qty comment))
+   where annotate q c = LTB.fromString (show q) <> ":" <> c
 
     
 estimateModel (IndependantMargins model) fdata@ForecastData{..} 
-    | SomeSized (Z2 sku__e qty__e) <- estimateModel model fdata
+    | SomeSized (Z3 sku__e qty__e __todo) <- estimateModel model fdata
     , JoinSpineV skuSpine__e_k <- makeJoinSpineV sku__e -- k are unique skus found from estimateModel. TODO estimateModel should only return uninque sku
     , let sku__sku = walues fdSku__nSsNN @=> fdSku__n
     , eKkSS <- rejoin skuSpine__e_k sku__sku
@@ -327,10 +345,10 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
     , im__e <- S.generate \e -> S.index qty__t (S.index (windex eTtEE) e)
                              *^ S.index qty__v (S.index (windex eVvEE) e)
                              ^/ total
-    = fromSized (Z2 sku__e im__e)
+    = fromSized (Z3 sku__e im__e __todo)
 estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
 
-estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity)
+estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
 estimateNaive from to years ForecastData{..} = 
    case lookup (from, to) fdDays of
         Just (Wix dNnDD) | skus__d <- windex dNnDD @> fdSku__n
@@ -339,7 +357,10 @@ estimateNaive from to years ForecastData{..} =
                          -> let skus__sku = walues dSsDD @=> skus__d
                                 qty__sku = F.sum <$> walues dSsDD @>$ quantities__d
                                 yearFraction = S.replicate $ Measure years :: N.Vector s Years
-                            in fromSized $ Z2 skus__sku (qty__sku ^/ yearFraction)
+                                comment__sku = fmap (\q -> "Naive "  <> fromString (show from) <> "-" <> fromString (show to) 
+                                                         <> " " <> fromString (show q)
+                                                    ) qty__sku
+                            in fromSized $ Z3 skus__sku (qty__sku ^/ yearFraction) comment__sku
         _ -> mempty
        
 
