@@ -16,8 +16,8 @@ import qualified Data.Conduit.List as C
 import qualified Data.Foldable as F
 import FA
 import Data.Text (strip)
+import Text.Printf(printf)
 import qualified Data.Text.Lazy.Builder as LTB
-import qualified Data.Text.Lazy.Builder (fromText, fromString)
 import qualified Data.Text.Lazy as LT
 import Data.List(nub)
 import Data.Coerce(coerce)
@@ -39,7 +39,7 @@ data ForecastModel
                         , fmDefaultModel :: ForecastModel
                         }
      | Combination (Vector1 YearlyQuantity -> YearlyQuantity) Text [ForecastModel]
-     | MonoOperation (Double -> Double) ForecastModel
+     | MonoOperation (Double -> Double) Text ForecastModel
      | IndependantMargins ForecastModel
      | NullModel
      -- deriving (Show, Eq)
@@ -76,9 +76,9 @@ modelFromEasy forecastDay model =
      Easy.Median models -> Combination (coerce . median . coerce) "MEDIAN" (map go models)
      Easy.Avg models -> let n = length models 
                             weight = 1 / fromIntegral n
-                        in Combination F.sum "AVG" $ map (MonoOperation (*weight) . go)  models
-     Easy.Scale weight model -> MonoOperation (*weight) (go model)
-     Easy.Cap cap model -> MonoOperation (min cap) (go model)
+                        in Combination F.sum "SUM(avg)" $ map (go . Easy.Scale weight)  models
+     Easy.Scale weight model -> MonoOperation (*weight) (pack $ printf "Scale %0.2f *" weight) (go model)
+     Easy.Cap cap model -> MonoOperation (min cap) (pack $ printf "Cap %0.2f &" cap) (go model)
      Easy.IM model -> IndependantMargins (go model)
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
@@ -95,7 +95,7 @@ modelFromEasy forecastDay model =
           
   
 -- * Common
-estimateSkuSpeedFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, YearlyQuantity)))
+estimateSkuSpeedFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, YearlyQuantity, Text)))
 estimateSkuSpeedFromDir forecastDay forecastDir = do
     content' <- readFileUtf8 $ forecastDir </> "model.hs"
     let content = strip content'
@@ -103,7 +103,7 @@ estimateSkuSpeedFromDir forecastDay forecastDir = do
        Nothing -> return $ Left $ "can't parse :\n" <> tshow content --  "No model.hs file present in " <> tshow forecastDir
        Just easy -> do
              estimation <- evaluateModel (modelFromEasy forecastDay easy)
-             return $ Right $ fmap (\(sku, qty, comment) -> (sku, qty)) estimation
+             return $ Right estimation
 
 
 -- * Model implementation
@@ -208,7 +208,7 @@ modelToSalesRanges model = let
        Naive from to _ -> [ (from, to) ]
        CategorySplitter _  modelMap defModel -> concatMap modelToSalesRanges (defModel : toList modelMap)
        Combination _ _ models -> concatMap modelToSalesRanges models
-       MonoOperation _ model -> modelToSalesRanges model
+       MonoOperation _ _ model -> modelToSalesRanges model
        NullModel -> []
        IndependantMargins model -> modelToSalesRanges model
 
@@ -246,7 +246,7 @@ modelToCategories model =
     Naive{..} -> []
     CategorySplitter cat modelMap defModel -> nub $ sort $ cat : concatMap modelToCategories (defModel : toList modelMap)
     Combination _ _ models -> nub $ sort $ concatMap modelToCategories models
-    MonoOperation _ model -> modelToCategories model
+    MonoOperation _ _ model -> modelToCategories model
     NullModel -> []
     IndependantMargins model -> map CategoryName ["style", "base"] ++ modelToCategories model
 
@@ -300,8 +300,8 @@ estimateModel (Combination agg aggName models) fdata
     , comment__s <- fmap (\nn -> mconcat $ LTB.fromText aggName : ":"
                                          : [ intercalate1 (LTB.singleton ' ' )
                                            (fmap (\n -> LTB.fromString "("
-                                                       <> LTB.fromString (show (S.index qty__n n))
-                                                       <> ":" <> S.index comment__n n
+                                                       <> fromMeasure (S.index qty__n n)
+                                                       <> "={" <> S.index comment__n n <> "}"
                                                 ) nn
                                            )
                                            ]
@@ -314,14 +314,14 @@ estimateModel (Combination agg aggName models) fdata
    
 estimateModel (Combination _ _ _ ) _ = error "exhaustive pattern"
                               
-estimateModel (MonoOperation f model) fdata 
+estimateModel (MonoOperation f name model ) fdata 
    | SomeSized (Z3 sku qty comment) <- estimateModel model fdata
    = fromSized (Z3 sku (fmap f <$> qty) (S.zipWith annotate qty comment))
-   where annotate q c = LTB.fromString (show q) <> ":" <> c
+   where annotate q c = LTB.fromText name <> " " <> fromMeasure q <> "=(" <> c <> ")"
 
     
 estimateModel (IndependantMargins model) fdata@ForecastData{..} 
-    | SomeSized (Z3 sku__e qty__e __todo) <- estimateModel model fdata
+    | SomeSized (Z3 sku__e qty__e comment__e) <- estimateModel model fdata
     , JoinSpineV skuSpine__e_k <- makeJoinSpineV sku__e -- k are unique skus found from estimateModel. TODO estimateModel should only return uninque sku
     , let sku__sku = walues fdSku__nSsNN @=> fdSku__n
     , eKkSS <- rejoin skuSpine__e_k sku__sku
@@ -345,7 +345,14 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
     , im__e <- S.generate \e -> S.index qty__t (S.index (windex eTtEE) e)
                              *^ S.index qty__v (S.index (windex eVvEE) e)
                              ^/ total
-    = fromSized (Z3 sku__e im__e __todo)
+    , com__e <- S.generate \e -> LTB.fromText "IM: "
+                                 <> fromMeasure (S.index qty__t (S.index (windex eTtEE) e))
+                                 <> LTB.fromText "=Style * "
+                                 <> fromMeasure (S.index qty__v (S.index (windex eVvEE) e))
+                                 <> "=Color / "
+                                 <> fromMeasure total
+                                 <> "=Total"
+    = fromSized (Z3 sku__e im__e com__e)
 estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
 
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
@@ -357,10 +364,14 @@ estimateNaive from to years ForecastData{..} =
                          -> let skus__sku = walues dSsDD @=> skus__d
                                 qty__sku = F.sum <$> walues dSsDD @>$ quantities__d
                                 yearFraction = S.replicate $ Measure years :: N.Vector s Years
-                                comment__sku = fmap (\q -> "Naive "  <> fromString (show from) <> "-" <> fromString (show to) 
-                                                         <> " " <> fromString (show q)
+                                comment__sku = fmap (\q -> "Naive <"  <> fromString (show from) <> ">--<" <> fromString (show to) 
+                                                         <> "> " --  <> fromMeasure q
                                                     ) qty__sku
                             in fromSized $ Z3 skus__sku (qty__sku ^/ yearFraction) comment__sku
         _ -> mempty
        
 
+
+
+fromMeasure :: Measure m -> TextBuilder
+fromMeasure x = fromString $ (printf "%0.2f") (measured x)
