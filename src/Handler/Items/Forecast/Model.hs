@@ -356,7 +356,7 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
                                  <> fromMeasure (S.index qty__t (S.index (windex eTtEE) e))
                                  <> LTB.fromText ("=" <> maybe "Style" unCategoryValue (S.index style__e e) <>  " * ")
                                  <> fromMeasure (S.index qty__v (S.index (windex eVvEE) e))
-                                 <> LTB.fromText ("=" <> maybe "Colour" unCategoryValue (S.index var__e e))
+                                 <> LTB.fromText ("=" <> maybe "Colour" unCategoryValue (S.index var__e e) <> " ")
                                  <> fromMeasure total
                                  <> "=Total"
     = fromSized (Z3 sku__e im__e com__e)
