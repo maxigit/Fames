@@ -44,6 +44,13 @@ data ForecastModel
      | NullModel
      -- deriving (Show, Eq)
 
+instance Show ForecastModel where
+   show (Naive from to prev) = unwords ["Naive " , show from , show to, show prev ]
+   show (CategorySplitter cat models def) = unwords [ "CategorySplititer", show cat, show models, show def]
+   show (Combination _ ann models) = unwords ["Combination", unpack ann, show models  ]
+   show (MonoOperation _ ann model) = unwords ["MonoOperation", unpack ann, show model ]
+   show (IndependantMargins model) = unwords ["IndependantMargins", show model ]
+   show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
 
@@ -354,7 +361,7 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
                                  <> "=Total"
     = fromSized (Z3 sku__e im__e com__e)
 estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
-estimateModel _model  _  = error $ "exthaustive pattern"
+estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
 estimateNaive from to years ForecastData{..} = 
