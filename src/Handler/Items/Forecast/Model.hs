@@ -319,7 +319,7 @@ estimateModel (Combination agg aggName models) fdata
 
     = fromSized $ Z3 sku__s qty__s comment__s
    
-estimateModel (Combination _ _ _ ) _ = error "exhaustive pattern"
+-- estimateModel (Combination _ _ _ ) _ = error "exhaustive pattern"
                               
 estimateModel (MonoOperation f name model ) fdata 
    | SomeSized (Z3 sku qty comment) <- estimateModel model fdata
@@ -341,7 +341,7 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
     -- k -> e -> t  :: k -> 
     -- , styleQty__k <- F.sum <$> walues (jsGrouping skuSpine__e_k) @>$ (windex eTtEE @> qty__t)
     -- join with var, qty
-    , Just var__sku <- lookup (CategoryName "base") fdCategoryMap --
+    , Just var__sku <- lookup (CategoryName "colour") fdCategoryMap --
     , varvm_e <- wbroadcast eKkSS @>$ var__sku -- might be null
     , var__e <- join . headm <$> varvm_e
     , Wal eVvEE <- groupV var__e
@@ -356,11 +356,11 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
                                  <> fromMeasure (S.index qty__t (S.index (windex eTtEE) e))
                                  <> LTB.fromText ("=" <> maybe "Style" unCategoryValue (S.index style__e e) <>  " * ")
                                  <> fromMeasure (S.index qty__v (S.index (windex eVvEE) e))
-                                 <> LTB.fromText ("=" <> maybe "Color" unCategoryValue (S.index var__e e))
+                                 <> LTB.fromText ("=" <> maybe "Colour" unCategoryValue (S.index var__e e))
                                  <> fromMeasure total
                                  <> "=Total"
     = fromSized (Z3 sku__e im__e com__e)
-estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
+-- estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
