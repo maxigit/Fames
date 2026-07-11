@@ -248,7 +248,7 @@ modelToCategories model =
     Combination _ _ models -> nub $ sort $ concatMap modelToCategories models
     MonoOperation _ _ model -> modelToCategories model
     NullModel -> []
-    IndependantMargins model -> map CategoryName ["style", "base"] ++ modelToCategories model
+    IndependantMargins model -> map CategoryName ["style", "colour"] ++ modelToCategories model
 
        
  -- ==================================================
@@ -321,7 +321,7 @@ estimateModel (MonoOperation f name model ) fdata
 
     
 estimateModel (IndependantMargins model) fdata@ForecastData{..} 
-    | SomeSized (Z3 sku__e qty__e comment__e) <- estimateModel model fdata
+    | SomeSized (Z3 sku__e qty__e __comment__e) <- estimateModel model fdata
     , JoinSpineV skuSpine__e_k <- makeJoinSpineV sku__e -- k are unique skus found from estimateModel. TODO estimateModel should only return uninque sku
     , let sku__sku = walues fdSku__nSsNN @=> fdSku__n
     , eKkSS <- rejoin skuSpine__e_k sku__sku
@@ -347,13 +347,14 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
                              ^/ total
     , com__e <- S.generate \e -> LTB.fromText "IM: "
                                  <> fromMeasure (S.index qty__t (S.index (windex eTtEE) e))
-                                 <> LTB.fromText "=Style * "
+                                 <> LTB.fromText ("=" <> maybe "Style" unCategoryValue (S.index style__e e) <>  " * ")
                                  <> fromMeasure (S.index qty__v (S.index (windex eVvEE) e))
-                                 <> "=Color / "
+                                 <> LTB.fromText ("=" <> maybe "Color" unCategoryValue (S.index var__e e))
                                  <> fromMeasure total
                                  <> "=Total"
     = fromSized (Z3 sku__e im__e com__e)
 estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
+estimateModel _model  _  = error $ "exthaustive pattern"
 
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
 estimateNaive from to years ForecastData{..} = 
@@ -364,9 +365,9 @@ estimateNaive from to years ForecastData{..} =
                          -> let skus__sku = walues dSsDD @=> skus__d
                                 qty__sku = F.sum <$> walues dSsDD @>$ quantities__d
                                 yearFraction = S.replicate $ Measure years :: N.Vector s Years
-                                comment__sku = fmap (\q -> "Naive <"  <> fromString (show from) <> ">--<" <> fromString (show to) 
+                                comment__sku = S.replicate ( "Naive <"  <> fromString (show from) <> ">--<" <> fromString (show to) 
                                                          <> "> " --  <> fromMeasure q
-                                                    ) qty__sku
+                                                    ) 
                             in fromSized $ Z3 skus__sku (qty__sku ^/ yearFraction) comment__sku
         _ -> mempty
        
