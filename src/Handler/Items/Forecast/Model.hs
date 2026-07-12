@@ -192,6 +192,7 @@ loadSales model = do
                           -- E.orderBy [ E.asc trans.tranDate, E.asc details.stockId ]
                           E.where_  $ (trans.tranDate E.>=. E.val start)
                                     E.&&. (trans.tranDate E.<=. E.val end)
+                          E.where_ $ details.stockId =%/. (RegexFilter "^[MC]")  -- to match actualSalesSources
                           E.where_ $ E.notExists $ do
                                      cat <- E.from (E.table @CustomerCategory)
                                      E.where_ (E.just cat.customerId E.==. trans.debtorNo

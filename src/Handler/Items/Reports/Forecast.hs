@@ -241,9 +241,8 @@ actualSalesSource grouper stockFilter start end priceListIdM = do
            (fmap (" AND " <>) stockWhereM) ?:
            " AND qty != 0" :
            " AND (clearance.value is null OR clearance.value <> 'Yes' ) " :
-           " AND moves.stock_id like 'M%'" :
-           -- " AND stock_id like 'ML17-FD7-NAY'" :
-           -- " AND stock_id like 'ML13-AD1-IVY'" :
+           -- " AND moves.stock_id like 'M%'" :
+           " AND moves.stock_id rlike '^[MC]'" :
            " AND tran_date >= ? AND tran_date <= ? " :
            " GROUP BY groupKey, days " :
            " order BY groupKey, days " :
