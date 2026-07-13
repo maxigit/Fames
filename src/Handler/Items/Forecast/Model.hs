@@ -38,9 +38,10 @@ data ForecastModel
                         , fmCategoryModel :: Map CategoryValue ForecastModel
                         , fmDefaultModel :: ForecastModel
                         }
-     | Combination (Vector1 YearlyQuantity -> YearlyQuantity) Text [ForecastModel]
+     | Combination (Vector1 YearlyQuantity -> YearlyQuantity) Text [ForecastModel] -- zip models
      | MonoOperation (Double -> Double) Text ForecastModel
      | IndependantMargins ForecastModel
+     | Aggregate (Vector YearlyQuantity -> YearlyQuantity) Text ForecastModel -- broadcast one value to all others
      | NullModel
      -- deriving (Show, Eq)
 
@@ -50,6 +51,7 @@ instance Show ForecastModel where
    show (Combination _ ann models) = unwords ["Combination", unpack ann, show models  ]
    show (MonoOperation _ ann model) = unwords ["MonoOperation", unpack ann, show model ]
    show (IndependantMargins model) = unwords ["IndependantMargins", show model ]
+   show (Aggregate _ ann model) = unwords ["Aggregate", unpack ann, show model ]
    show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
@@ -87,6 +89,10 @@ modelFromEasy forecastDay model =
      Easy.Scale weight model -> MonoOperation (*weight) (pack $ printf "Scale %0.2f *" weight) (go model)
      Easy.Cap cap model -> MonoOperation (min cap) (pack $ printf "Cap %0.2f &" cap) (go model)
      Easy.IM model -> IndependantMargins (go model)
+     Easy.Total model -> Aggregate F.sum "SUM" (go model)
+     Easy.Mean model -> Aggregate (\v -> let l = fromIntegral (F.length v)
+                                         in fmap (/l) (F.sum v))
+                                  "MEAN" (go model)
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -219,6 +225,7 @@ modelToSalesRanges model = let
        MonoOperation _ _ model -> modelToSalesRanges model
        NullModel -> []
        IndependantMargins model -> modelToSalesRanges model
+       Aggregate _ _ model -> modelToSalesRanges model
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
 modelToSalesRange model =
@@ -257,6 +264,7 @@ modelToCategories model =
     MonoOperation _ _ model -> modelToCategories model
     NullModel -> []
     IndependantMargins model -> map CategoryName ["style", "colour"] ++ modelToCategories model
+    Aggregate _ _ model -> modelToCategories model
 
        
  -- ==================================================
@@ -362,6 +370,11 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
                                  <> "=Total"
     = fromSized (Z3 sku__e im__e com__e)
 -- estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
+estimateModel (Aggregate agg ann model) fdata
+    | SomeSized (Z3 sku qty0 comment0) <- estimateModel model fdata
+    , let qty = S.replicate $ agg $ fromSized qty0
+          comment = fmap (\c -> "AGG" <> LTB.fromText ann <> "): [" <> c <> "]") comment0
+    = fromSized (Z3 sku qty comment)
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)

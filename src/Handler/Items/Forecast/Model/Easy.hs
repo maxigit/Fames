@@ -23,6 +23,8 @@ data Model
      | Scale Double Model
      | Cap Double Model
      | IM Model
+     | Total Model
+     | Mean Model
      deriving (Show, Read, Eq)
      
 data EasyDay = EasyDay Day
