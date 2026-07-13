@@ -41,6 +41,12 @@ data ForecastModel
      | Combination (Vector1 YearlyQuantity -> YearlyQuantity) Text [ForecastModel] -- zip models
      | MonoOperation (Double -> Double) Text ForecastModel
      | IndependantMargins ForecastModel
+     | Hierachical { fmCategories :: [CategoryName]
+                   -- , fmSimple :: Bool 
+                   , fmTopModel :: ForecastModel
+                   , fmBaseModel :: ForecastModel 
+                   }
+       -- ^ Computes forecast using model and then scale it so that each categories product add up to the sum of top model forecast
      | Aggregate (Vector YearlyQuantity -> YearlyQuantity) Text ForecastModel -- broadcast one value to all others
      | NullModel
      -- deriving (Show, Eq)
@@ -52,6 +58,7 @@ instance Show ForecastModel where
    show (MonoOperation _ ann model) = unwords ["MonoOperation", unpack ann, show model ]
    show (IndependantMargins model) = unwords ["IndependantMargins", show model ]
    show (Aggregate _ ann model) = unwords ["Aggregate", unpack ann, show model ]
+   show (Hierachical cats top base) = unwords ["Hierachical ", "(", show top, ")", show cats, "(", show base, ")" ]
    show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
@@ -93,6 +100,7 @@ modelFromEasy forecastDay model =
      Easy.Mean model -> Aggregate (\v -> let l = fromIntegral (F.length v)
                                          in fmap (/l) (F.sum v))
                                   "MEAN" (go model)
+     Easy.ScaleBy cats top base -> Hierachical (map CategoryName cats) (go top) (go base)
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -226,6 +234,7 @@ modelToSalesRanges model = let
        NullModel -> []
        IndependantMargins model -> modelToSalesRanges model
        Aggregate _ _ model -> modelToSalesRanges model
+       Hierachical _ top base -> concatMap modelToSalesRanges  [top, base]
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
 modelToSalesRange model =
@@ -265,6 +274,7 @@ modelToCategories model =
     NullModel -> []
     IndependantMargins model -> map CategoryName ["style", "colour"] ++ modelToCategories model
     Aggregate _ _ model -> modelToCategories model
+    Hierachical cats top base -> cats <> concatMap modelToCategories [top, base]
 
        
  -- ==================================================
@@ -375,8 +385,67 @@ estimateModel (Aggregate agg ann model) fdata
     , let qty = S.replicate $ agg $ fromSized qty0
           comment = fmap (\c -> "AGG" <> LTB.fromText ann <> "): [" <> c <> "]") comment0
     = fromSized (Z3 sku qty comment)
+estimateModel (Hierachical cats top base) fdata@ForecastData{..}
+   | SomeSized top__t <- estimateModel top fdata
+   , Z3 sku__t qty__t __comment__t <- top__t
+   , SomeSized base__b <- estimateModel base fdata
+   , Z3 sku__b __qty__b __comment__b <- base__b
+   -- for each group defined by the categorsie
+   -- we need to collect the base , sum up the top and scale so that SUM of base' = SUM top
+   -- we use as a spine the categorie-value combination
+   , let sku__sku = walues fdSku__nSsNN @=> fdSku__n
+         cats__sku = S.generate \sku -> [ lookup catname fdCategoryMap >>= flip S.index sku
+                                        | catname <- cats
+                                        ]
+   -------------------- join top
+   , JoinSpineV skuSpine__sku__s@(JoinSpine _s1 __skuSsSkuz) <- makeJoinSpineV sku__sku
+   , Wal skuCcSkus <- groupV cats__sku -- group sku by cat values
+     -- we need to group t (and b) by C so tCcTT and bCcBB (
+   , skuSsTT <- rejoin skuSpine__sku__s sku__t
+     -- get for each cats the sum
+   , cTT <- (foldMap unFold1) <$> walues skuCcSkus @>~ wbroadcast skuSsTT 
+   , topQty__c <- F.sum <$> cTT @>$ qty__t
+   -------------------- join base
+   , skuSsBB <- rejoin skuSpine__sku__s sku__b
+   , cBB <- (foldMap unFold1) <$> walues skuCcSkus @>~ wbroadcast skuSsBB
+   -- , baseQty__c <- F.sum <$> cBB @>$ qty__b
+   -- for each category comb, explan skus 
+   -- , xx <- S.zipWith3 (\bs topQty baseQty -> let sku = bs @> sku__b
+   --                                               -- qty = fmap (*adjust) <$> bs @> qty__b 
+   --                                               qty = bs @> qty__b 
+   --                                               adjust = topQty / baseQty
+   --                                               c = "(" <> fromMeasure topQty <> "/" <> fromMeasure baseQty <> "*"
+   --                                               comment = (<> c)  <$> bs @> comment__b
+   --                                           in ( sku, qty, comment)
+   --              
+   --                    )
+   --                    cBB
+   --                    baseQty__c
+   --                    topQty__c
+   -- , tCcTT <- rejoin catsSpine__c_sku sku__t
+   = F.foldMap (\(bs, to) -> scaleTo to (bs @> base__b)) $ Z2 cBB topQty__c
+
+
+
+
+
+
+
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
+scaleTo :: YearlyQuantity -> Vector (Sku, YearlyQuantity, TextBuilder) -> Vector (Sku, YearlyQuantity, TextBuilder)
+scaleTo to v = let
+   (sku, qty, comment0) = unzip3 v
+   total = F.sum qty
+   weight = to ^/ total
+   comment = zipWith (\q c -> "(" <> fromMeasure to <> "/" <> fromMeasure total <> ") * " <> fromMeasure q 
+                 <> ": " <> c
+                  ) qty
+                  comment0
+   in if total == 0
+      then mempty 
+      else zip3 sku ((^* weight) <$> qty) comment
+ 
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
 estimateNaive from to years ForecastData{..} = 
    case lookup (from, to) fdDays of

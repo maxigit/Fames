@@ -25,6 +25,7 @@ data Model
      | IM Model
      | Total Model
      | Mean Model
+     | ScaleBy [Text] Model Model
      deriving (Show, Read, Eq)
      
 data EasyDay = EasyDay Day
