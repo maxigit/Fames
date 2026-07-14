@@ -13,6 +13,7 @@ import Items.Internal
 import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
 import System.FilePath (takeBaseName)
+import System.Directory(listDirectory, getModificationTime, doesDirectoryExist)
 import FA as FA hiding (unUserKey)
 import Control.Monad.Fail (MonadFail(..))
 import GL.Utils
@@ -22,6 +23,7 @@ import qualified Data.Conduit.List as CL
 import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty(..))
 import Util.ForConduit
+import Util.Cache(cacheMinute)
 import qualified Data.Vector.Generic.Sized as V -- not Generic as Generics but generic interface over all types of vector
 import qualified Data.Map as Map
 
@@ -141,23 +143,37 @@ loadSkuSpeed filepath = do
 
 -- | load csv forecast or evaluate model if needed
 loadSkuSpeedFromDir :: FilePath -> Handler ([SkuSpeedRow], Map Collection SeasonProfile)
+-- loadSkuSpeedFromDir forecastDir = cache0 False (cacheMinute 15) ("sku-speed" </> forecastDir)  $ do
 loadSkuSpeedFromDir forecastDir = do
-  skuFiles <- skuFilesFromDir forecastDir
-  case skuFiles of
-     (_:_) ->  do -- load csv by default in case we cached the hs result
-               rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
-               skuSpeeds <- liftIO $ mapM (loadSkuSpeed . (forecastDir </> )) skuFiles
-               return (concat skuSpeeds, rawProfiles)
-     [] | Just forecastDay <- forecastPathToDay forecastDir -> do -- try loading model
-               let flat = seasonProfile [10,10,10,10,10,10,10,5,5,2,1] -- $ 1 : repeat 0
-               speedE <- estimateSkuSpeedFromDir forecastDay forecastDir 
-               case speedE of
-                  Left err -> error $ "Can't find sku speed files or hs model in directory " <> show forecastDir <> "\n" <> unpack err
-                  Right speed -> do
-                        let collection = Collection "model"
-                        return (toList $ fmap (\(sku, qty, comment) -> SkuSpeedRow sku qty collection comment )speed, singletonMap collection flat)
-     _ -> error $ "Can't find sku speed files." <> show forecastDir
-           
+  mtime <- liftIO $ lastModifiedTime forecastDir
+  cache0 False (cacheMinute 15) ("forecast/sku-speed", mtime, forecastDir)  do
+         skuFiles <- skuFilesFromDir forecastDir
+         case skuFiles of
+            (_:_) ->  do -- load csv by default in case we cached the hs result
+                      rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
+                      skuSpeeds <- liftIO $ mapM (loadSkuSpeed . (forecastDir </> )) skuFiles
+                      return (concat skuSpeeds, rawProfiles)
+            [] | Just forecastDay <- forecastPathToDay forecastDir -> do -- try loading model
+                      let flat = seasonProfile [10,10,10,10,10,10,10,5,5,2,1] -- $ 1 : repeat 0
+                      speedE <- estimateSkuSpeedFromDir forecastDay forecastDir 
+                      case speedE of
+                         Left err -> error $ "Can't find sku speed files or hs model in directory " <> show forecastDir <> "\n" <> unpack err
+                         Right speed -> do
+                               let collection = Collection "model"
+                               return (toList $ fmap (\(sku, qty, comment) -> SkuSpeedRow sku qty collection comment )speed, singletonMap collection flat)
+                              
+            _ -> error $ "Can't find sku speed files." <> show forecastDir
+
+
+lastModifiedTime :: FilePath -> IO UTCTime
+lastModifiedTime path = do
+   isDirectory <- doesDirectoryExist path
+   ts <- if isDirectory
+         then listDirectory path >>= mapM (lastModifiedTime . (path</>))
+         else fmap pure ( getModificationTime path)
+   case ts of
+      [] -> getModificationTime path
+      _ -> return $ maximumEx ts
 
 skuFilesFromDir :: FilePath -> Handler [FilePath]
 skuFilesFromDir forecastDir = liftIO $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )

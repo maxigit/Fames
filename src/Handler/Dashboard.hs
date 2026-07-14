@@ -41,6 +41,7 @@ import qualified Data.Foldable as F
 import qualified Data.Vector.Sized as N
 import qualified FA as FA
 import qualified Data.Csv as Csv
+import Data.Text (strip)
 
 pivotCss = [cassius|
   div.pivot-inline
@@ -962,9 +963,24 @@ getDForecastDetailedR pathm = do
                               )
   skuReport <- report SkuGroup
   customerReport <- report CustomerGroup
-  let names  = take 3 ["style", "shape", "colour", "random-base", "shape", "random-shape", "random-10", "random-100", "random-p4", "dpd-origin"] :: [Text]
+  let defaultNames  = ["style", "shape", "colour"] :: [Text]
+  (names, reportCustomers) <- do
+                  let namepath =  appForecastProfilesDir settings </> path </> "categories.hs"
+                  exists <- liftIO $ doesFileExist namepath
+                  if not exists 
+                  then return (defaultNames, False)
+                  else do
+                       content <- readFileUtf8 namepath
+                       case readMay (strip content) of
+                         Nothing -> do
+                                 setWarning "categories.hs not correct"
+                                 return (defaultNames, False)
+                         Just ns -> do
+                                    let (cats, customers) = partition (/="customer") ns
+                                    return (cats, not (null customers))
+                                    
   otherReport <- mapM report (map CategoryGroup names)
-  let reports = ("SKU", skuReport) : zip names otherReport  ++ [ ("Customer", customerReport) ]
+  let reports = ("SKU", skuReport) : zip names otherReport  ++ (if reportCustomers then [ ("Customer", customerReport) ] else [])
       summaries = [ (day, name, summary) | (name, ((day, summary), _)) <- reports ]
   
   let filepathm = case pathm of 

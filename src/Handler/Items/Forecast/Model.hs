@@ -96,6 +96,7 @@ modelFromEasy forecastDay model =
      Easy.Scale weight model -> MonoOperation (*weight) (pack $ printf "Scale %0.2f *" weight) (go model)
      Easy.Cap cap model -> MonoOperation (min cap) (pack $ printf "Cap %0.2f &" cap) (go model)
      Easy.IM model -> IndependantMargins (go model)
+     Easy.HM model -> go $ Easy.ScaleBy ["style"] model (Easy.ForeachCategory "colour" model)
      Easy.Total model -> Aggregate F.sum "SUM" (go model)
      Easy.Mean model -> Aggregate (\v -> let l = fromIntegral (F.length v)
                                          in fmap (/l) (F.sum v))

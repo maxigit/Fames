@@ -22,7 +22,8 @@ data Model
      | Sum [Model]
      | Scale Double Model
      | Cap Double Model
-     | IM Model
+     | IM Model -- real independent margin
+     | HM Model -- used IM but not independant as we scale by style
      | Total Model
      | Mean Model
      | ScaleBy [Text] Model Model
