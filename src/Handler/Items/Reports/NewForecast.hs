@@ -437,8 +437,8 @@ averageForecastSummary sums = let
 -- | Computes the number of weeks from start to today if needed
 -- This is the week when the actual sales stops if Today is in a given year
 weeksTo start today =  fromInteger $ case diffDays today start `div` 7 of
-                                        n | n < 0 -> 51
-                                        n ->  min n 51
+                                        n | n < 0 -> 52
+                                        n ->  min n 52
 
 data OffenderSummary = OffenderSummary { osActual, osForecast, osNaive, osError :: Double }
    deriving (Show)
