@@ -459,7 +459,7 @@ estimateNaive from to years ForecastData{..} =
                                 qty__sku = F.sum <$> walues dSsDD @>$ quantities__d
                                 yearFraction = S.replicate $ Measure years :: N.Vector s Years
                                 comment__sku = S.replicate ( "Naive <"  <> fromString (show from) <> ">--<" <> fromString (show to) 
-                                                         <> "> " --  <> fromMeasure q
+                                                         <> "> (*" <> fromMeasure (Measure years) <>")"
                                                     ) 
                             in fromSized $ Z3 skus__sku (qty__sku ^/ yearFraction) comment__sku
         _ -> mempty
