@@ -46,3 +46,8 @@ instance Read EasyDay where
 
 
 
+data Profile
+     = DefaultProfile
+     | PerCategoryYear Text Int
+     deriving (Show, Read, Eq)
+

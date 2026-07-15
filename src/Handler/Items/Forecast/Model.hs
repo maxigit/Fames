@@ -29,6 +29,7 @@ import Data.Time.Calendar
 -- import Data.Finite
 import Data.Type.Equality ((:~:)(..))
 import Data.Foldable1(intercalate1)
+import System.Directory(doesFileExist)
 
 -- * Type
 data ForecastModel
@@ -432,8 +433,6 @@ estimateModel (Hierachical cats top base) fdata@ForecastData{..}
 
 
 
-
-
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
 scaleTo :: YearlyQuantity -> Vector (Sku, YearlyQuantity, TextBuilder) -> Vector (Sku, YearlyQuantity, TextBuilder)
@@ -469,3 +468,56 @@ estimateNaive from to years ForecastData{..} =
 
 fromMeasure :: Measure m -> TextBuilder
 fromMeasure x = fromString $ (printf "%0.2f") (measured x)
+
+
+estimateCollectionProfile :: Day -> FilePath -> Handler (Sku -> Collection, Map Collection SeasonProfile)
+estimateCollectionProfile forecastDay  forecastDir = do
+   let path = forecastDir </> "profile.hs"
+   exists <- liftIO $ doesFileExist path
+   prof <- if exists
+            then do
+                 content' <- readFileUtf8 path
+                 let content = strip content'
+                 maybe (error $ "Can't read " <> show path) return $ readMay content
+            else return $ Easy.DefaultProfile
+   makeProfile forecastDay prof
+       
+makeProfile :: Day -> Easy.Profile -> Handler (Sku -> Collection, Map Collection SeasonProfile)
+makeProfile _ Easy.DefaultProfile = do
+       let flat = seasonProfile [] -- 10,0,0,0,0,10,10] -- $ 1 : repeat 0
+           collection = Collection "model"
+       return (const collection, singletonMap collection flat)
+
+makeProfile forecastDay (Easy.PerCategoryYear catname years) = do
+   let model = modelFromEasy forecastDay (Easy.ForeachCategory catname (Easy.PreviousYears years))
+   LoadedData{..} <- loadModelData model
+   return $ case () of
+      _ | SomeSized (Z3 day__n sku__n  qty__n) <- ldData
+        , SomeSized (Z3 sku__c _ profile__c) <- ldCategories
+        , month__n <- fmap (\(YearMonthDay _ m _) -> m) day__n
+        , JoinV nSsNN cSsCC <- joinV sku__n sku__c 
+        , profiles__n <- mkMaybe <$> windex nSsNN @> walues cSsCC @>$ profile__c
+        , Just profilem__n <- sequence profiles__n
+        , PivV nPpNN monthTo_pNN  <- pivotV profilem__n month__n
+        , let collection sku = Collection $ maybe "" unCategoryValue $ lookup sku skuToProfile 
+              skuToProfile :: Map Sku CategoryValue
+              skuToProfile = mapFromList $ S.toList $ Z2 sku__c profile__c 
+              profileVector = imap (\pi nn1 -> let collectionm = Collection $ maybe "" unCategoryValue $ S.index profilem__n (head1 nn1)
+                                                   Measure total = F.sum $ nn1  @> qty__n
+                                                   profile = seasonProfile [ Measure (q / total)
+                                                                           |  month <- [1..12]
+                                                                           , let Measure q = case lookup month monthTo_pNN of 
+                                                                                       Nothing -> 0
+                                                                                       Just pNN -> F.sum $ S.index pNN pi @> qty__n
+
+                                                                           ]
+                                               in (collectionm, profile)
+                                   )
+                                   (walues nPpNN)
+        -> ( collection
+           , mapFromList $ S.toList profileVector
+           )
+      _ -> error "pattern should be exahustive"
+
+
+
