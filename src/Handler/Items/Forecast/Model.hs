@@ -94,9 +94,11 @@ modelFromEasy forecastDay model =
                             weight = 1 / fromIntegral n
                         in Combination F.sum "SUM(avg)" $ map (go . Easy.Scale weight)  models
      Easy.Scale weight model -> MonoOperation (*weight) (pack $ printf "Scale %0.2f *" weight) (go model)
-     Easy.Cap cap model -> MonoOperation (min cap) (pack $ printf "Cap %0.2f &" cap) (go model)
+     Easy.AtMost cap model -> MonoOperation (min cap) (pack $ printf "AtMost %0.2f &" cap) (go model)
+     Easy.AtLeast floor_ model -> MonoOperation (max floor_) (pack $ printf "AtLeast %0.2f &" floor_) (go model)
+     Easy.SetTo value model -> MonoOperation (const value) (pack $ printf "SetTo %0.2f &" value) (go model)
      Easy.IM model -> IndependantMargins (go model)
-     Easy.HM model -> go $ Easy.ScaleBy ["style"] model (Easy.ForeachCategory "colour" model)
+     Easy.HM model -> go $ Easy.ScaleBy ["style"] model (Easy.ForeachCategory "colour" $ Easy.Total model)
      Easy.Total model -> Aggregate F.sum "SUM" (go model)
      Easy.Mean model -> Aggregate (\v -> let l = fromIntegral (F.length v)
                                          in fmap (/l) (F.sum v))
@@ -439,7 +441,7 @@ scaleTo to v = let
    (sku, qty, comment0) = unzip3 v
    total = F.sum qty
    weight = to ^/ total
-   comment = zipWith (\q c -> "(" <> fromMeasure to <> "/" <> fromMeasure total <> ") * " <> fromMeasure q 
+   comment = zipWith (\q c -> "(" <> fromMeasure to <> "*" <> fromMeasure (q ^/ total) <> "=(" <> fromMeasure q  <> " / " <> fromMeasure total <> ")"
                  <> ": " <> c
                   ) qty
                   comment0

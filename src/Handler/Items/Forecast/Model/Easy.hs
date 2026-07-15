@@ -21,7 +21,9 @@ data Model
      | Median [Model]
      | Sum [Model]
      | Scale Double Model
-     | Cap Double Model
+     | AtMost Double Model
+     | AtLeast Double Model
+     | SetTo Double Model
      | IM Model -- real independent margin
      | HM Model -- used IM but not independant as we scale by style
      | Total Model
