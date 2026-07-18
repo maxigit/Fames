@@ -29,6 +29,9 @@ data Model
      | Total Model
      | Mean Model
      | ScaleBy [Text] Model Model
+     | NoveltyFromFuture Int -- inject SKU with 0 forecast from future years
+     | InjectCategory Text
+     | InjectCategoryValue Text Text
      deriving (Show, Read, Eq)
      
 data EasyDay = EasyDay Day

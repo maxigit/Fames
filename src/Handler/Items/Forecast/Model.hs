@@ -9,7 +9,7 @@ import Handler.Items.Sources
 import qualified Handler.Items.Forecast.Model.Easy as Easy
 import Handler.Items.Common
 import Measure -- as M
--- import qualified Data.Map as Map
+import qualified Data.Map as Map
 import GL.Utils
 import qualified Database.Esqueleto.Experimental as E
 import qualified Data.Conduit.List as C
@@ -22,8 +22,10 @@ import qualified Data.Text.Lazy as LT
 import Data.List(nub)
 import Data.Coerce(coerce)
 import qualified Data.NoDF as N
-import Data.NoDF.Fold1(headm, head1, pattern Fold1, Fold1(..))
+import Data.NoDF.Fold1(headm, head1, pattern Fold1, Fold1(..), pattern AscU, AscU(unAscU))
 import qualified Data.Vector.Sized as S
+import qualified Data.Vector as V
+import Data.Finite
 import Data.NoDF hiding(Vector, index) -- (Wix(..), pattern Z3)
 import Data.Time.Calendar
 -- import Data.Finite
@@ -49,6 +51,8 @@ data ForecastModel
                    }
        -- ^ Computes forecast using model and then scale it so that each categories product add up to the sum of top model forecast
      | Aggregate (Vector YearlyQuantity -> YearlyQuantity) Text ForecastModel -- broadcast one value to all others
+     | ReComment (TextBuilder -> TextBuilder) Text ForecastModel 
+     | InjectCategory CategoryName [CategoryValue] -- ^ Inject all the sku of the given category with a forecast of 0
      | NullModel
      -- deriving (Show, Eq)
 
@@ -60,6 +64,8 @@ instance Show ForecastModel where
    show (IndependantMargins model) = unwords ["IndependantMargins", show model ]
    show (Aggregate _ ann model) = unwords ["Aggregate", unpack ann, show model ]
    show (Hierachical cats top base) = unwords ["Hierachical ", "(", show top, ")", show cats, "(", show base, ")" ]
+   show (ReComment _ ann model) = unwords ["ReComment", unpack ann, show model ]
+   show (InjectCategory cat values) = unwords ["InjectCategory", show cat, show values ]
    show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
@@ -105,6 +111,11 @@ modelFromEasy forecastDay model =
                                          in fmap (/l) (F.sum v))
                                   "MEAN" (go model)
      Easy.ScaleBy cats top base -> Hierachical (map CategoryName cats) (go top) (go base)
+     Easy.NoveltyFromFuture years -> let future = calculateDateChain [AddYears years, AddDays (-1)] forecastDay
+                                     in  ReComment (const "Novelty") "Novelty"
+                                       $ MonoOperation (const 0) "0" $ Naive forecastDay future (Just years)
+     Easy.InjectCategory cat -> InjectCategory (CategoryName cat) []
+     Easy.InjectCategoryValue cat value -> InjectCategory (CategoryName cat) [CategoryValue value]
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -134,10 +145,15 @@ estimateSkuSpeedFromDir forecastDay forecastDir = do
 -- * Model implementation
 
 data LoadedData = LoadedData 
-   { ldData :: Vector (Day, Sku, Quantity)
+   { ldSales :: Vector (Day, Sku, Quantity)
+   , ldOrders :: Vector (Day, Sku, Quantity)
    , ldCategories :: Vector (Sku, CategoryName, CategoryValue)
    }
    deriving Show 
+
+data Source = Sales Day Day
+            | InjectedCategory CategoryName [CategoryValue]
+     deriving (Show, Eq, Ord)
 
 -- | Loaded data with some common computation already computer
 -- Serves as sort of cache for filtering and grouping data needed
@@ -147,8 +163,12 @@ data ForecastData where
                    { fdQuantities__n :: S.Vector n Quantity
                    , fdDays__n :: N.Vector n Day
                    , fdSku__n :: N.Vector n Sku
+                   , fdSku__sku :: AscU (N.Vector sku) Sku
                    , fdDays :: Map (Day, Day) (Wix Maybe n)
-                   , fdSku__nSsNN :: N.WectorFF Vector1 n sku n
+                   --  ^^^^ n : sales
+                   , fdManualMap :: Map (CategoryName, [CategoryValue]) (Wix Maybe sku)
+                   --  ^^^ manual
+                   , fdSku__nSsNN :: N.WectorFF Vector n sku n
                    , fdCategoryMap :: Map CategoryName (N.Vector sku (Maybe CategoryValue))
                    }
                    -> ForecastData
@@ -157,12 +177,14 @@ data ForecastData where
 -- unGroupForecastData nGgNN fdata = fmap (flip narrowForecastData fdata) (invertGroup nGnNN)
 
 
-narrowForecastData :: KnownNat v__n => Wix Maybe v__n -> ForecastData -> ForecastData
-narrowForecastData w@(Wix sNnSS) ForecastData{..}  
-   | Wector _sN nSS <- sNnSS
-   , Just Refl <-  sameNat (S.length' fdSku__n ) (S.length' nSS)
-   , daysMap <- fmap (intersectWix  w) fdDays
-   = ForecastData{fdDays = daysMap,..}
+narrowForecastData :: KnownNat v__sku => Wix Maybe v__sku -> ForecastData -> ForecastData
+narrowForecastData w@(Wix cSsCC) ForecastData{..}  
+   | Wector _cS sCC <- cSsCC
+   , Just Refl <-  sameNat (S.length' (unAscU fdSku__sku) ) (S.length' sCC)
+   , let wn = selectX (isJust <$> windex fdSku__nSsNN  @> sCC)
+   , daysMap <- fmap (intersectWix  wn ) fdDays
+   , manualMap <- fmap (intersectWix w) fdManualMap
+   = ForecastData{fdDays = daysMap, fdManualMap=manualMap,..}
 --    , quantities__s <- sN @> fdQuantities__n
 --    , days__s <- sN @> fdDays__n
 --    , sku__s <- sN @> fdSku__n
@@ -190,8 +212,9 @@ evaluateModel model = do
 
 loadModelData :: ForecastModel -> Handler LoadedData
 loadModelData model = do
-   ldData <- loadSales model
+   ldSales <- loadSales model
    ldCategories <- loadCategories model
+   ldOrders <- return mempty
    return LoadedData{..}
    
    
@@ -227,7 +250,6 @@ loadSales model = do
             return $ mconcat salesv
 
          
-   
 modelToSalesRanges :: ForecastModel -> [ (Day, Day) ]
 modelToSalesRanges model = let
   in case model of
@@ -239,6 +261,8 @@ modelToSalesRanges model = let
        IndependantMargins model -> modelToSalesRanges model
        Aggregate _ _ model -> modelToSalesRanges model
        Hierachical _ top base -> concatMap modelToSalesRanges  [top, base]
+       ReComment _ _ model -> modelToSalesRanges model
+       InjectCategory _ _ -> []
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
 modelToSalesRange model =
@@ -252,9 +276,12 @@ modelToSalesRange model =
 -- * Loading categories
 loadCategories :: ForecastModel -> Handler (Vector (Sku, CategoryName, CategoryValue))
 loadCategories model = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let categories = modelToCategories model
       query = do
                cat <- E.from $ E.table @ItemCategory
+               E.where_ $ cat.stockId  `E.like` E.val stockLike
+               E.where_ $ cat.stockId =%/. (RegexFilter "^[MC]")  -- to match actualSalesSources  and loadSales
                E.where_ $ cat.category `E.in_` (E.valList $ coerce categories)
                return (cat.stockId , cat.category, cat.value)
   catvs <- runDB $ runConduit $ E.selectSource query
@@ -262,7 +289,6 @@ loadCategories model = do
                              .| conduitVector 1000
                              .| sinkList
   return $ mconcat catvs
-
 
 
 
@@ -279,6 +305,8 @@ modelToCategories model =
     IndependantMargins model -> map CategoryName ["style", "colour"] ++ modelToCategories model
     Aggregate _ _ model -> modelToCategories model
     Hierachical cats top base -> cats <> concatMap modelToCategories [top, base]
+    ReComment _ _ model -> modelToCategories model
+    InjectCategory cat _ -> [cat]
 
        
  -- ==================================================
@@ -287,20 +315,91 @@ modelToCategories model =
 
 prepareData :: ForecastModel -> LoadedData -> ForecastData
 prepareData model LoadedData{..} 
-  | SomeSized (Z3 fdDays__n fdSku__n fdQuantities__n) <- ldData
+  | SomeSized (Z3 fdDays__n fdSku__n fdQuantities__n) <- ldSales
+  , SomeSized (Z3 _fdDays__o fdSku__o _fdQuantities__o) <- ldOrders
   , fdDays <- mapFromList [ (range, filterX (\d -> from <= d && d <= to) fdDays__n)
                           | range@(from, to) <- modelToSalesRanges model
                           ]
-  ------------------
-  , JSpineV skuSpine fdSku__nSsNN <- makeJoinSpineV fdSku__n
+  -- Get unique skus for all different sources 
+  -- get manual SKU from categoryMap
   , SomeSized (Z3 sku__c category__c value__c) <- ldCategories
-  , categoryMap <- pivotWithSpine (JoinSpine skuSpine fdSku__nSsNN) sku__c category__c 
-  , fdCategoryMap <- fmap ((@>$ value__c) . fmap headm)
-                          categoryMap
-  -- , fdSku_nSsNN <- N.groupV fdSku__n 
+  , PivV cKkCC categoryMapK <- pivotV sku__c category__c -- k = number of sku used by category map
+  , let sku__k = walues cKkCC @=> sku__c
+  , let manualKeySet = setFromList $ manualKeys model 
+  , manualMapMaybek <- flip Map.fromSet manualKeySet \(cat, values) ->
+                                       case lookup cat categoryMapK of
+                                            Nothing -> -- category not found, nothing to lest
+                                                      Nothing
+                                            Just valuesk -> 
+                                               let toKeep = case values of 
+                                                              [] -> not . null 
+                                                              _:_ -> maybe False (`elem` values) . headm 
+                                               in Just $ filterX toKeep (valuesk @>$ value__c)
+  , let manualMapk = Map.mapMaybe id manualMapMaybek
+  ---------------------
+  , let indexJust v = S.generate' (S.length' v) V.singleton 
+        indexNothing v = S.replicate' (S.length' v) V.empty
+  , SomeSized (Z3 allSku__all aN0__all
+                              aK0__all) <- fromSized $ Z3 ( fdSku__n S.++ fdSku__o S.++ sku__k )
+                                                          (indexJust fdSku__n S.++ indexNothing fdSku__o S.++ indexNothing sku__k)
+                                                          (indexNothing fdSku__n S.++ indexNothing fdSku__o S.++ indexJust sku__k)
+                      --                    ^^^^^      ^^
+                      --                      |         |
+                      --                      |         +-- trick to make sure sku vector and partial index have the same length (and shape)
+                      --                      |                (swapping elements in addition would not typecheck)
+                      --                      +------------ erase the length @n+@o+@m to a simple @a (otherwise nothing compiles)
+  , JoinSpineV skuSpine__aSsAA <- makeJoinSpineV allSku__all
+  , sku_aSsAA <- jsGrouping skuSpine__aSsAA
+  , let nA__n =  S.generate' (S.length' fdSku__n)  (finite . getFinite)  
+        nAaNN = Wector nA__n (aN0__all)
+        nSsNN = composeW nAaNN (unFold1 <$> sku_aSsAA)
+        n = fromIntegral $ S.length fdSku__n
+        kA__k = S.generate' (S.length' sku__k)  (finite . (+n) . getFinite)
+        _kAaKK = Wector kA__k aK0__all -- force type
+  -- get unique all sku by using mkSpine and discard what is not needed
+  , fdSku__sku <- jsSpine skuSpine__aSsAA
+  ------------------
+  -- , JSpineV skuSpine fdSku__nSsNN <- rejoin fdSku__n
+  , fdSku__nSsNN <- nSsNN -- rejoin skuSpine fdSku__n
+  ---------------------------------------
+  -- we already have the categoryMap but we need to extend it to the big skuSpine
+  , aSsKK <- rejoin skuSpine__aSsAA sku__k
+  , categoryMap <- fmap (\cs__k  -> walues aSsKK  @>= cs__k @>$ value__c )
+                          categoryMapK
+  , Just fdCategoryMap <- traverse (traverse mkMaybe) categoryMap -- we know there is only one value per sku/category 
+                                   -- so the result of the pivot should be 0 or 1, but no more.
+                                   -- The Just there check at runtime that this is the case
+  ------------------------------ 
+  , fdManualMap <- fmap (\(Wix mKkM0) -> let  Wector mK kM0  = mKkM0
+                                              Wector aS sKK = aSsKK
+                                              Just sK0 = traverse mkMaybe sKK
+                                              mS = mK @> kA__k @> aS
+                                              sMM = sK0 @>= kM0
+                                         in Wix (Wector mS sMM)
+                        ) manualMapk
   = ForecastData{..}
 prepareData _ _ = error "exhaustive pattern"
     
+
+manualKeys :: ForecastModel -> [(CategoryName, [CategoryValue])]
+manualKeys model0 = 
+    case model0 of
+      Naive _ _ _ -> []
+      CategorySplitter _ modelMap  defModel -> go $  defModel : toList modelMap
+      Combination _ _ models -> go models
+      MonoOperation _ _ model -> go [model]
+      IndependantMargins model -> go [model]
+      Aggregate _ _ model -> go [model]
+      Hierachical _ top base -> go [top, base]
+      ReComment _ _ model -> go [model]
+      NullModel -> []
+      InjectCategory catName values -> [(catName, values)]
+    where go = concatMap manualKeys
+
+
+ -- ==================================================
+ --     ESTIMATE
+ -- ==================================================
        
 estimateModel :: ForecastModel -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
 estimateModel Naive{..} fdata = estimateNaive fmFrom fmTo duration fdata
@@ -309,14 +408,13 @@ estimateModel Naive{..} fdata = estimateNaive fmFrom fmTo duration fdata
                           fmDuration
 estimateModel CategorySplitter{..} fd@ForecastData{..} =
   case lookup fmCategory fdCategoryMap of
-       Just categorym__sku | categorym__n <- windex fdSku__nSsNN  @> categorym__sku
-                           , Wal nCcNN <- groupV categorym__n
-                           , fdv__c <- fmap (flip narrowForecastData fd) (invertGroup nCcNN)
+       Just categorym__sku | Wal sCcSS <- groupV categorym__sku
+                           , fdv__c <- fmap (flip narrowForecastData fd) (invertGroup sCcSS)
                            ->  mconcat [ estimateModel model groupFd 
                                        | i__c <- S.toList $ S.generate id
                                        , let groupFd = S.index fdv__c i__c
-                                       , let catn = S.index (walues nCcNN) i__c
-                                       , let catm = head1 $ catn @> categorym__n
+                                       , let cats = S.index (walues sCcSS) i__c
+                                       , let catm = head1 $ cats @> categorym__sku
                                        , let model = fromMaybe fmDefaultModel $  catm >>= flip lookup fmCategoryModel
                                        ]
        Nothing -> mempty
@@ -353,7 +451,7 @@ estimateModel (MonoOperation f name model ) fdata
 estimateModel (IndependantMargins model) fdata@ForecastData{..} 
     | SomeSized (Z3 sku__e qty__e __comment__e) <- estimateModel model fdata
     , JoinSpineV skuSpine__e_k <- makeJoinSpineV sku__e -- k are unique skus found from estimateModel. TODO estimateModel should only return uninque sku
-    , let sku__sku = walues fdSku__nSsNN @=> fdSku__n
+    , let AscU sku__sku = fdSku__sku
     , eKkSS <- rejoin skuSpine__e_k sku__sku
     -- join with style, qty
     , Just style__sku <- lookup (CategoryName "style") fdCategoryMap --
@@ -390,47 +488,53 @@ estimateModel (Aggregate agg ann model) fdata
           comment = fmap (\c -> "AGG" <> LTB.fromText ann <> "): [" <> c <> "]") comment0
     = fromSized (Z3 sku qty comment)
 estimateModel (Hierachical cats top base) fdata@ForecastData{..}
-   | SomeSized top__t <- estimateModel top fdata
-   , Z3 sku__t qty__t __comment__t <- top__t
-   , SomeSized base__b <- estimateModel base fdata
-   , Z3 sku__b __qty__b __comment__b <- base__b
-   -- for each group defined by the categorsie
-   -- we need to collect the base , sum up the top and scale so that SUM of base' = SUM top
-   -- we use as a spine the categorie-value combination
-   , let sku__sku = walues fdSku__nSsNN @=> fdSku__n
-         cats__sku = S.generate \sku -> [ lookup catname fdCategoryMap >>= flip S.index sku
-                                        | catname <- cats
-                                        ]
-   -------------------- join top
-   , JoinSpineV skuSpine__sku__s@(JoinSpine _s1 __skuSsSkuz) <- makeJoinSpineV sku__sku
-   , Wal skuCcSkus <- groupV cats__sku -- group sku by cat values
-     -- we need to group t (and b) by C so tCcTT and bCcBB (
-   , skuSsTT <- rejoin skuSpine__sku__s sku__t
-     -- get for each cats the sum
-   , cTT <- (foldMap unFold1) <$> walues skuCcSkus @>~ wbroadcast skuSsTT 
-   , topQty__c <- F.sum <$> cTT @>$ qty__t
-   -------------------- join base
-   , skuSsBB <- rejoin skuSpine__sku__s sku__b
-   , cBB <- (foldMap unFold1) <$> walues skuCcSkus @>~ wbroadcast skuSsBB
-   -- , baseQty__c <- F.sum <$> cBB @>$ qty__b
-   -- for each category comb, explan skus 
-   -- , xx <- S.zipWith3 (\bs topQty baseQty -> let sku = bs @> sku__b
-   --                                               -- qty = fmap (*adjust) <$> bs @> qty__b 
-   --                                               qty = bs @> qty__b 
-   --                                               adjust = topQty / baseQty
-   --                                               c = "(" <> fromMeasure topQty <> "/" <> fromMeasure baseQty <> "*"
-   --                                               comment = (<> c)  <$> bs @> comment__b
-   --                                           in ( sku, qty, comment)
-   --              
-   --                    )
-   --                    cBB
-   --                    baseQty__c
-   --                    topQty__c
-   -- , tCcTT <- rejoin catsSpine__c_sku sku__t
-   = F.foldMap (\(bs, to) -> scaleTo to (bs @> base__b)) $ Z2 cBB topQty__c
+   | etop <- estimateModel top fdata
+   = case length etop of
+        0 -> mempty
+        _ | SomeSized top__t <- etop
+          , Z3 sku__t qty__t __comment__t <- top__t
+          , SomeSized base__b <- estimateModel base fdata
+          , Z3 sku__b __qty__b __comment__b <- base__b
+          -- for each group defined by the categorsie
+          -- we need to collect the base , sum up the top and scale so that SUM of base' = SUM top
+          -- we use as a spine the categorie-value combination
+          , let cats__sku = S.generate \sku -> [ lookup catname fdCategoryMap >>= flip S.index sku
+                                               | catname <- cats
+                                               ]
+          -------------------- join top
+          , skuSpine__sku__s@(JoinSpine _s1 __skuSsSkuz) <- mkSpine fdSku__sku
+          , Wal skuCcSkus1 <- groupV cats__sku -- group sku by cat values
+            -- we need to group t (and b) by C so tCcTT and bCcBB (
+          , Wector _ skuTT <- rejoin skuSpine__sku__s sku__t
+          , let cSkus = fmap unFold1 $ walues skuCcSkus1
+            -- get for each cats the sum
+          , cTT <- fold <$> cSkus @>$ skuTT 
+          , topQty__c <- F.sum <$> cTT @>$ qty__t
+          -------------------- join base
+          , Wector _ skuBB <- rejoin skuSpine__sku__s sku__b
+          -- , cBB <- (foldMap unFold1) <$> walues skuCcSkus1 @>~ wbroadcast skuSsBB
+          , cBB <- fold <$> cSkus @>$ skuBB 
+          -> F.foldMap (\(bs, to) -> scaleTo to (bs @> base__b)) $ Z2 cBB topQty__c
+        _ -> error "unexpected happened "
+
+estimateModel (ReComment recomment _ model) fdata 
+    | SomeSized (Z3 sku__t qty__t comment__t) <- estimateModel model fdata
+    = fromSized (Z3 sku__t qty__t (recomment <$> comment__t))
 
 
 
+
+
+estimateModel (InjectCategory catName values) ForecastData{..}  =
+      case lookup (catName, values) fdManualMap of
+        Nothing -> mempty
+        Just (Wix mSsMM) -> let AscU sku__sku = fdSku__sku
+                            in fromSized (Z3 (windex mSsMM @> sku__sku)
+                                             (S.replicate 0)
+                                             (S.replicate $ "Inject " <> LTB.fromText (unCategoryName catName))
+                                         )
+                      
+   
 
 
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
@@ -492,16 +596,16 @@ makeProfile forecastDay (Easy.PerCategoryYear catname years) = do
    let model = modelFromEasy forecastDay (Easy.ForeachCategory catname (Easy.PreviousYears years))
    LoadedData{..} <- loadModelData model
    return $ case () of
-      _ | SomeSized (Z3 day__n sku__n  qty__n) <- ldData
-        , SomeSized (Z3 sku__c _ profile__c) <- ldCategories
+      _ | SomeSized (Z3 day__n sku__n  qty__n) <- ldSales
+        , SomeSized (Z3 k _ profile__c) <- ldCategories
         , month__n <- fmap (\(YearMonthDay _ m _) -> m) day__n
-        , JoinV nSsNN cSsCC <- joinV sku__n sku__c 
+        , JoinV nSsNN cSsCC <- joinV sku__n k 
         , profiles__n <- mkMaybe <$> windex nSsNN @> walues cSsCC @>$ profile__c
         , Just profilem__n <- sequence profiles__n
         , PivV nPpNN monthTo_pNN  <- pivotV profilem__n month__n
         , let collection sku = Collection $ maybe "" unCategoryValue $ lookup sku skuToProfile 
               skuToProfile :: Map Sku CategoryValue
-              skuToProfile = mapFromList $ S.toList $ Z2 sku__c profile__c 
+              skuToProfile = mapFromList $ S.toList $ Z2 k profile__c 
               profileVector = imap (\pi nn1 -> let collectionm = Collection $ maybe "" unCategoryValue $ S.index profilem__n (head1 nn1)
                                                    Measure total = F.sum $ nn1  @> qty__n
                                                    profile = seasonProfile [ Measure (q / total)
