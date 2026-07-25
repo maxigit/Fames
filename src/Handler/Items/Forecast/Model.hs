@@ -41,8 +41,13 @@ data ForecastModel
                         , fmCategoryModel :: Map CategoryValue ForecastModel
                         , fmDefaultModel :: ForecastModel
                         }
+     | PostCategorySplitter { fmCategory :: CategoryName
+                            , fmCategoryModifier :: Map CategoryValue ModelModifier
+                            , fmDefaultModifier :: ModelModifier
+                            , fmDefaultModel :: ForecastModel
+                            }
      | Combination (Vector1 YearlyQuantity -> YearlyQuantity) Text [ForecastModel] -- zip models
-     | MonoOperation (Double -> Double) Text ForecastModel
+     | Modifier ModelModifier ForecastModel
      | IndependantMargins ForecastModel
      | Hierachical { fmCategories :: [CategoryName]
                    -- , fmSimple :: Bool 
@@ -50,7 +55,6 @@ data ForecastModel
                    , fmBaseModel :: ForecastModel 
                    }
        -- ^ Computes forecast using model and then scale it so that each categories product add up to the sum of top model forecast
-     | Aggregate (Vector YearlyQuantity -> YearlyQuantity) Text ForecastModel -- broadcast one value to all others
      | ReComment (TextBuilder -> TextBuilder) Text ForecastModel 
      | InjectCategory CategoryName [CategoryValue] -- ^ Inject all the sku of the given category with a forecast of 0
      | NullModel
@@ -59,16 +63,29 @@ data ForecastModel
 instance Show ForecastModel where
    show (Naive from to prev) = unwords ["Naive " , show from , show to, show prev ]
    show (CategorySplitter cat models def) = unwords [ "CategorySplititer", show cat, show models, show def]
+   show (PostCategorySplitter cat mods def model) = unwords [ "PostCategorySplititer", show cat, show mods, show def, show model]
    show (Combination _ ann models) = unwords ["Combination", unpack ann, show models  ]
-   show (MonoOperation _ ann model) = unwords ["MonoOperation", unpack ann, show model ]
+   show (Modifier mod model) = unwords ["Modifier", show mod , show model ]
    show (IndependantMargins model) = unwords ["IndependantMargins", show model ]
-   show (Aggregate _ ann model) = unwords ["Aggregate", unpack ann, show model ]
    show (Hierachical cats top base) = unwords ["Hierachical ", "(", show top, ")", show cats, "(", show base, ")" ]
    show (ReComment _ ann model) = unwords ["ReComment", unpack ann, show model ]
    show (InjectCategory cat values) = unwords ["InjectCategory", show cat, show values ]
    show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
+
+data ModelModifier 
+    = Reject
+    | Id
+    | ApplyMono (Double -> Double) Text
+    | ApplyAggregate (Vector YearlyQuantity -> YearlyQuantity) Text
+
+instance Show ModelModifier where
+  show Reject = "Reject"
+  show Id = "Id"
+  show (ApplyMono _ ann) = "ApplyMono:" <> unpack ann
+  show (ApplyAggregate _ ann) = "ApplyAggregate:" <> unpack ann
+
 
 modelFromEasy :: Day -> Easy.Model -> ForecastModel
 modelFromEasy forecastDay model = 
@@ -80,40 +97,45 @@ modelFromEasy forecastDay model =
                                  from = calculateDate (AddYears $ -n) forecastDay
                             in Naive from to (Just $ fromIntegral n)
      Easy.Previous from to durm -> Naive (day from) (day to) durm
+
      Easy.ForeachCategory catName defModel ->   CategorySplitter (CategoryName catName) mempty $ go defModel
+     Easy.AfterForeachCategory catName mod model -> PostCategorySplitter (CategoryName catName)
+                                                                         mempty
+                                                                         (modFromEasy mod)
+                                                                         (go model)
      Easy.CategoryCase catName cat'models defModel -> CategorySplitter (CategoryName catName)
                                                                         (mapFromList [(CategoryValue cat, go model)
                                                                                      | (cat, model) <- cat'models
                                                                                      ]
                                                                         )
                                                                         (go defModel)
+     Easy.PostCategoryCase catName cat'mods defMod model -> PostCategorySplitter (CategoryName catName)
+                                                                                 (mapFromList [(CategoryValue cat, modFromEasy mod)
+                                                                                              | (cat, mod) <- cat'mods
+                                                                                              ]
+                                                                                 )
+                                                                                 (modFromEasy defMod)
+                                                                                 (go model)
      Easy.FilterCategory catName categories model -> CategorySplitter (CategoryName catName)
                                                               (mapFromList $ [(CategoryValue cat, go model) | cat <- categories ])
                                                               NullModel
      Easy.ExcludeCategory catName categories model -> CategorySplitter (CategoryName catName)
                                                               (mapFromList $ [(CategoryValue cat, NullModel) | cat <- categories ])
                                                               (go model)
+     Easy.Mod mod model -> Modifier (modFromEasy mod) (go model)
      Easy.Sum models -> Combination F.sum "SUM" (map go models)
      Easy.Max models -> Combination F.maximum "MAX" (map go models)
      Easy.Min models -> Combination F.minimum "MIN" (map go models)
      Easy.Median models -> Combination (coerce . median . coerce) "MEDIAN" (map go models)
      Easy.Avg models -> let n = length models 
                             weight = 1 / fromIntegral n
-                        in Combination F.sum "SUM(avg)" $ map (go . Easy.Scale weight)  models
-     Easy.Scale weight model -> MonoOperation (*weight) (pack $ printf "Scale %0.2f *" weight) (go model)
-     Easy.AtMost cap model -> MonoOperation (min cap) (pack $ printf "AtMost %0.2f &" cap) (go model)
-     Easy.AtLeast floor_ model -> MonoOperation (max floor_) (pack $ printf "AtLeast %0.2f &" floor_) (go model)
-     Easy.SetTo value model -> MonoOperation (const value) (pack $ printf "SetTo %0.2f &" value) (go model)
+                        in Combination F.sum "SUM(avg)" $ map (go . Easy.Mod (Easy.Scale weight))  models
      Easy.IM model -> IndependantMargins (go model)
-     Easy.HM model -> go $ Easy.ScaleBy ["style"] model (Easy.ForeachCategory "colour" $ Easy.Total model)
-     Easy.Total model -> Aggregate F.sum "SUM" (go model)
-     Easy.Mean model -> Aggregate (\v -> let l = fromIntegral (F.length v)
-                                         in fmap (/l) (F.sum v))
-                                  "MEAN" (go model)
+     Easy.HM model -> go $ Easy.ScaleBy ["style"] model (Easy.AfterForeachCategory "colour" Easy.Total model)
      Easy.ScaleBy cats top base -> Hierachical (map CategoryName cats) (go top) (go base)
      Easy.NoveltyFromFuture years -> let future = calculateDateChain [AddYears years, AddDays (-1)] forecastDay
                                      in  ReComment (const "Novelty") "Novelty"
-                                       $ MonoOperation (const 0) "0" $ Naive forecastDay future (Just years)
+                                       $ Modifier (ApplyMono (const 0) "0") $ Naive forecastDay future (Just years)
      Easy.InjectCategory cat -> InjectCategory (CategoryName cat) []
      Easy.InjectCategoryValue cat value -> InjectCategory (CategoryName cat) [CategoryValue value]
      Easy.Null -> NullModel
@@ -129,6 +151,21 @@ modelFromEasy forecastDay model =
                  Easy.EasyCalc calc -> calculateDate calc forecastDay
           
           
+modFromEasy :: Easy.Modifier -> ModelModifier
+modFromEasy mod = 
+  case mod of 
+    Easy.Reject -> Reject
+    Easy.Id -> Id
+    Easy.Scale weight -> ApplyMono (*weight) (pack $ printf "Scale %0.2f *" weight)
+    Easy.AtMost cap -> ApplyMono (min cap) (pack $ printf "AtMost %0.2f &" cap)
+    Easy.AtLeast floor_ -> ApplyMono (max floor_) (pack $ printf "AtLeast %0.2f &" floor_)
+    Easy.SetTo value -> ApplyMono (const value) (pack $ printf "SetTo %0.2f &" value)
+    Easy.Total -> ApplyAggregate F.sum "SUM"
+    Easy.Mean -> ApplyAggregate (\v -> let l = fromIntegral (F.length v)
+                                       in fmap (/l) (F.sum v)
+                                )
+                                "MEAN"
+
   
 -- * Common
 estimateSkuSpeedFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, YearlyQuantity, Text)))
@@ -255,11 +292,11 @@ modelToSalesRanges model = let
   in case model of
        Naive from to _ -> [ (from, to) ]
        CategorySplitter _  modelMap defModel -> concatMap modelToSalesRanges (defModel : toList modelMap)
+       PostCategorySplitter _ _ _ model -> modelToSalesRanges model
        Combination _ _ models -> concatMap modelToSalesRanges models
-       MonoOperation _ _ model -> modelToSalesRanges model
+       Modifier _ model -> modelToSalesRanges model
        NullModel -> []
        IndependantMargins model -> modelToSalesRanges model
-       Aggregate _ _ model -> modelToSalesRanges model
        Hierachical _ top base -> concatMap modelToSalesRanges  [top, base]
        ReComment _ _ model -> modelToSalesRanges model
        InjectCategory _ _ -> []
@@ -299,11 +336,11 @@ modelToCategories model =
   case model of
     Naive{..} -> []
     CategorySplitter cat modelMap defModel -> nub $ sort $ cat : concatMap modelToCategories (defModel : toList modelMap)
+    PostCategorySplitter cat _ _ model -> nub $ sort $ cat : modelToCategories model
     Combination _ _ models -> nub $ sort $ concatMap modelToCategories models
-    MonoOperation _ _ model -> modelToCategories model
+    Modifier _ model -> modelToCategories model
     NullModel -> []
     IndependantMargins model -> map CategoryName ["style", "colour"] ++ modelToCategories model
-    Aggregate _ _ model -> modelToCategories model
     Hierachical cats top base -> cats <> concatMap modelToCategories [top, base]
     ReComment _ _ model -> modelToCategories model
     InjectCategory cat _ -> [cat]
@@ -386,10 +423,10 @@ manualKeys model0 =
     case model0 of
       Naive _ _ _ -> []
       CategorySplitter _ modelMap  defModel -> go $  defModel : toList modelMap
+      PostCategorySplitter _ _ _ model -> go [model]
       Combination _ _ models -> go models
-      MonoOperation _ _ model -> go [model]
+      Modifier _ model -> go [model]
       IndependantMargins model -> go [model]
-      Aggregate _ _ model -> go [model]
       Hierachical _ top base -> go [top, base]
       ReComment _ _ model -> go [model]
       NullModel -> []
@@ -402,15 +439,37 @@ nullModel model0 =
     case model0 of
       Naive _ _ _ -> False
       CategorySplitter _ modelMap  defModel -> go $  defModel : toList modelMap
+      PostCategorySplitter _ _ _ model  -> go [ model]
       Combination _ _ models -> go models
-      MonoOperation _ _ model -> go [model]
+      Modifier _ model -> go [model]
       IndependantMargins model -> go [model]
-      Aggregate _ _ model -> go [model]
       Hierachical _ top base -> go [top, base]
       ReComment _ _ model -> go [model]
       NullModel -> True
-      InjectCategory catName values -> False
+      InjectCategory _ _ -> False
     where go = all nullModel
+    
+nullModifier :: ModelModifier -> Bool
+nullModifier mod =
+    case mod of
+       Reject -> True
+       Id -> False
+       _ -> False
+
+applyModifier :: ModelModifier -> Vector (Sku, YearlyQuantity, TextBuilder) -> Vector (Sku, YearlyQuantity, TextBuilder)
+applyModifier Reject _ = mempty
+applyModifier Id v = v
+applyModifier (ApplyMono f ann) v 
+   | SomeSized (Z3 sku qty comment) <- v
+   = fromSized (Z3 sku (fmap f <$> qty) (S.zipWith annotate qty comment))
+   where annotate q c = LTB.fromText ann <> " " <> fromMeasure q <> "=(" <> c <> ")"
+applyModifier (ApplyAggregate agg ann) v 
+    | SomeSized (Z3 sku qty0 comment0) <- v
+    , let qty = S.replicate $ agg $ fromSized qty0
+          comment = fmap (\c -> "AGG" <> LTB.fromText ann <> "): [" <> c <> "]") comment0
+    = fromSized (Z3 sku qty comment)
+applyModifier  _ _ = error "exhaustive pattern"
+
  -- ==================================================
  --     ESTIMATE
  -- ==================================================
@@ -434,6 +493,25 @@ estimateModel CategorySplitter{..} fd@ForecastData{..} =
                                        ]
        Nothing -> mempty
    
+estimateModel PostCategorySplitter{..} fd@ForecastData{..}
+   = case lookup fmCategory fdCategoryMap of
+        Just categorym__sku | SomeSized est@(Z3 sku__n __qty__n __comment__n ) <- estimateModel fmDefaultModel fd
+                            , JoinSpineV spine__n_k <- makeJoinSpineV sku__n
+                            , nKkSS <- rejoin spine__n_k (unAscU fdSku__sku)
+                            , Just nKkS0 <- traverse mkMaybe nKkSS
+                            , catm__n <- wbroadcast nKkS0 @>= categorym__sku 
+                            , Wal nCcNN <- groupV catm__n
+                            -- process each category value , pull all the estimation from it and concat the resutls
+                            -> mconcat [ applyModifier mod $ unFold1 nn1 @> est
+                                       | i__c <- S.toList $ S.generate id -- indice of the curret category value
+                                       , let nn1 = S.index (walues nCcNN) i__c 
+                                       , let catm = S.index catm__n (head1 nn1)
+                                             mod = fromMaybe fmDefaultModifier $ catm >>= flip lookup fmCategoryModifier
+                                       , not $ nullModifier mod
+                                       -- find the row belonging to that category, we need to broadcast the cat
+                                       ]
+        ___Nothing -> mempty
+
 estimateModel NullModel _ = mempty
 estimateModel (Combination agg aggName models) fdata
     | SomeSized (Z3 sku__n qty__n comment__n) <- concatMap (flip estimateModel fdata) models 
@@ -457,10 +535,8 @@ estimateModel (Combination agg aggName models) fdata
    
 -- estimateModel (Combination _ _ _ ) _ = error "exhaustive pattern"
                               
-estimateModel (MonoOperation f name model ) fdata 
-   | SomeSized (Z3 sku qty comment) <- estimateModel model fdata
-   = fromSized (Z3 sku (fmap f <$> qty) (S.zipWith annotate qty comment))
-   where annotate q c = LTB.fromText name <> " " <> fromMeasure q <> "=(" <> c <> ")"
+estimateModel (Modifier mod model ) fdata = 
+   applyModifier mod $ estimateModel model fdata
 
     
 estimateModel (IndependantMargins model) fdata@ForecastData{..} 
@@ -497,11 +573,7 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
                                  <> "=Total"
     = fromSized (Z3 sku__e im__e com__e)
 -- estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
-estimateModel (Aggregate agg ann model) fdata
-    | SomeSized (Z3 sku qty0 comment0) <- estimateModel model fdata
-    , let qty = S.replicate $ agg $ fromSized qty0
-          comment = fmap (\c -> "AGG" <> LTB.fromText ann <> "): [" <> c <> "]") comment0
-    = fromSized (Z3 sku qty comment)
+
 estimateModel (Hierachical cats top base) fdata@ForecastData{..}
    | etop <- estimateModel top fdata
    = case length etop of
