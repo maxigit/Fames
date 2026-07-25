@@ -397,6 +397,20 @@ manualKeys model0 =
     where go = concatMap manualKeys
 
 
+nullModel :: ForecastModel -> Bool
+nullModel model0 =
+    case model0 of
+      Naive _ _ _ -> False
+      CategorySplitter _ modelMap  defModel -> go $  defModel : toList modelMap
+      Combination _ _ models -> go models
+      MonoOperation _ _ model -> go [model]
+      IndependantMargins model -> go [model]
+      Aggregate _ _ model -> go [model]
+      Hierachical _ top base -> go [top, base]
+      ReComment _ _ model -> go [model]
+      NullModel -> True
+      InjectCategory catName values -> False
+    where go = all nullModel
  -- ==================================================
  --     ESTIMATE
  -- ==================================================
@@ -416,6 +430,7 @@ estimateModel CategorySplitter{..} fd@ForecastData{..} =
                                        , let cats = S.index (walues sCcSS) i__c
                                        , let catm = head1 $ cats @> categorym__sku
                                        , let model = fromMaybe fmDefaultModel $  catm >>= flip lookup fmCategoryModel
+                                       , not $ nullModel model
                                        ]
        Nothing -> mempty
    
