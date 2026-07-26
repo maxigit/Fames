@@ -57,6 +57,10 @@ data ForecastModel
        -- ^ Computes forecast using model and then scale it so that each categories product add up to the sum of top model forecast
      | ReComment (TextBuilder -> TextBuilder) Text ForecastModel 
      | InjectCategory CategoryName [CategoryValue] -- ^ Inject all the sku of the given category with a forecast of 0
+     | Reference Alias
+     | With { fmAlias :: Alias
+            , fmAliased, fmModel :: ForecastModel
+            }
      | NullModel
      -- deriving (Show, Eq)
 
@@ -70,9 +74,12 @@ instance Show ForecastModel where
    show (Hierachical cats top base) = unwords ["Hierachical ", "(", show top, ")", show cats, "(", show base, ")" ]
    show (ReComment _ ann model) = unwords ["ReComment", unpack ann, show model ]
    show (InjectCategory cat values) = unwords ["InjectCategory", show cat, show values ]
+   show (Reference ref) = unwords ["Refercence", show ref]
+   show (With alias aliased model) = unwords ["With", show alias, show aliased , show model ]
    show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
+newtype Alias = Alias { unAlias :: Text} deriving (Show, Eq, Ord)
 
 data ModelModifier 
     = Reject
@@ -138,6 +145,11 @@ modelFromEasy forecastDay model =
                                        $ Modifier (ApplyMono (const 0) "0") $ Naive forecastDay future (Just years)
      Easy.InjectCategory cat -> InjectCategory (CategoryName cat) []
      Easy.InjectCategoryValue cat value -> InjectCategory (CategoryName cat) [CategoryValue value]
+     Easy.Ref alias -> Reference (Alias alias)
+     Easy.With aliases model -> foldr (\(alias, aliased) -> With (Alias alias) (go aliased)) 
+                                      (go model)
+                                      aliases
+                                
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -207,6 +219,8 @@ data ForecastData where
                    --  ^^^ manual
                    , fdSku__nSsNN :: N.WectorFF Vector n sku n
                    , fdCategoryMap :: Map CategoryName (N.Vector sku (Maybe CategoryValue))
+                   , fdAliasMap :: Map Alias (Vector (Sku, YearlyQuantity, TextBuilder))
+                   -- ^ map alias and estimation, used by reference
                    }
                    -> ForecastData
 
@@ -299,6 +313,8 @@ modelToSalesRanges model = let
        IndependantMargins model -> modelToSalesRanges model
        Hierachical _ top base -> concatMap modelToSalesRanges  [top, base]
        ReComment _ _ model -> modelToSalesRanges model
+       Reference _ -> []
+       With _ aliased model -> concatMap modelToSalesRanges [ aliased, model ]
        InjectCategory _ _ -> []
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
@@ -344,6 +360,9 @@ modelToCategories model =
     Hierachical cats top base -> cats <> concatMap modelToCategories [top, base]
     ReComment _ _ model -> modelToCategories model
     InjectCategory cat _ -> [cat]
+    Reference _ -> []
+    With _ aliased model -> concatMap modelToCategories [aliased, model ]
+
 
        
  -- ==================================================
@@ -414,6 +433,7 @@ prepareData model LoadedData{..}
                                               sMM = sK0 @>= kM0
                                          in Wix (Wector mS sMM)
                         ) manualMapk
+  , fdAliasMap <- mempty
   = ForecastData{..}
 prepareData _ _ = error "exhaustive pattern"
     
@@ -431,6 +451,8 @@ manualKeys model0 =
       ReComment _ _ model -> go [model]
       NullModel -> []
       InjectCategory catName values -> [(catName, values)]
+      Reference _ -> []
+      With _ aliased model -> go [ aliased, model ]
     where go = concatMap manualKeys
 
 
@@ -447,6 +469,8 @@ nullModel model0 =
       ReComment _ _ model -> go [model]
       NullModel -> True
       InjectCategory _ _ -> False
+      Reference _ -> False
+      With _ aliased model -> go [ aliased, model ]
     where go = all nullModel
     
 nullModifier :: ModelModifier -> Bool
@@ -621,6 +645,14 @@ estimateModel (InjectCategory catName values) ForecastData{..}  =
                                              (S.replicate $ "Inject " <> LTB.fromText (unCategoryName catName))
                                          )
                       
+estimateModel (With alias aliased model) fd = 
+    estimateModel model fd {fdAliasMap = insertMap alias (estimateModel aliased fd) (fdAliasMap fd)}
+
+estimateModel (Reference alias) fd = 
+  findWithDefault (error $ show alias <> " not found")  
+                  alias
+                  (fdAliasMap fd)
+   
    
 
 
