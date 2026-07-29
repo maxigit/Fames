@@ -494,6 +494,7 @@ makeOffenderTable adjustSign categoryName summaries =  do
          <tr>
            <th.just-right> #{categoryName}
            <th.just-right> Forecast
+           <th.just-right> Forecast - Naive
            <th.just-right> Actual
            <th.just-right> Error
            <th.just-right> %
@@ -504,6 +505,7 @@ makeOffenderTable adjustSign categoryName summaries =  do
           <tr>
             <td> #{category}
             <td.just-right> #{formatQuantity $ osForecast os}
+            <td.just-right> #{formatQuantity $ osForecast os - osNaive os}
             <td.just-right> #{formatQuantity $ osActual os}
             <td.just-right> #{formatQuantity $ osError os}
             <td.just-right> #{formatPercentage $ errorP osError os}
