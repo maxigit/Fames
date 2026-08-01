@@ -37,6 +37,7 @@ data Model
      | InjectCategoryValue Text Text
      | Ref Text
      | With [(Text, Model)] Model
+     | Read Text
      deriving (Show, Read, Eq)
      
 data Modifier

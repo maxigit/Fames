@@ -21,7 +21,8 @@ import Handler.Items.Reports.Common
 import Handler.Items.Reports.Types as RT
 import Handler.Items.Reports.Sources
 import Handler.Items.Reports.NewForecast
-import Handler.Items.Reports.Forecast(ForecastGrouper(..), loadSkuSpeedFromDir, CollectionProfileRow(..), skuFilesFromDir)
+import Handler.Items.Reports.Forecast(ForecastGrouper(..), loadSkuSpeedFromDir,skuFilesFromDir)
+import Handler.Items.Forecast.Csv(CollectionProfileRow(..))
 import Handler.Items.Reports.Yearly
 import Items.Types
 import GL.Utils

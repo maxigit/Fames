@@ -4,18 +4,15 @@ module Handler.Items.Reports.Forecast where
 import Import
 import Items.Types
 import Measure as M
-import qualified Data.Csv as Csv
-import Handler.CsvUtils
 import Handler.Items.Category.Cache
 import Handler.Items.Common(StockFilter, stockFilterToSqlWithColumn, stockFilterToSql)
 import Handler.Items.Forecast.Model
+import Handler.Items.Forecast.Csv
 import Items.Internal
-import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
 import System.FilePath (takeBaseName)
 import System.Directory(listDirectory, getModificationTime, doesDirectoryExist)
 import FA as FA hiding (unUserKey)
-import Control.Monad.Fail (MonadFail(..))
 import GL.Utils
 -- import GL.Payroll.Settings(DayOfWeek(..))
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
@@ -27,32 +24,6 @@ import Util.Cache(cacheMinute)
 import qualified Data.Vector.Generic.Sized as V -- not Generic as Generics but generic interface over all types of vector
 import qualified Data.Map as Map
 
--- * Profiles 
--- | Read a map of season profiles from a valid csv
--- collection,month,weight
-data CollectionProfileRow = CollectionProfileRow
- { cpCollection :: Collection
- , cpMonth :: Int
- , cpWeight :: Years
- } deriving Show
-instance Csv.FromNamedRecord CollectionProfileRow where
-  parseNamedRecord m = do
-    collection <- fmap Collection ( m Csv..: "collection")
-    weight <- m Csv..: "weight"
-    month' <- m Csv..: "month"
-    month <- parseMonth month'
-    return $ CollectionProfileRow collection month (Measure weight)
-instance Csv.ToNamedRecord CollectionProfileRow where
-  toNamedRecord CollectionProfileRow{..} = let
-      (Collection collection) = cpCollection
-      (Measure weight) = cpWeight
-      in Csv.namedRecord [ "collection" Csv..= collection
-                         , "month" Csv..= unparseMonth cpMonth
-                         , "weight" Csv..= weight
-                         ]
-instance Csv.DefaultOrdered CollectionProfileRow where
-   headerOrder _ = Csv.header [ "collection", "month", "weight" ]
-    
 data ForecastGrouper k where 
          SkuGroup :: ForecastGrouper Sku
          CategoryGroup :: Text  -> ForecastGrouper Text
@@ -68,76 +39,11 @@ unForecastKey SkuGroup (Sku sku) = sku
 unForecastKey (CategoryGroup category) name = category++":"++name
 unForecastKey CustomerGroup name = name
      
-parseMonth :: Text -> Csv.Parser Int
-parseMonth m = case m of
-  "Jan" -> return 1
-  "Feb" -> return 2
-  "Mar" -> return 3
-  "Apr" -> return 4
-  "May" -> return 5
-  "Jun" -> return 6
-  "Jul" -> return 7
-  "Aug" -> return 8
-  "Sep" -> return 9
-  "Oct" -> return 10
-  "Nov" -> return 11
-  "Dec" -> return 12
-  _ -> fail "Can't parse month"
-    
-unparseMonth :: Int -> Text
-unparseMonth m = indexEx [ "Jan", "Feb", "Mar"
-                         , "Apr", "May", "Jun"
-                         , "Jul", "Aug", "Sep"
-                         , "Oct", "Nov", "Dec"
-                         ]   
-                         (m-1) 
 forecastPathToDay :: FilePath -> Maybe Day
 forecastPathToDay = readMay . take 10 . takeBaseName
         
-readProfiles :: FilePath -> IO (Map Collection SeasonProfile)
-readProfiles path = do
-  content <- readFile path
-  let Right cols = parseSpreadsheet mempty Nothing content
-      monthMap (CollectionProfileRow _ month weight) = IntMap.singleton month weight
-      grouped = groupAsMap cpCollection monthMap cols
-  return $ fmap seasonProfileFromMap grouped
-
-
--- * Sku Speed 
--- | Row coming from a sku speed file.
-data SkuSpeedRow = SkuSpeedRow
-  { ssSku :: Sku
-  , ssWeight :: YearlyQuantity
-  , ssCollection :: Collection
-  , ssComment :: Text
-  }deriving (Show)
-instance Csv.FromNamedRecord SkuSpeedRow where
-  parseNamedRecord m = SkuSpeedRow  <$> fmap Sku (m Csv..: "stock_id")
-                                    <*> (Measure <$> m Csv..: "eQty")
-                                    <*> fmap Collection (m Csv..: "collection")
-                                    <*> pure "TODO"
-instance Csv.ToNamedRecord SkuSpeedRow where
-  toNamedRecord SkuSpeedRow{..} = let 
-      (Collection collection) = ssCollection
-      (Measure weight) = ssWeight
-      in Csv.namedRecord [ "stock_id" Csv..= unSku ssSku
-                         , "eQty" Csv..= weight
-                         , "collection" Csv..= collection
-                         , "comment" Csv..= ssComment
-                         ]
-  
-instance Csv.DefaultOrdered SkuSpeedRow where
-  headerOrder _ = Csv.header ["stock_id", "eQty", "collection", "comment" ]
 
                   
--- | Load sku speed from a csv
-loadSkuSpeed :: FilePath -> IO  [SkuSpeedRow]
-loadSkuSpeed filepath = do
-  content <- readFile filepath
-  case parseSpreadsheet mempty Nothing content of
-    Left err -> error $ show err
-    Right rows -> return rows
-
 -- | load csv forecast or evaluate model if needed
 loadSkuSpeedFromDir :: FilePath -> Handler ([SkuSpeedRow], Map Collection SeasonProfile)
 -- loadSkuSpeedFromDir forecastDir = cache0 False (cacheMinute 15) ("sku-speed" </> forecastDir)  $ do
@@ -151,12 +57,19 @@ loadSkuSpeedFromDir forecastDir = do
                       skuSpeeds <- liftIO $ mapM (loadSkuSpeed . (forecastDir </> )) skuFiles
                       return (concat skuSpeeds, rawProfiles)
             [] | Just forecastDay <- forecastPathToDay forecastDir -> do -- try loading model
-                      speedE <- estimateSkuSpeedFromDir forecastDay forecastDir 
-                      case speedE of
+                      forecastE <- estimateSkuForecastFromDir forecastDay forecastDir 
+                      case forecastE of
                          Left err -> error $ "Can't find sku speed files or hs model in directory " <> show forecastDir <> "\n" <> unpack err
                          Right speed -> do
                                (skuToCollection, profiles) <- estimateCollectionProfile forecastDay forecastDir
-                               return (toList $ fmap (\(sku, qty, comment) -> SkuSpeedRow sku qty (skuToCollection sku)comment )speed, profiles)
+                               return (toList $ fmap (\(sku, qty, comment) -> SkuSpeedRow sku (coerce qty) (skuToCollection sku)comment )speed, profiles)
+                               --                                                              ^^^^^^ convert Quantity to YearlyQuantity
+                               --                                                                     due to legacy code
+                               --                                                                     We are still not sure of the semantig of a forecast file
+                               --                                                                     if the unit for the forecast of 1 year is a Quantity
+                               --                                                                     or a YearlyQuantity.
+                               --                                                                     Having YearlyQuantity forces it to use the profile 
+                               --                                                                     to convert to a Quantity
                               
             _ -> error $ "Can't find sku speed files." <> show forecastDir
 

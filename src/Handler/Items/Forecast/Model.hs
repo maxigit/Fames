@@ -7,6 +7,7 @@ import Import
 import Items.Types
 import Handler.Items.Sources
 import qualified Handler.Items.Forecast.Model.Easy as Easy
+import qualified Handler.Items.Forecast.Csv as Csv
 import Handler.Items.Common
 import Measure -- as M
 import qualified Data.Map as Map
@@ -46,7 +47,7 @@ data ForecastModel
                             , fmDefaultModifier :: ModelModifier
                             , fmDefaultModel :: ForecastModel
                             }
-     | Combination (Vector1 YearlyQuantity -> YearlyQuantity) Text [ForecastModel] -- zip models
+     | Combination (Vector1 Quantity -> Quantity) Text [ForecastModel] -- zip models
      | Modifier ModelModifier ForecastModel
      | IndependantMargins ForecastModel
      | Hierachical { fmCategories :: [CategoryName]
@@ -61,6 +62,7 @@ data ForecastModel
      | With { fmAlias :: Alias
             , fmAliased, fmModel :: ForecastModel
             }
+     | Read FilePath
      | NullModel
      -- deriving (Show, Eq)
 
@@ -76,6 +78,7 @@ instance Show ForecastModel where
    show (InjectCategory cat values) = unwords ["InjectCategory", show cat, show values ]
    show (Reference ref) = unwords ["Refercence", show ref]
    show (With alias aliased model) = unwords ["With", show alias, show aliased , show model ]
+   show (Read path) = unwords ["Read", path ]
    show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
@@ -85,7 +88,7 @@ data ModelModifier
     = Reject
     | Id
     | ApplyMono (Double -> Double) Text
-    | ApplyAggregate (Vector YearlyQuantity -> YearlyQuantity) Text
+    | ApplyAggregate (Vector Quantity -> Quantity) Text
 
 instance Show ModelModifier where
   show Reject = "Reject"
@@ -149,7 +152,7 @@ modelFromEasy forecastDay model =
      Easy.With aliases model -> foldr (\(alias, aliased) -> With (Alias alias) (go aliased)) 
                                       (go model)
                                       aliases
-                                
+     Easy.Read path -> Read (unpack path)
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -180,14 +183,14 @@ modFromEasy mod =
 
   
 -- * Common
-estimateSkuSpeedFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, YearlyQuantity, Text)))
-estimateSkuSpeedFromDir forecastDay forecastDir = do
+estimateSkuForecastFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, Quantity, Text)))
+estimateSkuForecastFromDir forecastDay forecastDir = do
     content' <- readFileUtf8 $ forecastDir </> "model.hs"
     let content = strip content'
     case readMay content of
        Nothing -> return $ Left $ "can't parse :\n" <> tshow content --  "No model.hs file present in " <> tshow forecastDir
        Just easy -> do
-             estimation <- evaluateModel (modelFromEasy forecastDay easy)
+             estimation <- evaluateModel forecastDir (modelFromEasy forecastDay easy)
              return $ Right estimation
 
 
@@ -197,6 +200,7 @@ data LoadedData = LoadedData
    { ldSales :: Vector (Day, Sku, Quantity)
    , ldOrders :: Vector (Day, Sku, Quantity)
    , ldCategories :: Vector (Sku, CategoryName, CategoryValue)
+   , ldForecasts :: Map FilePath (Vector (Sku, Quantity, Text)) -- ^ cache and manual csv
    }
    deriving Show 
 
@@ -219,7 +223,7 @@ data ForecastData where
                    --  ^^^ manual
                    , fdSku__nSsNN :: N.WectorFF Vector n sku n
                    , fdCategoryMap :: Map CategoryName (N.Vector sku (Maybe CategoryValue))
-                   , fdAliasMap :: Map Alias (Vector (Sku, YearlyQuantity, TextBuilder))
+                   , fdAliasMap :: Map Alias (Vector (Sku, Quantity, TextBuilder))
                    -- ^ map alias and estimation, used by reference
                    }
                    -> ForecastData
@@ -235,6 +239,13 @@ narrowForecastData w@(Wix cSsCC) ForecastData{..}
    , let wn = selectX (isJust <$> windex fdSku__nSsNN  @> sCC)
    , daysMap <- fmap (intersectWix  wn ) fdDays
    , manualMap <- fmap (intersectWix w) fdManualMap
+   , let narrowForecast (SomeSized v ) | Z3 sku__v _qty__v _comment__v <- v
+                                       , skuSpine <- mkSpine fdSku__sku
+                                       , sSsVV <- rejoin skuSpine sku__v
+                                       , vm  <- headm <$> windex cSsCC @> walues sSsVV @>$ v
+                                       = V.catMaybes $ fromSized vm
+         narrowForecast _ = error "exhaustive pattern"
+   , fdAliasMap <- fmap narrowForecast fdAliasMap
    = ForecastData{fdDays = daysMap, fdManualMap=manualMap,..}
 --    , quantities__s <- sN @> fdQuantities__n
 --    , days__s <- sN @> fdDays__n
@@ -252,20 +263,21 @@ narrowForecastData w@(Wix cSsCC) ForecastData{..}
 narrowForecastData _ _ = error "exhaustive pattern"
 
    
-evaluateModel :: ForecastModel -> Handler (Vector (Sku, YearlyQuantity, Text))
-evaluateModel model = do
-   loaded <- loadModelData model
+evaluateModel :: FilePath -> ForecastModel -> Handler (Vector (Sku, Quantity, Text))
+evaluateModel forecastDir model = do
+   loaded <- loadModelData forecastDir model
    let datas = prepareData model loaded
 
    return $ fmap (\(sku, qty, comment) -> (sku, qty, LT.toStrict $ LTB.toLazyText comment)) $ estimateModel model datas
 
 -- * Loading sales
 
-loadModelData :: ForecastModel -> Handler LoadedData
-loadModelData model = do
+loadModelData :: FilePath -> ForecastModel -> Handler LoadedData
+loadModelData forecastDir model = do
    ldSales <- loadSales model
    ldCategories <- loadCategories model
    ldOrders <- return mempty
+   ldForecasts <- loadForecasts forecastDir model
    return LoadedData{..}
    
    
@@ -315,6 +327,7 @@ modelToSalesRanges model = let
        ReComment _ _ model -> modelToSalesRanges model
        Reference _ -> []
        With _ aliased model -> concatMap modelToSalesRanges [ aliased, model ]
+       Read _ -> []
        InjectCategory _ _ -> []
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
@@ -325,6 +338,24 @@ modelToSalesRange model =
                       , maximumEx $ map snd ranges
                       )
        
+modelToInputFiles :: ForecastModel -> [FilePath]
+modelToInputFiles model = let
+  in case model of
+      Naive _ _ _ -> []
+      CategorySplitter _ modelMap defModel -> go $ defModel : toList modelMap
+      PostCategorySplitter _ _ _ model -> modelToInputFiles model
+      Combination _ _ models -> go models
+      Modifier _ model -> go [ model ]
+      NullModel -> []
+      IndependantMargins model -> go [ model ]
+      Hierachical _ top base -> go [top, base ]
+      ReComment _ _ model -> go [ model ]
+      Reference _ -> []
+      With _ _ model -> go [ model ]
+      Read path -> [ path ]
+      InjectCategory _ _ -> []
+      where go = concatMap modelToInputFiles
+
 
 -- * Loading categories
 loadCategories :: ForecastModel -> Handler (Vector (Sku, CategoryName, CategoryValue))
@@ -362,8 +393,17 @@ modelToCategories model =
     InjectCategory cat _ -> [cat]
     Reference _ -> []
     With _ aliased model -> concatMap modelToCategories [aliased, model ]
+    Read _ -> []
 
 
+-- * Load Csv
+--
+
+loadForecasts :: FilePath -> ForecastModel -> Handler (Map FilePath (Vector (Sku, Quantity, Text)))
+loadForecasts filepath model = do
+  let paths = modelToInputFiles model
+  forecasts <- mapM (liftIO . Csv.readForecast . (filepath </>)) paths
+  return $ mapFromList $ zip paths forecasts
        
  -- ==================================================
  --     PREPARE
@@ -392,18 +432,26 @@ prepareData model LoadedData{..}
                                                               _:_ -> maybe False (`elem` values) . headm 
                                                in Just $ filterX toKeep (valuesk @>$ value__c)
   , let manualMapk = Map.mapMaybe id manualMapMaybek
+  , SomeSized sku__f <- V.concat [ skus
+                                 |  v <- toList ldForecasts
+                                 ,  let (skus, _, _ ) = V.unzip3 v
+                                 ]
   ---------------------
   , let indexJust v = S.generate' (S.length' v) V.singleton 
         indexNothing v = S.replicate' (S.length' v) V.empty
-  , SomeSized (Z3 allSku__all aN0__all
-                              aK0__all) <- fromSized $ Z3 ( fdSku__n S.++ fdSku__o S.++ sku__k )
-                                                          (indexJust fdSku__n S.++ indexNothing fdSku__o S.++ indexNothing sku__k)
-                                                          (indexNothing fdSku__n S.++ indexNothing fdSku__o S.++ indexJust sku__k)
-                      --                    ^^^^^      ^^
-                      --                      |         |
-                      --                      |         +-- trick to make sure sku vector and partial index have the same length (and shape)
-                      --                      |                (swapping elements in addition would not typecheck)
-                      --                      +------------ erase the length @n+@o+@m to a simple @a (otherwise nothing compiles)
+  --      TODO ADD FORECAST FROM READ
+  , SomeSized (Z4 allSku__all aN0__all
+                              aK0__all
+                              _aF0__all
+              ) <- fromSized $ Z4 ( fdSku__n S.++ fdSku__o S.++ sku__k S.++ sku__f )
+                                  (indexJust fdSku__n S.++ indexNothing fdSku__o S.++ indexNothing sku__k S.++ indexNothing sku__f)
+                                  (indexNothing fdSku__n S.++ indexNothing fdSku__o S.++ indexJust sku__k S.++ indexNothing sku__f)
+                                   (indexNothing fdSku__n S.++ indexNothing fdSku__o S.++ indexNothing sku__k S.++ indexJust sku__f)
+              --    ^^^^^      ^^
+              --      |         |
+              --      |         +-- trick to make sure sku vector and partial index have the same length (and shape)
+              --      |                (swapping elements in addition would not typecheck)
+              --      +------------ erase the length @n+@o+@m to a simple @a (otherwise nothing compiles)
   , JoinSpineV skuSpine__aSsAA <- makeJoinSpineV allSku__all
   , sku_aSsAA <- jsGrouping skuSpine__aSsAA
   , let nA__n =  S.generate' (S.length' fdSku__n)  (finite . getFinite)  
@@ -433,7 +481,10 @@ prepareData model LoadedData{..}
                                               sMM = sK0 @>= kM0
                                          in Wix (Wector mS sMM)
                         ) manualMapk
-  , fdAliasMap <- mempty
+  , fdAliasMap <-  Map.fromDistinctAscList [ (Alias (pack path) , V.zip3 sku qty (fmap LTB.fromText comment) )
+                                           | (path, v) <- mapToList ldForecasts
+                                           , let (sku, qty, comment) = V.unzip3 v
+                                           ]
   = ForecastData{..}
 prepareData _ _ = error "exhaustive pattern"
     
@@ -453,6 +504,7 @@ manualKeys model0 =
       InjectCategory catName values -> [(catName, values)]
       Reference _ -> []
       With _ aliased model -> go [ aliased, model ]
+      Read _ -> []
     where go = concatMap manualKeys
 
 
@@ -471,6 +523,7 @@ nullModel model0 =
       InjectCategory _ _ -> False
       Reference _ -> False
       With _ aliased model -> go [ aliased, model ]
+      Read _ -> False
     where go = all nullModel
     
 nullModifier :: ModelModifier -> Bool
@@ -480,7 +533,7 @@ nullModifier mod =
        Id -> False
        _ -> False
 
-applyModifier :: ModelModifier -> Vector (Sku, YearlyQuantity, TextBuilder) -> Vector (Sku, YearlyQuantity, TextBuilder)
+applyModifier :: ModelModifier -> Vector (Sku, Quantity, TextBuilder) -> Vector (Sku, Quantity, TextBuilder)
 applyModifier Reject _ = mempty
 applyModifier Id v = v
 applyModifier (ApplyMono f ann) v 
@@ -498,7 +551,7 @@ applyModifier  _ _ = error "exhaustive pattern"
  --     ESTIMATE
  -- ==================================================
        
-estimateModel :: ForecastModel -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
+estimateModel :: ForecastModel -> ForecastData -> Vector (Sku, Quantity, TextBuilder)
 estimateModel Naive{..} fdata = estimateNaive fmFrom fmTo duration fdata
    where duration = maybe (fromIntegral (diffDays fmTo fmFrom) / 365)
                           fromIntegral
@@ -653,12 +706,12 @@ estimateModel (Reference alias) fd =
                   alias
                   (fdAliasMap fd)
    
-   
+estimateModel (Read path) fd = estimateModel (Reference (Alias $ pack path)) fd
 
 
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
-scaleTo :: YearlyQuantity -> Vector (Sku, YearlyQuantity, TextBuilder) -> Vector (Sku, YearlyQuantity, TextBuilder)
+scaleTo :: Quantity -> Vector (Sku, Quantity, TextBuilder) -> Vector (Sku, Quantity, TextBuilder)
 scaleTo to v = let
    (sku, qty, comment0) = unzip3 v
    total = F.sum qty
@@ -671,7 +724,7 @@ scaleTo to v = let
       then mempty 
       else zip3 sku ((^* weight) <$> qty) comment
  
-estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, YearlyQuantity, TextBuilder)
+estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, Quantity, TextBuilder)
 estimateNaive from to years ForecastData{..} = 
    case lookup (from, to) fdDays of
         Just (Wix dNnDD) | skus__d <- windex dNnDD @> fdSku__n
@@ -679,14 +732,13 @@ estimateNaive from to years ForecastData{..} =
                          , Wal @_ @_ @s dSsDD <- groupV skus__d
                          -> let skus__sku = walues dSsDD @=> skus__d
                                 qty__sku = F.sum <$> walues dSsDD @>$ quantities__d
-                                yearFraction = S.replicate $ Measure years :: N.Vector s Years
+                                yearFraction = S.replicate $ Measure years :: N.Vector s Scalar
                                 comment__sku = S.replicate ( "Naive <"  <> fromString (show from) <> ">--<" <> fromString (show to) 
                                                          <> "> (*" <> fromMeasure (Measure years) <>")"
                                                     ) 
                             in fromSized $ Z3 skus__sku (qty__sku ^/ yearFraction) comment__sku
         _ -> mempty
        
-
 
 
 fromMeasure :: Measure m -> TextBuilder
@@ -703,17 +755,17 @@ estimateCollectionProfile forecastDay  forecastDir = do
                  let content = strip content'
                  maybe (error $ "Can't read " <> show path) return $ readMay content
             else return $ Easy.DefaultProfile
-   makeProfile forecastDay prof
+   makeProfile forecastDay forecastDir prof
        
-makeProfile :: Day -> Easy.Profile -> Handler (Sku -> Collection, Map Collection SeasonProfile)
-makeProfile _ Easy.DefaultProfile = do
+makeProfile :: Day -> FilePath -> Easy.Profile -> Handler (Sku -> Collection, Map Collection SeasonProfile)
+makeProfile _ _ Easy.DefaultProfile = do
        let flat = seasonProfile [] -- 10,0,0,0,0,10,10] -- $ 1 : repeat 0
            collection = Collection "model"
        return (const collection, singletonMap collection flat)
 
-makeProfile forecastDay (Easy.PerCategoryYear catname years) = do
+makeProfile forecastDay forecastDir (Easy.PerCategoryYear catname years) = do
    let model = modelFromEasy forecastDay (Easy.ForeachCategory catname (Easy.PreviousYears years))
-   LoadedData{..} <- loadModelData model
+   LoadedData{..} <- loadModelData forecastDir model
    return $ case () of
       _ | SomeSized (Z3 day__n sku__n  qty__n) <- ldSales
         , SomeSized (Z3 k _ profile__c) <- ldCategories
