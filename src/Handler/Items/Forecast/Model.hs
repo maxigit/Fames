@@ -54,6 +54,7 @@ data ForecastModel
                    -- , fmSimple :: Bool 
                    , fmTopModel :: ForecastModel
                    , fmBaseModel :: ForecastModel 
+                   , fmLimit :: Maybe ForecastModel
                    }
        -- ^ Computes forecast using model and then scale it so that each categories product add up to the sum of top model forecast
      | ReComment (TextBuilder -> TextBuilder) Text ForecastModel 
@@ -73,7 +74,7 @@ instance Show ForecastModel where
    show (Combination _ ann models) = unwords ["Combination", unpack ann, show models  ]
    show (Modifier mod model) = unwords ["Modifier", show mod , show model ]
    show (IndependantMargins model) = unwords ["IndependantMargins", show model ]
-   show (Hierachical cats top base) = unwords ["Hierachical ", "(", show top, ")", show cats, "(", show base, ")" ]
+   show (Hierachical cats top base limitm) = unwords ["Hierachical ", "(", show top, ")", show cats, "(", show base, ")", "(", show limitm, ")" ]
    show (ReComment _ ann model) = unwords ["ReComment", unpack ann, show model ]
    show (InjectCategory cat values) = unwords ["InjectCategory", show cat, show values ]
    show (Reference ref) = unwords ["Refercence", show ref]
@@ -142,7 +143,8 @@ modelFromEasy forecastDay model =
                         in Combination F.sum "SUM(avg)" $ map (go . Easy.Mod (Easy.Scale weight))  models
      Easy.IM model -> IndependantMargins (go model)
      Easy.HM model -> go $ Easy.ScaleBy ["style"] model (Easy.AfterForeachCategory "colour" Easy.Total model)
-     Easy.ScaleBy cats top base -> Hierachical (map CategoryName cats) (go top) (go base)
+     Easy.ScaleBy cats top base -> Hierachical (map CategoryName cats) (go top) (go base) Nothing
+     Easy.LimitBy cats top base cap -> Hierachical (map CategoryName cats) (go top) (go base) (Just $ go cap)
      Easy.NoveltyFromFuture years -> let future = calculateDateChain [AddYears years, AddDays (-1)] forecastDay
                                      in  ReComment (const "Novelty") "Novelty"
                                        $ Modifier (ApplyMono (const 0) "0") $ Naive forecastDay future (Just years)
@@ -323,7 +325,7 @@ modelToSalesRanges model = let
        Modifier _ model -> modelToSalesRanges model
        NullModel -> []
        IndependantMargins model -> modelToSalesRanges model
-       Hierachical _ top base -> concatMap modelToSalesRanges  [top, base]
+       Hierachical _ top base limitm -> concatMap modelToSalesRanges  $ [top, base] <>  toList limitm
        ReComment _ _ model -> modelToSalesRanges model
        Reference _ -> []
        With _ aliased model -> concatMap modelToSalesRanges [ aliased, model ]
@@ -348,7 +350,7 @@ modelToInputFiles model = let
       Modifier _ model -> go [ model ]
       NullModel -> []
       IndependantMargins model -> go [ model ]
-      Hierachical _ top base -> go [top, base ]
+      Hierachical _ top base limitm -> go $ [top, base ] <> toList limitm
       ReComment _ _ model -> go [ model ]
       Reference _ -> []
       With _ _ model -> go [ model ]
@@ -388,7 +390,7 @@ modelToCategories model =
     Modifier _ model -> modelToCategories model
     NullModel -> []
     IndependantMargins model -> map CategoryName ["style", "colour"] ++ modelToCategories model
-    Hierachical cats top base -> cats <> concatMap modelToCategories [top, base]
+    Hierachical cats top base limitm -> cats <> concatMap modelToCategories ( [top, base] <> toList limitm )
     ReComment _ _ model -> modelToCategories model
     InjectCategory cat _ -> [cat]
     Reference _ -> []
@@ -403,7 +405,11 @@ loadForecasts :: FilePath -> ForecastModel -> Handler (Map FilePath (Vector (Sku
 loadForecasts filepath model = do
   let paths = modelToInputFiles model
   forecasts <- mapM (liftIO . Csv.readForecast . (filepath </>)) paths
-  return $ mapFromList $ zip paths forecasts
+  let forecastsWithComment = zipWith (\v path -> fmap (fmap (addComment path)) v)
+                                    forecasts
+                                    paths
+      addComment p t = pack p <> ":" <> t
+  return $ mapFromList $ zip paths forecastsWithComment
        
  -- ==================================================
  --     PREPARE
@@ -498,7 +504,7 @@ manualKeys model0 =
       Combination _ _ models -> go models
       Modifier _ model -> go [model]
       IndependantMargins model -> go [model]
-      Hierachical _ top base -> go [top, base]
+      Hierachical _ top base limitm -> go $ [top, base] <> toList limitm
       ReComment _ _ model -> go [model]
       NullModel -> []
       InjectCategory catName values -> [(catName, values)]
@@ -517,7 +523,7 @@ nullModel model0 =
       Combination _ _ models -> go models
       Modifier _ model -> go [model]
       IndependantMargins model -> go [model]
-      Hierachical _ top base -> go [top, base]
+      Hierachical _ top base limitm -> go $ [top, base] <> toList limitm
       ReComment _ _ model -> go [model]
       NullModel -> True
       InjectCategory _ _ -> False
@@ -590,25 +596,8 @@ estimateModel PostCategorySplitter{..} fd@ForecastData{..}
         ___Nothing -> mempty
 
 estimateModel NullModel _ = mempty
-estimateModel (Combination agg aggName models) fdata
-    | SomeSized (Z3 sku__n qty__n comment__n) <- concatMap (flip estimateModel fdata) models 
-    , Wal nSsNN <- groupV sku__n
-    , sku__s <- walues nSsNN @=> sku__n
-    , qty__s <- agg <$> walues nSsNN @>$ qty__n
-    , comment__s <- fmap (\nn -> mconcat $ LTB.fromText aggName : ":"
-                                         : [ intercalate1 (LTB.singleton ' ' )
-                                           (fmap (\n -> LTB.fromString "("
-                                                       <> fromMeasure (S.index qty__n n)
-                                                       <> "={" <> S.index comment__n n <> "}"
-                                                ) nn
-                                           )
-                                           ]
-                              
-        
-                         ) 
-                         (walues nSsNN)
-
-    = fromSized $ Z3 sku__s qty__s comment__s
+estimateModel (Combination agg aggName models) fdata =
+    combineForecasts agg aggName (map (flip estimateModel fdata) models)
    
 -- estimateModel (Combination _ _ _ ) _ = error "exhaustive pattern"
                               
@@ -651,7 +640,7 @@ estimateModel (IndependantMargins model) fdata@ForecastData{..}
     = fromSized (Z3 sku__e im__e com__e)
 -- estimateModel (IndependantMargins _) _ = error "exhaustive pattern"
 
-estimateModel (Hierachical cats top base) fdata@ForecastData{..}
+estimateModel (Hierachical cats top base limitm) fdata@ForecastData{..}
    | etop <- estimateModel top fdata
    = case length etop of
         0 -> mempty
@@ -678,7 +667,12 @@ estimateModel (Hierachical cats top base) fdata@ForecastData{..}
           , Wector _ skuBB <- rejoin skuSpine__sku__s sku__b
           -- , cBB <- (foldMap unFold1) <$> walues skuCcSkus1 @>~ wbroadcast skuSsBB
           , cBB <- fold <$> cSkus @>$ skuBB 
-          -> F.foldMap (\(bs, to) -> scaleTo to (bs @> base__b)) $ Z2 cBB topQty__c
+          , let scaler to = case limitm of
+                             Nothing -> scaleTo to
+                             Just cap -> let threshold = fmap (* 0.1) to 
+                                             capForecast = estimateModel cap fdata
+                                         in scaleWithLimit threshold to capForecast
+          -> F.foldMap (\(bs, to) -> scaler to (bs @> base__b)) $ Z2 cBB topQty__c
         _ -> error "unexpected happened "
 
 estimateModel (ReComment recomment _ model) fdata 
@@ -711,6 +705,36 @@ estimateModel (Read path) fd = estimateModel (Reference (Alias $ pack path)) fd
 
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
+combineForecasts :: (Vector1 Quantity -> Quantity) -> Text -> [Vector (Sku, Quantity, TextBuilder)] -> Vector (Sku, Quantity, TextBuilder)
+combineForecasts agg aggName forecasts 
+    | SomeSized (Z3 sku__n qty__n comment__n) <- concat forecasts
+    , Wal nSsNN <- groupV sku__n
+    , sku__s <- walues nSsNN @=> sku__n
+    , qty__s <- agg <$> walues nSsNN @>$ qty__n
+    , comment__s <- fmap (\nn -> mconcat $ LTB.fromText aggName : ":"
+                                         : (intercalate1 (LTB.singleton ' ')
+                                                         (fmap (\n -> fromMeasure (S.index qty__n n)
+                                                               )
+                                                               nn 
+                                                         )
+                                           )
+                                         : " "
+                                         : [ intercalate1 (LTB.singleton ' ' )
+                                           (fmap (\n -> LTB.fromString "("
+                                                       <> fromMeasure (S.index qty__n n)
+                                                       <> "={" <> S.index comment__n n <> "}"
+                                                       <> ")"
+                                                ) nn
+                                           )
+                                           ]
+                              
+        
+                         ) 
+                         (walues nSsNN)
+
+    = fromSized $ Z3 sku__s qty__s comment__s
+    | otherwise  = error "exhaustive pattern"
+
 scaleTo :: Quantity -> Vector (Sku, Quantity, TextBuilder) -> Vector (Sku, Quantity, TextBuilder)
 scaleTo to v = let
    (sku, qty, comment0) = unzip3 v
@@ -723,7 +747,77 @@ scaleTo to v = let
    in if total == 0
       then mempty 
       else zip3 sku ((^* weight) <$> qty) comment
- 
+
+-- | Scales so that the sum of forecasted quantity is equal to given total quantity but limit the qty for each sku to the capped quantity and redistribut the left over the remaining one.
+-- For example let' say we have the following forecast
+--    A : 10
+--    B : 20
+--    C:  10
+-- and we want to scale (40) to 24. A+B = 40 so the normal scaling would result in
+--    A :  6 
+--    B : 12
+--    C:   6
+-- However we might have only 3 A left in stock and no plan to rebuy some. We can only supply 3 A and therefore redistribute
+-- the 3 left over to B and C  (2 and 1) so the final forecast becomes
+--    A :  3       = 3
+--    B : 12+2     = 14
+--    C:   6+1     = 7
+--    
+--    If something is not present in the cap vector it is expected to be 0.
+scaleWithLimit :: Quantity -> Quantity -> Vector (Sku, Quantity, TextBuilder) -> Vector (Sku, Quantity, TextBuilder) -> Vector (Sku, Quantity, TextBuilder)
+scaleWithLimit _ to _cap _v | to == 0 =  mempty
+scaleWithLimit threshold to cap v = 
+  case scaleTo to v of
+     SomeSized scaled__n@(Z3 sku__n qty__n _ )
+               | -- cap the scaled version to cap
+                 Z4 capped__n __leftOver__n newcap__n comment__n <- capWith scaled__n cap
+               , let totalScaled = F.sum capped__n
+                     leftToScale = to - totalScaled
+                     totalCapLeft = F.sum newcap__n
+                     -- now we need to redistribute to leftover to things which are not capped
+                     -- reusing leftOver would not work because it would not redistribute
+                     -- but just try again the same sku with a different qty but a cap of 0
+                     -- instead we need to keep the original forecast (which acts as weight)
+                     -- but only for the sku which have a cap left
+                     toRedistribute = S.zipWith (\q n -> if n == 0 then 0 else q)
+                                              qty__n
+                                              newcap__n
+               -> if leftToScale <= threshold || totalCapLeft < 1 || totalScaled < 1
+                  then fromSized (Z3 sku__n capped__n comment__n)
+                  else -- scale left over
+                       case scaleWithLimit threshold
+                                           leftToScale
+                                           (fromSized $ Z3 sku__n newcap__n comment__n)
+                                           (fromSized $ Z3 sku__n toRedistribute comment__n)
+                                           of
+                            extra -> combineForecasts F.sum "+" [ fromSized $ Z3 sku__n capped__n comment__n
+                                                                ,  extra
+                                                                ]
+     _ -> error "exhaustive pattern"
+             
+
+  
+capWith :: KnownNat n => S.Vector n (Sku, Quantity, TextBuilder) -> Vector (Sku, Quantity, TextBuilder) -> S.Vector n (Quantity, Quantity, Quantity, TextBuilder)
+--  -> Capped Forecast , Left to redistribut, New capp
+capWith (Z3 sku__n qty__n comment__n) cap
+    | SomeSized (Z3 sku__c qty__c comment__c) <- cap
+    , JoinV nJjNN cJjCC <- joinV sku__n sku__c
+    , let nCm = headm <$> (windex nJjNN @> walues cJjCC)
+          capm__n =  nCm @>$ qty__c
+          cap__n = fmap (fromMaybe 0) capm__n
+          ccomment__n = fmap (fromMaybe "<null>") (nCm @>$ comment__c)
+          capped__n = S.zipWith min qty__n cap__n
+          left__n = qty__n - capped__n
+          newcap__n = S.zipWith (\cap capped -> max 0 (cap - capped) )  cap__n capped__n
+          newcomment__n = S.zipWith4 (\qty cap comment ccomment -> "LIMIT " <> fromMeasure qty <> " TO " <> fromMeasure cap
+                                                           <> "[(" <> comment <> ") TO (" <> ccomment <> ")]" )
+                                 qty__n
+                                 cap__n
+                                 comment__n
+                                 ccomment__n
+    = Z4 capped__n left__n newcap__n newcomment__n
+capWith _ _ = error "exhaustive pattern"
+
 estimateNaive :: Day -> Day -> Double -> ForecastData -> Vector (Sku, Quantity, TextBuilder)
 estimateNaive from to years ForecastData{..} = 
    case lookup (from, to) fdDays of
