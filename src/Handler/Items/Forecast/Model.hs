@@ -342,7 +342,7 @@ modelToSalesRange model =
        
 modelToInputFiles :: ForecastModel -> [FilePath]
 modelToInputFiles model = let
-  in case model of
+  in ordNub case model of
       Naive _ _ _ -> []
       CategorySplitter _ modelMap defModel -> go $ defModel : toList modelMap
       PostCategorySplitter _ _ _ model -> modelToInputFiles model
@@ -353,7 +353,7 @@ modelToInputFiles model = let
       Hierachical _ top base limitm -> go $ [top, base ] <> toList limitm
       ReComment _ _ model -> go [ model ]
       Reference _ -> []
-      With _ _ model -> go [ model ]
+      With _ aliased model -> go [ aliased, model ]
       Read path -> [ path ]
       InjectCategory _ _ -> []
       where go = concatMap modelToInputFiles
