@@ -64,6 +64,7 @@ data ForecastModel
             }
      | Read FilePath
      | Mask { fmModel, fmMask :: ForecastModel  }
+     | Delete0 ForecastModel 
      | NullModel
      -- deriving (Show, Eq)
 
@@ -81,6 +82,7 @@ instance Show ForecastModel where
    show (With alias aliased model) = unwords ["With", show alias, show aliased , show model ]
    show (Read path) = unwords ["Read", path ]
    show (Mask model mask) = unwords ["Mask", show model, show mask ]
+   show (Delete0 model) = unwords ["NonNull", show model ]
    show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
@@ -158,6 +160,16 @@ modelFromEasy forecastDay model =
                                       aliases
      Easy.Read path -> Read (unpack path)
      Easy.Mask model mask -> Mask (go model) (go mask)
+     Easy.Delete0 model -> Delete0 (go model)
+     Easy.DeleteIf mod model -> Mask (go model)
+                                 $ go (Easy.Delete0
+                                         (Easy.Mod (Easy.EQ 0
+                                                            (Easy.SetTo 0)
+                                                            (Easy.SetTo 1)
+                                                   )
+                                                   (Easy.Mod mod model)
+                                         )
+                                      )
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -189,11 +201,12 @@ modFromEasy mod =
     Easy.RoundUp step -> ApplyMono (roundTo ceiling step) (pack $ printf "Roundup %0.2f ~^" step)
     Easy.RoundDown step -> ApplyMono (roundTo floor step) (pack $ printf "Roundup %0.2f ~^" step)
     Easy.Round step -> ApplyMono (roundTo round step) (pack $ printf "Roundup %0.2f ~^" step)
-    Easy.EQ val if_ else_ -> mkIf "LT" (==val) if_ else_
+    Easy.EQ val if_ else_ -> mkIf "EQ" (near val) if_ else_
+    Easy.NEQ val if_ else_ -> mkIf "NeQ" (not . near val) if_ else_
     Easy.LT val if_ else_ -> mkIf "LT" (<val) if_ else_
-    Easy.LTE val if_ else_ -> mkIf "LTE" (<=val) if_ else_
+    Easy.LTE val if_ else_ -> mkIf "LTE" (\x -> x < val || near x val) if_ else_
     Easy.GT val if_ else_ -> mkIf "GT" (>val) if_ else_
-    Easy.GTE val if_ else_ -> mkIf "GTE" (>=val) if_ else_
+    Easy.GTE val if_ else_ -> mkIf "GTE" (\x -> x > val || near x val) if_ else_
   where mkIf ann test if_easy else_easy = let (if_, ifAnn) = fromMono if_easy
                                               (else_, elseAnn) = fromMono else_easy
                                       in ApplyMono (\x -> if test x 
@@ -210,6 +223,9 @@ modFromEasy mod =
   
 roundTo :: (Double -> Int) -> Double -> Double -> Double
 roundTo rounder step x = fromIntegral (rounder (x / step)) * step
+
+near :: (Fractional a, Real a) => a -> a -> Bool
+near x y = abs (x - y) < 1e-4
 
 -- * Common
 estimateSkuForecastFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, Quantity, Text)))
@@ -358,6 +374,7 @@ modelToSalesRanges model = let
        With _ aliased model -> concatMap modelToSalesRanges [ aliased, model ]
        Read _ -> []
        Mask model mask -> concatMap modelToSalesRanges [model, mask ]
+       Delete0 model -> modelToSalesRanges model
        InjectCategory _ _ -> []
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
@@ -384,6 +401,7 @@ modelToInputFiles model = let
       With _ aliased model -> go [ aliased, model ]
       Read path -> [ path ]
       Mask model mask -> go [model, mask ]
+      Delete0 model -> go [ model ]
       InjectCategory _ _ -> []
       where go = concatMap modelToInputFiles
 
@@ -426,6 +444,7 @@ modelToCategories model =
     With _ aliased model -> concatMap modelToCategories [aliased, model ]
     Read _ -> []
     Mask model mask -> concatMap modelToCategories [model, mask ]
+    Delete0 model -> modelToCategories model
 
 
 -- * Load Csv
@@ -542,6 +561,7 @@ manualKeys model0 =
       With _ aliased model -> go [ aliased, model ]
       Read _ -> []
       Mask model mask -> go [model, mask ]
+      Delete0 model -> go [model ]
     where go = concatMap manualKeys
 
 
@@ -562,6 +582,7 @@ nullModel model0 =
       With _ aliased model -> go [ aliased, model ]
       Read _ -> False
       Mask model mask -> go [model, mask ]
+      Delete0 model -> go [model ]
     where go = all nullModel
     
 nullModifier :: ModelModifier -> Bool
@@ -740,6 +761,11 @@ estimateModel (Mask model mask) fd
     , let maybe__n = headm <$> wbroadcast nJjMM
     , JustX _ rNnRR <- catMaybesX maybe__n
     = fromSized $ windex rNnRR @> v
+
+estimateModel (Delete0 model) fd 
+    | SomeSized v@(Z3 _ qty__n _ ) <- estimateModel model fd
+    , Wix sNnSS <- filterX (near 0) qty__n
+    = fromSized $ windex sNnSS @> v
 
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 

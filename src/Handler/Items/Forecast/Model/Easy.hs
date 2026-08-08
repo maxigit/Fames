@@ -29,6 +29,8 @@ data Model
      | ScaleBy [Text] Model Model
      | LimitBy [Text] Model Model Model
      | Mask Model Model
+     | Delete0 Model
+     | DeleteIf Modifier Model
      | NoveltyFromFuture Int -- inject SKU with 0 forecast from future years
      | InjectCategory Text
      | InjectCategoryValue Text Text
@@ -50,6 +52,7 @@ data Modifier
      | Round Double
      | Mean
      | EQ Double Modifier Modifier
+     | NEQ Double Modifier Modifier
      | LT Double Modifier Modifier
      | LTE Double Modifier Modifier
      | GT Double Modifier Modifier
