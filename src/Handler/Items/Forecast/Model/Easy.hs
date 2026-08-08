@@ -18,6 +18,7 @@ data Model
      | CategoryCase Text [(Text, Model)] Model
      | PostCategoryCase Text [(Text, Modifier)] Modifier Model
      | Avg [Model]
+     | AvgPresent [Model]
      | Max [Model]
      | Min [Model]
      | Median [Model]
@@ -49,7 +50,14 @@ data Modifier
      | AtLeast Double
      | SetTo Double
      | Total
+     | RoundUp Double
+     | RoundDown Double
+     | Round Double
      | Mean
+     | LT Double Modifier Modifier
+     | LTE Double Modifier Modifier
+     | GT Double Modifier Modifier
+     | GTE Double Modifier Modifier
      deriving (Show, Read, Eq)
 
 data EasyDay = EasyDay Day

@@ -141,6 +141,7 @@ modelFromEasy forecastDay model =
      Easy.Avg models -> let n = length models 
                             weight = 1 / fromIntegral n
                         in Combination F.sum "SUM(avg)" $ map (go . Easy.Mod (Easy.Scale weight))  models
+     Easy.AvgPresent models -> Combination mean "AVG_PRESENT" (map  go models)
      Easy.IM model -> IndependantMargins (go model)
      Easy.HM model -> go $ Easy.ScaleBy ["style"] model (Easy.AfterForeachCategory "colour" Easy.Total model)
      Easy.ScaleBy cats top base -> Hierachical (map CategoryName cats) (go top) (go base) Nothing
@@ -167,6 +168,10 @@ modelFromEasy forecastDay model =
                  Easy.EasyDay d -> d
                  Easy.EasyCalc calc -> calculateDate calc forecastDay
           
+mean :: (Foldable t, Functor f, Fractional a, Eq a,  Num (f a)) => t (f a) -> f a
+mean v = case fromIntegral (F.length v) of
+             l | l == 0 ->  fmap (const 0) (F.sum v)
+             l -> fmap (/l) (F.sum v)
           
 modFromEasy :: Easy.Modifier -> ModelModifier
 modFromEasy mod = 
@@ -178,12 +183,31 @@ modFromEasy mod =
     Easy.AtLeast floor_ -> ApplyMono (max floor_) (pack $ printf "AtLeast %0.2f &" floor_)
     Easy.SetTo value -> ApplyMono (const value) (pack $ printf "SetTo %0.2f &" value)
     Easy.Total -> ApplyAggregate F.sum "SUM"
-    Easy.Mean -> ApplyAggregate (\v -> let l = fromIntegral (F.length v)
-                                       in fmap (/l) (F.sum v)
-                                )
-                                "MEAN"
+    Easy.Mean -> ApplyAggregate mean "MEAN"
+    Easy.RoundUp step -> ApplyMono (roundTo ceiling step) (pack $ printf "Roundup %0.2f ~^" step)
+    Easy.RoundDown step -> ApplyMono (roundTo floor step) (pack $ printf "Roundup %0.2f ~^" step)
+    Easy.Round step -> ApplyMono (roundTo round step) (pack $ printf "Roundup %0.2f ~^" step)
+    Easy.LT val if_ else_ -> mkIf "LT" (<val) if_ else_
+    Easy.LTE val if_ else_ -> mkIf "LTE" (<=val) if_ else_
+    Easy.GT val if_ else_ -> mkIf "GT" (>val) if_ else_
+    Easy.GTE val if_ else_ -> mkIf "GTE" (>=val) if_ else_
+  where mkIf ann test if_easy else_easy = let (if_, ifAnn) = fromMono if_easy
+                                              (else_, elseAnn) = fromMono else_easy
+                                      in ApplyMono (\x -> if test x 
+                                                          then if_ x
+                                                          else else_ x
+                                                   )
+                                                   ("IF" <> ann <> " THEN " <> ifAnn <> " ELSE " <> elseAnn)
+        fromMono mod  = case modFromEasy mod of
+                             Id -> (id, "Id")
+                             ApplyMono ifF annF -> (ifF, annF)
+                             _ -> error $ show mod <> " not a Mono"
+
 
   
+roundTo :: (Double -> Int) -> Double -> Double -> Double
+roundTo rounder step x = fromIntegral (rounder (x / step)) * step
+
 -- * Common
 estimateSkuForecastFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, Quantity, Text)))
 estimateSkuForecastFromDir forecastDay forecastDir = do
