@@ -16,7 +16,7 @@ import qualified Database.Esqueleto.Experimental as E
 import qualified Data.Conduit.List as C
 import qualified Data.Foldable as F
 import FA
-import Data.Text (strip)
+import Data.Text (strip, breakOn)
 import Text.Printf(printf)
 import qualified Data.Text.Lazy.Builder as LTB
 import qualified Data.Text.Lazy as LT
@@ -231,14 +231,19 @@ near x y = abs (x - y) < 1e-4
 estimateSkuForecastFromDir :: Day -> FilePath -> Handler (Either Text (Vector (Sku, Quantity, Text)))
 estimateSkuForecastFromDir forecastDay forecastDir = do
     content' <- readFileUtf8 $ forecastDir </> "model.hs"
-    let content = strip content'
+    let content = strip $ removeComments content'
     case readMay content of
-       Nothing -> return $ Left $ "can't parse :\n" <> tshow content --  "No model.hs file present in " <> tshow forecastDir
+       Nothing -> return $ Left $ "can't parse :\n" <> content --  "No model.hs file present in " <> tshow forecastDir
        Just easy -> do
              estimation <- evaluateModel forecastDir (modelFromEasy forecastDay easy)
              return $ Right estimation
 
 
+removeComments :: Text -> Text
+removeComments t = let
+   ls = lines t
+   in unlines $ map stripComment ls
+   where stripComment =  strip . fst . breakOn "--"
 -- * Model implementation
 
 data LoadedData = LoadedData 
