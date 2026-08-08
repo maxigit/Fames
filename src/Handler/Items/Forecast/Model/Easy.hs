@@ -24,16 +24,11 @@ data Model
      | Median [Model]
      | Mod Modifier Model
      | Sum [Model]
-     -- | Scale Double Model
-     -- | AtMost Double Model
-     -- | AtLeast Double Model
-     -- | SetTo Double Model
      | IM Model -- real independent margin
      | HM Model -- used IM but not independant as we scale by style
-     -- | Total Model
-     -- | Mean Model
      | ScaleBy [Text] Model Model
      | LimitBy [Text] Model Model Model
+     | Mask Model Model
      | NoveltyFromFuture Int -- inject SKU with 0 forecast from future years
      | InjectCategory Text
      | InjectCategoryValue Text Text
@@ -54,6 +49,7 @@ data Modifier
      | RoundDown Double
      | Round Double
      | Mean
+     | EQ Double Modifier Modifier
      | LT Double Modifier Modifier
      | LTE Double Modifier Modifier
      | GT Double Modifier Modifier

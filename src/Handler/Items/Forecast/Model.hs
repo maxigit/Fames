@@ -20,7 +20,6 @@ import Data.Text (strip)
 import Text.Printf(printf)
 import qualified Data.Text.Lazy.Builder as LTB
 import qualified Data.Text.Lazy as LT
-import Data.List(nub)
 import Data.Coerce(coerce)
 import qualified Data.NoDF as N
 import Data.NoDF.Fold1(headm, head1, pattern Fold1, Fold1(..), pattern AscU, AscU(unAscU))
@@ -64,6 +63,7 @@ data ForecastModel
             , fmAliased, fmModel :: ForecastModel
             }
      | Read FilePath
+     | Mask { fmModel, fmMask :: ForecastModel  }
      | NullModel
      -- deriving (Show, Eq)
 
@@ -80,6 +80,7 @@ instance Show ForecastModel where
    show (Reference ref) = unwords ["Refercence", show ref]
    show (With alias aliased model) = unwords ["With", show alias, show aliased , show model ]
    show (Read path) = unwords ["Read", path ]
+   show (Mask model mask) = unwords ["Mask", show model, show mask ]
    show NullModel = "NullModel"
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
@@ -156,6 +157,7 @@ modelFromEasy forecastDay model =
                                       (go model)
                                       aliases
      Easy.Read path -> Read (unpack path)
+     Easy.Mask model mask -> Mask (go model) (go mask)
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -187,6 +189,7 @@ modFromEasy mod =
     Easy.RoundUp step -> ApplyMono (roundTo ceiling step) (pack $ printf "Roundup %0.2f ~^" step)
     Easy.RoundDown step -> ApplyMono (roundTo floor step) (pack $ printf "Roundup %0.2f ~^" step)
     Easy.Round step -> ApplyMono (roundTo round step) (pack $ printf "Roundup %0.2f ~^" step)
+    Easy.EQ val if_ else_ -> mkIf "LT" (==val) if_ else_
     Easy.LT val if_ else_ -> mkIf "LT" (<val) if_ else_
     Easy.LTE val if_ else_ -> mkIf "LTE" (<=val) if_ else_
     Easy.GT val if_ else_ -> mkIf "GT" (>val) if_ else_
@@ -354,6 +357,7 @@ modelToSalesRanges model = let
        Reference _ -> []
        With _ aliased model -> concatMap modelToSalesRanges [ aliased, model ]
        Read _ -> []
+       Mask model mask -> concatMap modelToSalesRanges [model, mask ]
        InjectCategory _ _ -> []
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
@@ -379,6 +383,7 @@ modelToInputFiles model = let
       Reference _ -> []
       With _ aliased model -> go [ aliased, model ]
       Read path -> [ path ]
+      Mask model mask -> go [model, mask ]
       InjectCategory _ _ -> []
       where go = concatMap modelToInputFiles
 
@@ -406,11 +411,11 @@ loadCategories model = do
 --
 modelToCategories :: ForecastModel -> [CategoryName ]
 modelToCategories model =
-  case model of
+  ordNub case model of
     Naive{..} -> []
-    CategorySplitter cat modelMap defModel -> nub $ sort $ cat : concatMap modelToCategories (defModel : toList modelMap)
-    PostCategorySplitter cat _ _ model -> nub $ sort $ cat : modelToCategories model
-    Combination _ _ models -> nub $ sort $ concatMap modelToCategories models
+    CategorySplitter cat modelMap defModel -> cat : concatMap modelToCategories (defModel : toList modelMap)
+    PostCategorySplitter cat _ _ model -> cat : modelToCategories model
+    Combination _ _ models -> concatMap modelToCategories models
     Modifier _ model -> modelToCategories model
     NullModel -> []
     IndependantMargins model -> map CategoryName ["style", "colour"] ++ modelToCategories model
@@ -420,6 +425,7 @@ modelToCategories model =
     Reference _ -> []
     With _ aliased model -> concatMap modelToCategories [aliased, model ]
     Read _ -> []
+    Mask model mask -> concatMap modelToCategories [model, mask ]
 
 
 -- * Load Csv
@@ -535,6 +541,7 @@ manualKeys model0 =
       Reference _ -> []
       With _ aliased model -> go [ aliased, model ]
       Read _ -> []
+      Mask model mask -> go [model, mask ]
     where go = concatMap manualKeys
 
 
@@ -554,6 +561,7 @@ nullModel model0 =
       Reference _ -> False
       With _ aliased model -> go [ aliased, model ]
       Read _ -> False
+      Mask model mask -> go [model, mask ]
     where go = all nullModel
     
 nullModifier :: ModelModifier -> Bool
@@ -725,7 +733,13 @@ estimateModel (Reference alias) fd =
                   (fdAliasMap fd)
    
 estimateModel (Read path) fd = estimateModel (Reference (Alias $ pack path)) fd
-
+estimateModel (Mask model mask) fd 
+    | SomeSized v@(Z3 sku__n _ _ ) <- estimateModel model fd
+    , SomeSized (Z3 sku__m _ _) <- estimateModel mask fd
+    , JoinV _nJjNN nJjMM <- joinV sku__n sku__m
+    , let maybe__n = headm <$> wbroadcast nJjMM
+    , JustX _ rNnRR <- catMaybesX maybe__n
+    = fromSized $ windex rNnRR @> v
 
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
