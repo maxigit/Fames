@@ -637,7 +637,7 @@ estimateModel CategorySplitter{..} fd@ForecastData{..} =
   case lookup fmCategory fdCategoryMap of
        Just categorym__sku | Wal sCcSS <- groupV categorym__sku
                            , fdv__c <- fmap (flip narrowForecastData fd) (invertGroup sCcSS)
-                           ->  mconcat [ traceShow catm $ estimateModel model groupFd 
+                           ->  mconcat [ estimateModel model groupFd 
                                        | i__c <- S.toList $ S.generate id
                                        , let groupFd = S.index fdv__c i__c
                                        , let cats = S.index (walues sCcSS) i__c
@@ -796,7 +796,7 @@ estimateModel (Trend ma mb model alpha) fd
          ratio = max 0 (c / b)
    = if near b 0 ||  near ratio  0 || ratio < 0
      then mempty
-     else traceShow ("---------------------", a, b, c, m, ratio) $ scaleTo (fmap (*ratio) m ) (fromSized v)
+     else scaleTo (fmap (*ratio) m ) (fromSized v)
 
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 
