@@ -66,6 +66,11 @@ data ForecastModel
      | Mask { fmModel, fmMask :: ForecastModel  }
      | Delete0 ForecastModel 
      | NullModel
+     | Trend { fmA
+             , fmB
+             , fmModel :: ForecastModel
+             , fmAlpha :: Double
+             } -- Scale to  (B + (B-A) * alpha)/B)
      -- deriving (Show, Eq)
 
 instance Show ForecastModel where
@@ -84,6 +89,7 @@ instance Show ForecastModel where
    show (Mask model mask) = unwords ["Mask", show model, show mask ]
    show (Delete0 model) = unwords ["NonNull", show model ]
    show NullModel = "NullModel"
+   show (Trend a b model alpha) = unwords ["Trend", show a, show b, show model, show alpha]
 newtype CategoryName = CategoryName { unCategoryName :: Text }  deriving (Show, Eq, Ord)
 newtype CategoryValue = CategoryValue { unCategoryValue :: Text }  deriving (Show, Eq, Ord)
 newtype Alias = Alias { unAlias :: Text} deriving (Show, Eq, Ord)
@@ -170,6 +176,7 @@ modelFromEasy forecastDay model =
                                                    (Easy.Mod mod model)
                                          )
                                       )
+     Easy.Trend a b alpha model -> Trend (go a) (go b) (go model) alpha
      Easy.Null -> NullModel
    where go = modelFromEasy forecastDay
          median :: Vector1 Double -> Double
@@ -381,6 +388,7 @@ modelToSalesRanges model = let
        Mask model mask -> concatMap modelToSalesRanges [model, mask ]
        Delete0 model -> modelToSalesRanges model
        InjectCategory _ _ -> []
+       Trend a b model _ -> concatMap modelToSalesRanges [a, b , model ]
 
 modelToSalesRange :: ForecastModel -> Maybe (Day, Day)
 modelToSalesRange model =
@@ -408,6 +416,7 @@ modelToInputFiles model = let
       Mask model mask -> go [model, mask ]
       Delete0 model -> go [ model ]
       InjectCategory _ _ -> []
+      Trend a b model _ -> go [a, b, model ]
       where go = concatMap modelToInputFiles
 
 
@@ -450,6 +459,7 @@ modelToCategories model =
     Read _ -> []
     Mask model mask -> concatMap modelToCategories [model, mask ]
     Delete0 model -> modelToCategories model
+    Trend a b model _ -> concatMap modelToCategories [a, b, model ]
 
 
 -- * Load Csv
@@ -567,6 +577,7 @@ manualKeys model0 =
       Read _ -> []
       Mask model mask -> go [model, mask ]
       Delete0 model -> go [model ]
+      Trend a b model _ -> go [a, b, model ]
     where go = concatMap manualKeys
 
 
@@ -588,6 +599,8 @@ nullModel model0 =
       Read _ -> False
       Mask model mask -> go [model, mask ]
       Delete0 model -> go [model ]
+      Trend a b model _ -> go [a, b, model ]
+
     where go = all nullModel
     
 nullModifier :: ModelModifier -> Bool
@@ -624,7 +637,7 @@ estimateModel CategorySplitter{..} fd@ForecastData{..} =
   case lookup fmCategory fdCategoryMap of
        Just categorym__sku | Wal sCcSS <- groupV categorym__sku
                            , fdv__c <- fmap (flip narrowForecastData fd) (invertGroup sCcSS)
-                           ->  mconcat [ estimateModel model groupFd 
+                           ->  mconcat [ traceShow catm $ estimateModel model groupFd 
                                        | i__c <- S.toList $ S.generate id
                                        , let groupFd = S.index fdv__c i__c
                                        , let cats = S.index (walues sCcSS) i__c
@@ -771,6 +784,19 @@ estimateModel (Delete0 model) fd
     | SomeSized v@(Z3 _ qty__n _ ) <- estimateModel model fd
     , Wix sNnSS <- filterX (near 0) qty__n
     = fromSized $ windex sNnSS @> v
+
+estimateModel (Trend ma mb model alpha) fd
+   | SomeSized (Z3 _ qty__a _ ) <- estimateModel ma fd
+   , SomeSized (Z3 _ qty__b _ ) <- estimateModel mb fd
+   , SomeSized v@(Z3 _ qty__m _) <- estimateModel model fd
+   , let Measure a = F.sum qty__a
+         Measure b = F.sum qty__b
+         c= b + (b - a) * alpha
+         m = F.sum qty__m
+         ratio = max 0 (c / b)
+   = if near b 0 ||  near ratio  0 || ratio < 0
+     then mempty
+     else traceShow ("---------------------", a, b, c, m, ratio) $ scaleTo (fmap (*ratio) m ) (fromSized v)
 
 estimateModel model  _  = error $ "exthaustive pattern for " <> show model
 

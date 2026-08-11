@@ -37,6 +37,7 @@ data Model
      | Ref Text
      | With [(Text, Model)] Model
      | Read Text
+     | Trend Model Model Double Model
      deriving (Show, Read, Eq)
      
 data Modifier
