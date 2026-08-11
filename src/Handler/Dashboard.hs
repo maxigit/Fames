@@ -8,6 +8,8 @@ module Handler.Dashboard
 -- * Forecast
 , getDForecastR
 , getDForecastDetailedR
+, postDFreezeForecastR
+, postDUnfreezeForecastR
 , reportDiv
 )
 where
@@ -19,7 +21,8 @@ import Handler.Items.Reports.Common
 import Handler.Items.Reports.Types as RT
 import Handler.Items.Reports.Sources
 import Handler.Items.Reports.NewForecast
-import Handler.Items.Reports.Forecast(ForecastGrouper(..))
+import Handler.Items.Reports.Forecast(ForecastGrouper(..), loadSkuSpeedFromDir,skuFilesFromDir)
+import Handler.Items.Forecast.Csv(CollectionProfileRow(..))
 import Handler.Items.Reports.Yearly
 import Items.Types
 import GL.Utils
@@ -28,7 +31,7 @@ import Formatting hiding(now)
 import Data.Aeson.QQ(aesonQQ)
 import Control.Monad.Fail (MonadFail(..))
 import System.FilePath.Glob (glob, match)
-import System.FilePath (takeBaseName)
+import System.FilePath (takeBaseName, takeFileName)
 import System.Directory  
 import Network.Wai(rawQueryString)
 import qualified Data.Conduit.List as C
@@ -38,6 +41,8 @@ import Data.NoDF.Operators
 import qualified Data.Foldable as F
 import qualified Data.Vector.Sized as N
 import qualified FA as FA
+import qualified Data.Csv as Csv
+import Data.Text (strip)
 
 pivotCss = [cassius|
   div.pivot-inline
@@ -959,11 +964,43 @@ getDForecastDetailedR pathm = do
                               )
   skuReport <- report SkuGroup
   customerReport <- report CustomerGroup
-  let names  = ["style", "base", "random-base", "shape", "random-shape", "random-10", "random-100", "random-p4", "dpd-origin"] :: [Text]
+  let defaultNames  = ["style", "shape", "colour"] :: [Text]
+  (names, reportCustomers) <- do
+                  let namepath =  appForecastProfilesDir settings </> path </> "categories.hs"
+                  exists <- liftIO $ doesFileExist namepath
+                  if not exists 
+                  then return (defaultNames, False)
+                  else do
+                       content <- readFileUtf8 namepath
+                       case readMay (strip content) of
+                         Nothing -> do
+                                 setWarning "categories.hs not correct"
+                                 return (defaultNames, False)
+                         Just ns -> do
+                                    let (cats, customers) = partition (/="customer") ns
+                                    return (cats, not (null customers))
+                                    
   otherReport <- mapM report (map CategoryGroup names)
-  let reports = ("SKU", skuReport) : zip names otherReport  ++ [ ("Customer", customerReport) ]
+  let reports = ("SKU", skuReport) : zip names otherReport  ++ (if reportCustomers then [ ("Customer", customerReport) ] else [])
       summaries = [ (day, name, summary) | (name, ((day, summary), _)) <- reports ]
   
+  let filepathm = case pathm of 
+                      Nothing -> Nothing
+                      Just _ -> Just $ unpack
+                                     -- $ appForecastProfilesDir settings </>
+                                     ( maybe id (</>) (fpSubdirectory param)
+                                     $ path
+                                     )
+  -- Nothing nothing to freeze
+  isFrozenM <- case filepathm of
+                Nothing -> return $ Nothing -- nothing to freeze/unfreeze
+                Just filepath -> do
+                        files <- skuFilesFromDir filepath
+                        return $ case files of
+                                      [] -> Just False-- no sku files. A model should be present. Freezabe
+                                      _ | "freeze_sku_forecast.csv" `elem` map takeFileName files -> Just True -- unfreeza
+                                      _ -> Nothing
+          
   defaultLayout $ do
      toWidgetHead commonCss
      toWidgetHead pivotCss
@@ -983,5 +1020,45 @@ getDForecastDetailedR pathm = do
              <h2> #{name}
           <div.panel-body.pivot-inline.collapse.in.plot-height id="dashboard-#{name}">
             ^{report}
+     $maybe path <- filepathm
+            <div.well>
+               $maybe isFrozen <- isFrozenM
+                      $if isFrozen
+                         <form.form #upload-from role=from method=post action=@{DashboardR (DUnfreezeForecastR path)}>
+                           <button.btn.btn-danger type=sumbit>Unfreeze
+                      $else
+                         <form.form #upload-from role=from method=post action=@{DashboardR (DFreezeForecastR path)}>
+                           <button.btn.btn-info type=sumbit>Freeze
+
    
    |]
+   
+   
+postDFreezeForecastR :: FilePath -> Handler Html
+postDFreezeForecastR path0 = do
+   settings <- getsYesod appSettings 
+   let path = appForecastProfilesDir settings </> path0
+   (skuSpeedRows, profiles) <- loadSkuSpeedFromDir path
+   let speedContent = Csv.encodeDefaultOrderedByName skuSpeedRows
+   let prows = [ CollectionProfileRow (collection) 
+                                      m
+                                      (weight)
+               | (collection, SeasonProfile weights) <- Map.toList profiles
+               , (weight, m) <- zip (toList weights) [1..12]
+               ]
+       profileContent = Csv.encodeDefaultOrderedByName prows
+   liftIO $ do
+      writeFile (path </> "freeze_sku_forecast.csv") $ toStrict speedContent
+      writeFile (path </> "collection_profiles.csv") $ toStrict profileContent
+   getDForecastDetailedR (Just $ pack path)
+   
+postDUnfreezeForecastR :: FilePath -> Handler Html
+postDUnfreezeForecastR path0 = do
+   settings <- getsYesod appSettings 
+   let path = appForecastProfilesDir settings </> path0
+   liftIO $ forM_ ["freeze_sku_forecast.csv", "collection_profiles.csv" ]
+                  (removeFile . (path </>))
+   getDForecastDetailedR (Just $ pack path)
+
+  
+

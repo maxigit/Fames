@@ -543,6 +543,9 @@ seasonProfile weights0 = SeasonProfile (normalize weights) where
   
 seasonProfileFromMap m = seasonProfile [ findWithDefault 0 i m   | i <- [1..12]]
 
+newtype Collection = Collection Text
+  deriving (Show, Eq, Ord)
+
 
 -- * Vector
 

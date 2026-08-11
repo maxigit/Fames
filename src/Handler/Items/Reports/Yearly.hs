@@ -7,6 +7,7 @@ where
 import Import hiding(all)
 import Handler.Items.Reports.Sources
 import Handler.Items.Reports.Common
+import Handler.Items.Sources
 import Handler.Items.Reports.Types
 import Handler.Items.Reports.Plot
 import qualified Database.Esqueleto.Experimental as E
@@ -108,7 +109,7 @@ getItemsReportYearlyR = do
 
 yFromTables useQty param tables = if useQty
                             then salesDetailQuantity tables
-                            else salesDetailAmount param tables
+                            else salesDetailAmount (rpDeduceTax param) tables
 
 yearlyTrendPlots :: Day -> Vector (Day, Double) -> Widget
 yearlyTrendPlots today sales
@@ -167,30 +168,30 @@ plot2H param useQty cat = do
   let query = do
                (tables, cvalue) <- case cat of 
                           ItemCat catName -> do 
-                           (trans E.:& detail E.:& move E.:& category) <- E.from ( itemSalesQuery stockLike param
+                           (trans E.:& detail E.:& category) <- E.from ( itemSalesQuery stockLike param
                               `E.innerJoin` E.table @ItemCategory
                               `E.on` \((E.getTable @DebtorTransDetail -> detail) E.:& category)
                                       -> category.category E.==. E.val catName
                                          E.&&. category.stockId E.==. detail.stockId 
                                          )
-                           return (trans E.:& detail E.:& move , category.value)
+                           return (trans E.:& detail , category.value)
 
                           OrderCat catName -> do 
-                           (trans E.:& detail E.:& move E.:& category) <- E.from ( itemSalesQuery stockLike param
+                           (trans E.:& detail E.:& category) <- E.from ( itemSalesQuery stockLike param
                               `E.innerJoin` E.table @OrderCategory
                               `E.on` \((E.getTable @DebtorTran -> trans) E.:& category)
                                       -> category.category E.==. E.val catName
                                          E.&&. category.orderId E.==. trans.order
                                          )
-                           return (trans E.:& detail E.:& move , category.value)
+                           return (trans E.:& detail , category.value)
                           CustomerCat catName -> do 
-                           (trans E.:& detail E.:& move E.:& category) <- E.from ( itemSalesQuery stockLike param
+                           (trans E.:& detail E.:& category) <- E.from ( itemSalesQuery stockLike param
                               `E.innerJoin` E.table @CustomerCategory
                               `E.on` \((E.getTable @DebtorTran -> trans) E.:& category)
                                       -> category.category E.==. E.val catName
                                          E.&&. E.just category.customerId E.==. trans.debtorNo
                                          )
-                           return (trans E.:& detail E.:& move , category.value)
+                           return (trans E.:& detail , category.value)
                                  
                let trans = E.getTable @DebtorTran tables
                E.groupBy trans.tranDate

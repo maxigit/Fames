@@ -73,7 +73,7 @@ common deps
     , mysql
     , mysql-simple
     , network >=3.1.1.1
-    , nodf ^>= 0.1.1.1
+    , nodf ^>= 0.1.4.0
     , one-liner >=1.0
     , palette >=0.3.0
     , parsec >=3.1.0
@@ -203,6 +203,9 @@ library
       Handler.Items.Common
       Handler.Items.History
       Handler.Items.Index
+      Handler.Items.Forecast.Model
+      Handler.Items.Forecast.Csv
+      Handler.Items.Forecast.Model.Easy
       Handler.Items.Report
       Handler.Items.Reports.Common
       Handler.Items.Reports.Forecast
@@ -211,6 +214,7 @@ library
       Handler.Items.Reports.Types
       Handler.Items.Reports.Yearly
       Handler.Items.Reports.Plot
+      Handler.Items.Sources
       Handler.Planner
       Handler.Planner.Exec
       Handler.Planner.FamesImport

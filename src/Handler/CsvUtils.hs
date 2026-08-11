@@ -191,7 +191,13 @@ parseSpreadsheet :: (Csv.FromNamedRecord a, Show a)
                  ->  Maybe String --  ^ separtors
                  -> ByteString
                  -> Either InvalidSpreadsheet [a]
-parseSpreadsheet columnMap seps bytes = do
+parseSpreadsheet columnMap seps bytes = fmap toList (parseSpreadsheetV columnMap seps bytes)
+parseSpreadsheetV :: (Csv.FromNamedRecord a, Show a)
+                 => Map String [String] --  ^ Columns (what to display, possible names)
+                 ->  Maybe String --  ^ separtors
+                 -> ByteString
+                 -> Either InvalidSpreadsheet (Vector a)
+parseSpreadsheetV columnMap seps bytes = do
   let lbytes = fromStrict bytes
       options = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- fromMaybe ",;\t" seps ]
       tries =  [(Csv.decodeByNameWith opt lbytes, opt) | opt <- options ]
@@ -199,8 +205,12 @@ parseSpreadsheet columnMap seps bytes = do
     Left _ -> let
                 invalids = [parseInvalidSpreadsheet opt columnMap lbytes err | (Left err, opt) <- tries ]
               in  Left $ minimumByEx (comparing $ length . missingColumns) invalids
-    Right (__header, vector) ->  Right $ toList vector
+    Right (__header, vector) ->  Right vector
   
+parseSpreadsheetSimple :: (Csv.FromNamedRecord a, Show a) => ByteString -> Either InvalidSpreadsheet [a]
+parseSpreadsheetSimple = parseSpreadsheet mempty Nothing
+parseSpreadsheetSimpleV :: (Csv.FromNamedRecord a, Show a) => ByteString -> Either InvalidSpreadsheet (Vector a)
+parseSpreadsheetSimpleV = parseSpreadsheetV mempty Nothing
 
 validateNonEmpty :: Text -> Either InvalidField (Maybe a) -> Either InvalidField (Maybe a)
 validateNonEmpty field RNothing = Left (MissingValueError field) 

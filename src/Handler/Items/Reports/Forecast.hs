@@ -4,15 +4,15 @@ module Handler.Items.Reports.Forecast where
 import Import
 import Items.Types
 import Measure as M
-import qualified Data.Csv as Csv
-import Handler.CsvUtils
 import Handler.Items.Category.Cache
 import Handler.Items.Common(StockFilter, stockFilterToSqlWithColumn, stockFilterToSql)
+import Handler.Items.Forecast.Model
+import Handler.Items.Forecast.Csv
 import Items.Internal
-import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
+import System.FilePath (takeBaseName)
+import System.Directory(listDirectory, getModificationTime, doesDirectoryExist)
 import FA as FA hiding (unUserKey)
-import Control.Monad.Fail (MonadFail(..))
 import GL.Utils
 -- import GL.Payroll.Settings(DayOfWeek(..))
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
@@ -20,25 +20,10 @@ import qualified Data.Conduit.List as CL
 import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty(..))
 import Util.ForConduit
+import Util.Cache(cacheMinute)
 import qualified Data.Vector.Generic.Sized as V -- not Generic as Generics but generic interface over all types of vector
 import qualified Data.Map as Map
 
--- * Profiles 
--- | Read a map of season profiles from a valid csv
--- collection,month,weight
-data CollectionProfileRow = CollectionProfileRow
- { cpCollection :: Collection
- , cpMonth :: Int
- , cpWeight :: Years
- } deriving Show
-instance Csv.FromNamedRecord CollectionProfileRow where
-  parseNamedRecord m = do
-    collection <- fmap Collection ( m Csv..: "collection")
-    weight <- m Csv..: "weight"
-    month' <- m Csv..: "month"
-    month <- parseMonth month'
-    return $ CollectionProfileRow collection month (Measure weight)
-    
 data ForecastGrouper k where 
          SkuGroup :: ForecastGrouper Sku
          CategoryGroup :: Text  -> ForecastGrouper Text
@@ -54,71 +39,65 @@ unForecastKey SkuGroup (Sku sku) = sku
 unForecastKey (CategoryGroup category) name = category++":"++name
 unForecastKey CustomerGroup name = name
      
-parseMonth :: Text -> Csv.Parser Int
-parseMonth m = case m of
-  "Jan" -> return 1
-  "Feb" -> return 2
-  "Mar" -> return 3
-  "Apr" -> return 4
-  "May" -> return 5
-  "Jun" -> return 6
-  "Jul" -> return 7
-  "Aug" -> return 8
-  "Sep" -> return 9
-  "Oct" -> return 10
-  "Nov" -> return 11
-  "Dec" -> return 12
-  _ -> fail "Can't parse month"
-    
-    
-readProfiles :: FilePath -> IO (Map Collection SeasonProfile)
-readProfiles path = do
-  content <- readFile path
-  let Right cols = parseSpreadsheet mempty Nothing content
-      monthMap (CollectionProfileRow _ month weight) = IntMap.singleton month weight
-      grouped = groupAsMap cpCollection monthMap cols
-  return $ fmap seasonProfileFromMap grouped
-
-
--- * Sku Speed 
--- | Row coming from a sku speed file.
-newtype Collection = Collection Text
-  deriving (Show, Eq, Ord)
-
-data SkuSpeedRow = SkuSpeedRow
-  { ssSku :: Sku
-  , ssWeight :: YearlyQuantity
-  , ssCollection :: Collection
-  }deriving (Show)
-instance Csv.FromNamedRecord SkuSpeedRow where
-  parseNamedRecord m = SkuSpeedRow  <$> fmap Sku (m Csv..: "stock_id")
-                                    <*> (Measure <$> m Csv..: "eQty")
-                                    <*> fmap Collection (m Csv..: "collection")
+forecastPathToDay :: FilePath -> Maybe Day
+forecastPathToDay = readMay . take 10 . takeBaseName
+        
 
                   
--- | Load sku speed from a csv
-loadSkuSpeed :: FilePath -> IO  [SkuSpeedRow]
-loadSkuSpeed filepath = do
-  content <- readFile filepath
-  case parseSpreadsheet mempty Nothing content of
-    Left err -> error $ show err
-    Right rows -> return rows
+-- | load csv forecast or evaluate model if needed
+loadSkuSpeedFromDir :: FilePath -> Handler ([SkuSpeedRow], Map Collection SeasonProfile)
+-- loadSkuSpeedFromDir forecastDir = cache0 False (cacheMinute 15) ("sku-speed" </> forecastDir)  $ do
+loadSkuSpeedFromDir forecastDir = do
+  mtime <- liftIO $ lastModifiedTime forecastDir
+  cache0 False (cacheMinute 15) ("forecast/sku-speed", mtime, forecastDir)  do
+         skuFiles <- skuFilesFromDir forecastDir
+         case skuFiles of
+            (_:_) ->  do -- load csv by default in case we cached the hs result
+                      rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
+                      skuSpeeds <- liftIO $ mapM (loadSkuSpeed . (forecastDir </> )) skuFiles
+                      return (concat skuSpeeds, rawProfiles)
+            [] | Just forecastDay <- forecastPathToDay forecastDir -> do -- try loading model
+                      forecastE <- estimateSkuForecastFromDir forecastDay forecastDir 
+                      case forecastE of
+                         Left err -> error $ "Can't find sku speed files or hs model in directory " <> show forecastDir <> "\n" <> unpack err
+                         Right speed -> do
+                               (skuToCollection, profiles) <- estimateCollectionProfile forecastDay forecastDir
+                               return (toList $ fmap (\(sku, qty, comment) -> SkuSpeedRow sku (coerce qty) (skuToCollection sku)comment )speed, profiles)
+                               --                                                              ^^^^^^ convert Quantity to YearlyQuantity
+                               --                                                                     due to legacy code
+                               --                                                                     We are still not sure of the semantig of a forecast file
+                               --                                                                     if the unit for the forecast of 1 year is a Quantity
+                               --                                                                     or a YearlyQuantity.
+                               --                                                                     Having YearlyQuantity forces it to use the profile 
+                               --                                                                     to convert to a Quantity
+                              
+            _ -> error $ "Can't find sku speed files." <> show forecastDir
 
+
+lastModifiedTime :: FilePath -> IO UTCTime
+lastModifiedTime path = do
+   isDirectory <- doesDirectoryExist path
+   ts <- if isDirectory
+         then listDirectory path >>= mapM (lastModifiedTime . (path</>))
+         else fmap pure ( getModificationTime path)
+   case ts of
+      [] -> getModificationTime path
+      _ -> return $ maximumEx ts
+
+skuFilesFromDir :: FilePath -> Handler [FilePath]
+skuFilesFromDir forecastDir = liftIO $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
+  
+   
 -- | Generate fake transactions corresponding to forecast sales
 loadItemForecast ::  Maybe InOutward -> FilePath -> (Map Sku ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
 loadItemForecast io forecastDir infoMap start end = do
   settings <- getsYesod appSettings
   catFinder <- categoryFinderCached (appForecastCollectionCategory settings)
-  profiles <- liftIO $ readProfiles (forecastDir </> "collection_profiles.csv")
+  
+  (skuSpeeds, profiles) <- loadSkuSpeedFromDir forecastDir
   let profile (Sku sku) = (catFinder  (FA.StockMasterKey sku) >>= (\col ->  lookup (Collection col) profiles)
                           ) <|> Just flatProfile
       flatProfile = seasonProfile []
-  skuFiles <- liftIO $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
-  when (null skuFiles) $ do
-     setError "Can't find any sku speed files. Please check with your administrator."
-
-  skuSpeedMap <- liftIO $ mapM loadSkuSpeed skuFiles
-  let skuSpeeds = concat skuSpeedMap 
   return $ concatMap (skuSpeedRowToTransInfo infoMap profile start end io) skuSpeeds
 
 skuSpeedRowToTransInfo :: Map Sku ItemInitialInfo
@@ -128,7 +107,7 @@ skuSpeedRowToTransInfo :: Map Sku ItemInitialInfo
                        -> Maybe InOutward
                        -> SkuSpeedRow
                        -> [(TranKey, TranQP)]
-skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _) =
+skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed _ _) =
   let io = fromMaybe Outward iom  --   ^ like sales
       extra = maybe [] ioToQPType iom
   in case (profileFor sku, lookup sku infoMap) of
@@ -187,9 +166,8 @@ actualSalesSource grouper stockFilter start end priceListIdM = do
            (fmap (" AND " <>) stockWhereM) ?:
            " AND qty != 0" :
            " AND (clearance.value is null OR clearance.value <> 'Yes' ) " :
-           " AND moves.stock_id like 'M%'" :
-           -- " AND stock_id like 'ML17-FD7-NAY'" :
-           -- " AND stock_id like 'ML13-AD1-IVY'" :
+           -- " AND moves.stock_id like 'M%'" :
+           " AND moves.stock_id rlike '^[MC]'" :
            " AND tran_date >= ? AND tran_date <= ? " :
            " GROUP BY groupKey, days " :
            " order BY groupKey, days " :
@@ -232,8 +210,7 @@ actualSalesSource grouper stockFilter start end priceListIdM = do
 loadYearOfForecastCumulByWeek :: Ord key => ForecastGrouper key -> StockFilter -> Maybe SalesTypeId -> Day -> FilePath -> Handler (Map key (U53Weeks (Quantity, Amount)))
 loadYearOfForecastCumulByWeek grouper stockFilter priceListIdM start forecastDir = do
   -- load forecast from files
-  rawProfiles <- liftIO $ readProfiles $ forecastDir  </> "collection_profiles.csv"
-  skuSpeed <- liftIO $ loadSkuSpeed $ forecastDir </> "mw_sku_forecast.csv"
+  (skuSpeed, rawProfiles) <- loadSkuSpeedFromDir forecastDir
   -- creates weekly profiles for each month
   mkKey <- case grouper of
                 SkuGroup -> return \sku -> Sku sku
@@ -274,7 +251,7 @@ loadYearOfForecastCumulByWeek grouper stockFilter priceListIdM start forecastDir
                                            monthWeekly
             in v
       linear = V.map (min 1) $ V.postscanl' (+) 0 $ V.replicate (1/52)  
-      weeklyForRow (SkuSpeedRow _ weight collection) price = V.map (\x -> let xweight = x^* weight
+      weeklyForRow (SkuSpeedRow _ weight collection _) price = V.map (\x -> let xweight = x^* weight
                                                                           in (xweight, xweight ^* price)
                                                                    ) weekly where
           weekly = findWithDefault linear collection weekProfiles

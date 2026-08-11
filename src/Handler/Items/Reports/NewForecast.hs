@@ -410,9 +410,6 @@ getPlotForecastError param grouper day0 path = do
                   )
         Nothing -> return ([whamlet| no data for #{tshow day}/#{path} |], ForecastSummary 0 0 0 0 0 0 0)
 
-forecastPathToDay :: FilePath -> Maybe Day
-forecastPathToDay = readMay . take 10
-        
 newtype Actual a = Actual a
 computeAbsoluteError :: Actual (U53Weeks QuantityD)  -> U53Weeks QuantityD -> WithError
 computeAbsoluteError (Actual actuals) forecast = WithError forecast overError underError where
@@ -440,8 +437,8 @@ averageForecastSummary sums = let
 -- | Computes the number of weeks from start to today if needed
 -- This is the week when the actual sales stops if Today is in a given year
 weeksTo start today =  fromInteger $ case diffDays today start `div` 7 of
-                                        n | n < 0 -> 51
-                                        n ->  min n 51
+                                        n | n < 0 -> 52
+                                        n ->  min n 52
 
 data OffenderSummary = OffenderSummary { osActual, osForecast, osNaive, osError :: Double }
    deriving (Show)
@@ -497,6 +494,7 @@ makeOffenderTable adjustSign categoryName summaries =  do
          <tr>
            <th.just-right> #{categoryName}
            <th.just-right> Forecast
+           <th.just-right> Forecast - Naive
            <th.just-right> Actual
            <th.just-right> Error
            <th.just-right> %
@@ -507,6 +505,7 @@ makeOffenderTable adjustSign categoryName summaries =  do
           <tr>
             <td> #{category}
             <td.just-right> #{formatQuantity $ osForecast os}
+            <td.just-right> #{formatQuantity $ osForecast os - osNaive os}
             <td.just-right> #{formatQuantity $ osActual os}
             <td.just-right> #{formatQuantity $ osError os}
             <td.just-right> #{formatPercentage $ errorP osError os}

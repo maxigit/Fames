@@ -121,6 +121,7 @@ calculateDate (Align mode (Yearly ymonth ydom))  day =
                   | otherwise -> previousYear
           NextStart | aligned < day -> nextYear
                     | otherwise -> aligned
+calculateDate (SetDay day) _ = day
    
 
 -- ^^^^ TODO merge with foldTime

@@ -116,7 +116,14 @@ type family (a :: Type) :*: (b :: Type)  where
 
 type family (ab :: Type) :/: (b :: Type) where
    (u, u') :/: (v, v') = (u :/: v , u' :/: v')
-   f2 ab x :/: f2 b x = f2 (ab :/: b) x
+   -- VGS.Vector v n a :/: VGS.Vector v n b = VGS.Vector v n (a :/: b)
+   f3 v n a :/: f3 v n b = f3 v n (a :/: b)
+   f3 v n a :/: b = f3 v n (a :/: b)
+   f3 v a x :/: f3 v b x = f3 v (a :/: b) x
+
+   f2 a x :/: f2 b x = f2 (a :/: b) x
+   f2 n a :/: f2 n b = f2 n (a :/: b)
+
    (a :* b) :/: b = a
    ScalarU :/: b = b
    a :/: ScalarU = a
@@ -155,8 +162,8 @@ divmeasure (Measure x) (Measure y) = Measure (x / y)
 
 instance (KnownNat n, Mul a b ) => Mul (VS.Vector n a ) (VS.Vector n b)  where
     (^*) = liftA2 (^*)
-instance (KnownNat n, Div a b ) => Div (VS.Vector n a ) (VS.Vector n b)  where
-    (^/) = liftA2 (^/)
+-- instance (KnownNat n, Div a b ) => Div (VS.Vector n a ) (VS.Vector n b)  where
+--     (^/) = liftA2 (^/)
 
 instance (KnownNat n, Mul a b, VG.Vector v a, VG.Vector v b, VG.Vector v (a :*: b) ) => Mul (VGS.Vector v n a ) (VGS.Vector v n b)  where
   (^*) = VGS.zipWith (^*)
