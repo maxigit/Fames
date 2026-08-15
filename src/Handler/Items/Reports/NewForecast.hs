@@ -16,7 +16,7 @@ import Handler.Items.Reports.Common hiding(formatQuantity)
 import Handler.Items.Reports.Forecast
 import Handler.Items.Common(mkStockFilter, year)
 import Items.Types
-import Data.Conduit.List (mapMaybe)
+import Data.Conduit.List (mapMaybe, sourceList)
 import qualified Data.Vector.Generic.Sized as V
 import qualified Data.Conduit.Combinators as C
 import Util.ForConduit
@@ -26,6 +26,7 @@ import Data.Time.Calendar (diffDays, pattern YearMonthDay)
 import Data.Coerce(coerce)
 import Measure
 import qualified FA as FA 
+import qualified Data.Map as Map
 
 -- import qualified Handler.Items.Index as I
 -- import qualified Handler.Items.Common as I
@@ -318,26 +319,30 @@ getForecastErrors ForecastParam{..} grouper day path = do
   let skuMap = case fpPriceList of 
                     Nothing -> fmap (V.map fst) skuMap'
                     Just _ -> fmap (V.map ( coerce . snd)) skuMap'
+      forecastSource = sourceList (Map.toList skuMap)
+                     .| mapC (uncurry ForMap)
+                     .| mapC (fmap $  V.withVectorUnsafe coerce)
   let (_, _,  naiveSource) = loadYearOfActualCumulSalesByWeek grouper stockFilter (calculateDate (AddYears $ -1) start) fpPriceList
       joinWithZeror (ForMap sku theseab) = ForMap sku <$> ab where
           ab = case theseab of
                   -- no naive forecast, ie no previous sales => NOVELTY
-                  This sales | fpNoveltyMode == ExcludeNovelty  -> Nothing
-                             | otherwise                      ->  Just (sales, 0) 
+                  This (sales, forecast) | fpNoveltyMode == ExcludeNovelty  -> Nothing
+                                         | otherwise                      ->  Just (sales, 0, forecast) 
                   That naive | fpNoveltyMode  == NoveltyOnly -> Nothing
-                             | otherwise                   -> Just (0, naive)
-                  These sales naive | fpNoveltyMode == NoveltyOnly -> Nothing
-                                    | otherwise                  -> Just (sales, naive)
+                             | otherwise                   -> Just (0, naive, 0)
+                  These (sales, forecast) naive | fpNoveltyMode == NoveltyOnly -> Nothing
+                                                | otherwise                  -> Just (sales, naive, forecast)
       addErrors (ForMap sku (salesV, naiveV, forecastV)) =
                    ForMap sku $ WeeklySalesWithForecastErrors salesV
                                                               (computeAbsoluteError (Actual salesV) naiveV)
                                                               (computeAbsoluteError (Actual salesV) forecastV)
-      addForecast (ForMap sku (salesV, naive)) = ForMap sku (salesV, naive, V.withVectorUnsafe coerce forecast) where
-         forecast =  findWithDefault 0 sku skuMap
-      conduit = alignConduit salesSource naiveSource
-                         .|Data.Conduit.List.mapMaybe  joinWithZeror
-                         .|mapC addForecast
-                         .|mapC  addErrors
+      conduit = alignConduit (alignConduit salesSource
+                                           forecastSource
+                             .| mapC (fmap $ these (,0) (0,) (,) )
+                             )
+                             naiveSource
+                             .|Data.Conduit.List.mapMaybe  joinWithZeror
+                             .|mapC  addErrors
   return ((start, end), conduit)
 
 adjustTodayAndStart :: ForecastParam -> Day -> Day -> (Day, Day) -- 

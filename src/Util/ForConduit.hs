@@ -11,7 +11,7 @@ newtype OrderedBy k a = OrderedBy a
 
 -- | Element of conduit ready to build a map
 data ForMap a b = ForMap a b
-   deriving (Show, Eq, Ord)
+   deriving (Show, Eq, Ord, Functor)
    
 unForMap :: ForMap a b -> (a, b)
 unForMap (ForMap a b ) = (a, b)
