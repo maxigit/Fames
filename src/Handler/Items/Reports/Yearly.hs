@@ -69,7 +69,7 @@ getItemsReportYearlyR = do
   let yparam = case resp of
                  FormSuccess yparam -> yparam
                  _  -> defaultYearlyParam
-  let param = (defaultReportParam today Nothing rpDeduceTax) { rpSkuFilter = ypStockFilter yparam
+  let param = (defaultReportParam (calculateDate (AddDays 1) today) Nothing rpDeduceTax) { rpSkuFilter = ypStockFilter yparam
                                                  , rpCategoryFilter = ypCategoryFilter yparam
                                                  , rpCategoryToFilter = case (ItemCat <$> ypCategoryToFilter yparam) <|> ypFacetCategory yparam of
                                                                            Just (ItemCat cat) -> Just cat
@@ -136,7 +136,7 @@ yearlyTrendPlots today sales
         [whamlet|<h2> Trend over the years |]
         plotWidget [ [aesonQQ| { hovermode: "closest" } |] ]
                    Nothing [ [ toY maYear__j , traceName "Yearly" ]
-                           , [ toY maQuaterly__j , traceName "Quaterly" ]
+                           , [ toY maQuaterly__j , traceName "Quaterly", [aesonQQ| {visible:"legendonly"}|] ]
                            , [ toXY sales__fiscalYear , marker 0, traceName "Fiscal Year" ]
                            , [ toXY sales__fiscalYear , skinnyBar 0, traceName "Fiscal Year" ]
                            , [ toXY sales__endYear , marker 3 , traceName "End Of Year" ]
