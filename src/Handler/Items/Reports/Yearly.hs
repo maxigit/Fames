@@ -128,15 +128,19 @@ yearlyTrendPlots today sales
    , N.SomeSized sales__fiscalYear <- sampleYearly (fromGregorian 2026 04 30) days__j maYear__j
    , N.SomeSized sales__endYear <- sampleYearly (fromGregorian 2025 12 31) days__j maYear__j
    , N.SomeSized sales__toToday <- sampleYearly today days__j maYear__j
-   , let marker = [aesonQQ| { mode: "markers" } |] -- , marker: { symbol: "square", size: 12 } } |]
+   , let marker i = [aesonQQ| { mode: "markers", marker: { color: #{defaultColor i}}, legendgroup: #{i}} |] --  symbol: "square", size: 12 } } |]
+   , let skinnyBar i = [aesonQQ| {type : "bar", marker: {color: #{defaultColor i }}, width: 2, hoverinfo: "skip", showlegend: false, legendgroup: #{i}}|]
    = do
         [whamlet|<h2> Trend over the years |]
         plotWidget [ [aesonQQ| { hovermode: "closest" } |] ]
                    Nothing [ [ toY maYear__j , traceName "Yearly" ]
                            , [ toY maQuaterly__j , traceName "Quaterly" ]
-                           , [ toXY sales__fiscalYear , marker , traceName "Fiscal Year" ]
-                           , [ toXY sales__endYear , marker , traceName "End Of Year" ]
-                           , [ toXY sales__toToday , marker , traceName "To Today" ]
+                           , [ toXY sales__fiscalYear , marker 0, traceName "Fiscal Year" ]
+                           , [ toXY sales__fiscalYear , skinnyBar 0, traceName "Fiscal Year" ]
+                           , [ toXY sales__endYear , marker 3 , traceName "End Of Year" ]
+                           , [ toXY sales__endYear , skinnyBar 3, traceName "End Of Year" ]
+                           , [ toXY sales__toToday , marker 4 , traceName "To Today" ]
+                           , [ toXY sales__toToday , skinnyBar 4 , traceName "To Today" ]
                            ]
 
 yearlyTrendPlots _ _sales  = error "empty sales"
