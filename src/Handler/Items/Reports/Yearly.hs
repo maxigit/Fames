@@ -128,8 +128,10 @@ yearlyTrendPlots today sales
    , N.SomeSized sales__fiscalYear <- sampleYearly (fromGregorian 2026 04 30) days__j maYear__j
    , N.SomeSized sales__endYear <- sampleYearly (fromGregorian 2025 12 31) days__j maYear__j
    , N.SomeSized sales__toToday <- sampleYearly today days__j maYear__j
-   , let marker i = [aesonQQ| { mode: "markers", marker: { color: #{defaultColor i}}, legendgroup: #{i}} |] --  symbol: "square", size: 12 } } |]
-   , let skinnyBar i = [aesonQQ| {type : "bar", marker: {color: #{defaultColor i }}, width: 2, hoverinfo: "skip", showlegend: false, legendgroup: #{i}}|]
+   , let visible 4 = "visible" :: Text
+         visible _ = "legendonly"
+   , let marker i = [aesonQQ| { mode: "markers", marker: { color: #{defaultColor i}}, legendgroup: #{i}, visible:#{visible i}} |] --  symbol: "square", size: 12 } } |]
+   , let skinnyBar i = [aesonQQ| {type : "bar", marker: {color: #{defaultColor i }}, width: 2, hoverinfo: "skip", showlegend: false, visible:#{visible i}, legendgroup: #{i}}|]
    = do
         [whamlet|<h2> Trend over the years |]
         plotWidget [ [aesonQQ| { hovermode: "closest" } |] ]
