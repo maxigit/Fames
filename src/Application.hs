@@ -86,7 +86,9 @@ makeFoundation appSettings = do
     -- Create the database connection pool
     pool <- flip runLoggingT logFunc $ createMySQLPool
         (myConnInfo $ appDatabaseConf appSettings)
-        (myPoolSize $ appDatabaseConf appSettings)
+        (max 4 $ myPoolSize $ appDatabaseConf appSettings)
+        --  ^^
+        --  allows multiple SQL query conduits in parallel needed by some query.
 
     -- Perform database migration using our application's logging settings.
     when (False && appRunMigration appSettings) $ runLoggingT (runSqlPool (runMigration migrateAll) pool) logFunc
