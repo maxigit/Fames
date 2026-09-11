@@ -454,7 +454,7 @@ xxx AdjustmentParam{..} decorateSku _decorateQuantity StyleInfoSummary{..} =
            $with leftOver <- ssQoh - ssQUsed
               $if leftOver > 0
                 <span.badge>#{formatQuantity leftOver}
-        <td colspan=4>
+        <td.hover colspan=4>
           <div.status-summary>
             $forall statusBox <- sortOn boxStatus ssBoxes
                   ^{displayBoxQuantity statusBox}
@@ -600,7 +600,9 @@ td.varQuantity .badge
 tbody.summary-group.with-details
   tr.box-row
     display: none
-  &:hover
+  tr > td.hover
+     cursor: pointer 
+  &:has(> tr > td.hover:hover)
     tr.box-row
       display: table-row
       border-left: 1px solid #{blueBadgeBg}
