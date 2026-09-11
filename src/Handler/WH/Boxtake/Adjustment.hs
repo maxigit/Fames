@@ -476,15 +476,15 @@ displayBoxRow status = forM_ (classForBox status) $ \klass -> do
       multi = not . null $ drop 1 stocktakees 
   [whamlet|
   <tr.box-row class=#{klass} :multi:.multi>
-    <td>#{checkBoxForRow status}
-    <td>^{dimensionPicture 48 box}
-    <td><a href="@{WarehouseR (WHBoxtakeDetailR boxtakeBarcode)}" target=_blank> #{boxtakeBarcode}
-    <td.boxQuantity>
+    <td.hover>#{checkBoxForRow status}
+    <td.hover>^{dimensionPicture 48 box}
+    <td.hover><a href="@{WarehouseR (WHBoxtakeDetailR boxtakeBarcode)}" target=_blank> #{boxtakeBarcode}
+    <td.hover..boxQuantity>
       ^{displayBoxQuantity status}
-    <td.boxDescription>#{fromMaybe "" boxtakeDescription}
-    <td.batch>#{fromMaybe "" boxtakeBatch}
-    <td>#{tshow boxtakeDate}
-    <td>#{boxtakeLocation}
+    <td.hover.boxDescription>#{fromMaybe "" boxtakeDescription}
+    <td.hover.batch>#{fromMaybe "" boxtakeBatch}
+    <td.hover>#{tshow boxtakeDate}
+    <td.hover>#{boxtakeLocation}
           |]
   
 -- | Depending on the status of a box
