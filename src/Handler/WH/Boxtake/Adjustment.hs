@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedLabels, OverloadedRecordDot, TypeOperators #-}
+{-# LANGUAGE TypeAbstractions #-}
 module Handler.WH.Boxtake.Adjustment 
 ( AdjustmentParam(..)
 , BoxStatus(..)
@@ -19,6 +21,9 @@ module Handler.WH.Boxtake.Adjustment
 )
 where
 import Import hiding(Planner, leftover)
+import qualified Database.Esqueleto.Experimental as E
+import qualified Database.Esqueleto.Internal.Internal as EI
+
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
 import Data.Align
 import Handler.WH.Boxtake.Common
@@ -30,6 +35,9 @@ import Util.ForConduit
 import qualified Data.Conduit.List as C
 import qualified Data.Map as Map
 import Data.Time.Calendar()
+import qualified FA as FA
+
+
 
 type BoxtakePlus = (Entity Boxtake , [Entity Stocktake])
 type StocktakePlus = (Entity Stocktake, Key Boxtake)
@@ -296,35 +304,75 @@ loadQohForAdjustment param =
 loadLastStocktake :: AdjustmentParam -> SqlConduit () (ForMap Style [(Sku, Day, Double)]) ()
 loadLastStocktake param =
     let defaultLocation = aLocation param
-        sql = " SELECT value as style, stock_id, sum(qty) quantity, last_date "
-           <> " FROM fames_item_category_cache "
-           <> " JOIN 0_stock_moves USING (stock_id)"
-           <> " JOIN ( " <> stSql <> " ) as st USING(stock_id) "
-           <> " WHERE loc_code = ? AND category = 'style' AND tran_date <= last_date "
-        (after, stA, ap)  = case aDate param of
-                         Nothing -> ("", "", [])
-                         Just today -> ("  AND tran_date <= ? ", " WHERE st.date <= ? ", [ toPersistValue today ])
-        groupB =  " GROUP BY stock_id HAVING quantity != 0 "
-        (w,p) = case filterEKeyword "value" <$> aStyleFilter param of
-          Nothing -> ("",  [] )
-          Just (keyword, v) -> (" AND " <> keyword, v)
-        stSql  = " SELECT stock_id, MAX(st.date) as last_date "
-               <> " FROM fames_stocktake st "  
-               <> " JOIN fames_boxtake using(barcode) "
-               -- only use stocktake which corresponds to an existing box
-               <> stA
-               <> " GROUP BY stock_id"
-        convert :: (Single Text,  Single Text, Single Double, Single Day) -> (Style, (Sku, Day, Double))
-        convert (Single style, Single sku, Single quantity, Single date) = (Style style, (Sku sku, date, quantity))
-    in rawQuery (sql <> w <> after <> groupB) (ap <> [ toPersistValue defaultLocation ] <> p <> ap)
-           .| mapC (either (error . unpack ) convert . rawSqlProcessRow)
+        lastStocktakeDate stockId = do
+                    stocktake <- E.from $ E.table @Stocktake
+                    -- use only stocktake which corresponds to an existing box
+                    E.where_  $ E.exists $ do
+                                  boxtake <- E.from $ E.table @Boxtake
+                                  E.where_ $ stocktake.barcode E.==. boxtake.barcode
+                                  return ()
+                    E.where_ $ stocktake.stockId E.==. stockId
+                    case aDate param of
+                      Nothing -> return ()
+                      Just today -> E.where_ $ stocktake.date E.<=. E.val today
+                    return $ E.max_ stocktake.date
+        query = do
+                  (move E.:& itemCategory) <- E.from $ E.table @FA.StockMove `E.innerJoin` E.table @ItemCategory
+                                                                      `E.on` (\(m E.:& c) -> m.stockId E.==. c.stockId)
+                  E.where_ (itemCategory.category E.==. E.val "style")
+                  E.where_ $ move.locCode E.==. E.val defaultLocation
+                  
+                  let lastDateM = E.subSelect $ lastStocktakeDate move.stockId
+                      lastDate = EI.veryUnsafeCoerceSqlExprValue lastDateM
+
+                  E.where_ $ move.tranDate E.<=. lastDate
+                  
+                  -- filter date
+                  forM (aDate param) $ E.where_ . (move.tranDate E.<=.) . E.val
+                  -- filter stockid
+                  forM (aStyleFilter param) $ E.where_ . filterESqlExpr itemCategory.value
+
+                  E.groupBy move.stockId
+                  let qty = E.coalesceDefault [E.sum_ move.qty] (E.val 0)
+                  E.having $ qty E.!=. E.val 0
+                  return ( itemCategory.value
+                         , move.stockId
+                         , qty
+                         , lastDate
+                         )
+               
+        -- sql = " SELECT value as style, stock_id, sum(qty) quantity, last_date "
+        --    <> " FROM fames_item_category_cache "
+        --    <> " JOIN 0_stock_moves USING (stock_id)"
+        --    <> " JOIN ( " <> stSql <> " ) as st USING(stock_id) "
+        --    <> " WHERE loc_code = ? AND category = 'style' AND tran_date <= last_date "
+        -- (after, stA, ap)  = case aDate param of
+        --                  Nothing -> ("", "", [])
+        --                  Just today -> ("  AND tran_date <= ? ", " WHERE st.date <= ? ", [ toPersistValue today ])
+        -- groupB =  " GROUP BY stock_id HAVING quantity != 0 "
+        -- (w,p) = case filterEKeyword "value" <$> aStyleFilter param of
+        --   Nothing -> ("",  [] )
+        --   Just (keyword, v) -> (" AND " <> keyword, v)
+        -- stSql  = " SELECT stock_id, MAX(st.date) as last_date "
+        --        <> " FROM fames_stocktake st "  
+        --        <> " JOIN fames_boxtake using(barcode) "
+        --        -- only use stocktake which corresponds to an existing box
+        --        <> stA
+        --        <> " GROUP BY stock_id"
+        -- convert :: (Single Text,  Single Text, Single Double, Single Day) -> (Style, (Sku, Day, Double))
+        convert (E.Value style, E.Value sku, E.Value quantity, E.Value date) = (Style style, (Sku sku, date, quantity))
+    in -- rawQuery (sql <> w <> after <> groupB) (ap <> [ toPersistValue defaultLocation ] <> p <> ap)
+       E.selectSource query
+           .| mapC convert
            .| C.groupOn1 fst
            .| mapC \((style,x), st'xs) -> ForMap style (x: map snd st'xs)
 
 loadAdjustementInfo :: AdjustmentParam -> SqlConduit () (ForMap Style StyleInfo) ()
 loadAdjustementInfo param = do
-  joinOnWith forMapKey forMapKey moreInfo (joinOnWith forMapKey forMapKey  mkInfo (loadBoxForAdjustment param) (loadQohForAdjustment param)) 
-                                           (loadLastStocktake param)
+  joinOnWith forMapKey forMapKey moreInfo (joinOnWith forMapKey forMapKey  mkInfo (loadBoxForAdjustment param)
+                                                                                  (loadQohForAdjustment param)
+                                          ) 
+                                          (loadLastStocktake param)
   where mkInfo (ForMap style boxes) qohs =
                let sku'qohs = concat [ sku'qoh | ForMap _ sku'qoh <- qohs ]
                in ForMap style $ StyleInfo (mapFromList sku'qohs) mempty boxes
