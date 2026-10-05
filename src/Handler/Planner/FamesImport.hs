@@ -318,12 +318,13 @@ importBoxStatusLive :: Maybe Day -> WhichBoxes -> Text -> [Text] -> Handler Sect
 importBoxStatusLive todaym which prefix __tags = do
   summaries <- loadLiveSummaries todaym
   operators <- allOperators
+  skuToStyleVar <- I.skuToStyleVarH
   let header = "selector,tags"
   let content = header:rows
-      rows = [  "#barcode=" <> boxtakeBarcode
+      rows = [ maybe "" (unStyle . fst . skuToStyleVar . Sku) boxtakeDescription <> "#barcode=" <> boxtakeBarcode 
                <> ","
                <> intercalate "#" [ prefix <> "live-status=" <> tshow (Box.boxStatus statusbox)
-                                  , prefix <> "#live-rank=" <> tshow rank
+                                  , prefix <> "live-rank=" <> tshow rank
                                   , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
                                   , prefix <> "date=" <> tshow boxtakeDate
                                   , prefix <> "location=" <> boxtakeLocation
@@ -331,6 +332,7 @@ importBoxStatusLive todaym which prefix __tags = do
                                   , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
                                                         operatorNickname
                                                         (lookup boxtakeOperator operators)
+                                  , prefix <> "batch=" <> fromMaybe "" boxtakeBatch 
                                   ]
              | summary <- summaries
              , (statusbox, rank) <- Box.ssBoxesWithRank summary
