@@ -12,6 +12,7 @@ import Handler.Planner.Exec
 import qualified Handler.WH.PLToPlanner as PL
 import qualified Handler.WH.Boxtake as Box
 import qualified Handler.WH.Boxtake.Adjustment as Box
+import qualified Handler.WH.Boxtake.Common as Box
 import qualified Handler.Items.Index as I
 import qualified Handler.Items.Common as I
 import qualified Items.Internal as I
@@ -166,22 +167,31 @@ importBoxStatus whichBoxes prefix a_tags = do
         ActiveBoxes -> Box.plannerSource  .| concatMapC (\(Box.HasPosition _ boxE'_s) -> map fst boxE'_s)
         -- ActiveBoxes -> Box.plannerSource  .| concatMapC _
       -- prefix = fromMaybe "" a_prefix
-      getTags (Entity _ Boxtake{..}) = maybe "" (unStyle . fst . skuToStyleVar . Sku) boxtakeDescription <> "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
+      getTags (Entity _ boxtake@Boxtake{..}) = maybe "" (unStyle . fst . skuToStyleVar . Sku) boxtakeDescription <> "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
               where
-                tags = [ prefix <> "location="  <> boxtakeLocation
-                       , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
-                       , prefix <> "date=" <> tshow boxtakeDate
-                       , prefix <> "reference=" <> unwords (lines boxtakeReference)
-                       , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
-                                                        operatorNickname
-                                                        (lookup boxtakeOperator operators)
-                       , prefix <> "batch=" <> fromMaybe "" boxtakeBatch 
-                       ] <> a_tags
+                tags = map (prefix <>) (tagsFromBoxtake operators boxtake)
+                       <> a_tags
       header = "selector,tags"
   rows <- (runDB $ runConduit $ source .| mapC getTags .| consume)
   let content = header:rows
   return $ Section (TagsH []) (Right content) ("* Tags from Fames DB [" <> tshow today <> "]")
   
+tagsFromBoxtake :: Map (Key Operator) Operator -> Boxtake -> [Text]
+tagsFromBoxtake operators Boxtake{..} = 
+     "location="  <> location :
+     posTagM ?:
+    [ "status=" <> if boxtakeActive then "active" else "inactive"
+    , "date=" <> tshow boxtakeDate
+    , "reference=" <> unwords (lines boxtakeReference)
+    , "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
+                           operatorNickname
+                           (lookup boxtakeOperator operators)
+    , "batch=" <> fromMaybe "" boxtakeBatch 
+    ]
+    where (Box.Location location, positionM) = Box.extractPosition boxtakeLocation
+          posTagM = case positionM of
+                         Just (orientatioM, pos) -> Just $  "position=" <> maybe ":" singleton orientatioM <> pos
+                         Nothing -> Nothing
 --  | Execute the report from another planner
 executeReport :: HeaderType -> [FilePath] -> Maybe Text -> Handler (Either Text [Section])
 executeReport headerType paths reportParamM = do
@@ -323,20 +333,13 @@ importBoxStatusLive todaym which prefix __tags = do
   let content = header:rows
       rows = [ maybe "" (unStyle . fst . skuToStyleVar . Sku) boxtakeDescription <> "#barcode=" <> boxtakeBarcode 
                <> ","
-               <> intercalate "#" [ prefix <> "live-status=" <> tshow (Box.boxStatus statusbox)
-                                  , prefix <> "live-rank=" <> tshow rank
-                                  , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
-                                  , prefix <> "date=" <> tshow boxtakeDate
-                                  , prefix <> "location=" <> boxtakeLocation
-                                  , prefix <> "reference=" <> unwords (lines boxtakeReference)
-                                  , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
-                                                        operatorNickname
-                                                        (lookup boxtakeOperator operators)
-                                  , prefix <> "batch=" <> fromMaybe "" boxtakeBatch 
-                                  ]
+               <> intercalate "#" ( map (prefix <>) (tagsFromLiveStatus status'rank
+                                                    <> tagsFromBoxtake operators boxtake
+                                                    ) 
+                                  )
              | summary <- summaries
-             , (statusbox, rank) <- Box.ssBoxesWithRank summary
-             , let (Entity _ Boxtake{..}, _) = Box.usedSubject statusbox
+             , status'rank@(statusbox, _rank) <- Box.ssBoxesWithRank summary
+             , let (Entity _ boxtake@Boxtake{..}, _) = Box.usedSubject statusbox
              , case which of
                  AllBoxes -> Box.boxStatus statusbox /= Box.BoxInactive
                  ActiveBoxes -> boxtakeActive
@@ -371,12 +374,10 @@ importActiveBoxtakesLive todaym tags = do
                 , map (snd . skuToStyleVar . Sku . stocktakeStockId . entityVal) stocktakes
                 )
               | summary <- summaries
-              , (statusbox, rank) <- Box.ssBoxesWithRank summary
+              , status'rank@(statusbox, _rank) <- Box.ssBoxesWithRank summary
               , let (Entity boxKey boxtake, stocktakes) = Box.usedSubject statusbox
               , Box.boxStatus statusbox /= Box.BoxInactive
-              , let tags = [ "#live-status=" <> tshow (Box.boxStatus statusbox)
-                           , "#live-rank=" <> tshow rank
-                           ]
+              , let tags = map ("#" <>) (tagsFromLiveStatus status'rank)
               , let extraTags = mconcat tags
 
               ]
@@ -388,6 +389,13 @@ importActiveBoxtakesLive todaym tags = do
   liftIO $ traceMarkerIO "End Conduit"
   return $ Section (StocktakeH tags) (Right $ Box.csvHeaderWithPosition : content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
   
+tagsFromLiveStatus :: (Box.UsedStatus Box.BoxtakePlus, Int) -> [Text]
+tagsFromLiveStatus (statusbox, rank) = 
+    [ "live-status=" <> tshow (Box.boxStatus statusbox)
+    , "live-rank=" <> tshow rank
+    ]
+
+
 myNubBy :: Hashable k => (a -> k) -> [a] -> [a]
 -- myNubBy f = nubBy ((==)`on` f) . sortOn f
 -- myNubBy f xs = Map.elems $ mapFromList [(f x, x) | x <- xs ]

@@ -18,6 +18,8 @@ module Handler.WH.Boxtake.Adjustment
 , processBoxtakeActivation
 , usedSubject
 , ssBoxesWithRank
+, UsedStatus
+, BoxtakePlus
 )
 where
 import Import hiding(Planner, leftover)

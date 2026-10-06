@@ -209,7 +209,7 @@ toPlanner (HasPosition hasPosition (Entity _ Boxtake{..}, colours)) =
               ) ++ mixed ::  [Text]
         (Location location, position ) =
                case extractPosition boxtakeLocation of
-                     (loc, Just (Nothing, pos)) -> (loc, pos)
+                     (loc, Just (Nothing, pos)) -> (loc, cons ':' pos)
                      (loc, posm) -> (loc, joinPosition (Location "") posm)
         mixed = case map unVar colours of
                      (_:_:_) -> "mixed" : [ "content" <> tshow index <> "=" <> colour
