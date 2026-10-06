@@ -170,11 +170,10 @@ importBoxStatus whichBoxes prefix a_tags = do
       getTags (Entity _ boxtake@Boxtake{..}) = maybe "" (unStyle . fst . skuToStyleVar . Sku) boxtakeDescription <> "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
               where
                 tags = map (prefix <>) (tagsFromBoxtake operators boxtake)
-                       <> a_tags
       header = "selector,tags"
   rows <- (runDB $ runConduit $ source .| mapC getTags .| consume)
   let content = header:rows
-  return $ Section (TagsH []) (Right content) ("* Tags from Fames DB [" <> tshow today <> "]")
+  return $ Section (TagsH a_tags) (Right content) ("* Tags from Fames DB [" <> tshow today <> "]")
   
 tagsFromBoxtake :: Map (Key Operator) Operator -> Boxtake -> [Text]
 tagsFromBoxtake operators Boxtake{..} = 
