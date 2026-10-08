@@ -116,6 +116,7 @@ computeInfoSummary useActiveStatus StyleInfo{..} =
                     :: Set Sku
       x s = let (Entity _ sub, _) = usedSubject s 
             in ( Down $ isUsed s    -- put Used box first and then sort them by quantity
+               , Down $ stocktakeBatch sub
                , Down $ if (Sku $ stocktakeStockId sub)  `member` pickedSince
                         then stocktakeQuantity sub
                         else 1
