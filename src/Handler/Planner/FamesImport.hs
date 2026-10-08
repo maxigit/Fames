@@ -186,6 +186,7 @@ tagsFromBoxtake operators Boxtake{..} =
                            operatorNickname
                            (lookup boxtakeOperator operators)
     , "batch=" <> fromMaybe "" boxtakeBatch 
+    , "description=" <> fromMaybe "" boxtakeDescription
     ]
     where (Box.Location location, positionM) = Box.extractPosition boxtakeLocation
           posTagM = case positionM of
