@@ -114,12 +114,21 @@ computeInfoSummary useActiveStatus StyleInfo{..} =
                                 , fmap snd (lookup sku siLastStockTake)  /= Just qoh
                                 ] 
                     :: Set Sku
+      batchDateMap :: Map Text Day
+      batchDateMap = Map.fromListWith min [ (batch, stocktakeDate s)
+                                          | (Entity _ s, _) <- stocktakesSorted 
+                                          , batch <- toList (stocktakeBatch s)
+                                          ]
+      batchDate s = fromMaybe (stocktakeDate s) $ stocktakeBatch s >>= flip lookup batchDateMap 
       x s = let (Entity _ sub, _) = usedSubject s 
-            in ( Down $ isUsed s    -- put Used box first and then sort them by quantity
-               , Down $ stocktakeBatch sub
+            in
+               -- @t traceShowId
+               ( Down $ isUsed s    -- put Used box first and then sort them by quantity
+               , Down $ max (stocktakeDate sub) (batchDate sub)
                , Down $ if (Sku $ stocktakeStockId sub)  `member` pickedSince
                         then stocktakeQuantity sub
                         else 1
+               , stocktakeBarcode sub
                )
       usedBoxes = usedStocktakeToBoxes (map fst siBoxtakes) stocktakesWithQ
       -- used boxes may contain the same box many times
