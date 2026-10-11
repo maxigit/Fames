@@ -531,7 +531,7 @@ saveLocation Row{..} =
                           -- T
                           -- +-- either oldLocation == new location (: no position)
                           --     or old location == new locatation : old position
-        when (boxtakeActive boxtake && rowDate >= boxtakeDate boxtake || newLocation /= boxtakeLocation boxtake) do
+        when (rowDate >= boxtakeDate boxtake || newLocation /= boxtakeLocation boxtake) do
            updateBoxtakeLocation newLocation
                                  (entityKey rowOperator)
                                  (rowDate)
