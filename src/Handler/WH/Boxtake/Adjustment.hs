@@ -104,31 +104,39 @@ computeInfoSummary useActiveStatus StyleInfo{..} =
   -- boxes with the less quantity are more likely to be picked from first, especially if they are mixed colours
   -- However, the fact that a box can contains many colours, means than we can just process
   -- all boxes together but needs to sort priority for each colours independently
-  let p's'bs = concatMap (computeStocktakePriority useActiveStatus) siBoxtakes
+  let p's'bs = concatMap (computeStocktakePriority batchDateMap useActiveStatus) siBoxtakes
       stocktakesSorted = map snd $ sortOn fst p's'bs
       (_, stocktakesWithQHack ) = mapAccumL assignQuantityToStocktake (fmap snd siLastStockTake) stocktakesSorted
       (_qohLeft, stocktakesWithQ ) = mapAccumL assignQuantityToStocktake siQoh hackedStocktakes
-      hackedStocktakes = map usedSubject $ sortOn x stocktakesWithQHack
+      -- @t hackedStocktakes = map usedSubject $ sortOn x $ map (\s -> traceIf (entityVal $ fst $ usedSubject s) s) stocktakesWithQHack
+      hackedStocktakes = map usedSubject $ sortOn x stocktakesWithQHack -- @T
       pickedSince = setFromList [ sku 
                                 | (sku, qoh)  <- Map.toList siQoh
                                 , fmap snd (lookup sku siLastStockTake)  /= Just qoh
                                 ] 
                     :: Set Sku
       batchDateMap :: Map Text Day
-      batchDateMap = Map.fromListWith min [ (batch, stocktakeDate s)
-                                          | (Entity _ s, _) <- stocktakesSorted 
-                                          , batch <- toList (stocktakeBatch s)
+      batchDateMap = Map.fromListWith min [ (batch, boxtakeDate b)
+                                          | (Entity _ b, es) <- siBoxtakes 
+                                          , (Entity _ s) <- es 
+                                          , batch <- toList  (stocktakeBatch s)
                                           ]
-      batchDate s = fromMaybe (stocktakeDate s) $ stocktakeBatch s >>= flip lookup batchDateMap 
+      batchDate s = stocktakeBatch s >>= flip lookup batchDateMap
+      -- @t traceIf sub = (if (stocktakeStockId sub `elem` ["ML13-BD1-GRT", "ME16-WD5-AZR", "ML16-AH3-INO", "ML25-OD3-AZR"]) then traceShowId else id )
       x s = let (Entity _ sub, _) = usedSubject s 
             in
-               -- @t traceShowId
+               -- @t traceIf sub
                ( Down $ isUsed s    -- put Used box first and then sort them by quantity
-               , Down $ max (stocktakeDate sub) (batchDate sub)
+               , Down $  case lookup (Sku $ stocktakeStockId sub) siLastStockTake of
+                                Nothing ->  False
+                                -- keep all boxes which came after the last stocktake
+                                -- TODO this is test is redundant with pickedSince
+                                Just (last, _qohThen) -> last < stocktakeDate sub
+               , Down (batchDate sub)
                , Down $ if (Sku $ stocktakeStockId sub)  `member` pickedSince
                         then stocktakeQuantity sub
                         else 1
-               , stocktakeBarcode sub
+               -- @b , stocktakeBarcode sub
                )
       usedBoxes = usedStocktakeToBoxes (map fst siBoxtakes) stocktakesWithQ
       -- used boxes may contain the same box many times
@@ -151,16 +159,17 @@ boxInfoToSummary sku t = let
 
   
 
-type StocktakePrioriry = (Down Bool, Down Day, Down (Maybe Text), Down Int, Down (Bool, Text), Down StocktakeId)
-computeStocktakePriority :: UseActiveStatus -> BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
-computeStocktakePriority useActiveStatus (Entity bId Boxtake{..}, stocktakes) = do
+type StocktakePrioriry = (Down Bool, Down Day, Down Day, Down Int, Down (Bool, Text), Down StocktakeId)
+computeStocktakePriority :: Map Text Day -> UseActiveStatus -> BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
+computeStocktakePriority batchDateMap useActiveStatus (Entity bId Boxtake{..}, stocktakes) = do
+  let batchDate = fromMaybe boxtakeDate $ boxtakeBatch >>= flip lookup batchDateMap 
   s@(Entity sId Stocktake{..}) <- stocktakes
   let priority = ( Down $ useActiveStatus == IgnoreActiveStatus || boxtakeActive --    || stocktakeActive
                  , Down boxtakeDate -- older more likely to be picked
                  --     ^ we use the boxtake date and not the stocktake
                  --       because the boxtakeDate can be more recent if the box has been scanned
                  --       without a full stocktake
-                 , Down boxtakeBatch -- old batch first
+                 , Down $ batchDate -- old batch first
                  , Down stocktakeQuantity -- The more, the less we pick from it
                  , Down $ locationPriority boxtakeLocation
                  , Down $ sId -- in case of same date, use last created first. Make sure
@@ -176,7 +185,7 @@ computeStocktakePriority useActiveStatus (Entity bId Boxtake{..}, stocktakes) = 
 locationPriority :: Text -> (Bool, Text)
 locationPriority location = let 
    (bay, shelf) = break (== '/') location
-   in (shelf >= "2", bay)
+   in (shelf >= "2" || shelf == "", bay)
 
 -- | Assign and use the quantity for a given stock take
 assignQuantityToStocktake :: (Map Sku Double) -> StocktakePlus -> (Map Sku Double, UsedStatus StocktakePlus)
