@@ -466,9 +466,10 @@ xxx :: AdjustmentParam
     -> Widget
 xxx AdjustmentParam{..} decorateSku _decorateQuantity summary@StyleInfoSummary{..} =
   let isChecked = not (hasSwap summary)
+      notChecked = not isChecked
   in [whamlet|
        <tbody.summary-group :aShowDetails:.with-details>
-         <tr.summary-row>
+         <tr.summary-row :notChecked:.bg-warning>
            $if aShowDetails
              <td.checkboxColumn>
                <input type="checkbox" :isChecked:checked>
@@ -488,12 +489,17 @@ xxx AdjustmentParam{..} decorateSku _decorateQuantity summary@StyleInfoSummary{.
 -- | Weither boxes are created and destroyed or not
 hasSwap :: StyleInfoSummary -> Bool
 hasSwap StyleInfoSummary{..} = let
-   statuses = map boxStatus ssBoxes
-   toCreate  = filter (== BoxToActivate) statuses
-   toDelete  = filter (== BoxToDeactivate) statuses
-   in case (toCreate, toDelete) of
-        (_:_, _:_) -> True
-        _ -> False
+   statusesMap = Map.fromListWith (<>) [ (boxtakeDescription box, [ boxStatus boxPlus] )
+                                      | boxPlus <- ssBoxes
+                                      , let (Entity _ box , _) = usedSubject boxPlus
+                                      ]
+   go statuses = let
+      toCreate  = filter (== BoxToActivate) statuses
+      toDelete  = filter (== BoxToDeactivate) statuses
+      in case (toCreate, toDelete) of
+           (_:_, _:_) -> True
+           _ -> False
+   in any go (toList statusesMap)
 
 displayBoxQuantity :: UsedStatus BoxtakePlus -> Widget
 displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
