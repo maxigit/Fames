@@ -464,25 +464,36 @@ xxx :: AdjustmentParam
     -> (Maybe Sku -> String -> Widget) -- (Maybe Text -> _ -> Widget)
     -> StyleInfoSummary
     -> Widget
-xxx AdjustmentParam{..} decorateSku _decorateQuantity StyleInfoSummary{..} =
-  [whamlet|
-    <tbody.summary-group :aShowDetails:.with-details>
-      <tr.summary-row>
-        $if aShowDetails
-          <td.checkboxColumn><input type="checkbox" checked>
-        <td.styleColumn colspan=2>^{maybe mempty decorateSku ssSku }
-        <td.varQuantity>^{_decorateQuantity ssSku (formatQuantity ssQoh)}
-           $with leftOver <- ssQoh - ssQUsed
-              $if leftOver > 0
-                <span.badge>#{formatQuantity leftOver}
-        <td.hover colspan=4>
-          <div.status-summary>
-            $forall statusBox <- sortOn boxStatus ssBoxes
-                  ^{displayBoxQuantity statusBox}
-      $if aShowDetails 
-        ^{forM_ ssBoxes displayBoxRow}
+xxx AdjustmentParam{..} decorateSku _decorateQuantity summary@StyleInfoSummary{..} =
+  let isChecked = not (hasSwap summary)
+  in [whamlet|
+       <tbody.summary-group :aShowDetails:.with-details>
+         <tr.summary-row>
+           $if aShowDetails
+             <td.checkboxColumn>
+               <input type="checkbox" :isChecked:checked>
+           <td.styleColumn colspan=2>^{maybe mempty decorateSku ssSku }
+           <td.varQuantity>^{_decorateQuantity ssSku (formatQuantity ssQoh)}
+              $with leftOver <- ssQoh - ssQUsed
+                 $if leftOver > 0
+                   <span.badge>#{formatQuantity leftOver}
+           <td.hover colspan=4>
+             <div.status-summary>
+               $forall statusBox <- sortOn boxStatus ssBoxes
+                     ^{displayBoxQuantity statusBox}
+         $if aShowDetails 
+           ^{forM_ ssBoxes (displayBoxRow isChecked)}
 |]
 
+-- | Weither boxes are created and destroyed or not
+hasSwap :: StyleInfoSummary -> Bool
+hasSwap StyleInfoSummary{..} = let
+   statuses = map boxStatus ssBoxes
+   toCreate  = filter (== BoxToActivate) statuses
+   toDelete  = filter (== BoxToDeactivate) statuses
+   in case (toCreate, toDelete) of
+        (_:_, _:_) -> True
+        _ -> False
 
 displayBoxQuantity :: UsedStatus BoxtakePlus -> Widget
 displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
@@ -491,13 +502,13 @@ displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
       <span.badge>#{maybe "∅" formatQuantity (usedQuantity status)}
       |]
 
-displayBoxRow :: UsedStatus BoxtakePlus -> Widget
-displayBoxRow status = forM_ (classForBox status) $ \klass -> do
+displayBoxRow :: Bool -> UsedStatus BoxtakePlus -> Widget
+displayBoxRow isChecked status = forM_ (classForBox status) $ \klass -> do
   let (Entity _bId box@Boxtake{..}, stocktakees) = usedSubject status
       multi = not . null $ drop 1 stocktakees 
   [whamlet|
   <tr.box-row class=#{klass} :multi:.multi>
-    <td.hover>#{checkBoxForRow status}
+    <td.hover>#{checkBoxForRow isChecked status}
     <td.hover>^{dimensionPicture 48 box}
     <td.hover><a href="@{WarehouseR (WHBoxtakeDetailR boxtakeBarcode)}" target=_blank> #{boxtakeBarcode}
     <td.hover..boxQuantity>
@@ -510,22 +521,22 @@ displayBoxRow status = forM_ (classForBox status) $ \klass -> do
   
 -- | Depending on the status of a box
 -- We need to either activate or not.
-checkBoxForRow :: UsedStatus BoxtakePlus -> Html
-checkBoxForRow status = case boxStatus status of
+checkBoxForRow :: Bool -> UsedStatus BoxtakePlus -> Html
+checkBoxForRow isChecked status = case boxStatus status of
   BoxToActivate -> [shamlet|
                              <span.badge>
-                               <input type="checkbox" name="activate-#{boxId}" checked>
+                               <input type="checkbox" name="activate-#{boxId}" :isChecked:checked>
                            |]
   BoxToDeactivate -> -- only deactivate if the box is not shared
     case snd (usedSubject  status ) of
       [] -> [shamlet|<span.badge>
-                        <input type="checkbox" name="deactivate-#{boxId}" checked>|]
+                        <input type="checkbox" name="deactivate-#{boxId}" :isChecked:checked>|]
       _ -> [shamlet|<span.badge>
                    <input type="checkbox" disabled>
       -- _ -> [shamlet|<span.glyphicon.glyphicon-ban-circle>|]
   BoxUsed -> [shamlet|
                              <span.badge>
-                               <input type="checkbox" name="used-#{boxId}" checked>
+                               <input type="checkbox" name="used-#{boxId}" :isChecked:checked>
                            |]
   _ -> ""
   where boxId = tshow . unSqlBackendKey . unBoxtakeKey . entityKey . fst  $ usedSubject status
