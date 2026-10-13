@@ -517,8 +517,8 @@ displayExtraInfo :: UsedStatus BoxtakePlus -> Widget
 displayExtraInfo status = forM_ (classForBox status) $ \klass ->  do
   [whamlet|
     <span class="#{klass}">
-      <span.badge> <span.bold>#{maybe "" withColon (boxtakeBatch  (entityVal ( fst (usedSubject status))))}
-                   #{unLocation (fst (extractPosition (boxtakeLocation  (entityVal ( fst (usedSubject status))))))}
+      <span.badge> #{maybe "" withColon (boxtakeBatch  (entityVal ( fst (usedSubject status))))}
+                   <span.extra-location>#{unLocation (fst (extractPosition (boxtakeLocation  (entityVal ( fst (usedSubject status))))))}
       |]
   where withColon t = t <> " : "
 
@@ -677,6 +677,9 @@ td.styleColumn
   width:  20%
 td.varQuantity
   width:  10%
+span.extra-location
+   font-size: 0.95rem
+   font-style: italic
 |]
 
 adjustmentJS :: Widget
