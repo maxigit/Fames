@@ -508,7 +508,9 @@ displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
   [whamlet|
     <span class="#{klass}">
       <span.badge>#{maybe "∅" formatQuantity (usedQuantity status)}
+                  #{maybe "" withColon (boxtakeBatch  (entityVal ( fst (usedSubject status))))}
       |]
+  where withColon t = ":" <> t
 
 displayBoxRow :: Bool -> UsedStatus BoxtakePlus -> Widget
 displayBoxRow isChecked status = forM_ (classForBox status) $ \klass -> do
