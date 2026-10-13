@@ -643,6 +643,7 @@ renderMissingBoxRow renderUrl (Entity _ missing) = [whamlet|
       <tr.bg-danger>
         <td> #{renderBarcode renderUrl (boxtakeBarcode missing)}
         <td> #{fromMaybe "" (boxtakeDescription missing)}
+        <td> #{fromMaybe "?" (boxtakeBatch missing)}
         <td.text-danger> #{boxtakeLocation missing}
         <td> ∅
         <td>

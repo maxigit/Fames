@@ -396,18 +396,19 @@ renderRows :: _ -> [Row] -> Widget
 renderRows renderUrl rows  =
     displayTableRowsAndHeader indexes colnameF (map mkRowF rows)
     where
-      indexes = [1..7]
-      colnameF i = map (,[]) ["Barcode", "Description", "Old Location", "New Location", "For Planner", "Active", "Date"] !! (i-1)
+      indexes = [1..8]
+      colnameF i = map (,[]) ["Barcode", "Description", "Batch", "Old Location", "New Location", "For Planner", "Active", "Date"] !! (i-1)
       mkRowF row@Row{..}  =
         case rowBoxtake of 
           Just (Entity _ Boxtake{..}) -> let
             value 1 = Just ( renderBarcode renderUrl boxtakeBarcode , [])
-            value 2 = Just ( toHtml $ fromMaybe "" $ boxtakeDescription, [])
-            value 3 = Just ( toHtml $ oldLocation, if inOld then [] else ["text-danger"])
-            value 4 = Just ( toHtml $ newLocation , if oldLocation == newLocation then [] else  ["text-warning"])
-            value 5 =  Just  (toHtml $ intercalate " " rowForPlanner , [])
-            value 6 = Just ( toHtml $ boxtakeActive, if rowIsFound row then ["text-danger"] else [])
-            value 7 = Just ( toHtml . tshow $ boxtakeDate, [])
+            value 2 = Just ( toHtml $ fromMaybe "" boxtakeDescription, [])
+            value 3 = Just ( toHtml $ fromMaybe "?" $ boxtakeBatch, [])
+            value 4 = Just ( toHtml $ oldLocation, if inOld then [] else ["text-danger"])
+            value 5 = Just ( toHtml $ newLocation , if oldLocation == newLocation then [] else  ["text-warning"])
+            value 6 =  Just  (toHtml $ intercalate " " rowForPlanner , [])
+            value 7 = Just ( toHtml $ boxtakeActive, if rowIsFound row then ["text-danger"] else [])
+            value 8 = Just ( toHtml . tshow $ boxtakeDate, [])
             value _ = Nothing
             oldLocation = boxtakeLocation 
             locationSet_ = Set.fromList $ map (fst . extractPosition) $ (splitOn "|" oldLocation)
@@ -420,7 +421,7 @@ renderRows renderUrl rows  =
             in ( value, rowClasses )
           Nothing -> let -- empty shelve
             value 1 = Just "∅"
-            value 4 = Just . toHtml $ unLocation rowLocation
+            value 5 = Just . toHtml $ unLocation rowLocation
             value _ = Nothing
             in ( ((,[]) <$>) .value, ["bg-danger"])
 
