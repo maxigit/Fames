@@ -358,6 +358,7 @@ loadLiveSummaries todaym = do
       aUseBoxStatus = True
       aStyleSummary =  False
       aDate = todaym
+      aAutoBanish = True
   infos <- runDB $ sourceToList $ Box.loadAdjustementInfo  param
   let summaries = map (snd . unForMap) infos >>= Box.computeInfoSummary Box.UseActiveStatus
   return summaries

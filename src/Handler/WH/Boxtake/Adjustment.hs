@@ -240,12 +240,13 @@ data AdjustmentParam = AdjustmentParam
   , aUseBoxStatus :: Bool -- ^ use or ignore box active status
   , aStyleSummary :: Bool -- ^ display summary for styles vs variations
   , aDate :: Maybe Day -- ^ stock date
+  , aAutoBanish :: Bool -- ^ If True dead boxes can NOT be resurrected
   } 
 
 defaultAdjustmentParamH :: Handler AdjustmentParam
 defaultAdjustmentParamH = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
-  return $ AdjustmentParam Nothing defaultLocation True False True True Nothing
+  return $ AdjustmentParam Nothing defaultLocation True False True True Nothing True
 -- * Render 
 -- * DB 
 -- | Load all boxes needed to display and compute adjustment
@@ -255,6 +256,7 @@ defaultAdjustmentParamH = do
 loadBoxForAdjustment :: AdjustmentParam -> SqlConduit () (ForMap Style [(Entity Boxtake, [Entity Stocktake])]) ()
 loadBoxForAdjustment param = do
   let filter_ = filterE Just BoxtakeDescription (filterEAddWildcardRight <$> aStyleFilter param)
+                <> ( if aAutoBanish param then [ BoxtakeActive ==. True ] else [] )
   skuToStyleVar <- lift $ lift skuToStyleVarH 
   let descrToStyle sku = let cleaned = fst  $ break (`elem` ("&*" :: [Char])) sku
                              (style, _) = skuToStyleVar $ Sku cleaned
@@ -428,7 +430,7 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
       decorateSku (Sku sku) = case aStyleSummary of
              -- style => drilldown
              True -> [whamlet|
-                             <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk aDate)}"
+                             <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk aUseBoxStatus aDate aAutoBanish)}"
                                 target=_blank
                              >#{sku}
                      |]
