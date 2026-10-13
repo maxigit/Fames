@@ -320,8 +320,8 @@ postWHBoxtakeAdjustmentR = do
 -- | Narrow the search to the given style.
 -- Used mainly as a target from link
 {-# NOINLINE getWHBoxtakeAdjustmentForR #-}
-getWHBoxtakeAdjustmentForR :: Text -> Bool -> Bool -> Maybe Day -> Bool -> Handler TypedContent
-getWHBoxtakeAdjustmentForR style skipOk useBoxStatus todaym autoBanish = do
+getWHBoxtakeAdjustmentForR :: Text -> Bool -> Bool -> Maybe Day -> Bool -> Bool -> Handler TypedContent
+getWHBoxtakeAdjustmentForR style skipOk useBoxStatus todaym autoBanish extraInfo = do
   param0 <- defaultAdjustmentParamH
   let param = param0 { aStyleFilter = Just (LikeFilter style)
                     , aShowDetails = True
@@ -330,6 +330,7 @@ getWHBoxtakeAdjustmentForR style skipOk useBoxStatus todaym autoBanish = do
                     , aStyleSummary = False
                     , aDate = todaym
                     , aAutoBanish = autoBanish
+                    , aExtraInfo = extraInfo
                     }
   renderBoxtakeAdjustments param =<< Just <$> displayBoxtakeAdjustments param
 
@@ -372,6 +373,7 @@ adjustmentForm param = renderBootstrap3 BootstrapBasicForm form where
                          <*> areq boolField "Group Style" (Just $ aStyleSummary param)
                          <*> aopt dayField "Stock Valuation Date" (Just $ aDate param)
                          <*> areq boolField "Auto Banish" (Just $ aAutoBanish param)
+                         <*> areq boolField "Extra Info " (Just $ aExtraInfo param)
 
 -- * Rendering 
 -- ** Boxtake history 

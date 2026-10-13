@@ -241,12 +241,13 @@ data AdjustmentParam = AdjustmentParam
   , aStyleSummary :: Bool -- ^ display summary for styles vs variations
   , aDate :: Maybe Day -- ^ stock date
   , aAutoBanish :: Bool -- ^ If True dead boxes can NOT be resurrected
+  , aExtraInfo :: Bool -- ^ Display Batch and Location instead of quantities
   } 
 
 defaultAdjustmentParamH :: Handler AdjustmentParam
 defaultAdjustmentParamH = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
-  return $ AdjustmentParam Nothing defaultLocation True False True True Nothing True
+  return $ AdjustmentParam Nothing defaultLocation True False True True Nothing True True
 -- * Render 
 -- * DB 
 -- | Load all boxes needed to display and compute adjustment
@@ -430,7 +431,7 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
       decorateSku (Sku sku) = case aStyleSummary of
              -- style => drilldown
              True -> [whamlet|
-                             <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk aUseBoxStatus aDate aAutoBanish)}"
+                             <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk aUseBoxStatus aDate aAutoBanish aExtraInfo)}"
                                 target=_blank
                              >#{sku}
                      |]
@@ -483,6 +484,9 @@ xxx AdjustmentParam{..} decorateSku _decorateQuantity summary@StyleInfoSummary{.
            <td.hover colspan=4>
              <div.status-summary>
                $forall statusBox <- sortOn boxStatus ssBoxes
+                    $if aExtraInfo 
+                     ^{displayExtraInfo statusBox}
+                    $else
                      ^{displayBoxQuantity statusBox}
          $if aShowDetails 
            ^{forM_ ssBoxes (displayBoxRow isChecked)}
@@ -508,9 +512,15 @@ displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
   [whamlet|
     <span class="#{klass}">
       <span.badge>#{maybe "∅" formatQuantity (usedQuantity status)}
-                  #{maybe "" withColon (boxtakeBatch  (entityVal ( fst (usedSubject status))))}
       |]
-  where withColon t = ":" <> t
+displayExtraInfo :: UsedStatus BoxtakePlus -> Widget
+displayExtraInfo status = forM_ (classForBox status) $ \klass ->  do
+  [whamlet|
+    <span class="#{klass}">
+      <span.badge> <span.bold>#{maybe "" withColon (boxtakeBatch  (entityVal ( fst (usedSubject status))))}
+                   #{unLocation (fst (extractPosition (boxtakeLocation  (entityVal ( fst (usedSubject status))))))}
+      |]
+  where withColon t = t <> " : "
 
 displayBoxRow :: Bool -> UsedStatus BoxtakePlus -> Widget
 displayBoxRow isChecked status = forM_ (classForBox status) $ \klass -> do
