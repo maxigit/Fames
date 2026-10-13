@@ -470,6 +470,11 @@ xxx :: AdjustmentParam
 xxx AdjustmentParam{..} decorateSku _decorateQuantity summary@StyleInfoSummary{..} =
   let isChecked = not (hasSwap summary)
       notChecked = not isChecked
+      sorter = if aShowDetails
+               then sortOn boxStatus
+               else sortOn (\b -> let box = entityVal . fst $ usedSubject b
+                                  in (boxtakeBatch box, boxStatus b, boxtakeLocation box)
+                           )
   in [whamlet|
        <tbody.summary-group :aShowDetails:.with-details>
          <tr.summary-row :notChecked:.bg-warning>
@@ -483,7 +488,7 @@ xxx AdjustmentParam{..} decorateSku _decorateQuantity summary@StyleInfoSummary{.
                    <span.badge>#{formatQuantity leftOver}
            <td.hover colspan=4>
              <div.status-summary>
-               $forall statusBox <- sortOn boxStatus ssBoxes
+               $forall statusBox <- sorter ssBoxes
                     $if aExtraInfo 
                      ^{displayExtraInfo statusBox}
                     $else
