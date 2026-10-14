@@ -724,7 +724,10 @@ processBoxtakeMove Save _ (sessions, styleMissings) = do
         let maxDate = fromMaybe today $ maximumMay (map sessionDate sessions)
               
         mapM_ saveFromSession sessions
-        mapM_ (setActivateBoxtake False maxDate) (concatMap missingBoxes styleMissings)
+        mapM_ (setActivateBoxtake False maxDate) (filter (\(Entity _ b) -> boxtakeDate b <= maxDate) $ concatMap missingBoxes styleMissings)
+        --                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        --                                                     |
+        --                                                     +---- don't disable boxes which have been created or seen after the upload date
   renderBoxtakeSheet Validate Nothing (fromEnum created201) (setSuccess "Boxtake uploaded successfully") (return ())
 
 -- ** Adjustment 
